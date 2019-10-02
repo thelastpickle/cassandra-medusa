@@ -47,7 +47,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
     else:
         node_backup = restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage)
     if verify:
-        verify_restore([socket.gethostname()], [node_backup], config)
+        verify_restore([socket.getfqdn()], [node_backup], config)
 
 
 def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage):
@@ -147,7 +147,7 @@ def invoke_sstableloader(config, download_dir, keep_auth):
                 if os.path.isdir(os.path.join(ks_path, table)):
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,
-                                                      '-d', socket.gethostname() if cassandra_is_ccm == 0
+                                                      '-d', socket.getfqdn() if cassandra_is_ccm == 0
                                                       else '127.0.0.1',
                                                       '-u', config.cassandra.cql_username,
                                                       '--password', config.cassandra.cql_password,

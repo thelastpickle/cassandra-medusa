@@ -67,7 +67,7 @@ def configure_logging(verbosity, without_log_timestamp):
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
-@click.option('--fqdn', help='Act as another host', default=socket.gethostname())
+@click.option('--fqdn', help='Act as another host', default=socket.getfqdn())
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.pass_context
