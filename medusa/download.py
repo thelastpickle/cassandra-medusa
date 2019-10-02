@@ -20,19 +20,27 @@ import sys
 from medusa.storage import Storage
 
 
-def download_data(storageconfig, backup, destination):
+def download_data(storageconfig, backup, fqtns_to_restore, destination):
     storage = Storage(config=storageconfig)
     manifest = json.loads(backup.manifest)
 
     for section in manifest:
+
+        fqtn = "{}.{}".format(section['keyspace'], section['columnfamily'])
         dst = destination / section['keyspace'] / section['columnfamily']
         srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
                 for obj in section['objects']]
         dst.mkdir(parents=True)
-        if len(srcs) > 0:
-            storage.storage_driver.download_blobs(srcs, dst)
 
-    logging.info('Downloading the data...')
+        if len(srcs) > 0 and fqtn in fqtns_to_restore:
+            logging.info('Downloading backup data')
+            storage.storage_driver.download_blobs(srcs, dst)
+        elif len(srcs) == 0 and fqtn in fqtns_to_restore:
+            logging.debug('There is nothing to download for {}'.format(fqtn))
+        else:
+            logging.debug('Download of {} was not requested, skipping'.format(fqtn))
+
+    logging.info('Downloading backup metadata...')
     storage.storage_driver.download_blobs(
         src=['{}'.format(path)
              for path in [backup.manifest_path,

@@ -24,7 +24,7 @@ import sys
 import time
 import uuid
 
-from medusa.cassandra_utils import Cassandra
+from medusa.cassandra_utils import Cassandra, is_node_up
 from medusa.download import download_data
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
@@ -34,23 +34,27 @@ A_MINUTE = 60
 MAX_ATTEMPTS = 60
 
 
-def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, use_sstableloader=False):
+def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
+                 use_sstableloader=False):
 
     if in_place and keep_auth:
-        logging.warning('Cannot keep system_auth when restoring in-place. It would be overwritten')
+        logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
         sys.exit(1)
 
     storage = Storage(config=config.storage)
 
     if not use_sstableloader:
-        node_backup = restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage)
+        restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
+                             keyspaces, tables)
     else:
-        node_backup = restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage)
+        restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
+                                   keyspaces, tables)
+
     if verify:
-        verify_restore([socket.getfqdn()], [node_backup], config)
+        verify_restore([socket.getfqdn()], config)
 
 
-def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage):
+def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
     incremental_blob = storage.storage_driver.get_blob(
         os.path.join(config.storage.fqdn, backup_name, 'meta', 'incremental'))
 
@@ -64,14 +68,17 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.error('No such backup')
         sys.exit(1)
 
-    cassandra = Cassandra(config.cassandra)
+    fqtns_to_restore = get_fqtns_to_restore(keyspaces, tables, node_backup.manifest)
+    if len(fqtns_to_restore) == 0:
+        logging.error('There is nothing to restore')
+        sys.exit(0)
 
-    manifest = json.loads(node_backup.manifest)
+    cassandra = Cassandra(config.cassandra)
 
     # Download the backup
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
     logging.info('Downloading data from backup to {}'.format(download_dir))
-    download_data(config.storage, node_backup, destination=download_dir)
+    download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
@@ -83,7 +90,12 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
+    manifest = json.loads(node_backup.manifest)
     for section in manifest:
+        fqtn = "{}.{}".format(section['keyspace'], section['columnfamily'])
+        if fqtn not in fqtns_to_restore:
+            logging.debug('Skipping restore for {}'.format(fqtn))
+            continue
         maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth)
 
     node_fqdn = storage.config.fqdn
@@ -109,7 +121,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     return node_backup
 
 
-def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage):
+def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
     for fqdn in fqdns:
@@ -126,25 +138,32 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
             logging.error('No such backup')
             sys.exit(1)
 
+        fqtns_to_restore = get_fqtns_to_restore(keyspaces, tables, node_backup.manifest)
+
+        if len(fqtns_to_restore) == 0:
+            logging.error('There is nothing to restore')
+            sys.exit(0)
+
         # Download the backup
         download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
-        download_data(config.storage, node_backup, destination=download_dir)
-        invoke_sstableloader(config, download_dir, keep_auth)
+        download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
+        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
     return node_backup
 
 
-def invoke_sstableloader(config, download_dir, keep_auth):
+def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore):
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(download_dir)
     for keyspace in keyspaces:
         ks_path = os.path.join(download_dir, keyspace)
-        if os.path.isdir(ks_path) and keyspace_is_allowed_to_restore(keyspace, keep_auth):
+        if os.path.isdir(ks_path) and keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
             logging.info('Restoring keyspace {} with sstableloader...'.format(ks_path))
             for table in os.listdir(ks_path):
-                if os.path.isdir(os.path.join(ks_path, table)):
+                table_path = os.path.join(ks_path, table)
+                if os.path.isdir(table_path) and table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,
                                                       '-d', socket.getfqdn() if cassandra_is_ccm == 0
@@ -158,11 +177,28 @@ def invoke_sstableloader(config, download_dir, keep_auth):
     clean_path(download_dir)
 
 
-def keyspace_is_allowed_to_restore(keyspace, keep_auth):
+def keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
     if keyspace == 'system':
         return False
 
     if keyspace == 'system_auth' and keep_auth is True:
+        return False
+
+    # a keyspace is allowed to restore if there is at least one fqtn from this keyspace
+    # so we get keyspaces from all the fqtns and make it a set to remove duplicates
+    keyspaces_to_restore = set(map(lambda fqtn: fqtn.split('.')[0], fqtns_to_restore))
+    # then we check if the keyspace we are restoring is present in that set
+    if keyspace not in keyspaces_to_restore:
+        return False
+
+    return True
+
+
+def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
+
+    # table is allowed to restore if it's present in at least one fqtn allowed to restore
+    fqtn = '{}.{}'.format(keyspace, table)
+    if fqtn not in fqtns_to_restore:
         return False
 
     return True
@@ -234,7 +270,7 @@ def get_node_tokens(node_fqdn, token_map_file):
 def wait_for_seeds(config, seeds):
     seed_list = seeds.split(',')
     attempts = 0
-    while not any([try_open_cql_session(config, s) for s in seed_list]):
+    while not any([is_node_up(config, s) for s in seed_list]):
         logging.info('No seeds are up yet, will wait a minute')
         attempts += 1
         time.sleep(A_MINUTE)
@@ -244,12 +280,35 @@ def wait_for_seeds(config, seeds):
     logging.info('At least one seed is now up')
 
 
-def try_open_cql_session(config, seed):
-    try:
-        cassandra = Cassandra(config.cassandra, contact_point=seed)
-        with cassandra.new_session() as cql_session:
-            cql_session.datacenter()
-        return True
-    # TODO except whatever the Host-Not-Up exception is
-    except Exception:
-        return False
+def get_fqtns_to_restore(keep_keyspaces, keep_tables, manifest_str):
+
+    fqtns = set()
+    manifest = json.loads(manifest_str)
+
+    for section in manifest:
+        ks = section['keyspace']
+        # in manifest, the table names have cfids, but from CLI we get it without
+        # we need to take care and use both
+        t = section['columnfamily'].split('-')[0]
+
+        fqtn = '{}.{}'.format(ks, t)
+        fqtn_with_id = '{}.{}'.format(section['keyspace'], section['columnfamily'])
+
+        # if not keyspaces / tables were specified, we keep everything
+        if len(keep_keyspaces) == 0 and len(keep_tables) == 0:
+            fqtns.add(fqtn_with_id)
+            continue
+
+        # if the whole keyspace is a keep
+        if ks in keep_keyspaces:
+            fqtns.add(fqtn_with_id)
+            continue
+
+        # if just the table is a keep
+        if fqtn in keep_tables:
+            fqtns.add(fqtn_with_id)
+            continue
+
+        logging.info('Skipping restore of {}.{}'.format(ks, t))
+
+    return fqtns

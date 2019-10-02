@@ -41,7 +41,7 @@ SSH_AGENT_PID_ENVVAR = 'SSH_AGENT_PID'
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, use_sstableloader=False):
+                verify, keyspaces, tables, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -78,7 +78,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise Exception(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             bypass_checks, use_sstableloader)
+                             keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -105,9 +105,13 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         sys.exit(1)
 
 
+def expand_repeatable_option(option, values):
+    return ' '.join(['--{} {}'.format(option, value) for value in values])
+
+
 class RestoreJob(object):
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 bypass_checks=False, use_sstableloader=False):
+                 keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -121,6 +125,8 @@ class RestoreJob(object):
         self.temp_dir = temp_dir  # temporary files
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
+        self.keyspaces = keyspaces
+        self.tables = tables
         self.bypass_checks = bypass_checks
         self._ssh_agent_started = False
         self.use_sstableloader = use_sstableloader
@@ -309,7 +315,7 @@ class RestoreJob(object):
 
         if self.verify:
             hosts = list(map(lambda r: r.target, remotes))
-            verify_restore(hosts, self.cluster_backup.complete_nodes(), self.config)
+            verify_restore(hosts, self.config)
 
     def _restore_schema(self):
         schema = parse_schema(self.cluster_backup.schema)
@@ -361,12 +367,15 @@ class RestoreJob(object):
         in_place_option = '--in-place' if self.in_place else ''
         keep_auth_option = '--keep-auth' if self.keep_auth else ''
         seeds_option = '--seeds {}'.format(','.join(seeds)) if seeds else ''
+        keyspace_options = expand_repeatable_option('keyspace', self.keyspaces)
+        table_options = expand_repeatable_option('table', self.tables)
         # We explicitly set --no-verify since we are doing verification here in this module
         # from the control node
         verify_option = '--no-verify'
 
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup} {use_sstableloader}"' \
+                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup} {use_sstableloader} ' \
+                  '{keyspaces} {tables}"' \
             .format(work=self.work_dir,
                     fqdn=','.join(source),
                     in_place=in_place_option,
@@ -374,7 +383,9 @@ class RestoreJob(object):
                     seeds=seeds_option,
                     verify=verify_option,
                     backup=self.cluster_backup.name,
-                    use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '')
+                    use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '',
+                    keyspaces=keyspace_options,
+                    tables=table_options)
 
         logging.debug('Restoring on node {} with the following command {}'.format(target, command))
         return self._run(target, client, connect_args, command)

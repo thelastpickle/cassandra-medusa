@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2019 Spotify AB. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,18 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env bash
-set -x
-# Keep the following rm for the sake of running the integration tests in CI
-rm -Rf .python-version
-export LOCAL_JMX=yes
-export PYTHONWARNINGS="ignore"
-pip3 install -r requirements.txt
-pip3 install -r requirements-test.txt
-cd tests/integration
-if [ -z "$1" ]
-then
-	PYTHONPATH=../.. behave
-else
-    PYTHONPATH=../.. PYTHONPATH=../.. behave --tags=$1 --no-skipped
-fi
+
+def before_all(context):
+    context.cassandra_version = "2.2.14"
+    context.session = None

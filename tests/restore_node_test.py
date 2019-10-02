@@ -14,10 +14,11 @@
 # limitations under the License.
 
 import configparser
+import json
 import unittest
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.restore_node import get_node_tokens
+from medusa import restore_node
 
 
 class RestoreNodeTest(unittest.TestCase):
@@ -40,13 +41,96 @@ class RestoreNodeTest(unittest.TestCase):
 
     def test_get_node_tokens(self):
         with open("tests/resources/restore_node_tokenmap.json", 'r') as f:
-            tokens = get_node_tokens('node3.mydomain.net', f)
+            tokens = restore_node.get_node_tokens('node3.mydomain.net', f)
             self.assertEqual(tokens, ['3074457345618258400'])
 
     def test_get_node_tokens_vnodes(self):
         with open("tests/resources/restore_node_tokenmap_vnodes.json", 'r') as f:
-            tokens = get_node_tokens('node3.mydomain.net', f)
+            tokens = restore_node.get_node_tokens('node3.mydomain.net', f)
             self.assertEqual(tokens, ['2', '3'])
+
+    def test_get_sections_to_restore(self):
+
+        # nothing skipped, both tables make it to restore
+        keep_keyspaces = {}
+        keep_tables = {}
+        manifest = [
+            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
+        ]
+        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
+        self.assertEquals({'k1.t1', 'k2.t2'}, to_restore)
+
+        # skipping one table (must be specified as a fqtn)
+        keep_keyspaces = {}
+        keep_tables = {'k2.t2'}
+        manifest = [
+            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
+        ]
+        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
+        self.assertEquals({'k2.t2'}, to_restore)
+
+        # saying only table name doesn't cause a keep
+        keep_keyspaces = {}
+        keep_tables = {'t2'}
+        manifest = [
+            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
+        ]
+        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
+        self.assertEquals(set(), to_restore)
+
+        # keeping the whole keyspace
+        keep_keyspaces = {'k2'}
+        keep_tables = {}
+        manifest = [
+            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't3', 'objects': []}
+        ]
+        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
+        self.assertEquals({'k2.t2', 'k2.t3'}, to_restore)
+
+    def test_get_sections_to_restore_with_cfids(self):
+
+        # lept tables must work also if the manifest has cfids
+        keep_keyspaces = {}
+        keep_tables = {'k2.t2'}
+        manifest = [
+            {'keyspace': 'k1', 'columnfamily': 't1-bigBadCfId', 'objects': []},
+            {'keyspace': 'k2', 'columnfamily': 't2-81ffe430e50c11e99f91a15641db358f', 'objects': []},
+        ]
+        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
+        self.assertEquals({'k2.t2-81ffe430e50c11e99f91a15641db358f'}, to_restore)
+
+    def test_keyspace_is_allowed_to_restore(self):
+
+        # the basic case when there's a table from k1
+        keyspace, keep_auth, fqtns_to_restore = 'k1', False, {'k1.t1', 'k2.t2'}
+        self.assertTrue(restore_node.keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore))
+
+        # case when there's no table from the keyspace we are examining
+        keyspace, keep_auth, fqtns_to_restore = 'k2', False, {'k1.t1'}
+        self.assertFalse(restore_node.keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore))
+
+        # system keyspace is never allowed
+        keyspace, keep_auth, fqtns_to_restore = 'system', False, {'k1.t1'}
+        self.assertFalse(restore_node.keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore))
+
+        # system_auth is allowed only when we don't keep auth
+        keyspace, keep_auth, fqtns_to_restore = 'system_auth', False, {'k1.t1', 'system_auth.t1'}
+        self.assertTrue(restore_node.keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore))
+
+        keyspace, keep_auth, fqtns_to_restore = 'system_auth', True, {'k1.t1', 'system_auth.t1'}
+        self.assertFalse(restore_node.keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore))
+
+    def test_table_is_allowed_to_restore(self):
+        keyspace, table, fqtns_to_restore = 'k1', 't1', {'k1.t1'}
+        self.assertTrue(restore_node.table_is_allowed_to_restore(keyspace, table, fqtns_to_restore))
+
+        keyspace, table, fqtns_to_restore = 'k1', 't1', {'k2.t1'}
+        self.assertFalse(restore_node.table_is_allowed_to_restore(keyspace, table, fqtns_to_restore))
 
 
 if __name__ == '__main__':

@@ -424,7 +424,7 @@ class Cassandra(object):
             subprocess.check_output(self._start_cmd, shell=True)
 
 
-def wait_for_node_to_come_up(health_check, host, retries=10, delay=6):
+def wait_for_node_to_come_up(config, host, retries=10, delay=6):
     """
         Polls the node until the health check passes.
 
@@ -439,7 +439,7 @@ def wait_for_node_to_come_up(health_check, host, retries=10, delay=6):
 
     attempts = 0
     while attempts < retries:
-        if is_node_up(health_check, host):
+        if is_node_up(config, host):
             logging.info('Cassandra is up on %s', host)
             return None
         else:
@@ -449,7 +449,7 @@ def wait_for_node_to_come_up(health_check, host, retries=10, delay=6):
     raise CassandraNodeNotUpError(host, attempts)
 
 
-def is_node_up(health_check, host):
+def is_node_up(config, host):
     """
     Calls nodetool statusbinary, nodetool statusthrift or both. This function checks the output returned from nodetool
     and not the return code. There could be a normal return code of zero when the node is an unhealthy state and not
@@ -462,8 +462,12 @@ def is_node_up(health_check, host):
     must be ready to accept requests for both in order for the health check to be successful.
     """
 
-    args = ['nodetool', '-h', host]
+    if int(config.cassandra.is_ccm) == 1:
+        args = ['ccm', 'node1', 'nodetool']
+    else:
+        args = ['nodetool', '-h', host]
 
+    health_check = config.restore.health_check
     if health_check == 'cql':
         return is_cql_up(args)
     elif health_check == 'thrift':

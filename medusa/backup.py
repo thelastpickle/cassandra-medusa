@@ -167,7 +167,7 @@ def stagger(fqdn, storage, tokenmap):
     return has_backup
 
 
-def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
+def main(config, backup_name_arg, stagger_time, mode):
 
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
@@ -206,14 +206,6 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
         if incremental_mode is True:
             node_backup.incremental = mode
         add_backup_start_to_index(storage, node_backup)
-
-        if restore_verify_query:
-            if os.path.isfile(restore_verify_query):
-                with open(restore_verify_query) as restore_verify_query_file:
-                    verify_query = json.load(restore_verify_query_file)
-                    node_backup.restore_verify_query = json.dumps(verify_query)
-            else:
-                node_backup.restore_verify_query = restore_verify_query
 
         if stagger_time:
             stagger_end = start + stagger_time

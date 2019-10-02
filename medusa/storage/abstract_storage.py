@@ -22,8 +22,7 @@ from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
 
 import medusa.storage
-
-from medusa.storage.upload import UploadJob
+import medusa.storage.concurrent
 
 
 class AbstractStorage(abc.ABC):
@@ -68,9 +67,7 @@ class AbstractStorage(abc.ABC):
         :param dest: the path where to download the objects locally
         :return:
         """
-        for src_obj in list(src):
-            blob = self.get_blob(src_obj)
-            blob.download(str(dest), overwrite_existing=True)
+        medusa.storage.concurrent.download_blobs(self, src, dest, self.bucket.name)
 
     def upload_blobs(self, src, dest):
         """
@@ -79,9 +76,7 @@ class AbstractStorage(abc.ABC):
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
         """
-
-        upload_job = UploadJob(self, src, dest, self.bucket)
-        return upload_job.execute()
+        return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket)
 
     def get_blob(self, path):
         try:

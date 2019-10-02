@@ -77,6 +77,13 @@ key_file = <JSON key file for service account with access to GCS bucket or AWS c
 [ssh]
 #username = <SSH username to use for restoring clusters>
 #key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
+
+[restore]
+;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>
+;query = <CQL query to run after a restore to verify it went OK>
+;expected_rows = <Number of rows expected to be returned when the query runs. Not checked if not specified.>
+;expected_result = <Coma separated string representation of values returned by the query. Checks only 1st row returned, and only if specified>
+
 ```
 
 
@@ -132,7 +139,6 @@ Options:
   --backup-name TEXT           Custom name for the backup
   --stagger INTEGER            Check for staggering initial backups for
                                duration seconds
-  --restore-verify-query TEXT
   --mode [full|incremental]
   --help                       Show this message and exit.
 ```
@@ -204,7 +210,9 @@ Options:
   --seeds TEXT            Nodes to wait for after downloading backup but
                           before starting C*
   --verify / --no-verify  Verify that the cluster is operational after the
-                          restore 
+                          restore completes,
+  --keyspace TEXT         Restore tables from this keyspace
+  --table TEXT            Restore only this table
   --use-sstableloader     Use the sstableloader to load the backup into the
                           cluster
   --help                  Show this message and exit.
@@ -229,6 +237,8 @@ In this mode, Cassandra will not be stopped and downloaded SSTables will be load
 
 The `--fqdn` argument allows to force the node to act on behalf of another backup node. It can take several hostnames separated by commas in order to restore several nodes backup using the sstableloader.
 
+The `--keyspace` option allows limiting the restore to all tables in the given keyspace. The `--table` option allows limiting the restore to just one table. The tables must be specified in the `keyspace.table` format. It is possible to repeat both of the options. Medusa will make an union of everything specified and restore all keyspaces and tables mentioned. The `--keyspace` option takes precedence, so using `--keyspace ks1` and then adding `--table ks1.t` will not limit the restore to just one table - everything from `ks1` will be restored. 
+
 Restoring a cluster
 -------------------
 
@@ -250,6 +260,8 @@ Options:
                                   cluster
   --verify / --no-verify          Verify that the cluster is operational after
                                   the restore completes,
+  --keyspace TEXT                 Restore tables from this keyspace
+  --table TEXT                    Restore only this table
   --use-sstableloader             Use the sstableloader to load the backup
                                   into the cluster
   --help                          Show this message and exit.
@@ -347,6 +359,7 @@ Using this technique, Cassandra will not be stopped on the nodes and the followi
 
 If your cluster is configured with the default `auto_snapshot: true` then dropping the tables will trigger a snapshot that will persist their data on disk. Medusa will not clear this snapshot after restore.
 
+The `--keyspace` and `--table` options of `restore-cluster` command work exactly the same way as they do for the `restore-node` command.
 
 
 Verify an existing backup

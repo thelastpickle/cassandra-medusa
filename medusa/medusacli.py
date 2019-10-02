@@ -56,7 +56,7 @@ def configure_logging(verbosity, without_log_timestamp):
 
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
-        for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko':
+        for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
             logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
 
@@ -81,15 +81,14 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @cli.command(name='backup')
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
-@click.option('--restore-verify-query', default=None)
 @click.option('--mode', default="full", type=click.Choice(['full', 'incremental']))
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger, restore_verify_query, mode):
+def backup(medusaconfig, backup_name, stagger, mode):
     """
     Backup Cassandra
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup.main(medusaconfig, backup_name, stagger_time, restore_verify_query, mode)
+    medusa.backup.main(medusaconfig, backup_name, stagger_time, mode)
 
 
 @cli.command(name='fetch-tokenmap')
@@ -133,11 +132,13 @@ def download(medusaconfig, backup_name, download_destination):
               default=False, is_flag=True)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
+@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace", multiple=True, default={})
+@click.option('--table', 'tables', help="Restore only this table", multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                    verify, use_sstableloader):
+                    verify, keyspaces, tables, use_sstableloader):
     """
     Restore Cassandra cluster
     """
@@ -149,6 +150,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        keep_auth,
                                        bypass_checks,
                                        verify,
+                                       set(keyspaces),
+                                       set(tables),
                                        use_sstableloader)
 
 
@@ -163,15 +166,18 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               default=None)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
+@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace", multiple=True, default={})
+@click.option('--table', 'tables', help="Restore only this table", multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify, use_sstableloader):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
+                 use_sstableloader):
     """
     Restore single Cassandra node
     """
     medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds,
-                                     verify, use_sstableloader)
+                                     verify, set(keyspaces), set(tables), use_sstableloader)
 
 
 @cli.command(name='status')

@@ -40,9 +40,9 @@ SSHConfig = collections.namedtuple(
     ['username', 'key_file']
 )
 
-RestoreConfig = collections.namedtuple(
-    'RestoreConfig',
-    ['health_check']
+ChecksConfig = collections.namedtuple(
+    'ChecksConfig',
+    ['health_check', 'query', 'expected_rows', 'expected_result']
 )
 
 MonitoringConfig = collections.namedtuple(
@@ -84,8 +84,11 @@ def load_config(args, config_file):
         'key_file': ''
     }
 
-    config['restore'] = {
-        'health_check': 'cql'
+    config['checks'] = {
+        'health_check': 'cql',
+        'query': '',
+        'expected_rows': '0',
+        'expected_result': ''
     }
 
     config['monitoring'] = {
@@ -118,7 +121,7 @@ def load_config(args, config_file):
 
     config.read_dict({'restore': {
         key: value
-        for key, value in _zip_fields_with_arg_values(RestoreConfig._fields, args)
+        for key, value in _zip_fields_with_arg_values(ChecksConfig._fields, args)
         if value is not None
     }})
 
@@ -132,7 +135,7 @@ def load_config(args, config_file):
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
-        restore=_namedtuple_from_dict(RestoreConfig, config['restore']),
+        restore=_namedtuple_from_dict(ChecksConfig, config['checks']),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
     )
 

@@ -1,0 +1,131 @@
+# -*- coding: utf-8 -*-
+# Copyright 2019 Spotify AB
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import concurrent.futures
+import logging
+import multiprocessing
+import os
+import pathlib
+import threading
+
+from libcloud.storage.types import ObjectDoesNotExistError
+
+import medusa
+
+
+class StorageJob:
+    """
+    Manages concurrency and storage connection pools for tasks like uploading or downloading files. The libcloud
+    drivers are not thread safe, so each thread will a separate connection. If the function executed by StorageJob
+    uses any shared state, then it is the responsibility of that function to manage concurrent access to that state.
+    """
+    def __init__(self, storage, func, max_workers=None):
+        self.storage = storage
+        self.lock = threading.Lock()
+        self.func = func
+        self.connection_pool = []
+        if max_workers is None:
+            self.max_workers = multiprocessing.cpu_count()
+        else:
+            self.max_workers = max_workers
+
+    def execute(self, iterables):
+        with concurrent.futures.ThreadPoolExecutor(self.max_workers) as executor:
+            return list(executor.map(self.with_storage, iterables))
+
+    def with_storage(self, iterable):
+        with self.lock:
+            if not self.connection_pool:
+                connection = self.storage.connect_storage()
+            else:
+                connection = self.connection_pool.pop()
+        try:
+            return self.func(connection, iterable)
+        finally:
+            with self.lock:
+                self.connection_pool.append(connection)
+
+
+def upload_blobs(storage, src, dest, bucket, max_workers=None):
+    """
+    Uploads a list of files from local storage concurrently to the remote storage.
+
+    :param storage: An AbstractStorage instance, needed to create a connection pool
+    :param src: A list of files to upload
+    :param dest: The location where to upload the files in the target bucket (doesn't contain the filename)
+    :param bucket: The remote bucket in which files will be stored
+    :param max_workers: The max number of worker threads to use. Defaults to the number of CPUs.
+    :return: A list of ManifestObject describing all the uploaded files
+    """
+    job = StorageJob(storage,
+                     lambda connection, src_file: __upload_file(connection, src_file, dest, bucket),
+                     max_workers)
+    return job.execute(list(src))
+
+
+def __upload_file(connection, src, dest, bucket):
+    """
+    This function is called by StorageJob. It may be called concurrently by multiple threads.
+
+    :param connection: A storage connection which is created and managed by StorageJob
+    :param src: The file to upload
+    :param dest: The location where to upload the file
+    :param bucket: The remote bucket where the file will be stored
+    :return: A ManifestObject describing the uploaded file
+    """
+    if not isinstance(src, pathlib.Path):
+        src = pathlib.Path(src)
+    logging.info("Uploading {}".format(src))
+    obj = connection.upload_object(
+        os.fspath(src),
+        container=bucket,
+        object_name=str("{}/{}".format(dest, src.name))
+    )
+    return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
+
+
+def download_blobs(storage, src, dest, bucket_name, max_workers=None):
+    """
+    Download files concurrently to local storage
+
+    :param storage: An AbstractStorage instance, needed to create a connection pool
+    :param src: A list of files to download from the remote storage system
+    :param dest: The path to where objects should be downloaded locally
+    :param bucket_name: The name of the storage bucket from which files will be downloaded
+    :param max_workers: The max number of threads to use. Defaults to the number of CPUS.
+    :return:
+    """
+    job = StorageJob(storage,
+                     lambda connection, src_file: __download_blob(connection, src_file, str(dest), bucket_name),
+                     max_workers)
+    job.execute(list(src))
+
+
+def __download_blob(connection, src, dest, bucket_name):
+    """
+    This function is called by StorageJob. It may be called concurrently by multiple threads.
+
+    :param connection: A storage connection which is created and managed by StorageJob
+    :param src: The file to download
+    :param dest: The path to where the file should be downloaded
+    :param bucket_name: The name of the bucket from which the file will be downloaded
+    :return:
+    """
+    try:
+        logging.debug("[Storage] Getting object {}".format(src))
+        blob = connection.get_object(bucket_name, str(src))
+        blob.download(dest, overwrite_existing=True)
+    except ObjectDoesNotExistError:
+        return None

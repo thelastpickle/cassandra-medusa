@@ -21,7 +21,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
-from medusa.restore_cluster import RestoreJob
+from medusa.restore_cluster import RestoreJob, expand_repeatable_option
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 
 
@@ -128,6 +128,20 @@ class RestoreClusterTest(unittest.TestCase):
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
                 # topologies are different, which forces the use of the sstableloader
                 assert restoreJob.use_sstableloader is True
+
+    def test_expand_repeatable_option(self):
+
+        option, values = 'keyspace', {}
+        result = expand_repeatable_option(option, values)
+        self.assertEquals('', result)
+
+        option, values = 'keyspace', {'k1'}
+        result = expand_repeatable_option(option, values)
+        self.assertEquals('--keyspace k1', result)
+
+        option, values = 'keyspace', {'k1', 'k2'}
+        result = expand_repeatable_option(option, sorted(list(values)))
+        self.assertEquals('--keyspace k1 --keyspace k2', result)
 
 
 if __name__ == '__main__':
