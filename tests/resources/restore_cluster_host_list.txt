@@ -1,0 +1,3 @@
+True,node1.mydomain.net,node1.mydomain.net
+True,node2.mydomain.net,node2.mydomain.net
+False,node3.mydomain.net,node4.mydomain.net

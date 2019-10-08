@@ -1,0 +1,14 @@
+{
+    "node1.mydomain.net": {
+    "tokens": [-3074457345618258400],
+    "is_up": true
+    },
+    "node2.mydomain.net": {
+    "tokens": [-9223372036854776000],
+    "is_up": true
+    },
+    "node3.mydomain.net": {
+    "tokens": [4074457345618258400],
+    "is_up": true
+    }
+}

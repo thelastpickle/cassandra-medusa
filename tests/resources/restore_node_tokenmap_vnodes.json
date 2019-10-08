@@ -1,0 +1,14 @@
+{
+  "node1.mydomain.net": {
+    "tokens": [-2, -1],
+    "is_up": true
+  },
+  "node2.mydomain.net": {
+    "tokens": [0, 1],
+    "is_up": true
+  },
+  "node3.mydomain.net": {
+    "tokens": [2, 3],
+    "is_up": true
+  }
+}
