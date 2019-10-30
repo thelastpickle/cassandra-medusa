@@ -14,10 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from gevent import monkey
+monkey.patch_all()
 import datetime
 import logging
 import socket
 import click
+import sys
+
+# Need to get rid of the annoying pssh warning about paramiko
+if not sys.warnoptions:
+    import warnings
+    warnings.simplefilter("ignore")
 
 from collections import defaultdict
 from pathlib import Path
@@ -136,9 +144,10 @@ def download(medusaconfig, backup_name, download_destination):
 @click.option('--table', 'tables', help="Restore only this table", multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
+@click.option('--pssh-pool-size', help="Number of concurrent ssh sessions started by pssh", default=10)
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                    verify, keyspaces, tables, use_sstableloader):
+                    verify, keyspaces, tables, use_sstableloader, pssh_pool_size):
     """
     Restore Cassandra cluster
     """
@@ -152,6 +161,7 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        verify,
                                        set(keyspaces),
                                        set(tables),
+                                       int(pssh_pool_size),
                                        use_sstableloader)
 
 
