@@ -13,35 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pssh.clients.miko import ParallelSSHClient
+
 import collections
 import logging
 import sys
-import time
 import uuid
 import datetime
 import traceback
 import paramiko
-import subprocess
-import os
 
 from medusa.monitoring import Monitoring
-
 from medusa.cassandra_utils import CqlSessionProvider
 from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
 
 
-Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel', 'stdout', 'stderr'])
-SSH_ADD_KEYS_CMD = 'ssh-add'
-SSH_AGENT_CREATE_CMD = 'ssh-agent'
-SSH_AGENT_KILL_CMD = 'ssh-agent -k'
-SSH_AUTH_SOCK_ENVVAR = 'SSH_AUTH_SOCK'
-SSH_AGENT_PID_ENVVAR = 'SSH_AGENT_PID'
-
-
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, keyspaces, tables, use_sstableloader=False):
+                verify, keyspaces, tables, pssh_pool_size, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -78,7 +68,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise Exception(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             keyspaces, tables, bypass_checks, use_sstableloader)
+                             pssh_pool_size, keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -111,7 +101,7 @@ def expand_repeatable_option(option, values):
 
 class RestoreJob(object):
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
+                 pssh_pool_size, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -128,8 +118,8 @@ class RestoreJob(object):
         self.keyspaces = keyspaces
         self.tables = tables
         self.bypass_checks = bypass_checks
-        self._ssh_agent_started = False
         self.use_sstableloader = use_sstableloader
+        self.pssh_pool_size = pssh_pool_size
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -155,8 +145,56 @@ class RestoreJob(object):
 
         logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
         self._restore_data()
-        if self._ssh_agent_started is True:
-            self.ssh_cleanup()
+
+    def _pssh_run(self, hosts, command, hosts_variables=None):
+        """
+        Runs a command on hosts list using cstar under the hood
+        There is no return made, to check the result there is a distinct function
+        Return: True (success) or False (error)
+        """
+        pssh_run_success = False
+        username = self.config.ssh.username if self.config.ssh.username != '' else None
+        pkey = None
+        if self.config.ssh.key_file is not None and self.config.ssh.key_file != '':
+            pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
+
+        client = ParallelSSHClient(hosts,
+                                   forward_ssh_agent=True,
+                                   pool_size=self.pssh_pool_size,
+                                   user=username,
+                                   pkey=pkey)
+        logging.info('Executing "{}" on all nodes.'
+                     .format(command))
+        output = client.run_command(command, host_args=hosts_variables, sudo=True)
+        client.join(output)
+
+        success = list(filter(lambda host_output: host_output.exit_code == 0,
+                       list(map(lambda host_output: host_output[1], output.items()))))
+        error = list(filter(lambda host_output: host_output.exit_code != 0,
+                     list(map(lambda host_output: host_output[1], output.items()))))
+
+        # Report on execution status
+        if len(success) == len(hosts):
+            logging.info('Job executing "{}" ran and finished Successfully on all nodes.'
+                         .format(command))
+            pssh_run_success = True
+        elif len(error) > 0:
+            logging.info('Job executing "{}" ran and finished with errors on following nodes: {}'
+                         .format(command, sorted(set(map(lambda host_output: host_output.host, error)))))
+            self.display_output(error)
+        else:
+            err_msg = 'Something unexpected happened while running pssh command'
+            logging.error(err_msg)
+            raise Exception(err_msg)
+
+        return pssh_run_success
+
+    def display_output(self, host_outputs):
+        for host_out in host_outputs:
+            for line in host_out.stdout:
+                logging.info("{}-stdout: {}".format(host_out.host, line))
+            for line in host_out.stderr:
+                logging.info("{}-stderr: {}".format(host_out.host, line))
 
     def _validate_ringmap(self, tokenmap, target_tokenmap):
         for host, ring_item in target_tokenmap.items():
@@ -265,48 +303,47 @@ class RestoreJob(object):
             logging.error(err_msg)
             raise Exception(err_msg)
 
+        # work out which nodes are seeds in the target cluster
+        target_seeds = [t for t, s in self.host_map.items() if s['seed']]
+        logging.info("target seeds : {}".format(target_seeds))
+        # work out which nodes are seeds in the target cluster
+        target_hosts = self.host_map.keys()
+
         if self.use_sstableloader is False:
             # stop all target nodes
-            stop_remotes = []
-            logging.info('Stopping Cassandra on all nodes')
-            for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
-                client, connect_args = self._connect(target)
-                if self.check_cassandra_running(target, client, connect_args):
-                    logging.info('Cassandra is running on {}. Stopping it...'.format(target))
-                    command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
-                    stop_remotes.append(self._run(target, client, connect_args, command))
-                else:
-                    logging.info('Cassandra is not running on {}.'.format(target))
+            logging.info('Stopping Cassandra on all nodes currently up')
 
-            # wait for all nodes to stop
-            logging.info('Waiting for all nodes to stop...')
-            finished, broken = self._wait_for(stop_remotes)
-            if len(broken) > 0:
-                err_msg = 'Some Cassandras failed to stop. Exiting'
-                logging.error(err_msg)
-                raise Exception(err_msg)
+            # Generate a Job ID for this run
+            job_id = str(uuid.uuid4())
+            logging.debug('Job id is: {}'.format(job_id))
+            # Define command to run
+            command = self.config.cassandra.stop_cmd
+            logging.debug('Command to run is: {}'.format(command))
+
+            self._pssh_run(target_hosts, command, hosts_variables={})
+
         else:
             # we're using the sstableloader, which will require to (re)create the schema and empty the tables
             logging.info("Restoring schema on the target cluster")
             self._restore_schema()
 
-        # work out which nodes are seeds in the target cluster
-        target_seeds = [t for t, s in self.host_map.items() if s['seed']]
-
         # trigger restores everywhere at once
         # pass in seed info so that non-seeds can wait for seeds before starting
         # seeds, naturally, don't wait for anything
-        remotes = []
+
+        # Generate a Job ID for this run
+        hosts_variables = []
         for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
             logging.info('Restoring data on {}...'.format(target))
-            seeds = None if target in target_seeds else target_seeds
-            remote = self._trigger_restore(target, source, seeds=seeds)
-            remotes.append(remote)
+            seeds = '' if target in target_seeds or len(target_seeds) == 0 \
+                    else '--seeds {}'.format(','.join(target_seeds))
+            hosts_variables.append((','.join(source), seeds))
+            command = self._build_restore_cmd(target, source, seeds)
 
-        # wait for the restores
-        logging.info('Starting to wait for the nodes to restore')
-        finished, broken = self._wait_for(remotes)
-        if len(broken) > 0:
+        pssh_run_success = self._pssh_run(target_hosts, command, hosts_variables=hosts_variables)
+
+        if not pssh_run_success:
+            # we could implement a retry.
             err_msg = 'Some nodes failed to restore. Exiting'
             logging.error(err_msg)
             raise Exception(err_msg)
@@ -314,8 +351,33 @@ class RestoreJob(object):
         logging.info('Restore process is complete. The cluster should be up shortly.')
 
         if self.verify:
-            hosts = list(map(lambda r: r.target, remotes))
-            verify_restore(hosts, self.config)
+            verify_restore(target_hosts, self.config)
+
+    def _build_restore_cmd(self, target, source, seeds):
+        in_place_option = '--in-place' if self.in_place else ''
+        keep_auth_option = '--keep-auth' if self.keep_auth else ''
+        keyspace_options = expand_repeatable_option('keyspace', self.keyspaces)
+        table_options = expand_repeatable_option('table', self.tables)
+        # We explicitly set --no-verify since we are doing verification here in this module
+        # from the control node
+        verify_option = '--no-verify'
+
+        # %s placeholders in the below command will get replaced by pssh using per host command substitution
+        command = 'nohup sh -c "mkdir {work}; cd {work} && medusa-wrapper sudo medusa --fqdn=%s -vvv restore-node ' \
+                  '{in_place} {keep_auth} %s {verify} --backup-name {backup} {use_sstableloader} ' \
+                  '{keyspaces} {tables}"' \
+            .format(work=self.work_dir,
+                    in_place=in_place_option,
+                    keep_auth=keep_auth_option,
+                    verify=verify_option,
+                    backup=self.cluster_backup.name,
+                    use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '',
+                    keyspaces=keyspace_options,
+                    tables=table_options)
+
+        logging.debug('Restoring on node {} with the following command {}'.format(target, command))
+
+        return command
 
     def _restore_schema(self):
         schema = parse_schema(self.cluster_backup.schema)
@@ -359,180 +421,3 @@ class RestoreJob(object):
             # Base tables are created now, we can create the MVs
             logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
             session.execute(mv[1])
-
-    def _trigger_restore(self, target, source, seeds=None):
-        client, connect_args = self._connect(target)
-
-        # TODO: If this command fails, the node is currently still marked as finished and not as broken.
-        in_place_option = '--in-place' if self.in_place else ''
-        keep_auth_option = '--keep-auth' if self.keep_auth else ''
-        seeds_option = '--seeds {}'.format(','.join(seeds)) if seeds else ''
-        keyspace_options = expand_repeatable_option('keyspace', self.keyspaces)
-        table_options = expand_repeatable_option('table', self.tables)
-        # We explicitly set --no-verify since we are doing verification here in this module
-        # from the control node
-        verify_option = '--no-verify'
-
-        command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup} {use_sstableloader} ' \
-                  '{keyspaces} {tables}"' \
-            .format(work=self.work_dir,
-                    fqdn=','.join(source),
-                    in_place=in_place_option,
-                    keep_auth=keep_auth_option,
-                    seeds=seeds_option,
-                    verify=verify_option,
-                    backup=self.cluster_backup.name,
-                    use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '',
-                    keyspaces=keyspace_options,
-                    tables=table_options)
-
-        logging.debug('Restoring on node {} with the following command {}'.format(target, command))
-        return self._run(target, client, connect_args, command)
-
-    def _wait_for(self, remotes):
-        finished, broken = [], []
-
-        while True:
-            time.sleep(5)  # TODO: configure sleep
-
-            if len(remotes) == len(finished) + len(broken):
-                # TODO: make a nicer exit condition
-                logging.info('Exiting because all jobs are done.')
-                break
-
-            for i, remote in enumerate(remotes):
-
-                if remote in broken or remote in finished:
-                    continue
-
-                # If the remote does not set an exit status and the channel closes
-                # the exit_status is negative.
-                logging.debug('remote.channel.exit_status: {}'.format(remote.channel.exit_status))
-                if remote.channel.exit_status_ready and remote.channel.exit_status >= 0:
-                    if remote.channel.exit_status == 0:
-                        finished.append(remote)
-                        logging.info('Command succeeded on {}'.format(remote.target))
-                    else:
-                        broken.append(remote)
-                        logging.error('Command failed on {} : '.format(remote.target))
-                        logging.error('Output : {}'.format(remote.stdout.readlines()))
-                        logging.error('Err output : {}'.format(remote.stderr.readlines()))
-                        try:
-                            stderr = self.read_file(remote, self.work_dir / 'stderr')
-                        except IOError:
-                            stderr = 'There was no stderr file'
-                        logging.error(stderr)
-                    # We got an exit code that does not indicate an error, but not necessarily
-                    # success. Cleanup channel and move to next remote.
-                    remote.channel.close()
-                    # also close the client. this will free file descriptors
-                    # in case we start re-using remotes this close will need to go away
-                    remote.client.close()
-                    continue
-
-                if remote.client.get_transport().is_alive() and not remote.channel.closed:
-                    # Send an ignored packet for keep alive and later noticing a broken connection
-                    logging.debug('Keeping {} alive.'.format(remote.target))
-                    remote.client.get_transport().send_ignore()
-                else:
-                    client = paramiko.client.SSHClient()
-                    client.load_system_host_keys()
-                    client.connect(**remote.connect_args)
-
-                    # TODO: check pid to exist before assuming medusa-wrapper to pick it up
-                    command = 'cd {work}; medusa-wrapper'.format(work=self.work_dir)
-                    remotes[i] = self._run(remote.target, client, remote.connect_args, command)
-
-        if len(broken) > 0:
-            logging.info('Command failed on the following nodes:')
-            for remote in broken:
-                logging.info(remote.target)
-        else:
-            logging.info('Commands succeeded on all nodes')
-
-        return finished, broken
-
-    def _connect(self, target):
-        logging.debug('Connecting to {}'.format(target))
-
-        pkey = None
-        if self.config.ssh.key_file is not None and self.config.ssh.key_file != '':
-            pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
-            if self._ssh_agent_started is False:
-                self.create_agent()
-                add_key_cmd = '{} {}'.format(SSH_ADD_KEYS_CMD, self.config.ssh.key_file)
-                subprocess.check_output(add_key_cmd, universal_newlines=True, shell=True)
-                self._ssh_agent_started = True
-
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
-        connect_args = {
-            'hostname': target,
-            'username': self.config.ssh.username,
-            'pkey': pkey,
-            'compress': True,
-            'password': None
-        }
-        client.connect(**connect_args)
-
-        logging.debug('Successfully connected to {}'.format(target))
-        sftp = client.open_sftp()
-        try:
-            sftp.mkdir(str(self.work_dir))
-        except OSError:
-            err_msg = 'Working directory {} on {} failed.' \
-                      'Folder might exist already, ignoring exception'.format(str(self.work_dir), target)
-            logging.debug(err_msg)
-        except Exception as ex:
-            err_msg = 'Creating working directory on {} failed: {}'.format(target, str(ex))
-            logging.error(err_msg)
-            raise Exception(err_msg)
-        finally:
-            sftp.close()
-
-        return client, connect_args
-
-    def _run(self, target, client, connect_args, command):
-        transport = client.get_transport()
-        session = transport.open_session()
-        session.get_pty()
-        paramiko.agent.AgentRequestHandler(session)
-        session.exec_command(command.replace('sudo', 'sudo -S'))
-        bufsize = -1
-        stdout = session.makefile('r', bufsize)
-        stderr = session.makefile_stderr('r', bufsize)
-        logging.debug('Running \'{}\' remotely on {}'.format(command, connect_args['hostname']))
-        return Remote(target, connect_args, client, stdout.channel, stdout, stderr)
-
-    def read_file(self, remote, remotepath):
-        with remote.client.open_sftp() as ftp_client:
-            with ftp_client.file(remotepath.as_posix(), 'r') as f:
-                return str(f.read(), 'utf-8')
-
-    def check_cassandra_running(self, host, client, connect_args):
-        command = 'sh -c "{}"'.format(self.config.cassandra.check_running)
-        remote = self._run(host, client, connect_args, command)
-        return remote.channel.recv_exit_status() == 0
-
-    def create_agent(self):
-        """
-        Function that creates the agent and sets the environment variables.
-        """
-        output = subprocess.check_output(SSH_AGENT_CREATE_CMD, universal_newlines=True, shell=True)
-        if output:
-            output = output.strip().split('\n')
-            for item in output[0:2]:
-                envvar, val = item.split(';')[0].split('=')
-                logging.debug('Setting environment variable: {}={}'.format(envvar, val))
-                os.environ[envvar] = val
-
-    def ssh_cleanup(self):
-        """
-        Function that kills the agents created so that there aren't too many agents lying around eating up resources.
-        """
-        # Kill the agent
-        subprocess.check_output(SSH_AGENT_KILL_CMD, universal_newlines=True, shell=True)
-        # Reset these values so that other function
-        os.environ[SSH_AUTH_SOCK_ENVVAR] = ''
-        os.environ[SSH_AGENT_PID_ENVVAR] = ''
