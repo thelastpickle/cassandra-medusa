@@ -33,8 +33,8 @@ class NodeBackup(object):
                  started_blob=None,
                  finished_timestamp=None,
                  finished_blob=None,
-                 incremental_blob=None,
-                 incremental_mode=False):
+                 differential_blob=None,
+                 differential_mode=False):
 
         self._storage = storage
         self._fqdn = fqdn
@@ -48,18 +48,19 @@ class NodeBackup(object):
         self._node_backup_path = self._node_base_path / name
         self._meta_path = self._node_backup_path / 'meta'
 
-        if incremental_mode is True or incremental_blob is not None:
-            # Incremental backup, storage tree is different than full backups
+        if differential_mode is True or differential_blob is not None:
+            # Differential backup, storage tree is different than full backups
             self._data_path = self._node_base_path / 'data'
-            self._incremental = True
+            self._differential = True
         else:
             self._data_path = self._node_backup_path / 'data'
-            self._incremental = False
+            self._differential = False
 
         self._tokenmap_path = self._meta_path / 'tokenmap.json'
         self._schema_path = self._meta_path / 'schema.cql'
         self._manifest_path = self._meta_path / 'manifest.json'
         self._incremental_path = self._meta_path / 'incremental'
+        self._differential_path = self._meta_path / 'differential'
         self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
 
         if preloaded_blobs is None:
@@ -135,17 +136,22 @@ class NodeBackup(object):
     def schema(self, schema):
         self._storage.storage_driver.upload_blob_from_string(self.schema_path, schema)
 
+    # Should be removed after a while. Here for short term backwards compatibility.
     @property
     def incremental_path(self):
         return self._incremental_path
 
     @property
-    def is_incremental(self):
-        return self._incremental
+    def differential_path(self):
+        return self._differential_path
+
+    @property
+    def is_differential(self):
+        return self._differential
 
     @schema.setter
-    def incremental(self, incremental):
-        self._storage.storage_driver.upload_blob_from_string(self.incremental_path, incremental)
+    def differential(self, differential):
+        self._storage.storage_driver.upload_blob_from_string(self.differential_path, differential)
 
     @property
     def restore_verify_query_path(self):

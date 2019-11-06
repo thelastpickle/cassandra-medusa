@@ -10,8 +10,8 @@ the schema and topology to a storage system.
 
 Backups can be performed in 2 different fashions:
 
-- **Full backups**: the entire dataset is transferred and stored every time. The GCS implementation of the storage layer will opportunistically transfer previously backed up files from the bucket itself to avoid unecessary network transfers.
-- **Incremental backups**: only newly created SSTables will be transferred and the manifest file will link to previously backed up files that are still being used by Cassandra. **This feature is not related to nor using the incremental backup feature from Cassandra.**
+- **Full backups**: the entire data set is transferred and stored every time. The GCS implementation of the storage layer will opportunistically transfer previously backed up files from the bucket itself to avoid unecessary network transfers.
+- **Differential backups**: only newly created SSTables will be transferred and the manifest file will link to previously backed up files that are still being used by Cassandra. **This feature is not related to nor using the incremental backup feature from Cassandra.**
 
 
 #### Data structures
@@ -45,7 +45,7 @@ root
    ----- index
 ```
 
-When performing incremental backups, the following structure will be used:
+When performing differential backups, the following structure will be used:
 
 ```
 root

@@ -119,7 +119,7 @@ def cleanup_obsolete_files(storage, fqdn):
     total_purged_size = 0
 
     backups = storage.list_node_backups(fqdn=fqdn)
-    paths_in_manifest = get_file_paths_from_manifests_for_incremental_backups(backups)
+    paths_in_manifest = get_file_paths_from_manifests_for_differential_backups(backups)
     paths_in_storage = get_file_paths_from_storage(storage, fqdn)
 
     for path in paths_in_storage - paths_in_manifest:
@@ -142,10 +142,10 @@ def get_file_paths_from_storage(storage, fqdn):
     return set(data_files.keys())
 
 
-def get_file_paths_from_manifests_for_incremental_backups(backups):
-    incremental_backups = filter_incremental_backups(backups)
+def get_file_paths_from_manifests_for_differential_backups(backups):
+    differential_backups = filter_differential_backups(backups)
 
-    manifests = list(map(lambda backup: json.loads(backup.manifest), incremental_backups))
+    manifests = list(map(lambda backup: json.loads(backup.manifest), differential_backups))
 
     objects_in_manifests = [
         obj
@@ -162,5 +162,5 @@ def get_file_paths_from_manifests_for_incremental_backups(backups):
     return paths_in_manifest
 
 
-def filter_incremental_backups(backups):
-    return list(filter(lambda backup: backup.is_incremental is True, backups))
+def filter_differential_backups(backups):
+    return list(filter(lambda backup: backup.is_differential is True, backups))

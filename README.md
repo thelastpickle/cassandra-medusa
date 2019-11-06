@@ -30,7 +30,7 @@ Medusa is a command line tool that offers the following features:
 * Backup purge
 * Support for local storage, Google Cloud Storage (GCS) and AWS S3 through [Apache Libcloud](https://libcloud.apache.org/). Can be extended to support other storage providers supported by Apache Libcloud.
 * Support for clusters using single tokens or vnodes
-* Full or incremental backups
+* Full or differential backups
 
 
 Setup
@@ -139,7 +139,7 @@ Options:
   --backup-name TEXT           Custom name for the backup
   --stagger INTEGER            Check for staggering initial backups for
                                duration seconds
-  --mode [full|incremental]
+  --mode [full|differential]
   --help                       Show this message and exit.
 ```
 
@@ -149,10 +149,10 @@ Once Medusa is setup, you can create a **full** backup with the following comman
 $ medusa backup --backup-name=<name of the backup>
 ```
 
-In order to perform an **incremental** backup, add the `--mode=incremental` argument to your command:
+In order to perform an **differential** backup, add the `--mode=differential` argument to your command:
 
 ```
-$ medusa backup --backup-name=<name of the backup> --mode=incremental
+$ medusa backup --backup-name=<name of the backup> --mode=differential
 ```
 
 To perform cluster wide backups, the command must run on all nodes in the cluster, using the same backup name.
@@ -449,7 +449,7 @@ $ medusa purge
 
 ```
 
-Since SSTables and meta files are stored in different places for incremental backups, the purge is a two step process:  
+Since SSTables and meta files are stored in different places for differential backups, the purge is a two step process:  
 
 * Delete all backup directories
 * Scan active backup files from manifests and compare with the list of SSTables in the `data` directory. All SSTables present in the `data` directory but absent from all manifests will get deleted in that step.

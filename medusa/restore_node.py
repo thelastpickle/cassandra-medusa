@@ -55,13 +55,13 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
 
 def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
-    incremental_blob = storage.storage_driver.get_blob(
-        os.path.join(config.storage.fqdn, backup_name, 'meta', 'incremental'))
+    differential_blob = storage.storage_driver.get_blob(
+        os.path.join(config.storage.fqdn, backup_name, 'meta', 'differential'))
 
     node_backup = storage.get_node_backup(
         fqdn=config.storage.fqdn,
         name=backup_name,
-        incremental_mode=True if incremental_blob is not None else False
+        differential_mode=True if differential_blob is not None else False
     )
 
     if not node_backup.exists():
@@ -125,13 +125,13 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
     for fqdn in fqdns:
-        incremental_blob = storage.storage_driver.get_blob(
-            os.path.join(fqdn, backup_name, 'meta', 'incremental'))
+        differential_blob = storage.storage_driver.get_blob(
+            os.path.join(fqdn, backup_name, 'meta', 'differential'))
 
         node_backup = storage.get_node_backup(
             fqdn=fqdn,
             name=backup_name,
-            incremental_mode=True if incremental_blob is not None else False
+            differential_mode=True if differential_blob is not None else False
         )
 
         if not node_backup.exists():

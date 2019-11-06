@@ -81,7 +81,7 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @cli.command(name='backup')
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
-@click.option('--mode', default="incremental", type=click.Choice(['full', 'incremental']))
+@click.option('--mode', default="differential", type=click.Choice(['full', 'differential']))
 @pass_MedusaConfig
 def backup(medusaconfig, backup_name, stagger, mode):
     """

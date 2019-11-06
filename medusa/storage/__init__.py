@@ -65,12 +65,12 @@ class Storage(object):
         return self._config
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def get_node_backup(self, *, fqdn, name, incremental_mode=False):
+    def get_node_backup(self, *, fqdn, name, differential_mode=False):
         return NodeBackup(
             storage=self,
             name=name,
             fqdn=fqdn,
-            incremental_mode=incremental_mode
+            differential_mode=differential_mode
         )
 
     def discover_node_backups(self, *, fqdn=None):
@@ -163,6 +163,8 @@ class Storage(object):
                 tokenmap_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'tokenmap')
                 started_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'started')
                 finished_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'finished')
+                differential_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'differential')
+                # Should be removed after while. Here for backwards compatibility.
                 incremental_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'incremental')
                 if started_blob is not None:
                     started_timestamp = self.get_timestamp_from_blob_name(started_blob.name)
@@ -177,7 +179,7 @@ class Storage(object):
                             manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
                             started_timestamp=started_timestamp, started_blob=started_blob,
                             finished_timestamp=finished_timestamp, finished_blob=finished_blob,
-                            incremental_blob=incremental_blob)
+                            differential_blob=differential_blob if differential_blob is not None else incremental_blob)
             node_backups.append(nb)
 
         # once we have all the backups, we sort them by their start time. we get oldest ones first
@@ -296,13 +298,13 @@ class Storage(object):
         index_path = 'index/latest_backup/{}/backup_name.txt'.format(fqdn)
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
-            incremental_blob = self.storage_driver.get_blob('{}/{}/meta/incremental'.format(fqdn, latest_backup_name))
+            differential_blob = self.storage_driver.get_blob('{}/{}/meta/differential'.format(fqdn, latest_backup_name))
 
             node_backup = NodeBackup(
                 storage=self,
                 fqdn=fqdn,
                 name=latest_backup_name,
-                incremental_blob=incremental_blob
+                differential_blob=differential_blob
             )
 
             if not node_backup.exists():

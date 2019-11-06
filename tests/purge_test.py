@@ -24,7 +24,7 @@ from random import randrange
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import NodeBackup, Storage
-from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, filter_incremental_backups
+from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, filter_differential_backups
 
 
 class PurgeTest(unittest.TestCase):
@@ -53,7 +53,7 @@ class PurgeTest(unittest.TestCase):
         # Build a list of 40 daily backups
         for i in range(1, 80, 2):
             file_time = datetime.now() + timedelta(days=(i + 1) - 80)
-            backups.append(self.make_backup(self.storage, str(i), file_time, incremental=True))
+            backups.append(self.make_backup(self.storage, str(i), file_time, differential=True))
 
         obsolete_backups = backups_to_purge_by_age(backups, 1)
         assert len(obsolete_backups) == 39
@@ -76,7 +76,7 @@ class PurgeTest(unittest.TestCase):
         # Build a list of 40 daily backups
         for i in range(1, 80, 2):
             file_time = datetime.now() + timedelta(days=(i + 1) - 80)
-            backups.append(self.make_backup(self.storage, str(i), file_time, incremental=True))
+            backups.append(self.make_backup(self.storage, str(i), file_time, differential=True))
 
         obsolete_backups = backups_to_purge_by_count(backups, 10)
         assert(obsolete_backups[0].name == "1")
@@ -87,26 +87,26 @@ class PurgeTest(unittest.TestCase):
         obsolete_backups = backups_to_purge_by_count(backups, 40)
         assert len(obsolete_backups) == 0
 
-    def test_filter_incremental_backups(self):
+    def test_filter_differential_backups(self):
         backups = list()
-        backups.append(self.make_backup(self.storage, "one", datetime.now(), incremental=True))
-        backups.append(self.make_backup(self.storage, "two", datetime.now(), incremental=True))
-        backups.append(self.make_backup(self.storage, "three", datetime.now(), incremental=False))
-        backups.append(self.make_backup(self.storage, "four", datetime.now(), incremental=True))
-        backups.append(self.make_backup(self.storage, "five", datetime.now(), incremental=False))
-        assert 3 == len(filter_incremental_backups(backups))
+        backups.append(self.make_backup(self.storage, "one", datetime.now(), differential=True))
+        backups.append(self.make_backup(self.storage, "two", datetime.now(), differential=True))
+        backups.append(self.make_backup(self.storage, "three", datetime.now(), differential=False))
+        backups.append(self.make_backup(self.storage, "four", datetime.now(), differential=True))
+        backups.append(self.make_backup(self.storage, "five", datetime.now(), differential=False))
+        assert 3 == len(filter_differential_backups(backups))
 
-    def make_backup(self, storage, name, backup_date, incremental=False):
-        if incremental is True:
-            incremental_blob = self.make_blob("localhost/{}/meta/incremental".format(name), backup_date.timestamp())
+    def make_backup(self, storage, name, backup_date, differential=False):
+        if differential is True:
+            differential_blob = self.make_blob("localhost/{}/meta/incremental".format(name), backup_date.timestamp())
         else:
-            incremental_blob = None
+            differential_blob = None
         manifest_blob = self.make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
         tokenmap_blob = self.make_blob("localhost/{}/meta/tokenmap.json".format(name), backup_date.timestamp())
         schema_blob = self.make_blob("localhost/{}/meta/schema.cql".format(name), backup_date.timestamp())
         manifest_blob = self.make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
         return NodeBackup(storage=storage, fqdn="localhost", name=str(name),
-                          incremental_blob=incremental_blob, manifest_blob=manifest_blob,
+                          differential_blob=differential_blob, manifest_blob=manifest_blob,
                           tokenmap_blob=tokenmap_blob, schema_blob=schema_blob,
                           started_timestamp=backup_date.timestamp(), finished_timestamp=backup_date.timestamp())
 

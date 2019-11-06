@@ -165,7 +165,7 @@ Feature: Integration tests
         Examples: Storage
         | storage   |
         | local     |
-# other storage providers than local won't work with this test
+        # other storage providers than local won't work with this test
 
     @7
     Scenario Outline: Verify reporting metrics rebuilds the index if it is not present
@@ -183,16 +183,16 @@ Feature: Integration tests
         Examples:
         | Storage   |
         | local     |
-# other storage providers than local won't work with this test
+        # other storage providers than local won't work with this test
 
     @8
-    Scenario Outline: Perform an incremental backup, verify it, and restore it
+    Scenario Outline: Perform an differential backup, verify it, and restore it
         Given I have a fresh ccm cluster running named "scenario8"
         Given I am using "<storage>" as storage provider
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can verify the backup named "first_backup" successfully
         Then backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
@@ -200,7 +200,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         Then I have 200 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "second_backup"
+        When I perform a backup in "differential" mode of the node named "second_backup"
         Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup status for "second_backup" when I run the status command
@@ -210,7 +210,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table
-        When I perform a backup in "incremental" mode of the node named "third_backup"
+        When I perform a backup in "differential" mode of the node named "third_backup"
         Then I can see the backup named "third_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -220,7 +220,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table
-        When I perform a backup in "incremental" mode of the node named "fourth_backup"
+        When I perform a backup in "differential" mode of the node named "fourth_backup"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -229,8 +229,8 @@ Feature: Integration tests
         Examples: Storage
         | storage   |
         | local     |
-#        | google_storage      |
-#        | s3_us_west_oregon   |
+        #| google_storage      |
+        #| s3_us_west_oregon   |
 
     @9
     Scenario Outline: Run a purge on backups
@@ -239,19 +239,19 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "first_backup"
-        When I perform a backup in "incremental" mode of the node named "second_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "second_backup"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I run a "ccm node1 nodetool compact medusa" command
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "third_backup"
+        When I perform a backup in "differential" mode of the node named "third_backup"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "fourth_backup"
+        When I perform a backup in "differential" mode of the node named "fourth_backup"
         When I run a "ccm node1 nodetool compact medusa" command
-        When I perform a backup in "incremental" mode of the node named "fifth_backup"
+        When I perform a backup in "differential" mode of the node named "fifth_backup"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup named "third_backup" when I list the backups
@@ -279,7 +279,7 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "incremental" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup"
         Then I see 3 metrics emitted
         Then I can report latest backups without errors
         Then I see 10 metrics emitted

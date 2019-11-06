@@ -94,9 +94,9 @@ def add_backup_start_to_index(storage, node_backup):
 
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
 
-    if node_backup.is_incremental is True:
-        dst = 'index/backup_index/{}/incremental_{}'.format(node_backup.name, node_backup.fqdn)
-        storage.storage_driver.upload_blob_from_string(dst, 'incremental')
+    if node_backup.is_differential is True:
+        dst = 'index/backup_index/{}/differential_{}'.format(node_backup.name, node_backup.fqdn)
+        storage.storage_driver.upload_blob_from_string(dst, 'differential')
 
 
 def add_backup_finish_to_index(storage, node_backup):

@@ -60,9 +60,9 @@ def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
 class NodeBackupCache(object):
     NEVER_BACKED_UP = ['manifest.json']
 
-    def __init__(self, *, node_backup, incremental_mode, storage_driver, storage_provider):
+    def __init__(self, *, node_backup, differential_mode, storage_driver, storage_provider):
         if node_backup:
-            self._node_backup_cache_is_incremental = node_backup.is_incremental
+            self._node_backup_cache_is_differential = node_backup.is_differential
             self._backup_name = node_backup.name
             self._bucket_name = node_backup.storage.config.bucket_name
             self._data_path = node_backup.data_path
@@ -73,14 +73,14 @@ class NodeBackupCache(object):
                 }
                 for section in json.loads(node_backup.manifest)
             }
-            self._incremental_mode = incremental_mode
+            self._differential_mode = differential_mode
         else:
-            self._node_backup_cache_is_incremental = False
+            self._node_backup_cache_is_differential = False
             self._backup_name = None
             self._bucket_name = None
             self._data_path = ''
             self._cached_objects = {}
-            self._incremental_mode = False
+            self._differential_mode = False
         self._replaced = 0
         self._storage_driver = storage_driver
         self._storage_provider = storage_provider
@@ -108,13 +108,13 @@ class NodeBackupCache(object):
                     retained.append(src)
                 else:
                     # File was already present in the previous backup
-                    # In case the backup isn't incremental or the cache backup isn't incremental, copy from cache
-                    if self._incremental_mode is False or self._node_backup_cache_is_incremental is False:
+                    # In case the backup isn't differential or the cache backup isn't differential, copy from cache
+                    if self._differential_mode is False or self._node_backup_cache_is_differential is False:
                         prefixed_path = '{}{}'.format(path_prefix, cached_item['path'])
                         cached_item_path = self._storage_driver.get_cache_path(prefixed_path)
                         retained.append(cached_item_path)
                     else:
-                        # in case the backup is incremental, we want to rule out files, not copy them from cache
+                        # in case the backup is differential, we want to rule out files, not copy them from cache
                         manifest_object = self._make_manifest_object(path_prefix, cached_item)
                         skipped.append(manifest_object)
                     self._replaced += 1
@@ -177,14 +177,14 @@ def main(config, backup_name_arg, stagger_time, mode):
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config.cassandra)
 
-        incremental_mode = False
-        if mode == "incremental":
-            incremental_mode = True
+        differential_mode = False
+        if mode == "differential":
+            differential_mode = True
 
         node_backup = storage.get_node_backup(
             fqdn=config.storage.fqdn,
             name=backup_name,
-            incremental_mode=incremental_mode
+            differential_mode=differential_mode
         )
 
         if node_backup.exists():
@@ -203,8 +203,8 @@ def main(config, backup_name_arg, stagger_time, mode):
 
         node_backup.schema = schema
         node_backup.tokenmap = json.dumps(tokenmap)
-        if incremental_mode is True:
-            node_backup.incremental = mode
+        if differential_mode is True:
+            node_backup.differential = mode
         add_backup_start_to_index(storage, node_backup)
 
         if stagger_time:
@@ -220,7 +220,8 @@ def main(config, backup_name_arg, stagger_time, mode):
 
         actual_start = datetime.datetime.now()
 
-        num_files, node_backup_cache = do_backup(cassandra, node_backup, storage, incremental_mode, config.storage.fqdn)
+        num_files, node_backup_cache = do_backup(
+            cassandra, node_backup, storage, differential_mode, config.storage.fqdn)
 
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
@@ -247,12 +248,12 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
-def do_backup(cassandra, node_backup, storage, incremental_mode, fqdn):
+def do_backup(cassandra, node_backup, storage, differential_mode, fqdn):
 
     # Load last backup as a cache
     node_backup_cache = NodeBackupCache(
         node_backup=storage.latest_node_backup(fqdn=fqdn),
-        incremental_mode=incremental_mode,
+        differential_mode=differential_mode,
         storage_driver=storage.storage_driver,
         storage_provider=storage.storage_provider
     )
@@ -334,7 +335,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
         if len(needs_backup) > 0:
             manifest_objects = storage.storage_driver.upload_blobs(needs_backup, dst_path)
 
-        # Reintroducing already backed up objects in the manifest in incremental
+        # Reintroducing already backed up objects in the manifest in differential
         for obj in already_backed_up:
             manifest_objects.append(obj)
 
@@ -359,6 +360,6 @@ def url_to_path(url, fqdn):
     # the path with store in the manifest starts with the fqdn, but we can get longer urls
     # depending on the storage provider and type of backup
     # Full backup path is : <fqdn>/<backup_name>/data/<keyspace>/<table>/...
-    # Incremental backup path is : <fqdn>/data/<keyspace>/<table>/...
+    # Differential backup path is : <fqdn>/data/<keyspace>/<table>/...
     url_parts = url.split('/')
     return '/'.join(url_parts[url_parts.index(fqdn):])

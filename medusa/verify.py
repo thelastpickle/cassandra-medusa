@@ -101,8 +101,8 @@ def validate_manifest(storage, node_backup):
 
     # Checking for files existing in storage, but in not in the manifest
     # Relevant for full backups only because
-    # Incremental backups can have more files in data dir than in manifest
-    if node_backup.is_incremental is False:
+    # Differential backups can have more files in data dir than in manifest
+    if node_backup.is_differential is False:
 
         paths_in_storage = set(objects_in_storage.keys())
 
