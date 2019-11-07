@@ -73,7 +73,7 @@ def load_config(args, config_file):
     config['cassandra'] = {
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
         'start_cmd': 'sudo /etc/init.d/cassandra start',
-        'stop_cmd': 'sudo /etc/init.d/cassandra stop',
+        'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
         'is_ccm': 0,
         'sstableloader_bin': 'sstableloader'
