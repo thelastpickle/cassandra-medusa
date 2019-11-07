@@ -43,7 +43,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'Click==6.7',
-        'PyYAML==3.10',
+        'PyYAML==5.1',
         'google-cloud-storage==1.7.0',
         'cassandra-driver==3.14.0',
         'paramiko==2.6.0',
