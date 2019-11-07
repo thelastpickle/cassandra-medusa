@@ -98,7 +98,7 @@ class PurgeTest(unittest.TestCase):
 
     def make_backup(self, storage, name, backup_date, differential=False):
         if differential is True:
-            differential_blob = self.make_blob("localhost/{}/meta/incremental".format(name), backup_date.timestamp())
+            differential_blob = self.make_blob("localhost/{}/meta/differential".format(name), backup_date.timestamp())
         else:
             differential_blob = None
         manifest_blob = self.make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())

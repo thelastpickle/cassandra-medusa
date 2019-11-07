@@ -72,7 +72,7 @@ root
    |                             |
    |                             -------tokenmap.json
    |                             |
-   |                             -------incremental
+   |                             -------differential
    |
    ----- index
 ```

@@ -165,7 +165,7 @@ Feature: Integration tests
         Examples: Storage
         | storage   |
         | local     |
-        # other storage providers than local won't work with this test
+# other storage providers than local won't work with this test
 
     @7
     Scenario Outline: Verify reporting metrics rebuilds the index if it is not present
@@ -183,7 +183,7 @@ Feature: Integration tests
         Examples:
         | Storage   |
         | local     |
-        # other storage providers than local won't work with this test
+# other storage providers than local won't work with this test
 
     @8
     Scenario Outline: Perform an differential backup, verify it, and restore it
