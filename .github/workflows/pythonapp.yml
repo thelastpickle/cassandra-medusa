@@ -18,8 +18,16 @@ jobs:
       with:
         java-version: '1.8'
         architecture: x64
+    - uses: actions/cache@v1
+      with:
+        path: ./venv
+        key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-venv-
     - name: Install dependencies
       run: |
+        python3 -m venv venv
+        . venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install ccm
@@ -30,13 +38,13 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test tox
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
+    - name: Run tox
       run: |
-        python3 -m venv venv
         . venv/bin/activate
         tox
     - name: Run integration tests
       run: |
         . venv/bin/activate
         ./run_integration_tests.sh
+
