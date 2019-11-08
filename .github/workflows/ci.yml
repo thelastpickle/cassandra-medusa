@@ -1,0 +1,75 @@
+name: Build, test and release
+
+on: [push, release]
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.6
+    - name: Setup Java Action
+      uses: actions/setup-java@v1 
+      with:
+        java-version: '1.8'
+        architecture: x64
+    - uses: actions/cache@v1
+      with:
+        path: ./venv
+        key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-venv-
+    - name: Install dependencies
+      run: |
+        python3 -m venv venv
+        . venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install ccm
+        pip install tox
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
+    - name: Run tox
+      run: |
+        . venv/bin/activate
+        tox
+    - name: Run integration tests
+      run: |
+        . venv/bin/activate
+        # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
+        ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
+        ccm node1 updateconf 'storage_port: 7011'
+        ccm node1 updateconf 'concurrent_reads: 4'
+        ccm node1 updateconf 'concurrent_writes: 4'
+        ccm node1 updateconf 'concurrent_counter_writes: 4'
+        ccm node1 updateconf 'num_tokens: 4'
+        sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
+        sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh        
+        ccm start -v
+        ccm showlastlog|tail -100
+        ccm stop
+        ./run_integration_tests.sh
+    - name: Install Deploy dependencies
+      # Install dependencies for deployment to pypi for published releases only
+      if: github.event_name == 'release' && github.event.types == 'published'
+      run: |
+        . venv/bin/activate
+        pip install setuptools wheel twine
+    - name: Build and publish
+      if: github.event_name == 'release' && github.event.types == 'published'
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        . venv/bin/activate
+        python setup.py sdist bdist_wheel
+        twine upload dist/*
+
