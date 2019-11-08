@@ -21,12 +21,12 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='medusa',
+    name='cassandra-medusa',
     version='0.1.0',
-    author='Spotify',
-    author_email='data-bye@spotify.com',
-    url='https://github.com/spotify/cassandra-medusa',
-    description='Prototype',
+    author='The Last Pickle',
+    author_email='medusa@thelastpickle.com',
+    url='https://github.com/thelastpickle/cassandra-medusa',
+    description='Apache Cassandra backup and restore tool',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='Apache',
