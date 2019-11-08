@@ -82,6 +82,8 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name):
         subprocess.check_call(["ccm", "remove", context.cluster_name], stdout=PIPE, stderr=PIPE)
     subprocess.check_call(
         ["ccm", "create", context.cluster_name, "-v", "binary:" + context.cassandra_version, "-n", "1"])
+
+    os.popen("ccm node1 updateconf 'storage_port: 7011'").read()
     os.popen("LOCAL_JMX=yes ccm start").read()
     context.session = connect_cassandra()
 

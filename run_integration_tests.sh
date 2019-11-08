@@ -23,7 +23,9 @@ pip3 install -r requirements-test.txt
 cd tests/integration
 if [ -z "$1" ]
 then
-	PYTHONPATH=../.. behave
+	PYTHONPATH=../.. behave --stop
+	exit $?
 else
     PYTHONPATH=../.. PYTHONPATH=../.. behave --tags=$1 --no-skipped
+    exit $?
 fi

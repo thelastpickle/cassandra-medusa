@@ -122,6 +122,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
 
 def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
+    cassandra = Cassandra(config.cassandra)
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
     for fqdn in fqdns:
@@ -148,13 +149,13 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
         download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
-        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore)
+        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
     return node_backup
 
 
-def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore):
+def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(download_dir)
     for keyspace in keyspaces:
@@ -168,6 +169,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore):
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,
                                                       '-d', socket.getfqdn() if cassandra_is_ccm == 0
                                                       else '127.0.0.1',
+                                                      '--storage-port', storage_port,
                                                       '-u', config.cassandra.cql_username,
                                                       '--password', config.cassandra.cql_password,
                                                       '--no-progress',

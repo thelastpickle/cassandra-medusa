@@ -215,6 +215,16 @@ class CassandraConfigReader(object):
         else:
             return 'localhost'
 
+    @property
+    def storage_port(self):
+        if 'storage_port' in self._config:
+            if self._config['storage_port']:
+                return self._config['storage_port']
+            else:
+                return "7000"
+        else:
+            return "7000"
+
 
 class Cassandra(object):
 
@@ -237,6 +247,7 @@ class Cassandra(object):
             username=cassandra_config.cql_username,
             password=cassandra_config.cql_password
         )
+        self._storage_port = config_reader.storage_port
 
     def _has_systemd(self):
         try:
@@ -263,6 +274,10 @@ class Cassandra(object):
     @property
     def saved_caches_path(self):
         return self._saved_caches_path
+
+    @property
+    def storage_port(self):
+        return self._storage_port
 
     class Snapshot(object):
         def __init__(self, parent, tag):
