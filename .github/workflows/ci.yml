@@ -1,6 +1,6 @@
-name: Build, test and release
+name: Build and Test
 
-on: [push, release]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -57,14 +57,4 @@ jobs:
         ccm showlastlog|tail -100
         ccm stop
         ./run_integration_tests.sh
-    - name: Build and publish
-      if: github.event_name == 'release' && github.event.action == 'published'
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        . venv/bin/activate
-        pip install setuptools wheel twine
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
 
