@@ -30,7 +30,7 @@ Medusa is a command line tool that offers the following features:
 * Backup purge
 * Support for local storage, Google Cloud Storage (GCS) and AWS S3 through [Apache Libcloud](https://libcloud.apache.org/). Can be extended to support other storage providers supported by Apache Libcloud.
 * Support for clusters using single tokens or vnodes
-* Full or differential backups
+* Full or incremental backups
 
 
 Setup
@@ -38,15 +38,18 @@ Setup
 Choose and initialize the storage system:
 
 * Local storage can be used in conjunction with NFS mounts to store backups off nodes.
-* [Google Cloud Storage setup](docs/gcs_setup.md)
-* [AWS S3 setup](docs/aws_s3_setup.md)
+* [Google Cloud Storage setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/gcs_setup.md)
+* [AWS S3 setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/aws_s3_setup.md)
 
 Install Medusa on each Cassandra node:
 
-* Either run `pip3 install cassandra-medusa`
-* or clone the github repo and run : `python3 setup.py install`
+* Either run `sudo pip3 install cassandra-medusa`
+* or clone the github repo and run : `sudo python3 setup.py install`
 
-Copy `/etc/medusa/medusa-example.ini` to `/etc/medusa/medusa.ini` and mofidy it to match your requirements:
+Running the installation using `sudo` is necessary to have the `/usr/local/bin/medusa` script created properly.
+
+Create the `/etc/medusa` directory if it doesn't exist, and create a file named `/etc/medusa/medusa.ini` with the content of [medusa-example.ini](https://github.com/thelastpickle/cassandra-medusa/blob/master/medusa-example.ini).   
+Modify it to match your requirements:  
 
 ```
 [cassandra]
