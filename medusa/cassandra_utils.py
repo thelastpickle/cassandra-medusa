@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import collections
 import itertools
 import logging
 import os
@@ -33,10 +32,16 @@ from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
 
 
-SnapshotPath = collections.namedtuple(
-    'SnapshotPath',
-    ['path', 'keyspace', 'columnfamily']
-)
+class SnapshotPath(object):
+
+    def __init__(self, path, keyspace, table):
+        self.path = path
+        self.keyspace = keyspace
+        self.columnfamily = table
+
+    def list_files(self):
+        # important to use the _r_glob() to recursively descend into subdirs if there are any
+        return filter(lambda p: p.is_file(), self.path.rglob('*'))
 
 
 class CqlSessionProvider(object):

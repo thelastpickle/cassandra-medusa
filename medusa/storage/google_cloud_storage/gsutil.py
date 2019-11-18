@@ -17,7 +17,6 @@
 import csv
 import logging
 import os
-import pathlib
 import subprocess
 import tempfile
 import time
@@ -62,10 +61,7 @@ class GSUtil(object):
         return False
 
     def cp(self, *, srcs, dst, max_retries=5):
-        if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
-            srcs = [srcs]
 
-        # TODO: Clean up these files in production
         job_id = str(uuid.uuid4())
         manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
         gsutil_output = '/tmp/gsutil_{0}.output'.format(job_id)
@@ -108,6 +104,10 @@ class GSUtil(object):
                             medusa.storage.ManifestObject(row['Destination'], int(row['Source Size']), row['Md5'])
                             for row in csv.DictReader(f, delimiter=',')
                         ]
+
+                    # remove the temporary files
+                    os.remove(manifest_log)
+                    os.remove(gsutil_output)
                     return manifestobjects
             except Exception as e:
                 logging.debug("Exception encountered: {} / {}"

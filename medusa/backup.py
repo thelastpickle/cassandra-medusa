@@ -325,7 +325,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
         (needs_backup, already_backed_up) = node_backup_cache.replace_or_remove_if_cached(
             keyspace=snapshot_path.keyspace,
             columnfamily=snapshot_path.columnfamily,
-            srcs=list(snapshot_path.path.glob('*')))
+            srcs=list(snapshot_path.list_files()))
 
         num_files += len(needs_backup) + len(already_backed_up)
 

@@ -15,6 +15,7 @@
 
 import logging
 import json
+import pathlib
 import sys
 
 from medusa.storage import Storage
@@ -32,6 +33,15 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
                 for obj in section['objects']]
         dst.mkdir(parents=True)
 
+        # check for hidden sub-folders in the table directory
+        # (e.g. secondary indices which live in table/.table_idx)
+        dst_subfolders = {dst / src.parent.name
+                          for src in map(pathlib.Path, srcs)
+                          if src.parent.name.startswith('.')}
+        # create the sub-folders so the downloads actually work
+        for subfolder in dst_subfolders:
+            subfolder.mkdir(parents=False)
+
         if len(srcs) > 0 and fqtn in fqtns_to_restore:
             logging.info('Downloading backup data')
             storage.storage_driver.download_blobs(srcs, dst)
@@ -42,10 +52,10 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
 
     logging.info('Downloading backup metadata...')
     storage.storage_driver.download_blobs(
-        src=['{}'.format(path)
-             for path in [backup.manifest_path,
-                          backup.schema_path,
-                          backup.tokenmap_path]],
+        srcs=['{}'.format(path)
+              for path in [backup.manifest_path,
+                           backup.schema_path,
+                           backup.tokenmap_path]],
         dest=destination
     )
 
