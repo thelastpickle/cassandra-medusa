@@ -349,7 +349,27 @@ Feature: Integration tests
         When I perform a backup in "full" mode of the node named "first_backup"
         Then I can verify the backup named "first_backup" successfully
         When I restore the backup named "first_backup"
-        Then I can verify the restore verify query "SELECT * FROM medusa.test" restored 100 rows
+        Then I can verify the restore verify query "SELECT * FROM medusa.test" returned 100 rows
+
+        Examples:
+        | Storage   |
+        | local     |
+#        | s3_us_west_oregon     |
+#        | google_storage      |
+
+    @14
+    Scenario Outline: Perform a backup & restore of a table with secondary index
+        Given I have a fresh ccm cluster running named "scenario14"
+        Given I am using "<Storage>" as storage provider
+        When I create the "test" table with secondary index in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "differential" mode of the node named "first_backup"
+        Then I can verify the backup named "first_backup" successfully
+        Then I can see secondary index files in the "first_backup" files
+        When I restore the backup named "first_backup"
+        Then I have 100 rows in the "medusa.test" table
+        Then I can verify the restore verify query "SELECT * FROM medusa.test WHERE value = '0';" returned 1 rows
 
         Examples:
         | Storage   |

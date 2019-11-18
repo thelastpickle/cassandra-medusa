@@ -14,13 +14,15 @@
 # limitations under the License.
 
 import configparser
+import tempfile
 import unittest
 
 from cassandra.metadata import Murmur3Token
+from pathlib import Path
 from unittest.mock import Mock
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.cassandra_utils import CqlSession
+from medusa.cassandra_utils import CqlSession, SnapshotPath
 
 
 class CassandraUtilsTest(unittest.TestCase):
@@ -100,6 +102,26 @@ class CassandraUtilsTest(unittest.TestCase):
             {'localhost': {'is_up': True, 'tokens': [-6]}},
             token_map
         )
+
+    def test_snapshot_path_lists_hidden_files(self):
+        with tempfile.TemporaryDirectory() as root:
+            snapshot_path = root / Path('ks') / 't' / 'snapshot' / 'snapshot_tag'
+            index_path = snapshot_path / '.t_idx'
+            sstable_path = snapshot_path / 'xx-20-Data.lb'
+            index_sstable_path = index_path / 'xx-21-Data.lb'
+            index_path.mkdir(parents=True)  # create the directory structure
+            sstable_path.touch()            # create a fake SSTable file
+            index_sstable_path.touch()      # create a fake index SSTable file
+
+            # create a new SnapshotPath and see if it returns both normal and index SSTables
+            sp = SnapshotPath(Path(snapshot_path), 'ks', 't')
+            all_files = list(sp.list_files())
+            self.assertEqual(
+                2,
+                len(all_files)
+            )
+            self.assertTrue(sstable_path in all_files)
+            self.assertTrue(index_sstable_path in all_files)
 
 
 if __name__ == '__main__':

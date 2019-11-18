@@ -59,7 +59,7 @@ class AbstractStorage(abc.ABC):
         )
         return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
 
-    def download_blobs(self, src, dest):
+    def download_blobs(self, srcs, dest):
         """
         Downloads a list of files from the remote storage system to the local storage
 
@@ -67,7 +67,7 @@ class AbstractStorage(abc.ABC):
         :param dest: the path where to download the objects locally
         :return:
         """
-        medusa.storage.concurrent.download_blobs(self, src, dest, self.bucket.name)
+        medusa.storage.concurrent.download_blobs(self, srcs, dest, self.bucket.name)
 
     def upload_blobs(self, src, dest):
         """

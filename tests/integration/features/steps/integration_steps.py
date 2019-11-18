@@ -209,6 +209,19 @@ def _i_create_the_whatever_table(context, table_name, keyspace_name):
     context.session.execute(table.format(keyspace_name, table_name))
 
 
+@when('I create the "{table_name}" table with secondary index in keyspace "{keyspace_name}"')
+def _i_create_the_table_with_si(context, table_name, keyspace_name):
+    keyspace = """CREATE KEYSPACE IF NOT EXISTS {} WITH replication = {{'class':'SimpleStrategy',
+    'replication_factor':1}}"""
+    context.session.execute(keyspace.format(keyspace_name))
+
+    table = "CREATE TABLE IF NOT EXISTS {}.{} (id timeuuid PRIMARY KEY, value text);"
+    context.session.execute(table.format(keyspace_name, table_name))
+
+    si = "CREATE INDEX IF NOT EXISTS {}_idx ON {}.{} (value);"
+    context.session.execute(si.format(table_name, keyspace_name, table_name))
+
+
 @when(r'I load {nb_rows} rows in the "{table_name}" table')
 def _i_load_rows_in_the_whatever_table(context, nb_rows, table_name):
     for i in range(int(nb_rows)):
@@ -565,6 +578,20 @@ def _backup_named_something_has_nb_files_in_the_manifest(
                 assert len(section["objects"]) == int(nb_files)
 
 
+@then(r'I can see secondary index files in the "{backup_name}" files')
+def _i_can_see_secondary_index_files_in_backup(context, backup_name):
+    storage = Storage(config=context.medusa_config.storage)
+    node_backups = storage.list_node_backups()
+    target_backup = list(filter(lambda backup: backup.name == backup_name, node_backups))[0]
+    manifest = json.loads(target_backup.manifest)
+    seen_index_files = 0
+    for section in manifest:
+        for f in section['objects']:
+            if 'idx' in f['path']:
+                seen_index_files += 1
+    assert seen_index_files > 0
+
+
 @then(r'verify fails on the backup named "{backup_name}"')
 def _verify_fails_on_the_backup_named(context, backup_name):
     try:
@@ -594,8 +621,8 @@ def _i_truncate_the_table(context, table_name):
     context.session.execute("truncate {}".format(table_name))
 
 
-@then(r'I can verify the restore verify query "{query}" restored {expected_rows} rows')
-def _i_can_verify_the_restore_verify_query_restored_rows(context, query, expected_rows):
+@then(r'I can verify the restore verify query "{query}" returned {expected_rows} rows')
+def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expected_rows):
     restore_config = {
         "health_check": "cql",
         "query": query,
