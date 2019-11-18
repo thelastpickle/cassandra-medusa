@@ -5,9 +5,9 @@ AWS S3 setup
 
 Create a new S3 bucket that will be used to store the backups, and do not enable public access.
 
-### Create an IAM strategy for that bucket
+### Create an IAM Policy for that bucket
 
-Create an IAM strategy called `MedusaStorageStrategy`, with the following definition (replace `<bucket-name>` with the actual bucket name):
+Create an IAM Policy called `MedusaStorageStrategy`, with the following definition (replace `<bucket-name>` with the actual bucket name):
 
 ```
 {
@@ -83,7 +83,7 @@ Create an IAM strategy called `MedusaStorageStrategy`, with the following defini
 ### Create an AWS user for backups
 
 Create a new AWS user with "programmatic access type", which will only be able to use the API and CLI through access keys.
-Assign the previously created `MedusaStorageStrategy` to this newly created API user.  
+Assign the previously created `MedusaStorageStrategy` policy to this newly created API user.  
 
 
 ### Configure Medusa
