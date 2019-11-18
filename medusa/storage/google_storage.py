@@ -14,12 +14,14 @@
 # limitations under the License.
 
 import io
+import itertools
 import json
 import logging
 import os
 
 from dateutil import parser
 from libcloud.storage.drivers.google_storage import GoogleStorageDriver
+from pathlib import Path
 
 from medusa.storage.abstract_storage import AbstractStorage
 from medusa.storage.google_cloud_storage.gsutil import GSUtil
@@ -39,14 +41,51 @@ class GoogleStorage(AbstractStorage):
 
         return driver
 
-    def upload_blobs(self, src, dest):
-        with GSUtil(self.config) as gsutil:
-            return gsutil.cp(srcs=src, dst="gs://{}/{}".format(self.bucket.name, dest))
+    def upload_blobs(self, srcs, dest):
 
-    def download_blobs(self, src, dest):
+        # ensure srcs is always a list
+        if isinstance(srcs, str) or isinstance(srcs, Path):
+            srcs = [srcs]
+
+        generators = self._upload_blobs(srcs, dest)
+        return list(itertools.chain(*generators))
+
+    def _upload_blobs(self, srcs, dest):
         with GSUtil(self.config) as gsutil:
-            src = list(map(lambda name: "gs://{}/{}".format(self.bucket.name, name), src))
-            return gsutil.cp(srcs=src, dst=dest)
+            for parent, src_paths in _group_by_parent(srcs):
+                yield self._upload_paths(gsutil, parent, src_paths, dest)
+
+    def _upload_paths(self, gsutil, parent, src_paths, old_dest):
+        # if the parent doesn't start with a '.', it's probably business as usual
+        # if it doesn't we need to modify the dest by squeezing the new parent in
+        # so the final upload destination is `dest / parent / object`
+        # this is needed to handle things like secondary indices that live in hidden folders within table folders
+        new_dest = '{}/{}'.format(old_dest, parent) if parent.startswith('.') else old_dest
+        return gsutil.cp(srcs=src_paths, dst="gs://{}/{}".format(self.bucket.name, new_dest))
+
+    def download_blobs(self, srcs, dest):
+
+        # src is a list of strings, each string is a path inside the backup bucket pointing to a file, or a GCS URI
+        # dst is a table full path to a temporary folder, ends with table name
+
+        # ensure srcs is always a list
+        if isinstance(srcs, str) or isinstance(srcs, Path):
+            srcs = [srcs]
+
+        generators = self._download_blobs(srcs, dest)
+        return list(itertools.chain(*generators))
+
+    def _download_blobs(self, srcs, dest):
+        with GSUtil(self.config) as gsutil:
+            for parent, src_paths in _group_by_parent(srcs):
+                yield self._download_paths(gsutil, parent, src_paths, dest)
+
+    def _download_paths(self, gsutil, parent, src_paths, old_dest):
+        new_dest = '{}/{}'.format(old_dest, parent) if parent.startswith('.') else old_dest
+        # we made src_paths a list of Path objects, but we need strings for copying
+        # plus, we must not forget to point them to the bucket
+        srcs = ['gs://{}/{}'.format(self.bucket.name, str(p)) for p in src_paths]
+        return gsutil.cp(srcs=srcs, dst=new_dest)
 
     def get_object_datetime(self, blob):
         logging.debug("Blob {} last modification time is {}".format(blob.name, blob.extra["last_modified"]))
@@ -64,3 +103,13 @@ class GoogleStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return self.get_download_path(path)
+
+
+def _is_in_folder(file_path, folder_path):
+    return file_path.parent.name == Path(folder_path).name
+
+
+def _group_by_parent(paths):
+    by_parent = itertools.groupby(paths, lambda p: Path(p).parent.name)
+    for parent, files in by_parent:
+        yield parent, list(files)

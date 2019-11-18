@@ -87,11 +87,14 @@ def __upload_file(connection, src, dest, bucket):
     """
     if not isinstance(src, pathlib.Path):
         src = pathlib.Path(src)
+
     logging.info("Uploading {}".format(src))
+    # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
+    obj_name = '{}/{}'.format(src.parent.name, src.name) if src.parent.name.startswith('.') else src.name
     obj = connection.upload_object(
         os.fspath(src),
         container=bucket,
-        object_name=str("{}/{}".format(dest, src.name))
+        object_name=str("{}/{}".format(dest, obj_name))
     )
     return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
 
@@ -126,6 +129,12 @@ def __download_blob(connection, src, dest, bucket_name):
     try:
         logging.debug("[Storage] Getting object {}".format(src))
         blob = connection.get_object(bucket_name, str(src))
-        blob.download(dest, overwrite_existing=True)
+
+        # we must make sure the blob gets stored under sub-folder (if there is any)
+        # the dest variable only points to the table folder, so we need to add the sub-folder
+        src_path = pathlib.Path(src)
+        blob_dest = '{}/{}'.format(dest, src_path.parent.name) if src_path.parent.name.startswith('.') else dest
+
+        blob.download(blob_dest, overwrite_existing=True)
     except ObjectDoesNotExistError:
         return None

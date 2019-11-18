@@ -17,6 +17,7 @@ import logging
 import os
 import io
 from dateutil import parser
+from pathlib import Path
 
 from libcloud.storage.providers import get_driver
 
@@ -56,7 +57,7 @@ class S3Storage(AbstractStorage):
             driver = cls(profile['aws_access_key_id'], profile['aws_secret_access_key'])
             return driver
 
-    def download_blobs(self, src, dest):
+    def download_blobs(self, srcs, dest):
         """
         Downloads a list of files from the remote storage system to the local storage
 
@@ -64,14 +65,16 @@ class S3Storage(AbstractStorage):
         :param dest: the path where to download the objects locally
         :return:
         """
-        for src_obj in list(src):
+        for src_obj in list(srcs):
             blob = self.get_blob(src_obj)
             index = src_obj.rfind('/')
             if index > 0:
                 file_name = src_obj[src_obj.rfind('/') + 1:]
             else:
                 file_name = src_obj
-            blob.download(os.path.join(dest, file_name), overwrite_existing=True)
+            src_path = Path(src_obj)
+            blob_dest = '{}/{}'.format(dest, src_path.parent.name) if src_path.parent.name.startswith('.') else dest
+            blob.download(os.path.join(blob_dest, file_name), overwrite_existing=True)
 
     def get_object_datetime(self, blob):
         logging.debug("Blob {} last modification time is {}".format(blob.name, blob.extra["last_modified"]))
