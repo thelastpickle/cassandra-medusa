@@ -215,10 +215,8 @@ class CassandraConfigReader(object):
         if 'listen_address' in self._config:
             if self._config['listen_address']:
                 return self._config['listen_address']
-            else:
-                return socket.gethostname()
-        else:
-            return 'localhost'
+        
+        return socket.gethostname()
 
     @property
     def storage_port(self):
