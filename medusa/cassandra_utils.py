@@ -215,7 +215,7 @@ class CassandraConfigReader(object):
         if 'listen_address' in self._config:
             if self._config['listen_address']:
                 return self._config['listen_address']
-        
+
         return socket.gethostname()
 
     @property
