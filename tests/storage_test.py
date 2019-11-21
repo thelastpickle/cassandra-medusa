@@ -189,19 +189,47 @@ class RestoreNodeTest(unittest.TestCase):
         blob_name = "index/backup_index/2019051307/manifest_node1.whatever.com.json"
         self.assertEquals(
             "node1.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node2.whatever.com.cql"
         self.assertEquals(
             "node2.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node3.whatever.com.txt"
         self.assertEquals(
             "node3.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
+        )
+
+        blob_name = "index/backup_index/2019051307/schema_node_with_underscores.whatever.com.txt"
+        self.assertEquals(
+            "node_with_underscores.whatever.com",
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
+        )
+
+    def test_get_fqdn_from_any_index_blob(self):
+        blob_name = "tokenmap_hostname-with-dashes-and-3-numbers.json"
+        self.assertEqual(
+            "hostname-with-dashes-and-3-numbers",
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
+        )
+        blob_name = "tokenmap_hostname-with-dashes.and-dots.json"
+        self.assertEqual(
+            "hostname-with-dashes.and-dots",
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
+        )
+        blob_name = "tokenmap_hostname_with-underscores.and-dots-and.dashes.json"
+        self.assertEqual(
+            "hostname_with-underscores.and-dots-and.dashes",
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
+        )
+        blob_name = "index/bi/third_backup/finished_localhost_1574343029.timestamp"
+        self.assertEqual(
+            "localhost",
+            self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
     def test_parse_backup_index(self):
@@ -264,6 +292,15 @@ class RestoreNodeTest(unittest.TestCase):
         self.assertEquals(
             1558021519,
             self.storage.get_timestamp_from_blob_name('finished_some.host.net_1558021519.timestamp')
+        )
+        self.assertEquals(
+            1558021519,
+            self.storage.get_timestamp_from_blob_name('finished_some_underscores.host.net_1558021519.timestamp')
+        )
+
+        self.assertEquals(
+            1574343029,
+            self.storage.get_timestamp_from_blob_name('index/bi/third_backup/finished_localhost_1574343029.timestamp')
         )
 
 
