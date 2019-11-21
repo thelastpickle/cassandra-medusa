@@ -130,7 +130,7 @@ Feature: Integration tests
 
     @5
     Scenario Outline: Verify re-creating index works
-        Given I have a fresh ccm cluster running named "scenario4"
+        Given I have a fresh ccm cluster running named "scenario5"
         Given I am using "<storage>" as storage provider
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
