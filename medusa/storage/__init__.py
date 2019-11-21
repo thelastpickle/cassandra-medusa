@@ -19,6 +19,7 @@ import itertools
 import logging
 import operator
 import pathlib
+import re
 
 from libcloud.storage.providers import Provider
 from libcloud.common.types import InvalidCredsError
@@ -34,6 +35,12 @@ from medusa.storage.s3_storage import S3Storage
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
+
+# pattern meant to match just the blob name, not the entire path
+# the path is covered by the initial .*
+# also retains extension if the name has any
+INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential)_(.*)$')
+INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]+).timestamp$')
 
 
 def format_bytes_str(value):
@@ -153,7 +160,7 @@ class Storage(object):
         for backup_index_entry in relevant_backup_names:
             _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
             # tokenmap file is in format 'tokenmap_fqdn.json'
-            tokenmap_fqdn = tokenmap_file.split('_')[1].replace('.json', '')
+            tokenmap_fqdn = self.get_fqdn_from_any_index_blob(tokenmap_file)
             manifest_blob, schema_blob, tokenmap_blob = None, None, None
             started_blob, finished_blob = None, None
             started_timestamp, finished_timestamp = None, None
@@ -226,18 +233,14 @@ class Storage(object):
         def get_backup_name(blob):
             return blob.name.split('/')[2]
 
-        def get_fqdn(blob):
-            fqdn_with_extension = blob.name.split('/')[3].split('_')[1]
-            return self.remove_extension(fqdn_with_extension)
-
         def name_and_fqdn(blob):
-            return get_backup_name(blob), get_fqdn(blob)
+            return get_backup_name(blob), Storage.get_fqdn_from_any_index_blob(blob)
 
         def group_by_backup_name(blobs):
             return itertools.groupby(blobs, get_backup_name)
 
         def group_by_fqdn(blobs):
-            return itertools.groupby(blobs, get_fqdn)
+            return itertools.groupby(blobs, Storage.get_fqdn_from_any_index_blob)
 
         blobs_by_backup = {}
         sorted_backup_index_blobs = sorted(
@@ -254,9 +257,17 @@ class Storage(object):
         return blobs_by_backup
 
     @staticmethod
-    def get_fqdn_from_backup_index_blob_name(blob_name):
-        fqdn_with_extension = blob_name.split('/')[3].split('_')[1]
-        return Storage.remove_extension(fqdn_with_extension)
+    def get_fqdn_from_any_index_blob(blob):
+        if not isinstance(blob, str):
+            blob_name = blob.name
+        else:
+            blob_name = blob
+        # it's important to check in this order, because the 2nd pattern is more generic
+        match = INDEX_BLOB_WITH_TIMESTAMP_PATTERN.match(blob_name)
+        if match is None:
+            match = INDEX_BLOB_NAME_PATTERN.match(blob_name)
+        assert match is not None, 'Encountered malformed index blob name {}'.format(blob_name)
+        return Storage.remove_extension(match.group(2))
 
     @staticmethod
     def remove_extension(fqdn_with_extension):
@@ -271,9 +282,11 @@ class Storage(object):
             r = r.replace(old, new)
         return r
 
-    def get_timestamp_from_blob_name(self, blob_name):
-        name_without_extension = self.remove_extension(blob_name)
-        return int(name_without_extension.split('/')[-1].split('_')[-1])
+    @staticmethod
+    def get_timestamp_from_blob_name(blob_name):
+        match = INDEX_BLOB_WITH_TIMESTAMP_PATTERN.match(blob_name)
+        assert match is not None, 'Encountered malformed index blob name with timestamp {}'.format(blob_name)
+        return int(match.group(3))
 
     def lookup_blob(self, blobs_by_backup, backup_name, fqdn, blob_name_chunk):
         """
