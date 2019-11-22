@@ -46,7 +46,7 @@ class AbstractStorage(abc.ABC):
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
-            objects = self.driver.list_container_objects(self.bucket, ex_prefix=os.fspath(path))
+            objects = self.driver.list_container_objects(self.bucket, ex_prefix=str(path))
 
         return objects
 
