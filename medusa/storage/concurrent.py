@@ -106,7 +106,6 @@ def __upload_file(connection, src, dest, bucket):
 
         return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"',''))
     except Exception as e:
-        print("Exception {}".format(e))
         full_exception = traceback.TracebackException.from_exception(e)
         print(''.join(full_exception.format()))
         raise e
