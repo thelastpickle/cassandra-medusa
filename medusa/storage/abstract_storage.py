@@ -17,6 +17,7 @@ import abc
 import base64
 import io
 import logging
+import os
 
 from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
@@ -45,7 +46,7 @@ class AbstractStorage(abc.ABC):
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
-            objects = self.driver.list_container_objects(self.bucket, ex_prefix=path)
+            objects = self.driver.list_container_objects(self.bucket, ex_prefix=os.fspath(path))
 
         return objects
 
