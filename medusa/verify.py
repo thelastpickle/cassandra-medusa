@@ -89,11 +89,20 @@ def validate_manifest(storage, node_backup):
             yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
             continue
 
-        base64_hex = base64.b64decode(object_in_manifest['MD5']).hex()
-        if base64_hex != str(blob.hash) and object_in_manifest['MD5'] != str(blob.hash):
-            logging.error("Expected {} but got {} for {}".format(base64_hex, blob.hash, object_in_manifest['path']))
-            yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
-            continue
+        if "-" in object_in_manifest['MD5']:
+            # multi part S3 uploads
+            if object_in_manifest['MD5'] != str(blob.hash):
+                logging.error("Expected {} but got {} for {}".format(object_in_manifest['MD5'],
+                                                                     blob.hash,
+                                                                     object_in_manifest['path']))
+                yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
+                continue
+        else:
+            base64_hex = base64.b64decode(object_in_manifest['MD5']).hex()
+            if base64_hex != str(blob.hash) and object_in_manifest['MD5'] != str(blob.hash):
+                logging.error("Expected {} but got {} for {}".format(base64_hex, blob.hash, object_in_manifest['path']))
+                yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
+                continue
 
         if object_in_manifest['size'] != blob.size:
             yield("  - [{}] Wrong file size".format(object_in_manifest['path']))

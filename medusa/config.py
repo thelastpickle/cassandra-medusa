@@ -25,8 +25,9 @@ import medusa.cassandra_utils
 
 StorageConfig = collections.namedtuple(
     'StorageConfig',
-    ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'api_key_or_username',
-     'api_secret_or_password', 'base_path', 'max_backup_age', 'max_backup_count', 'api_profile']
+    ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider',
+     'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
+     'concurrent_transfers', 'multi_part_upload_threshold']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -67,7 +68,10 @@ def load_config(args, config_file):
         'host_file_separator': ',',
         'max_backup_age': 0,
         'max_backup_count': 0,
-        'api_profile': 'default'
+        'api_profile': 'default',
+        'transfer_max_bandwidth': '50MB/s',
+        'concurrent_transfers': 1,
+        'multi_part_upload_threshold': 100 * 1024 * 1024
     }
 
     config['cassandra'] = {
