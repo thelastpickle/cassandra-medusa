@@ -22,9 +22,11 @@ import threading
 import traceback
 
 from libcloud.storage.types import ObjectDoesNotExistError
+from retrying import retry
 
 import medusa
 
+MAX_UPLOAD_RETRIES = 5
 
 class StorageJob:
     """
@@ -76,6 +78,7 @@ def upload_blobs(storage, src, dest, bucket, max_workers=None):
     return job.execute(list(src))
 
 
+@retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
 def __upload_file(connection, src, dest, bucket):
     """
     This function is called by StorageJob. It may be called concurrently by multiple threads.
@@ -101,8 +104,9 @@ def __upload_file(connection, src, dest, bucket):
                                                       object_name=str("{}/{}".format(dest, obj_name)),
                                                       extra=extra_settings)
 
-        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
+        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"',''))
     except Exception as e:
+        print("Exception {}".format(e))
         full_exception = traceback.TracebackException.from_exception(e)
         print(''.join(full_exception.format()))
         raise e
