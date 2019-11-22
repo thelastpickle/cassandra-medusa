@@ -19,6 +19,7 @@ import multiprocessing
 import os
 import pathlib
 import threading
+import traceback
 
 from libcloud.storage.types import ObjectDoesNotExistError
 
@@ -91,12 +92,20 @@ def __upload_file(connection, src, dest, bucket):
     logging.info("Uploading {}".format(src))
     # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
     obj_name = '{}/{}'.format(src.parent.name, src.name) if src.parent.name.startswith('.') else src.name
-    obj = connection.upload_object(
-        os.fspath(src),
-        container=bucket,
-        object_name=str("{}/{}".format(dest, obj_name))
-    )
-    return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
+
+    extra_settings = {'content_type': 'application/octet-stream'}
+    try:
+        with open(src, 'rb') as iterator:
+            obj = connection.upload_object_via_stream(iterator=iterator,
+                                                      container=bucket,
+                                                      object_name=str("{}/{}".format(dest, obj_name)),
+                                                      extra=extra_settings)
+
+        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
+    except Exception as e:
+        full_exception = traceback.TracebackException.from_exception(e)
+        print(''.join(full_exception.format()))
+        raise e
 
 
 def download_blobs(storage, src, dest, bucket_name, max_workers=None):

@@ -49,7 +49,7 @@ setuptools.setup(
         'paramiko>=2.6.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
-        'apache-libcloud>=2.4.0',
+        'apache-libcloud>=2.6.0',
         'python-dateutil>=2.8.0',
         'lockfile>=0.12.2',
         'pycrypto>=2.6.1',
