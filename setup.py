@@ -46,7 +46,7 @@ setuptools.setup(
         'PyYAML>=5.1',
         'google-cloud-storage>=1.7.0',
         'cassandra-driver>=3.14.0',
-        'paramiko>=2.6.0',
+        'paramiko>=2.4.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
         'apache-libcloud>=2.6.0',
