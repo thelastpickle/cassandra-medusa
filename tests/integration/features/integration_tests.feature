@@ -40,8 +40,8 @@ Feature: Integration tests
         Then I have 200 rows in the "medusa.test" table
         Examples: Storage
         | storage           |
-        | local             |
-#         | s3_us_west_oregon |
+#        | local             |
+        | s3_us_west_oregon |
 #         | google_storage    |
 
     @2
@@ -62,8 +62,8 @@ Feature: Integration tests
         Then I can report latest backups without errors
         Examples: Storage
         | storage    |
-        | local      |
-#        | s3_us_west_oregon     |
+#        | local      |
+        | s3_us_west_oregon     |
 #        | google_storage      |
 
     @3
@@ -82,8 +82,8 @@ Feature: Integration tests
         Then I can see the latest backup for "localhost" being called "fifth_backup"
         Examples: Storage
         | storage   |
-        | local      |
-#        | s3_us_west_oregon     |
+#        | local      |
+        | s3_us_west_oregon     |
 #        | google_storage      |
 
     @4
@@ -228,9 +228,9 @@ Feature: Integration tests
         Then verify fails on the backup named "third_backup"
         Examples: Storage
         | storage   |
-        | local     |
-        #| google_storage      |
-        #| s3_us_west_oregon   |
+#        | local     |
+#        | google_storage      |
+        | s3_us_west_oregon   |
 
     @9
     Scenario Outline: Run a purge on backups
@@ -268,9 +268,9 @@ Feature: Integration tests
         Then I can verify the backup named "fifth_backup" successfully
         Examples: Storage
         | storage   |
-        | local     |
+#        | local     |
 #        | google_storage      |
-#        | s3_us_west_oregon   |
+        | s3_us_west_oregon   |
 
     @10
     Scenario Outline: Run a backup and restore and verify metrics
@@ -285,9 +285,9 @@ Feature: Integration tests
         Then I see 10 metrics emitted
         Examples: Storage
         | storage   |
-        | local     |
+#        | local     |
 #        | google_storage      |
-#        | s3_us_west_oregon   |
+        | s3_us_west_oregon   |
 
     @11
     Scenario Outline: Perform a backup, and restore it using the sstableloader
@@ -309,8 +309,8 @@ Feature: Integration tests
         Then I have 200 rows in the "medusa.test" table
         Examples: Storage
         | storage   |
-        | local     |
-#        | s3_us_west_oregon   |
+#        | local     |
+        | s3_us_west_oregon   |
 #        | google_storage      |
 
     @12
@@ -335,8 +335,8 @@ Feature: Integration tests
         Then I have 0 rows in the "medusa.test1" table
         Examples: Storage
         | storage   |
-        | local     |
-#        | s3_us_west_oregon   |
+#        | local     |
+        | s3_us_west_oregon   |
 #        | google_storage      |
 
     @13
@@ -353,8 +353,8 @@ Feature: Integration tests
 
         Examples:
         | Storage   |
-        | local     |
-#        | s3_us_west_oregon     |
+#        | local     |
+        | s3_us_west_oregon     |
 #        | google_storage      |
 
     @14
@@ -373,6 +373,6 @@ Feature: Integration tests
 
         Examples:
         | Storage   |
-        | local     |
-#        | s3_us_west_oregon     |
+#        | local     |
+        | s3_us_west_oregon     |
 #        | google_storage      |

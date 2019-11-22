@@ -16,7 +16,6 @@
 import concurrent.futures
 import logging
 import multiprocessing
-import os
 import pathlib
 import threading
 import traceback
@@ -27,6 +26,7 @@ from retrying import retry
 import medusa
 
 MAX_UPLOAD_RETRIES = 5
+
 
 class StorageJob:
     """
@@ -104,7 +104,7 @@ def __upload_file(connection, src, dest, bucket):
                                                       object_name=str("{}/{}".format(dest, obj_name)),
                                                       extra=extra_settings)
 
-        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"',''))
+        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"', ''))
     except Exception as e:
         full_exception = traceback.TracebackException.from_exception(e)
         print(''.join(full_exception.format()))
