@@ -92,7 +92,7 @@ def validate_manifest(storage, node_backup):
         if "-" in object_in_manifest['MD5']:
             # multi part S3 uploads
             if object_in_manifest['MD5'] != str(blob.hash):
-                logging.error("Expected {} but got {} for {}".format(base64_hex, blob.hash, object_in_manifest['path']))
+                logging.error("Expected {} but got {} for {}".format(object_in_manifest['MD5'], blob.hash, object_in_manifest['path']))
                 yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
                 continue
         else:    
