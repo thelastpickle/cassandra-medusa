@@ -16,12 +16,17 @@ import configparser
 import logging
 import os
 import io
+import itertools
+import subprocess
+from subprocess import PIPE
 from dateutil import parser
 from pathlib import Path
 
 from libcloud.storage.providers import get_driver
 
 from medusa.storage.abstract_storage import AbstractStorage
+import medusa.storage.aws_s3_storage.concurrent
+import medusa
 
 
 class S3Storage(AbstractStorage):
@@ -47,15 +52,48 @@ class S3Storage(AbstractStorage):
     S3_RGW = 's3_rgw'
     S3_RGW_OUTSCALE = 's3_rgw_outscale'
     """
+
     def connect_storage(self):
         aws_config = configparser.ConfigParser(interpolation=None)
-        with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as aws_file:
+        with io.open(
+            os.path.expanduser(self.config.key_file), "r", encoding="utf-8"
+        ) as aws_file:
+            self._test_awscli_presence()
             aws_config.read_file(aws_file)
             aws_profile = self.config.api_profile
             profile = aws_config[aws_profile]
             cls = get_driver(self.config.storage_provider)
-            driver = cls(profile['aws_access_key_id'], profile['aws_secret_access_key'])
+            driver = cls(profile["aws_access_key_id"], profile["aws_secret_access_key"])
+            if self.config.transfer_max_bandwidth is not None:
+                subprocess.check_call(
+                    [
+                        "aws",
+                        "configure",
+                        "set",
+                        "default.s3.max_bandwidth",
+                        self.config.transfer_max_bandwidth,
+                    ]
+                )
             return driver
+
+    def _test_awscli_presence(self):
+        try:
+            subprocess.check_call(["aws", "help"], stdout=PIPE, stderr=PIPE)
+        except Exception:
+            raise RuntimeError(
+                "AWS cli doesn't seem to be installed on this system and is a "
+                + "required dependency for the S3 backend. Please run 'pip3 install awscli' and try again."
+            )
+
+    def upload_blobs(self, srcs, dest):
+        return medusa.storage.aws_s3_storage.concurrent.upload_blobs(
+            self,
+            srcs,
+            dest,
+            self.bucket,
+            max_workers=self.config.concurrent_transfers,
+            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
+        )
 
     def download_blobs(self, srcs, dest):
         """
@@ -67,19 +105,33 @@ class S3Storage(AbstractStorage):
         """
         for src_obj in list(srcs):
             blob = self.get_blob(src_obj)
-            index = src_obj.rfind('/')
+            index = src_obj.rfind("/")
             if index > 0:
-                file_name = src_obj[src_obj.rfind('/') + 1:]
+                file_name = src_obj[src_obj.rfind("/") + 1:]
             else:
                 file_name = src_obj
             src_path = Path(src_obj)
-            blob_dest = '{}/{}'.format(dest, src_path.parent.name) if src_path.parent.name.startswith('.') else dest
+            blob_dest = (
+                "{}/{}".format(dest, src_path.parent.name)
+                if src_path.parent.name.startswith(".")
+                else dest
+            )
             blob.download(os.path.join(blob_dest, file_name), overwrite_existing=True)
 
     def get_object_datetime(self, blob):
-        logging.debug("Blob {} last modification time is {}".format(blob.name, blob.extra["last_modified"]))
+        logging.debug(
+            "Blob {} last modification time is {}".format(
+                blob.name, blob.extra["last_modified"]
+            )
+        )
         return parser.parse(blob.extra["last_modified"])
 
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return path
+
+
+def _group_by_parent(paths):
+    by_parent = itertools.groupby(paths, lambda p: Path(p).parent.name)
+    for parent, files in by_parent:
+        yield parent, list(files)

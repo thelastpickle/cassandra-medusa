@@ -37,14 +37,15 @@ Setup
 -----
 Choose and initialize the storage system:
 
-* Local storage can be used in conjunction with NFS mounts to store backups off nodes.
+* Local storage can be used in conjunction with NFS mounts to store backups off nodes. The backup directory must be accessible from all nodes in the cluster and mounted appropriately. If the backup folder is not shared, the nodes will only see their own backups.
 * [Google Cloud Storage setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/gcs_setup.md)
 * [AWS S3 setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/aws_s3_setup.md)
 
-Install Medusa on each Cassandra node:
+Install Medusa on each Cassandra node: 
 
-* Either run `sudo pip3 install cassandra-medusa`
-* or clone the github repo and run : `sudo python3 setup.py install`
+* if the storage backend is a locally accessible shared storage, run `sudo pip3 install cassandra-medusa`
+* if your backups are to be stored in AWS S3, run `sudo pip3 install cassandra-medusa[S3]`
+* if your backups are to be stored in Google Cloud Storage, run `sudo pip3 install cassandra-medusa[GCS]`
 
 Running the installation using `sudo` is necessary to have the `/usr/local/bin/medusa` script created properly.
 
@@ -53,35 +54,57 @@ Modify it to match your requirements:
 
 ```
 [cassandra]
-#stop_cmd = /etc/init.d/cassandra stop
-#start_cmd = /etc/init.d/cassandra start
-#config_file = <path to cassandra.yaml. Defaults to /etc/cassandra/cassandra.yaml>
-#cql_username = <username>
-#cql_password = <password>
-#check_running = <Command ran to verify if Cassandra is running on a node. Defaults to "nodetool version">
+;stop_cmd = /etc/init.d/cassandra stop
+;start_cmd = /etc/init.d/cassandra start
+;config_file = <path to cassandra.yaml. Defaults to /etc/cassandra/cassandra.yaml>
+;cql_username = <username>
+;cql_password = <password>
+
+; Command ran to verify if Cassandra is running on a node. Defaults to "nodetool version"
+;check_running = nodetool version
 
 [storage]
 storage_provider = <Storage system used for backups>
-# storage_provider should be either of "local", "google_storage" or the s3_* values from
-# https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py#L87-L105
-bucket_name = <Name of the bucket used for storing backups>
-key_file = <JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)>
-#base_path = <Path of the local storage bucket (used only with 'local' storage provider>
-#prefix = <Any prefix used for multitenancy in the same bucket>
-#fqdn = <enforce the name of the local node. Computed automatically if not provided.>
-#max_backup_age = <number of days before backups are purged. 0 means backups don't get purged by age (default)>
-#max_backup_count = <number of backups to retain. Older backups will get purged beyond that number. 0 means backups don't get purged by count (default)>
-# Both thresholds can be defined for backup purge.
+; storage_provider should be either of "local", "google_storage" or the s3_* values from
+; https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py
 
+; Name of the bucket used for storing backups
+bucket_name = cassandra_backups
+
+; JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)
+key_file = /etc/medusa/credentials
+
+; Path of the local storage bucket (used only with 'local' storage provider)
+;base_path = /path/to/backups
+
+; Any prefix used for multitenancy in the same bucket
+;prefix = clusterA
+
+;fqdn = <enforce the name of the local node. Computed automatically if not provided.>
+
+; Number of days before backups are purged. 0 means backups don't get purged by age (default)
+max_backup_age = 0
+; Number of backups to retain. Older backups will get purged beyond that number. 0 means backups don't get purged by count (default)
+max_backup_count = 0
+; Both thresholds can be defined for backup purge.
+
+; Used to throttle S3 backups/restores:
+transfer_max_bandwidth = 50MB/s 
+
+; Max number of downloads/uploads. Not used by the GCS backend.
+concurrent_transfers = 1
+
+; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
+multi_part_upload_threshold = 104857600
 
 [monitoring]
-#monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
+;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
 
 [ssh]
-#username = <SSH username to use for restoring clusters>
-#key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
+;username = <SSH username to use for restoring clusters>
+;key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
 
-[restore]
+[checks]
 ;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>
 ;query = <CQL query to run after a restore to verify it went OK>
 ;expected_rows = <Number of rows expected to be returned when the query runs. Not checked if not specified.>
