@@ -162,6 +162,8 @@ def i_am_using_storage_provider(context, storage_provider):
             "api_secret_or_password": "",
             "api_profile": "default",
             "base_path": "/tmp",
+            "multi_part_upload_threshold": 1 * 1024,
+            "concurrent_transfers": 4
         }
 
     config["cassandra"] = {

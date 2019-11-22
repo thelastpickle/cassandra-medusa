@@ -42,19 +42,22 @@ setuptools.setup(
     python_requires='>=3.4',
     packages=setuptools.find_packages(),
     install_requires=[
+        'python-dateutil<2.8.1,>=2.1',
         'Click>=6.7',
         'PyYAML>=5.1',
-        'google-cloud-storage>=1.7.0',
         'cassandra-driver>=3.14.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
-        'apache-libcloud>=2.4.0',
-        'python-dateutil>=2.8.0',
+        'apache-libcloud>=2.6.0',
         'lockfile>=0.12.2',
         'pycrypto>=2.6.1',
         'retrying>=1.3.3',
         'parallel-ssh==1.9.1'
     ],
+    extras_require={
+        'S3': ["awscli>=1.16.291"],
+        'GCS': ["google-cloud-storage>=1.7.0"]
+    },
     entry_points={
         'console_scripts': [
             'medusa=medusa.medusacli:cli',

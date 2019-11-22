@@ -45,7 +45,7 @@ class AbstractStorage(abc.ABC):
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
-            objects = self.driver.list_container_objects(self.bucket, ex_prefix=path)
+            objects = self.driver.list_container_objects(self.bucket, ex_prefix=str(path))
 
         return objects
 
@@ -67,7 +67,8 @@ class AbstractStorage(abc.ABC):
         :param dest: the path where to download the objects locally
         :return:
         """
-        medusa.storage.concurrent.download_blobs(self, srcs, dest, self.bucket.name)
+        medusa.storage.concurrent.download_blobs(self, srcs, dest, self.bucket.name,
+                                                 max_workers=self.config.concurrent_transfers)
 
     def upload_blobs(self, src, dest):
         """
@@ -76,7 +77,8 @@ class AbstractStorage(abc.ABC):
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
         """
-        return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket)
+        return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket,
+                                                      max_workers=self.config.concurrent_transfers)
 
     def get_blob(self, path):
         try:

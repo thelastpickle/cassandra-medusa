@@ -41,7 +41,7 @@ Feature: Integration tests
         Examples: Storage
         | storage           |
         | local             |
-#         | s3_us_west_oregon |
+#        | s3_us_west_oregon |
 #         | google_storage    |
 
     @2
@@ -62,7 +62,7 @@ Feature: Integration tests
         Then I can report latest backups without errors
         Examples: Storage
         | storage    |
-        | local      |
+        | local     |
 #        | s3_us_west_oregon     |
 #        | google_storage      |
 
@@ -82,7 +82,7 @@ Feature: Integration tests
         Then I can see the latest backup for "localhost" being called "fifth_backup"
         Examples: Storage
         | storage   |
-        | local      |
+        | local     |
 #        | s3_us_west_oregon     |
 #        | google_storage      |
 
@@ -229,8 +229,8 @@ Feature: Integration tests
         Examples: Storage
         | storage   |
         | local     |
-        #| google_storage      |
-        #| s3_us_west_oregon   |
+#        | google_storage      |
+#        | s3_us_west_oregon   |
 
     @9
     Scenario Outline: Run a purge on backups
