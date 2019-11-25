@@ -134,7 +134,7 @@ def throttle_backup():
     Makes sure to only us idle IO for backups
     """
     p = psutil.Process(os.getpid())
-    p.ionice(psutil.IOPRIO_CLASS_IDLE)
+    p.ionice(psutil.IOPRIO_CLASS_RT, value=7)
     p.nice(19)
     logging.debug("Process {} was set to use only idle IO and CPU resources".format(p))
 

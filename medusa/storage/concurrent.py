@@ -97,18 +97,13 @@ def __upload_file(connection, src, dest, bucket):
     obj_name = '{}/{}'.format(src.parent.name, src.name) if src.parent.name.startswith('.') else src.name
 
     extra_settings = {'content_type': 'application/octet-stream'}
-    try:
-        with open(src, 'rb') as iterator:
-            obj = connection.upload_object_via_stream(iterator=iterator,
-                                                      container=bucket,
-                                                      object_name=str("{}/{}".format(dest, obj_name)),
-                                                      extra=extra_settings)
+    with open(src, 'rb') as iterator:
+        obj = connection.upload_object_via_stream(iterator=iterator,
+                                                    container=bucket,
+                                                    object_name=str("{}/{}".format(dest, obj_name)),
+                                                    extra=extra_settings)
 
-        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"', ''))
-    except Exception as e:
-        full_exception = traceback.TracebackException.from_exception(e)
-        print(''.join(full_exception.format()))
-        raise e
+    return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"', ''))
 
 
 def download_blobs(storage, src, dest, bucket_name, max_workers=None):
