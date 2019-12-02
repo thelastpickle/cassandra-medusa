@@ -4,8 +4,6 @@ on:
     branches:
       - master
   pull_request:
-    branches:
-      - master
   release:
     types:
       - published
@@ -35,9 +33,9 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-venv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-venv-
+          ${{ runner.os }}-venv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python3 -m venv venv
@@ -86,10 +84,13 @@ jobs:
         python-version: 3.5
     - name: Install dependencies
       run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
         python3 -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
-    - name: Build and publish
+    - name: Build and publish to pypi
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
@@ -98,4 +99,20 @@ jobs:
         pip install setuptools wheel twine
         python setup.py sdist bdist_wheel
         twine upload dist/*
-
+    - name: Build and publish Debian
+      env:
+        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
+        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
+      run: |
+        cd packaging/docker-build
+        docker-compose build cassandra-medusa-builder && docker-compose run cassandra-medusa-builder
+        cd ../..
+        debPackage=$(ls packages/*.deb)
+        version=$(cat VERSION)
+        echo "uploading ${debPackage} to Bintray"
+        curl -T packages/cassandra-medusa_${version}_amd64.deb \
+          -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
+          -H X-Bintray-Debian-Distribution:wheezy,bionic,jessie,xenial -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
+          https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}_amd64.deb
+        echo "Publishing release in Bintray"
+        curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
