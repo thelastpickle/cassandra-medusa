@@ -9,8 +9,17 @@ __pycache__/
 /env/
 /build/
 /dist/
+/packages/
 /venv/
 medusa.iml
 /*.egg-info/
 .vscode/settings.json
 metrics.json
+debian/cassandra-medusa
+cassandra-medusa.debhelper.log
+cassandra-medusa.postinst.debhelper
+cassandra-medusa.substvars
+debhelper-build-stamp
+files
+installed-by-dh_installdocs
+debian/.debhelper

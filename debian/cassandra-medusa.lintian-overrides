@@ -1,0 +1,16 @@
+# Squelch warning around closing ITP, unlikely to be submitted to debian any time soon.
+new-package-should-close-itp-bug
+
+# Don't lint libraries packaged in the virtualenv
+executable-not-elf-or-script usr/share/cassandra-medusa/lib/**/*
+extra-license-file usr/share/cassandra-medusa/lib/**/*
+
+# Don't lint executables installed by dependencies
+wrong-path-for-interpreter usr/share/cassandra-medusa/bin/*
+python-script-but-no-python-dep usr/share/cassandra-medusa/bin/*
+
+# Ignore pycache created when running code of dependencies
+package-installs-python-pycache-dir
+
+# Where else?
+arch-dependent-file-in-usr-share
