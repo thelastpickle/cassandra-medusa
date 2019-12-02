@@ -18,6 +18,8 @@ import itertools
 import json
 import logging
 import os
+import subprocess
+from subprocess import PIPE
 
 from dateutil import parser
 from libcloud.storage.drivers.google_storage import GoogleStorageDriver
@@ -32,6 +34,7 @@ class GoogleStorage(AbstractStorage):
     def connect_storage(self):
         with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
+            self._test_gsutil_presence()
 
         driver = GoogleStorageDriver(
             key=credentials['client_email'],
@@ -40,6 +43,16 @@ class GoogleStorage(AbstractStorage):
         )
 
         return driver
+
+    def _test_gsutil_presence(self):
+        try:
+            subprocess.check_call(["gsutil", "help"], stdout=PIPE, stderr=PIPE)
+        except Exception:
+            raise RuntimeError(
+                "Google Cloud SDK doesn't seem to be installed on this system and is a "
+                + "required dependency for the GCS backend. "
+                + "Please check https://cloud.google.com/sdk/docs/quickstarts for installation guidelines."
+            )
 
     def upload_blobs(self, srcs, dest):
 

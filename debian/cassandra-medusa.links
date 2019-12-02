@@ -1,0 +1,2 @@
+usr/share/cassandra-medusa/bin/medusa usr/bin/medusa
+usr/share/cassandra-medusa/bin/medusa-wrapper usr/bin/medusa-wrapper

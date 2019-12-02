@@ -82,7 +82,8 @@ class S3Storage(AbstractStorage):
         except Exception:
             raise RuntimeError(
                 "AWS cli doesn't seem to be installed on this system and is a "
-                + "required dependency for the S3 backend. Please run 'pip3 install awscli' and try again."
+                + "required dependency for the S3 backend. Please install it by running 'pip install awscli' "
+                + "or 'sudo apt-get install awscli' and try again."
             )
 
     def upload_blobs(self, srcs, dest):

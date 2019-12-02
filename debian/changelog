@@ -1,0 +1,5 @@
+cassandra-medusa (0.3) trusty; urgency=medium
+
+  * First packaged release of cassandra-medusa.
+
+ -- Alain Rodriguez <alain@thelastpickle.com>  Tue, 9 Dec 2019 13:00:00 +0000

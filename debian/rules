@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+
+# Copyright 2019 Spotify AB. All rights reserved.
+# Copyright 2019-2020 The Last Pickle Ltd. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+export DH_ALWAYS_EXCLUDE = .git
+export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
+%:
+	dh $@ --with python-virtualenv
+
+override_dh_virtualenv:
+	dh_virtualenv --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --builtin-venv
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym --exclude libssh2
+
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.6/site-packages/ssh2/.libs/
