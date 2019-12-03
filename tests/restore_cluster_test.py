@@ -133,15 +133,15 @@ class RestoreClusterTest(unittest.TestCase):
 
         option, values = 'keyspace', {}
         result = expand_repeatable_option(option, values)
-        self.assertEquals('', result)
+        self.assertEqual('', result)
 
         option, values = 'keyspace', {'k1'}
         result = expand_repeatable_option(option, values)
-        self.assertEquals('--keyspace k1', result)
+        self.assertEqual('--keyspace k1', result)
 
         option, values = 'keyspace', {'k1', 'k2'}
         result = expand_repeatable_option(option, sorted(list(values)))
-        self.assertEquals('--keyspace k1 --keyspace k2', result)
+        self.assertEqual('--keyspace k1 --keyspace k2', result)
 
 
 if __name__ == '__main__':
