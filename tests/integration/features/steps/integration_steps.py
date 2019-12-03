@@ -239,7 +239,9 @@ def _i_run_a_whatever_command(context, command):
 
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name):
-    medusa.backup.main(context.medusa_config, backup_name, None, backup_mode)
+    (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
+        = medusa.backup.main(context.medusa_config, backup_name, None, backup_mode)
+    context.latest_backup_cache = node_backup_cache
 
 
 @then(r'I can see the backup named "{backup_name}" when I list the backups')
@@ -254,6 +256,11 @@ def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(
             found = True
 
     assert found is True
+
+
+@then(r'some files from the previous backup were not reuploaded')
+def _some_files_from_the_previous_backup_were_not_reuploaded(context):
+    assert context.latest_backup_cache.replaced > 0
 
 
 @then(r'I cannot see the backup named "{backup_name}" when I list the backups')
