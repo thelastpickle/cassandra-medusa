@@ -59,7 +59,7 @@ class RestoreNodeTest(unittest.TestCase):
             {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
         ]
         to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEquals({'k1.t1', 'k2.t2'}, to_restore)
+        self.assertEqual({'k1.t1', 'k2.t2'}, to_restore)
 
         # skipping one table (must be specified as a fqtn)
         keep_keyspaces = {}
@@ -69,7 +69,7 @@ class RestoreNodeTest(unittest.TestCase):
             {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
         ]
         to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEquals({'k2.t2'}, to_restore)
+        self.assertEqual({'k2.t2'}, to_restore)
 
         # saying only table name doesn't cause a keep
         keep_keyspaces = {}
@@ -79,7 +79,7 @@ class RestoreNodeTest(unittest.TestCase):
             {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
         ]
         to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEquals(set(), to_restore)
+        self.assertEqual(set(), to_restore)
 
         # keeping the whole keyspace
         keep_keyspaces = {'k2'}
@@ -90,7 +90,7 @@ class RestoreNodeTest(unittest.TestCase):
             {'keyspace': 'k2', 'columnfamily': 't3', 'objects': []}
         ]
         to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEquals({'k2.t2', 'k2.t3'}, to_restore)
+        self.assertEqual({'k2.t2', 'k2.t3'}, to_restore)
 
     def test_get_sections_to_restore_with_cfids(self):
 
@@ -102,7 +102,7 @@ class RestoreNodeTest(unittest.TestCase):
             {'keyspace': 'k2', 'columnfamily': 't2-81ffe430e50c11e99f91a15641db358f', 'objects': []},
         ]
         to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEquals({'k2.t2-81ffe430e50c11e99f91a15641db358f'}, to_restore)
+        self.assertEqual({'k2.t2-81ffe430e50c11e99f91a15641db358f'}, to_restore)
 
     def test_keyspace_is_allowed_to_restore(self):
 
