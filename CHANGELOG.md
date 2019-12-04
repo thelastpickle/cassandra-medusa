@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.3.1 (2019/12/04 15:22 +00:00)
+- [4c4325e](https://github.com/thelastpickle/cassandra-medusa/commit/4c4325e99f23d73a66ba693b5131381c3627d5a5) Fix differential backups re-uploading files in S3 (@adejanovski)
+
 ### 0.3.0 (2019/11/27 16:41 +00:00)
 - [7681b4e](https://github.com/thelastpickle/cassandra-medusa/commit/7681b4eb3ed3eecec22c33cf016d75d4e5a1626f) Use multi part uploads for S3 (@adejanovski)
 - [f2812da](https://github.com/thelastpickle/cassandra-medusa/commit/f2812da09ba2742f7370dfc8061379b1dda55621) Replacing custom ssh management by parallel-ssh lib (@arodrime)
