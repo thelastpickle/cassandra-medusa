@@ -72,7 +72,7 @@ class RestoreNodeTest(unittest.TestCase):
     def test_add_object_from_string(self):
         file_content = "content of the test file"
         self.storage.storage_driver.upload_blob_from_string("test1/file.txt", file_content)
-        self.assertEquals(self.storage.storage_driver.get_blob_content_as_string("test1/file.txt"), file_content)
+        self.assertEqual(self.storage.storage_driver.get_blob_content_as_string("test1/file.txt"), file_content)
 
     def test_download_blobs(self):
         files_to_download = list()
@@ -82,9 +82,9 @@ class RestoreNodeTest(unittest.TestCase):
         files_to_download.append("test_download_blobs1/file1.txt")
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs2/file2.txt", file2_content)
         files_to_download.append("test_download_blobs2/file2.txt")
-        self.assertEquals(len(os.listdir(self.medusa_bucket_dir)), 2)
+        self.assertEqual(len(os.listdir(self.medusa_bucket_dir)), 2)
         self.storage.storage_driver.download_blobs(files_to_download, self.local_storage_dir)
-        self.assertEquals(len(os.listdir(self.local_storage_dir)), 2)
+        self.assertEqual(len(os.listdir(self.local_storage_dir)), 2)
 
     def test_list_objects(self):
         file1_content = "content of the test file1"
@@ -92,34 +92,34 @@ class RestoreNodeTest(unittest.TestCase):
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs2/file2.txt", file2_content)
         objects = self.storage.storage_driver.list_objects()
-        self.assertEquals(len(objects), 2)
+        self.assertEqual(len(objects), 2)
         one_object = self.storage.storage_driver.list_objects("test_download_blobs2")
-        self.assertEquals(len(one_object), 1)
+        self.assertEqual(len(one_object), 1)
 
     def test_read_blob(self):
         file1_content = "content of the test file1"
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         objects = self.storage.storage_driver.list_objects("test_download_blobs1")
         object_content = self.storage.storage_driver.read_blob_as_string(objects[0])
-        self.assertEquals(object_content, file1_content)
+        self.assertEqual(object_content, file1_content)
 
     def test_get_blob(self):
         file1_content = "content of the test file1"
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
-        self.assertEquals(obj.name, "test_download_blobs1/file1.txt")
+        self.assertEqual(obj.name, "test_download_blobs1/file1.txt")
 
     def test_read_blob_as_bytes(self):
         file1_content = "content of the test file1"
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         object_content = self.storage.storage_driver.get_blob_content_as_bytes("test_download_blobs1/file1.txt")
-        self.assertEquals(object_content, b"content of the test file1")
+        self.assertEqual(object_content, b"content of the test file1")
 
     def test_verify_hash(self):
         file1_content = "content of the test file1"
         manifest = self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
-        self.assertEquals(manifest.MD5, obj.hash)
+        self.assertEqual(manifest.MD5, obj.hash)
 
     def test_hashes_match(self):
         # Should match
@@ -180,32 +180,32 @@ class RestoreNodeTest(unittest.TestCase):
         file1_content = "content of the test file1"
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
-        self.assertEquals(
+        self.assertEqual(
             datetime.datetime.fromtimestamp(int(obj.extra["modify_time"])),
             self.storage.storage_driver.get_object_datetime(obj)
         )
 
     def test_get_fqdn_from_backup_index_blob(self):
         blob_name = "index/backup_index/2019051307/manifest_node1.whatever.com.json"
-        self.assertEquals(
+        self.assertEqual(
             "node1.whatever.com",
             self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node2.whatever.com.cql"
-        self.assertEquals(
+        self.assertEqual(
             "node2.whatever.com",
             self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node3.whatever.com.txt"
-        self.assertEquals(
+        self.assertEqual(
             "node3.whatever.com",
             self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node_with_underscores.whatever.com.txt"
-        self.assertEquals(
+        self.assertEqual(
             "node_with_underscores.whatever.com",
             self.storage.get_fqdn_from_any_index_blob(blob_name)
         )
@@ -267,38 +267,38 @@ class RestoreNodeTest(unittest.TestCase):
         self.assertFalse("node2" in blobs_by_backup["backup2"])
 
     def test_remove_extension(self):
-        self.assertEquals(
+        self.assertEqual(
             'localhost',
             self.storage.remove_extension('localhost.txt')
         )
-        self.assertEquals(
+        self.assertEqual(
             'localhost',
             self.storage.remove_extension('localhost.timestamp')
         )
-        self.assertEquals(
+        self.assertEqual(
             'localhost',
             self.storage.remove_extension('localhost.cql')
         )
-        self.assertEquals(
+        self.assertEqual(
             'localhost.foo',
             self.storage.remove_extension('localhost.foo')
         )
 
     def test_get_timestamp_from_blob_name(self):
-        self.assertEquals(
+        self.assertEqual(
             1558021519,
             self.storage.get_timestamp_from_blob_name('finished_localhost_1558021519.timestamp')
         )
-        self.assertEquals(
+        self.assertEqual(
             1558021519,
             self.storage.get_timestamp_from_blob_name('finished_some.host.net_1558021519.timestamp')
         )
-        self.assertEquals(
+        self.assertEqual(
             1558021519,
             self.storage.get_timestamp_from_blob_name('finished_some_underscores.host.net_1558021519.timestamp')
         )
 
-        self.assertEquals(
+        self.assertEqual(
             1574343029,
             self.storage.get_timestamp_from_blob_name('index/bi/third_backup/finished_localhost_1574343029.timestamp')
         )

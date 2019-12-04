@@ -36,6 +36,9 @@ from medusa.storage import Storage, format_bytes_str, ManifestObject
 
 
 BLOCK_SIZE_BYTES = 65536
+MULTIPART_PART_SIZE_IN_MB = 8
+MULTIPART_BLOCK_SIZE_BYTES = 65536
+MULTIPART_BLOCKS_PER_MB = 16
 
 
 def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
@@ -57,10 +60,35 @@ def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
     return base64_md5
 
 
+def md5_multipart(src):
+    eof = False
+    hash_list = []
+    with open(str(src), 'rb') as f:
+        while eof is False:
+            (md5_hash, eof) = md5_part(f)
+            hash_list.append(md5_hash)
+
+    multipart_hash = hashlib.md5(b''.join(hash_list)).hexdigest()
+
+    return '%s-%d' % (multipart_hash, len(hash_list))
+
+
+def md5_part(f):
+    hash_md5 = hashlib.md5()
+    eof = False
+    for i in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
+        chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
+        if chunk == b'':
+            eof = True
+            break
+        hash_md5.update(chunk)
+    return (hash_md5.digest(), eof)
+
+
 class NodeBackupCache(object):
     NEVER_BACKED_UP = ['manifest.json']
 
-    def __init__(self, *, node_backup, differential_mode, storage_driver, storage_provider):
+    def __init__(self, *, node_backup, differential_mode, storage_driver, storage_provider, storage_config):
         if node_backup:
             self._node_backup_cache_is_differential = node_backup.is_differential
             self._backup_name = node_backup.name
@@ -84,6 +112,7 @@ class NodeBackupCache(object):
         self._replaced = 0
         self._storage_driver = storage_driver
         self._storage_provider = storage_provider
+        self._storage_config = storage_config
 
     @property
     def replaced(self):
@@ -102,8 +131,15 @@ class NodeBackupCache(object):
                 pass
             else:
                 fqtn = (keyspace, columnfamily)
-                cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
-                if cached_item is None or self.files_are_different(src, cached_item):
+                cached_item = None
+                if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
+                    cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
+
+                if cached_item is None \
+                    or files_are_different(src,
+                                           cached_item,
+                                           self._storage_config.multi_part_upload_threshold,
+                                           self._storage_provider):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
                 else:
@@ -116,6 +152,8 @@ class NodeBackupCache(object):
                     else:
                         # in case the backup is differential, we want to rule out files, not copy them from cache
                         manifest_object = self._make_manifest_object(path_prefix, cached_item)
+                        logging.debug("Skipping upload of {} which was already part of the previous backup"
+                                      .format(cached_item['path']))
                         skipped.append(manifest_object)
                     self._replaced += 1
 
@@ -124,9 +162,21 @@ class NodeBackupCache(object):
     def _make_manifest_object(self, path_prefix, cached_item):
         return ManifestObject('{}{}'.format(path_prefix, cached_item['path']), cached_item['size'], cached_item['MD5'])
 
-    def files_are_different(self, src, cached_item):
-        return (src.stat().st_size != cached_item['size']
-                or (generate_md5_hash(src) != cached_item['MD5'] and self._storage_provider != Provider.LOCAL))
+
+def files_are_different(src, cached_item, multi_part_upload_threshold, storage_provider):
+    multi_part_threshold = int(multi_part_upload_threshold) if multi_part_upload_threshold is not None else -1
+    if src.stat().st_size >= multi_part_threshold and multi_part_threshold > 0 and \
+            storage_provider.lower().startswith("s3"):
+        md5_hash = md5_multipart(src)
+        b64_encoded_hash = ""
+    else:
+        md5_hash = generate_md5_hash(src)
+        b64_encoded_hash = base64.b64decode(md5_hash).hex()
+
+    return (src.stat().st_size != cached_item['size']
+            or (md5_hash != cached_item['MD5']  # single or multi part md5 hash. Used by S3 uploads.
+                and b64_encoded_hash != cached_item['MD5']  # b64 encoded md5 hash. Used by GCS.
+                and storage_provider != Provider.LOCAL))  # the local provider doesn't provide reliable hashes.
 
 
 def throttle_backup():
@@ -221,7 +271,7 @@ def main(config, backup_name_arg, stagger_time, mode):
         actual_start = datetime.datetime.now()
 
         num_files, node_backup_cache = do_backup(
-            cassandra, node_backup, storage, differential_mode, config.storage.fqdn)
+            cassandra, node_backup, storage, differential_mode, config)
 
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
@@ -229,6 +279,7 @@ def main(config, backup_name_arg, stagger_time, mode):
         print_backup_stats(actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
 
         update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup)
+        return (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
 
     except Exception as e:
         tags = ['medusa-node-backup', 'backup-error', backup_name]
@@ -248,14 +299,15 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
-def do_backup(cassandra, node_backup, storage, differential_mode, fqdn):
+def do_backup(cassandra, node_backup, storage, differential_mode, config):
 
     # Load last backup as a cache
     node_backup_cache = NodeBackupCache(
-        node_backup=storage.latest_node_backup(fqdn=fqdn),
+        node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn),
         differential_mode=differential_mode,
         storage_driver=storage.storage_driver,
-        storage_provider=storage.storage_provider
+        storage_provider=storage.storage_provider,
+        storage_config=config.storage
     )
 
     logging.info('Starting backup')

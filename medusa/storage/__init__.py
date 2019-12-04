@@ -39,7 +39,7 @@ ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'
 # pattern meant to match just the blob name, not the entire path
 # the path is covered by the initial .*
 # also retains extension if the name has any
-INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential)_(.*)$')
+INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential|incremental)_(.*)$')
 INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]+).timestamp$')
 
 
@@ -312,12 +312,14 @@ class Storage(object):
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
             differential_blob = self.storage_driver.get_blob('{}/{}/meta/differential'.format(fqdn, latest_backup_name))
+            # Should be removed after while. Here for backwards compatibility.
+            incremental_blob = self.storage_driver.get_blob('{}/{}/meta/incremental'.format(fqdn, latest_backup_name))
 
             node_backup = NodeBackup(
                 storage=self,
                 fqdn=fqdn,
                 name=latest_backup_name,
-                differential_blob=differential_blob
+                differential_blob=differential_blob if differential_blob is not None else incremental_blob
             )
 
             if not node_backup.exists():
