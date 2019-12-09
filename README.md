@@ -329,14 +329,14 @@ This can be used to restore a production cluster data to a staging cluster (with
 $ medusa restore-cluster --backup-name=<name of the backup> --host-list /etc/medusa/restore_mapping.txt
 ```
 
-The `restore-mapping.txt` file will provide the mapping between the backed up cluster nodes and the restore cluster ones. It is expected in the following CSV format: `<Is it a seed node?>,<source node>,<target node>`
+The `restore-mapping.txt` file will provide the mapping between the backed up cluster nodes and the restore cluster ones. It is expected in the following CSV format: `<Is it a seed node?>,<target node>,<source node>`
 
 Sample file:  
 
 ```
-True,old_node1.foo.net,new_node1.foo.net
-True,old_node2.foo.net,new_node2.foo.net
-False,old_node3.foo.net,new_node3.foo.net
+True,new_node1.foo.net,old_node1.foo.net
+True,new_node2.foo.net,old_node2.foo.net
+False,new_node3.foo.net,old_node3.foo.net
 ```
 
 Medusa will need to run without `sudo` as it will connect through ssh to all nodes in the cluster in order to perform remote operations. It will, by default, use the current user to connect and rely on agent forwarding for authentication (you must ssh into the server using `-A` to enable agent forwarding).
