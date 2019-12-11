@@ -191,4 +191,4 @@ def human_readable_size(size, decimal_places=3):
         if size < 1024.0:
             break
         size /= 1024.0
-    return f"{size:.{decimal_places}f}{unit}"
+    return '{:.{}f}{}'.format(size, decimal_places, unit)

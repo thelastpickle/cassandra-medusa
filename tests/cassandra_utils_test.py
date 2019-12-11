@@ -73,10 +73,8 @@ class CassandraUtilsTest(unittest.TestCase):
         }
         s = CqlSession(session)
         token_map = s.tokenmap()
-        self.assertEqual(
-            {'localhost': {'is_up': True, 'tokens': [-9, -6, 0]}},
-            token_map
-        )
+        self.assertEqual(True, token_map["localhost"]["is_up"])
+        self.assertEqual([-9, -6, 0], sorted(token_map["localhost"]["tokens"]))
 
     def test_tokenmap_two_dc(self):
         hostA = Mock()
