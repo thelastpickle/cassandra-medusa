@@ -87,6 +87,26 @@ class CqlSessionProvider(object):
             return CqlSession(session)
 
 
+class Nodetool(object):
+
+    def __init__(self, cassandra_config):
+        self._nodetool = ['nodetool']
+        if cassandra_config.nodetool_username is not None:
+            self._nodetool += ['-u', cassandra_config.nodetool_username]
+        if cassandra_config.nodetool_password is not None:
+            self._nodetool += ['-pw', cassandra_config.nodetool_password]
+        if cassandra_config.nodetool_password_file_path is not None:
+            self._nodetool += ['-pwf', cassandra_config.nodetool_password_file_path]
+        if cassandra_config.nodetool_host is not None:
+            self._nodetool += ['-h', cassandra_config.nodetool_host]
+        if cassandra_config.nodetool_port is not None:
+            self._nodetool += ['-p', cassandra_config.nodetool_port]
+
+    @property
+    def nodetool(self):
+        return self._nodetool
+
+
 class CqlSession(object):
     EXCLUDED_KEYSPACES = ['system_traces']
 
@@ -238,6 +258,7 @@ class Cassandra(object):
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
         self._os_has_systemd = self._has_systemd()
+        self._nodetool = Nodetool(cassandra_config)
         logging.warning('is ccm : {}'.format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
@@ -327,7 +348,7 @@ class Cassandra(object):
 
     def create_snapshot(self):
         tag = 'medusa-{}'.format(uuid.uuid4())
-        cmd = ['nodetool', 'snapshot', '-t', tag]
+        cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
 
         if self._is_ccm == 1:
             os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
@@ -338,7 +359,7 @@ class Cassandra(object):
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
-        cmd = ['nodetool', 'clearsnapshot', '-t', tag]
+        cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
 
         if self._is_ccm == 1:
             os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
@@ -483,7 +504,7 @@ def is_node_up(config, host):
     if int(config.cassandra.is_ccm) == 1:
         args = ['ccm', 'node1', 'nodetool']
     else:
-        args = ['nodetool', '-h', host]
+        args = Nodetool(config.cassandra).nodetool + ['-h', host]
 
     health_check = config.restore.health_check
     if health_check == 'cql':
