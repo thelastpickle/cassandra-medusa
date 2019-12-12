@@ -196,6 +196,7 @@ def i_am_using_storage_provider(context, storage_provider):
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
         ssh=None,
         restore=None,
+        logging=None
     )
     cleanup_storage(context, storage_provider)
     cleanup_monitoring(context)
@@ -643,6 +644,7 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
         monitoring=context.medusa_config.monitoring,
         restore=_namedtuple_from_dict(ChecksConfig, restore_config),
         ssh=None,
+        logging=None
     )
     medusa.verify_restore.verify_restore(["localhost"], custom_config)
 

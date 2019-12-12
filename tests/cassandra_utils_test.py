@@ -39,7 +39,8 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring={},
             cassandra=None,
             ssh=None,
-            restore=None
+            restore=None,
+            logging=None
         )
 
     def test_tokenmap_one_token(self):
