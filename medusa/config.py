@@ -53,7 +53,12 @@ MonitoringConfig = collections.namedtuple(
 
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'restore', 'monitoring']
+    ['storage', 'cassandra', 'ssh', 'restore', 'monitoring', 'logging']
+)
+
+LoggingConfig = collections.namedtuple(
+    'LoggingConfig',
+    ['enabled', 'file', 'format', 'level', 'maxBytes', 'backupCount']
 )
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -72,6 +77,15 @@ def load_config(args, config_file):
         'transfer_max_bandwidth': '50MB/s',
         'concurrent_transfers': 1,
         'multi_part_upload_threshold': 100 * 1024 * 1024
+    }
+
+    config['logging'] = {
+        'enabled': 'false',
+        'file': 'medusa.log',
+        'level': 'INFO',
+        'format': '[%(asctime)s] %(levelname)s: %(message)s',
+        'maxBytes': 20000000,
+        'backupCount': 50,
     }
 
     config['cassandra'] = {
@@ -117,6 +131,12 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    config.read_dict({'logging': {
+        key: value
+        for key, value in _zip_fields_with_arg_values(LoggingConfig._fields, args)
+        if value is not None
+    }})
+
     config.read_dict({'ssh': {
         key: value
         for key, value in _zip_fields_with_arg_values(SSHConfig._fields, args)
@@ -141,6 +161,7 @@ def load_config(args, config_file):
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
         restore=_namedtuple_from_dict(ChecksConfig, config['checks']),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
+        logging=_namedtuple_from_dict(LoggingConfig, config['logging']),
     )
 
     for field in ['bucket_name', 'storage_provider']:
@@ -163,6 +184,16 @@ def load_config(args, config_file):
 
 def _zip_fields_with_arg_values(fields, args):
     return [(field, args[field]) for field in fields]
+
+
+def evaluate_boolean(value):
+    # same behaviour as python's configparser
+    if value.lower() in ('0', 'false', 'no', 'off'):
+        return False
+    elif value.lower() in ('1', 'true', 'yes', 'on'):
+        return True
+    else:
+        raise TypeError('{} not a boolean'.format(value))
 
 
 def _namedtuple_from_dict(cls, data):

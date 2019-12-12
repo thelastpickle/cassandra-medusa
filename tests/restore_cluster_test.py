@@ -40,7 +40,8 @@ class RestoreClusterTest(unittest.TestCase):
             monitoring={},
             cassandra=None,
             ssh=None,
-            restore=None
+            restore=None,
+            logging=None
         )
 
     # Test that we can properly associate source and target nodes for restore using a host list

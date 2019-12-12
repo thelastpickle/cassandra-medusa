@@ -18,6 +18,7 @@ from gevent import monkey
 monkey.patch_all()
 import datetime
 import logging
+import logging.handlers
 import socket
 import click
 import sys
@@ -47,21 +48,41 @@ import medusa.fetch_tokenmap
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
-def configure_logging(verbosity, without_log_timestamp):
+def configure_file_logging(config):
+    if not medusa.config.evaluate_boolean(config.enabled):
+        return
+
+    logging.debug('Logging to file options: %s', config)
+    file_handler = logging.handlers.RotatingFileHandler(
+        filename=config.file,
+        maxBytes=int(config.maxBytes),
+        backupCount=int(config.backupCount))
+
+    file_handler.setLevel(getattr(logging, config.level))
+    file_handler.setFormatter(logging.Formatter(config.format))
+    logging.getLogger('').addHandler(file_handler)
+
+
+def configure_console_logging(verbosity, without_log_timestamp):
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)  # handlers filter the level
+
     loglevel = max(2 - verbosity, 0) * 10
 
     if verbosity == 0:
         loglevel = logging.INFO
 
     if without_log_timestamp:
-        log_format = '%(levelname)s: %(message)s'
+        log_format = logging.Formatter('%(levelname)s: %(message)s')
+        # log_format = '%(levelname)s: %(message)s'
     else:
-        log_format = '[%(asctime)s] %(levelname)s: %(message)s'
+        log_format = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
 
-    logging.basicConfig(level=loglevel,
-                        format=log_format,
-                        datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(loglevel)
+    console_handler.setFormatter(log_format)
 
+    logger.addHandler(console_handler)
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
         for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
@@ -82,8 +103,9 @@ def configure_logging(verbosity, without_log_timestamp):
 def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
     config_file = Path(config_file) if config_file else None
     args = defaultdict(lambda: None, kwargs)
-    configure_logging(verbosity, without_log_timestamp)
+    configure_console_logging(verbosity, without_log_timestamp)
     ctx.obj = medusa.config.load_config(args, config_file)
+    configure_file_logging(ctx.obj.logging)
 
 
 @cli.command(name='backup')

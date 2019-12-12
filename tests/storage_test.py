@@ -64,7 +64,8 @@ class RestoreNodeTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             monitoring={},
             ssh=None,
-            restore=None
+            restore=None,
+            logging=None
         )
 
         self.storage = Storage(config=self.config.storage)
