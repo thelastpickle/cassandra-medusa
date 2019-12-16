@@ -40,6 +40,7 @@ Choose and initialize the storage system:
 * Local storage can be used in conjunction with NFS mounts to store backups off nodes. The backup directory must be accessible from all nodes in the cluster and mounted appropriately. If the backup folder is not shared, the nodes will only see their own backups.
 * [Google Cloud Storage setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/gcs_setup.md)
 * [AWS S3 setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/aws_s3_setup.md)
+* [Ceph Object Gateway S3 API](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/ceph_s3_setup.md)
 
 Install Medusa on each Cassandra node:
 

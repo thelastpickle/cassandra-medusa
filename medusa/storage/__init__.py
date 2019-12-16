@@ -32,6 +32,7 @@ from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.s3_storage import S3Storage
+from medusa.storage.s3_rgw import S3RGWStorage
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -60,6 +61,8 @@ class Storage(object):
     def _connect_storage(self):
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
             return GoogleStorage(self._config)
+        elif self._config.storage_provider == Provider.S3_RGW:
+            return S3RGWStorage(self._config)
         elif self._config.storage_provider.startswith(Provider.S3):
             return S3Storage(self._config)
         elif self._config.storage_provider == Provider.LOCAL:

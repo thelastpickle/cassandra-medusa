@@ -32,6 +32,7 @@ from retrying import retry
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
+from medusa.storage.s3_storage import is_aws_s3
 from medusa.storage import Storage, format_bytes_str, ManifestObject
 
 
@@ -165,8 +166,7 @@ class NodeBackupCache(object):
 
 def files_are_different(src, cached_item, multi_part_upload_threshold, storage_provider):
     multi_part_threshold = int(multi_part_upload_threshold) if multi_part_upload_threshold is not None else -1
-    if src.stat().st_size >= multi_part_threshold and multi_part_threshold > 0 and \
-            storage_provider.lower().startswith("s3"):
+    if src.stat().st_size >= multi_part_threshold and multi_part_threshold > 0 and is_aws_s3(storage_provider):
         md5_hash = md5_multipart(src)
         b64_encoded_hash = ""
     else:
