@@ -40,8 +40,9 @@ Choose and initialize the storage system:
 * Local storage can be used in conjunction with NFS mounts to store backups off nodes. The backup directory must be accessible from all nodes in the cluster and mounted appropriately. If the backup folder is not shared, the nodes will only see their own backups.
 * [Google Cloud Storage setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/gcs_setup.md)
 * [AWS S3 setup](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/aws_s3_setup.md)
+* [Ceph Object Gateway S3 API](https://github.com/thelastpickle/cassandra-medusa/blob/master/docs/ceph_s3_setup.md)
 
-Install Medusa on each Cassandra node: 
+Install Medusa on each Cassandra node:
 
 * if the storage backend is a locally accessible shared storage, run `sudo pip3 install cassandra-medusa`
 * if your backups are to be stored in AWS S3, run `sudo pip3 install cassandra-medusa[S3]`
@@ -49,8 +50,8 @@ Install Medusa on each Cassandra node:
 
 Running the installation using `sudo` is necessary to have the `/usr/local/bin/medusa` script created properly.
 
-Create the `/etc/medusa` directory if it doesn't exist, and create a file named `/etc/medusa/medusa.ini` with the content of [medusa-example.ini](https://github.com/thelastpickle/cassandra-medusa/blob/master/medusa-example.ini).   
-Modify it to match your requirements:  
+Create the `/etc/medusa` directory if it doesn't exist, and create a file named `/etc/medusa/medusa.ini` with the content of [medusa-example.ini](https://github.com/thelastpickle/cassandra-medusa/blob/master/medusa-example.ini).
+Modify it to match your requirements:
 
 ```
 [cassandra]
@@ -89,7 +90,7 @@ max_backup_count = 0
 ; Both thresholds can be defined for backup purge.
 
 ; Used to throttle S3 backups/restores:
-transfer_max_bandwidth = 50MB/s 
+transfer_max_bandwidth = 50MB/s
 
 ; Max number of downloads/uploads. Not used by the GCS backend.
 concurrent_transfers = 1
@@ -258,12 +259,12 @@ Medusa will need to run with `sudo` as it will:
 * Change the ownership of the files back to the one owning the Cassandra data directory
 * start Cassandra
 
-The `--use-sstableloader` flag will be useful for restoring data when the topology doesn't match between the backed up cluster and the restore one.  
+The `--use-sstableloader` flag will be useful for restoring data when the topology doesn't match between the backed up cluster and the restore one.
 In this mode, Cassandra will not be stopped and downloaded SSTables will be loaded into Cassandra by the sstableloader. Data already present in the cluster will not be altered.
 
 The `--fqdn` argument allows to force the node to act on behalf of another backup node. It can take several hostnames separated by commas in order to restore several nodes backup using the sstableloader.
 
-The `--keyspace` option allows limiting the restore to all tables in the given keyspace. The `--table` option allows limiting the restore to just one table. The tables must be specified in the `keyspace.table` format. It is possible to repeat both of the options. Medusa will make an union of everything specified and restore all keyspaces and tables mentioned. The `--keyspace` option takes precedence, so using `--keyspace ks1` and then adding `--table ks1.t` will not limit the restore to just one table - everything from `ks1` will be restored. 
+The `--keyspace` option allows limiting the restore to all tables in the given keyspace. The `--table` option allows limiting the restore to just one table. The tables must be specified in the `keyspace.table` format. It is possible to repeat both of the options. Medusa will make an union of everything specified and restore all keyspaces and tables mentioned. The `--keyspace` option takes precedence, so using `--keyspace ks1` and then adding `--table ks1.t` will not limit the restore to just one table - everything from `ks1` will be restored.
 
 Restoring a cluster
 -------------------
@@ -303,13 +304,13 @@ This method is by far the fastest as it replaces SSTables directly on disk.
 
 ### In place (same hardware)
 
-In order to restore a backup for a full cluster, in the case where the restored cluster is the exact same as the backed up one:  
+In order to restore a backup for a full cluster, in the case where the restored cluster is the exact same as the backed up one:
 
 ```
 $ medusa restore-cluster --backup-name=<name of the backup> --seed-target node1.domain.net
 ```
 
-Medusa will need to run without `sudo` as it will connect through ssh to all nodes in the cluster in order to perform remote operations. It will, by default, use the current user to connect and rely on agent forwarding for authentication (you must ssh into the server using `-A` to enable agent forwarding).  
+Medusa will need to run without `sudo` as it will connect through ssh to all nodes in the cluster in order to perform remote operations. It will, by default, use the current user to connect and rely on agent forwarding for authentication (you must ssh into the server using `-A` to enable agent forwarding).
 The `--seed-target` node is used to connect to Cassandra and retrieve the current topology of the cluster. This allows Medusa to map each backup to the correct node in the current topology.
 
 The following operations will take place:
@@ -322,7 +323,7 @@ The following operations will take place:
 
 ### Remotely (different hardware)
 
-In order to restore a backup of a full cluster but on different servers.  
+In order to restore a backup of a full cluster but on different servers.
 This can be used to restore a production cluster data to a staging cluster (with the same number of nodes), or recovering from an outage where previously used hardware cannot be re-used.
 
 ```
@@ -331,7 +332,7 @@ $ medusa restore-cluster --backup-name=<name of the backup> --host-list /etc/med
 
 The `restore-mapping.txt` file will provide the mapping between the backed up cluster nodes and the restore cluster ones. It is expected in the following CSV format: `<Is it a seed node?>,<target node>,<source node>`
 
-Sample file:  
+Sample file:
 
 ```
 True,new_node1.foo.net,old_node1.foo.net
@@ -346,7 +347,7 @@ Medusa will need to run without `sudo` as it will connect through ssh to all nod
 * Run `restore-node` on each node in the cluster
 * Start Cassandra on all nodes
 
-By default, Medusa will overwrite the `system_auth` keyspace with the backed up one. If you want to retain the existing system_auth keyspace, you'll have to run `restore-cluster` with the `--keep-auth` flag: 
+By default, Medusa will overwrite the `system_auth` keyspace with the backed up one. If you want to retain the existing system_auth keyspace, you'll have to run `restore-cluster` with the `--keep-auth` flag:
 
 ```
 $ medusa restore-cluster --backup-name=<name of the backup> --host-list /etc/medusa/restore_mapping.txt --keep-auth
@@ -359,11 +360,11 @@ In this section, we will describe procedures that apply to the other cases:
 * Vnodes are used + the backup and the restore cluster have a different number of nodes.
 
 
-This case will be detected automatically by Medusa when checking the topologies, but it can be enforced by adding the `--use-sstableloader` flag to the `restore-cluster` command.  
-This technique allows to restore any backup on any cluster of any size, **at the expense of some overhead.**  
+This case will be detected automatically by Medusa when checking the topologies, but it can be enforced by adding the `--use-sstableloader` flag to the `restore-cluster` command.
+This technique allows to restore any backup on any cluster of any size, **at the expense of some overhead.**
 
-* First, the sstableloader will have to parse all the backed up SSTables in order to send them to the appropriate nodes, which can take way more time on large volumes.  
-* Then, the amount of data loaded into the restore cluster will be multiplied by the replication factor of the keyspace, since we will be restoring the backups from all replicas without any merge (SSTables from different backups will contain copies of the same data).  
+* First, the sstableloader will have to parse all the backed up SSTables in order to send them to the appropriate nodes, which can take way more time on large volumes.
+* Then, the amount of data loaded into the restore cluster will be multiplied by the replication factor of the keyspace, since we will be restoring the backups from all replicas without any merge (SSTables from different backups will contain copies of the same data).
 **With RF=3, the cluster will contain approximately three times the data load from the backup.** The size will drop back to normal levels once compaction has caught up (a major compaction could be necessary).
 
 Using this technique, Cassandra will not be stopped on the nodes and the following steps will happen:
@@ -380,7 +381,7 @@ Using this technique, Cassandra will not be stopped on the nodes and the followi
 * Backup nodes will be assigned to target nodes (one target node can be responsible from zero to several backup nodes)
 * Run `restore-node` on each node in the target cluster, passing a list of backup nodes as `--fqdn` and the `--sstableloader` flag
 	* for each specified node in `--fqdn`:
-		* Download the files from backup storage locally 
+		* Download the files from backup storage locally
 		* Invoke the locally installed sstableloader to load them using the local C* instance as contact point
 
 If your cluster is configured with the default `auto_snapshot: true` then dropping the tables will trigger a snapshot that will persist their data on disk. Medusa will not clear this snapshot after restore.
@@ -475,7 +476,7 @@ $ medusa purge
 
 ```
 
-Since SSTables and meta files are stored in different places for differential backups, the purge is a two step process:  
+Since SSTables and meta files are stored in different places for differential backups, the purge is a two step process:
 
 * Delete all backup directories
 * Scan active backup files from manifests and compare with the list of SSTables in the `data` directory. All SSTables present in the `data` directory but absent from all manifests will get deleted in that step.

@@ -135,3 +135,11 @@ def _group_by_parent(paths):
     by_parent = itertools.groupby(paths, lambda p: Path(p).parent.name)
     for parent, files in by_parent:
         yield parent, list(files)
+
+
+def is_aws_s3(storage_name):
+    storage_name = storage_name.lower()
+    if storage_name.startswith('s3') and storage_name not in ('s3_rgw', 's3_rgw_outscale'):
+        return True
+    else:
+        return False
