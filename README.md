@@ -1,5 +1,8 @@
 <!--
 # Copyright 2019 Spotify AB. All rights reserved.
+
+[![Join the chat at https://gitter.im/thelastpickle/cassandra-medusa](https://badges.gitter.im/thelastpickle/cassandra-medusa.svg)](https://gitter.im/thelastpickle/cassandra-medusa?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
