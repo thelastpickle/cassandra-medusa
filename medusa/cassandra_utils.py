@@ -344,7 +344,15 @@ class Cassandra(object):
             os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
         else:
             logging.debug('Executing: {}'.format(' '.join(cmd)))
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+            try:
+                output = subprocess.check_output(cmd, universal_newlines=True)
+                logging.debug('nodetool output: %s', output)
+            except subprocess.CalledProcessError as e:
+                logging.debug('nodetool resulted in error: %s', e.output)
+                logging.warning(
+                    'Medusa may have failed at cleaning up snapshot %s. '
+                    'Check if the snapshot exists and clear it manually by running: %s',
+                    tag, ' '.join(cmd))
 
     def list_snapshotnames(self):
         return {
