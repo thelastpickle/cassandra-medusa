@@ -21,8 +21,8 @@ from cassandra.metadata import Murmur3Token
 from pathlib import Path
 from unittest.mock import Mock
 
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.cassandra_utils import CqlSession, SnapshotPath
+from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
+from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool
 
 
 class CassandraUtilsTest(unittest.TestCase):
@@ -121,6 +121,43 @@ class CassandraUtilsTest(unittest.TestCase):
             )
             self.assertTrue(sstable_path in all_files)
             self.assertTrue(index_sstable_path in all_files)
+
+    def test_nodetool_command_without_parameter(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+        n = Nodetool(medusa_config.cassandra).nodetool
+        self.assertEqual(n, ['nodetool'])
+
+    def test_nodetool_command_with_parameters(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'nodetool_username': 'cassandra',
+            'nodetool_password': 'password',
+            'nodetool_password_file_path': '/etc/cassandra/jmx.password',
+            'nodetool_host': '127.0.0.1',
+            'nodetool_port': '7199'
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+        n = Nodetool(medusa_config.cassandra).nodetool
+        expected = ['nodetool', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
+                    '-h', '127.0.0.1', '-p', '7199']
+        self.assertEqual(n, expected)
 
 
 if __name__ == '__main__':
