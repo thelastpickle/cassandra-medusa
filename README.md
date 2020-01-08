@@ -46,11 +46,27 @@ Choose and initialize the storage system:
 
 Install Medusa on each Cassandra node:
 
+### Online installation
+
 * if the storage backend is a locally accessible shared storage, run `sudo pip3 install cassandra-medusa`
 * if your backups are to be stored in AWS S3, run `sudo pip3 install cassandra-medusa[S3]`
 * if your backups are to be stored in Google Cloud Storage, run `sudo pip3 install cassandra-medusa[GCS]`
 
 Running the installation using `sudo` is necessary to have the `/usr/local/bin/medusa` script created properly.
+
+### Offline installation
+
+If your Cassandra servers do not have internet access:  
+
+- on a machine with the same target os and python version, clone the cassandra-medusa repo and cd into the root directory
+- run `mkdir pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
+- run `cp requirements.txt medusa_dependencies/`
+- run `tar -zcf medusa_dependencies.tar.gz medusa_dependencies` to compress the dependencies
+- Upload the archive to all Cassandra nodes and decompress it
+- run `pip install -r medusa_dependencies/requirements.txt --no-index --find-links` to install the dependencies on the nodes
+- install Medusa using `python setup.py install` from the cassandra-medusa source directory
+
+### Configure Medusa
 
 Create the `/etc/medusa` directory if it doesn't exist, and create a file named `/etc/medusa/medusa.ini` with the content of [medusa-example.ini](https://github.com/thelastpickle/cassandra-medusa/blob/master/medusa-example.ini).
 Modify it to match your requirements:
