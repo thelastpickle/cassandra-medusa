@@ -364,13 +364,14 @@ class RestoreJob(object):
 
         # %s placeholders in the below command will get replaced by pssh using per host command substitution
         command = 'nohup sh -c "mkdir {work}; cd {work} && medusa-wrapper sudo medusa --fqdn=%s -vvv restore-node ' \
-                  '{in_place} {keep_auth} %s {verify} --backup-name {backup} {use_sstableloader} ' \
+                  '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} {use_sstableloader} ' \
                   '{keyspaces} {tables}"' \
             .format(work=self.work_dir,
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
                     verify=verify_option,
                     backup=self.cluster_backup.name,
+                    temp_dir=self.temp_dir,
                     use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '',
                     keyspaces=keyspace_options,
                     tables=table_options)
