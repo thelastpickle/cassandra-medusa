@@ -40,7 +40,8 @@ jobs:
     - name: Run tox
       run: |
         . venv/bin/activate
-        sudo tox
+        sudo chmod 776 /etc
+        tox
     - name: Run integration tests
       run: |
         . venv/bin/activate
