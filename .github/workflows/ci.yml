@@ -40,7 +40,7 @@ jobs:
     - name: Run tox
       run: |
         . venv/bin/activate
-        tox
+        sudo tox
     - name: Run integration tests
       run: |
         . venv/bin/activate
