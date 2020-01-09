@@ -39,18 +39,27 @@ class AwsCli(object):
         self._env = dict(os.environ)
         return False
 
-    def cp(self, *, srcs, bucket_name, dest, max_retries=5):
+    def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         for src in srcs:
             cmd = ["aws", "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
-            objects.append(self.transfer_file(cmd, dest, awscli_output))
+            objects.append(self.upload_file(cmd, dest, awscli_output))
+
+        return objects
+
+    def cp_download(self, *, src, bucket_name, dest, max_retries=5):
+        job_id = str(uuid.uuid4())
+        awscli_output = "/tmp/awscli_{0}.output".format(job_id)
+        objects = []
+        cmd = ["aws", "s3", "cp", "s3://{}/{}".format(bucket_name, src), dest]
+        self.download_file(cmd, dest, awscli_output)
 
         return objects
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
-    def transfer_file(self, cmd, dest, awscli_output):
+    def upload_file(self, cmd, dest, awscli_output):
         logging.debug(" ".join(cmd))
         with open(awscli_output, "w") as output:
             process = subprocess.Popen(
@@ -66,6 +75,29 @@ class AwsCli(object):
                 obj = self.get_blob(dest)
                 os.remove(awscli_output)
                 return obj
+
+        raise IOError(
+            "awscli cp failed. Max attempts exceeded. Check {} for more informations.".format(
+                awscli_output
+            )
+        )
+
+    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    def download_file(self, cmd, dest, awscli_output):
+        logging.debug(" ".join(cmd))
+        with open(awscli_output, "w") as output:
+            process = subprocess.Popen(
+                cmd,
+                env=self._env,
+                bufsize=0,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+            )
+
+            if process.wait() == 0:
+                os.remove(awscli_output)
+                return
 
         raise IOError(
             "awscli cp failed. Max attempts exceeded. Check {} for more informations.".format(
