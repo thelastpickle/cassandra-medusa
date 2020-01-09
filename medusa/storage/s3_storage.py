@@ -103,20 +103,14 @@ class S3Storage(AbstractStorage):
         :param dest: the path where to download the objects locally
         :return:
         """
-        for src_obj in list(srcs):
-            blob = self.get_blob(src_obj)
-            index = src_obj.rfind("/")
-            if index > 0:
-                file_name = src_obj[src_obj.rfind("/") + 1:]
-            else:
-                file_name = src_obj
-            src_path = Path(src_obj)
-            blob_dest = (
-                "{}/{}".format(dest, src_path.parent.name)
-                if src_path.parent.name.startswith(".")
-                else dest
-            )
-            blob.download(os.path.join(blob_dest, file_name), overwrite_existing=True)
+        return medusa.storage.aws_s3_storage.concurrent.download_blobs(
+            self,
+            srcs,
+            dest,
+            self.bucket,
+            max_workers=self.config.concurrent_transfers,
+            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
+        )
 
     def get_object_datetime(self, blob):
         logging.debug(
