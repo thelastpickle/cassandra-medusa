@@ -26,7 +26,7 @@ from retrying import retry
 import medusa
 from medusa.storage.aws_s3_storage.awscli import AwsCli
 
-MAX_UPLOAD_RETRIES = 5
+MAX_UP_DOWN_LOAD_RETRIES = 5
 
 
 class StorageJob:
@@ -121,7 +121,7 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
     return medusa.storage.ManifestObject(obj.name, int(obj.size), obj.hash)
 
 
-@retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
+@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(connection, src, bucket, object_name):
     obj = connection.upload_object(
         str(src), container=bucket, object_name=object_name
@@ -132,45 +132,45 @@ def _upload_single_part(connection, src, bucket, object_name):
 
 def _upload_multi_part(storage, connection, src, bucket, object_name):
     with AwsCli(storage) as awscli:
-        objects = awscli.cp(srcs=[src], bucket_name=bucket.name, dest=object_name)
+        objects = awscli.cp_upload(srcs=[src], bucket_name=bucket.name, dest=object_name)
 
     return objects[0]
 
 
-def download_blobs(storage, src, dest, bucket_name, max_workers=None):
+def download_blobs(storage, src, dest, bucket, max_workers=None, multi_part_upload_threshold=0):
     """
     Download files concurrently to local storage
 
     :param storage: An AbstractStorage instance, needed to create a connection pool
     :param src: A list of files to download from the remote storage system
     :param dest: The path to where objects should be downloaded locally
-    :param bucket_name: The name of the storage bucket from which files will be downloaded
+    :param bucket: Storage bucket from which files will be downloaded
     :param max_workers: The max number of threads to use. Defaults to the number of CPUS.
     :return:
     """
     job = StorageJob(
         storage,
-        lambda connection, src_file: __download_blob(
-            connection, src_file, str(dest), bucket_name
+        lambda storage, connection, src_file: __download_blob(
+            storage, connection, src_file, str(dest), bucket, multi_part_upload_threshold
         ),
         max_workers,
     )
     job.execute(list(src))
 
 
-def __download_blob(connection, src, dest, bucket_name):
+def __download_blob(storage, connection, src, dest, bucket, multi_part_upload_threshold):
     """
     This function is called by StorageJob. It may be called concurrently by multiple threads.
 
     :param connection: A storage connection which is created and managed by StorageJob
     :param src: The file to download
     :param dest: The path to where the file should be downloaded
-    :param bucket_name: The name of the bucket from which the file will be downloaded
+    :param bucket: Bucket from which the file will be downloaded
     :return:
     """
     try:
         logging.debug("[Storage] Getting object {}".format(src))
-        blob = connection.get_object(bucket_name, str(src))
+        blob = connection.get_object(bucket.name, str(src))
 
         # we must make sure the blob gets stored under sub-folder (if there is any)
         # the dest variable only points to the table folder, so we need to add the sub-folder
@@ -181,9 +181,31 @@ def __download_blob(connection, src, dest, bucket_name):
             else dest
         )
 
-        blob.download(blob_dest, overwrite_existing=True)
+        if int(blob.size) >= multi_part_upload_threshold:
+            # Files larger than the configured threshold should be uploaded as multi part
+            logging.debug("Downloading {} as multi part".format(blob_dest))
+            _download_multi_part(storage, connection, src_path, bucket, blob_dest)
+        else:
+            logging.debug("Downloading {} as single part".format(blob_dest))
+            _download_single_part(connection, blob, blob_dest)
+
     except ObjectDoesNotExistError:
         return None
+
+
+@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+def _download_single_part(connection, blob, blob_dest):
+    index = blob.name.rfind("/")
+    if index > 0:
+        file_name = blob.name[blob.name.rfind("/") + 1:]
+    else:
+        file_name = blob.name
+    blob.download("{}/{}".format(blob_dest, file_name), overwrite_existing=True)
+
+
+def _download_multi_part(storage, connection, src, bucket, blob_dest):
+    with AwsCli(storage) as awscli:
+        awscli.cp_download(src=src, bucket_name=bucket.name, dest=blob_dest)
 
 
 def human_readable_size(size, decimal_places=3):
