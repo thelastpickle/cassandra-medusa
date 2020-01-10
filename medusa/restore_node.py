@@ -157,13 +157,13 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
-    keyspaces = os.listdir(download_dir)
+    keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:
-        ks_path = os.path.join(download_dir, keyspace)
+        ks_path = os.path.join(str(download_dir), keyspace)
         if os.path.isdir(ks_path) and keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
             logging.info('Restoring keyspace {} with sstableloader...'.format(ks_path))
-            for table in os.listdir(ks_path):
-                table_path = os.path.join(ks_path, table)
+            for table in os.listdir(str(ks_path)):
+                table_path = os.path.join(str(ks_path), table)
                 if os.path.isdir(table_path) and table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,

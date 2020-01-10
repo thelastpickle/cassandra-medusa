@@ -1,16 +1,32 @@
-name: Build and Test
-
-on: [push, pull_request]
+name: Build, test and Release
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - published
 
 jobs:
   build:
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6]
+        include:
+          - python-version: 3.5
+            tox-py: py35
+          - python-version: 3.6
+            tox-py: py36
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.5
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
-        python-version: 3.5
+        python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
       uses: actions/setup-java@v1 
       with:
@@ -40,7 +56,7 @@ jobs:
     - name: Run tox
       run: |
         . venv/bin/activate
-        tox
+        tox -e ${{ matrix.tox-py }}
     - name: Run integration tests
       run: |
         . venv/bin/activate
@@ -57,4 +73,29 @@ jobs:
         ccm showlastlog|tail -100
         ccm stop
         ./run_integration_tests.sh
+  release:
+    # We can only release if the build above succeeded first
+    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python 3.5
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.5
+    - name: Install dependencies
+      run: |
+        python3 -m venv venv
+        . venv/bin/activate
+        python -m pip install --upgrade pip
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        . venv/bin/activate
+        pip install setuptools wheel twine
+        python setup.py sdist bdist_wheel
+        twine upload dist/*
 

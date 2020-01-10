@@ -91,7 +91,7 @@ def __upload_file(connection, src, dest, bucket):
     if not isinstance(src, pathlib.Path):
         src = pathlib.Path(src)
 
-    file_size = os.stat(src).st_size
+    file_size = os.stat(str(src)).st_size
     logging.info("Uploading {} ({})".format(src, human_readable_size(file_size)))
     # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
     obj_name = '{}/{}'.format(src.parent.name, src.name) if src.parent.name.startswith('.') else src.name
@@ -104,7 +104,7 @@ def __upload_file(connection, src, dest, bucket):
 @retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(connection, src, bucket, object_name):
     obj = connection.upload_object(
-        os.fspath(src),
+        str(src),
         container=bucket,
         object_name=object_name
     )
