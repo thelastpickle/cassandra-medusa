@@ -76,7 +76,7 @@ Enabling `google_storage` will have the following requirements:
 Enabling S3 for integration tests can be done for any AWS region by changing `s3_us_west_oregon` to the appropriate value (see [the complete list here](https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py#L87-L105)) and uncommenting the line.  
 Then you'll have to:
 
-* Set the name of your test bucket in `tests/integration/features/__init.py__`, in the following block (replace `bucket_name`): 
+* Set the name of your test bucket in `tests/integration/features/steps/integration_steps.py`, in the following block (replace `bucket_name`): 
 
 ```
    elif storage_provider.startswith("s3"):
