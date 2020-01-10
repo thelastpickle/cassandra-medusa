@@ -15,7 +15,6 @@
 
 import datetime
 import pathlib
-import os
 
 from libcloud.storage.drivers.local import LocalStorageDriver
 
@@ -37,7 +36,7 @@ class LocalStorage(AbstractStorage):
         objects = self.driver.list_container_objects(self.bucket)
 
         if isinstance(path, pathlib.Path):
-            path = os.fspath(path)
+            path = str(path)
 
         if path is not None:
             objects = list(filter(lambda blob: blob.name.startswith(path), objects))
