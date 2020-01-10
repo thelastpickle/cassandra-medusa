@@ -18,7 +18,6 @@ import json
 import logging
 import sys
 import traceback
-import os
 
 from datetime import datetime, timedelta
 
@@ -136,7 +135,7 @@ def get_file_paths_from_storage(storage, fqdn):
     data_directory = "{}/data".format(fqdn)
     data_files = {
         blob.name: blob
-        for blob in storage.storage_driver.list_objects(os.fspath(data_directory))
+        for blob in storage.storage_driver.list_objects(str(data_directory))
     }
 
     return set(data_files.keys())
