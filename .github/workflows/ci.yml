@@ -78,10 +78,10 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.5
+    - name: Set up Python 3.6
       uses: actions/setup-python@v1
       with:
-        python-version: 3.5
+        python-version: 3.6
     - name: Install dependencies
       run: |
         sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
