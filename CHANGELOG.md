@@ -1,6 +1,6 @@
 ## Change Log
 
-### 0.4.0
+### 0.4.1
 - Publish debian packages (@arodrime/@adejanovski)
 - Fixed the path to the file where S3 is configured for integration tests. (@pumpkiny9120)
 - Use awscli for large files downloads (@adejanovski)
