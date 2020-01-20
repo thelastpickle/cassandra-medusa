@@ -51,7 +51,6 @@ then
         echo "Changelog was not updated. Exiting..."
         exit 1
     fi
-    git commit -a -m "Update changelog for release $RELEASE_VERSION"
 fi
 
 version_exists=$(cat debian/changelog | grep "($RELEASE_VERSION)")
@@ -62,6 +61,7 @@ then
     docker-compose build release && docker-compose run release
 fi
 
+git commit -a -m "Update changelog for release $RELEASE_VERSION"
 git tag -a v$RELEASE_VERSION -m "Release v$RELEASE_VERSION"
 git push --set-upstream-to origin/$release_branch --follow-tags
 git push origin v$RELEASE_VERSION
