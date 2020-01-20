@@ -35,7 +35,11 @@ RUN apt-get update \
         python-dev \
         python-pip \
         python3-setuptools \
-        python3-venv
+        python3-venv \
+        build-essential \
+        devscripts \
+        dh-virtualenv \
+        equivs
 
 RUN pip install bump2version
 # Add entrypoint script
