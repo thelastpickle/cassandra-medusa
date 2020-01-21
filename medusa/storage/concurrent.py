@@ -103,11 +103,12 @@ def __upload_file(connection, src, dest, bucket):
 
 @retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(connection, src, bucket, object_name):
-    obj = connection.upload_object(
-        str(src),
-        container=bucket,
-        object_name=object_name
-    )
+    with open(str(src), 'rb') as iterator:
+        obj = connection.upload_object_via_stream(
+            iterator,
+            container=bucket,
+            object_name=object_name
+        )
 
     return obj
 
@@ -142,13 +143,19 @@ def __download_blob(connection, src, dest, bucket_name):
     try:
         logging.debug("[Storage] Getting object {}".format(src))
         blob = connection.get_object(bucket_name, str(src))
-
         # we must make sure the blob gets stored under sub-folder (if there is any)
         # the dest variable only points to the table folder, so we need to add the sub-folder
         src_path = pathlib.Path(src)
         blob_dest = '{}/{}'.format(dest, src_path.parent.name) if src_path.parent.name.startswith('.') else dest
+        index = blob.name.rfind("/")
+        if index > 0:
+            file_name = blob.name[blob.name.rfind("/") + 1:]
+        else:
+            file_name = blob.name
 
-        blob.download(blob_dest, overwrite_existing=True)
+        with open("{}/{}".format(blob_dest, file_name), "wb") as file_handle:
+            for chunk in blob.as_stream():
+                file_handle.write(chunk)
     except ObjectDoesNotExistError:
         return None
 
