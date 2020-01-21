@@ -1,3 +1,9 @@
+cassandra-medusa (0.4.1) stable; urgency=medium
+
+  * Release 0.4.1 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Sun, 19 Jan 2020 16:13:59 +0000
+
 cassandra-medusa (0.4.0) stable; urgency=medium
 
   * Release 0.4.0 of Medusa - Backups for Apache Cassandra.
