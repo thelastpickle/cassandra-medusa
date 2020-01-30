@@ -142,8 +142,8 @@ class RestoreJob(object):
             logging.info('Restore will happen on new hardware')
             self.in_place = False
             self._populate_hostmap()
+            logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
-        logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
         self._restore_data()
 
     def _pssh_run(self, hosts, command, hosts_variables=None):
