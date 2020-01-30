@@ -659,6 +659,12 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
     medusa.verify_restore.verify_restore(["localhost"], custom_config)
 
 
+@when(r'I delete the backup named "{backup_name}"')
+def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
+    medusa.purge.delete_backup(context.medusa_config,
+                               backup_name=backup_name, all_nodes=all_nodes)
+
+
 def connect_cassandra():
     connected = False
     attempt = 0

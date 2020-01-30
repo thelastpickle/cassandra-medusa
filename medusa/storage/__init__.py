@@ -175,6 +175,7 @@ class Storage(object):
             else:
                 # prefix is being used for multi tenancy in the cluster
                 _, _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
+
             # tokenmap file is in format 'tokenmap_fqdn.json'
             tokenmap_fqdn = self.get_fqdn_from_any_index_blob(tokenmap_file)
             manifest_blob, schema_blob, tokenmap_blob = None, None, None
@@ -215,7 +216,6 @@ class Storage(object):
         # then, before returning the backups, we pick only the existing ones
         previous_existed = False
         for node_backup in sorted_node_backups:
-
             # we try to be smart here - once we have seen an existing one, we assume all later ones exist too
             if previous_existed:
                 yield node_backup
@@ -380,7 +380,7 @@ class Storage(object):
         for cluster_backup in self.list_cluster_backups():
             if cluster_backup.name == backup_name:
                 return cluster_backup
-        raise KeyError('No such backup')
+        raise KeyError('The backup {} does not exist'.format(backup_name))
 
     def remove_backup_from_index(self, node_backup):
         """
