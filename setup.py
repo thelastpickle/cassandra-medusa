@@ -52,7 +52,8 @@ setuptools.setup(
         'lockfile>=0.12.2',
         'pycrypto>=2.6.1',
         'retrying>=1.3.3',
-        'parallel-ssh==1.9.1'
+        'parallel-ssh==1.9.1',
+        'requests==2.22.0'
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
