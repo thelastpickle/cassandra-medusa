@@ -38,11 +38,21 @@ Feature: Integration tests
         Then I have 300 rows in the "medusa.test" table
         When I restore the backup named "first_backup"
         Then I have 200 rows in the "medusa.test" table
-        Examples: Storage
+        
+        @local
+        Examples: Local storage
         | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @2
     Scenario Outline: Perform a backup and verify its index
@@ -60,11 +70,20 @@ Feature: Integration tests
         Then I can see the backup index entry for "third_backup"
         Then I can see the latest backup for "localhost" being called "third_backup"
         Then I can report latest backups without errors
-        Examples: Storage
-        | storage    |
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @3
     Scenario Outline: Perform a backup and verify the latest backup is updated correctly
@@ -80,11 +99,20 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "full" mode of the node named "fifth_backup"
         Then I can see the latest backup for "localhost" being called "fifth_backup"
-        Examples: Storage
-        | storage   |
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @4
     Scenario Outline: Perform a fake backup (by just writing an index) on different days and verify reports are correct
@@ -123,9 +151,12 @@ Feature: Integration tests
         Then the latest cluster backup is "backup3"
         Then the latest complete cluster backup is "backup3"
         Then I can report latest backups without errors
-        Examples: Storage
-        | storage    |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
+
 # other storage providers than local won't work with this test
 
     @5
@@ -146,6 +177,8 @@ Feature: Integration tests
         Then I can list and print backups without errors
         Then the latest complete cluster backup is "third_backup"
         Then I can report latest backups without errors
+
+        @local
         Examples: Storage
         | storage   |
         | local      |
@@ -162,6 +195,8 @@ Feature: Integration tests
         When I truncate the backup folder
         Then the backup index exists
         Then I can see no backups when I list the backups
+
+        @local
         Examples: Storage
         | storage   |
         | local      |
@@ -180,6 +215,8 @@ Feature: Integration tests
         Then the backup index does not exist
         Then I can report latest backups without errors
         Then the backup index exists
+
+        @local
         Examples:
         | Storage   |
         | local      |
@@ -227,11 +264,21 @@ Feature: Integration tests
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup named "third_backup" when I list the backups
         Then verify fails on the backup named "third_backup"
-        Examples: Storage
-        | storage   |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-##        | google_storage      |
-#        | s3_us_west_oregon     |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @9
     Scenario Outline: Run a purge on backups
@@ -267,11 +314,21 @@ Feature: Integration tests
         Then I can see the backup named "fifth_backup" when I list the backups
         Then I can verify the backup named "fourth_backup" successfully
         Then I can verify the backup named "fifth_backup" successfully
-        Examples: Storage
-        | storage   |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | google_storage      |
-#        | s3_us_west_oregon     |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @10
     Scenario Outline: Run a backup and restore and verify metrics
@@ -284,11 +341,21 @@ Feature: Integration tests
         Then I see 3 metrics emitted
         Then I can report latest backups without errors
         Then I see 10 metrics emitted
-        Examples: Storage
-        | storage   |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | google_storage      |
-#        | s3_us_west_oregon     |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @11
     Scenario Outline: Perform a backup, and restore it using the sstableloader
@@ -308,11 +375,21 @@ Feature: Integration tests
         When I truncate the "medusa.test" table
         When I restore the backup named "first_backup" with the sstableloader
         Then I have 200 rows in the "medusa.test" table
-        Examples: Storage
-        | storage   |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @12
     Scenario Outline: Backup two tables but restore only one
@@ -334,11 +411,21 @@ Feature: Integration tests
         When I restore the backup named "first_backup" for "medusa.test2" table
         Then I have 100 rows in the "medusa.test2" table
         Then I have 0 rows in the "medusa.test1" table
-        Examples: Storage
-        | storage   |
+
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @13
     Scenario Outline: Perform a backup and a restore, then verify the restore
@@ -352,11 +439,20 @@ Feature: Integration tests
         When I restore the backup named "first_backup"
         Then I can verify the restore verify query "SELECT * FROM medusa.test" returned 100 rows
 
-        Examples:
-        | Storage   |
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
 
     @14
     Scenario Outline: Perform a backup & restore of a table with secondary index
@@ -372,8 +468,17 @@ Feature: Integration tests
         Then I have 100 rows in the "medusa.test" table
         Then I can verify the restore verify query "SELECT * FROM medusa.test WHERE value = '0';" returned 1 rows
 
-        Examples:
-        | Storage   |
+        @local
+        Examples: Local storage
+        | storage           |
         | local      |
-#        | s3_us_west_oregon     |
-#        | google_storage      |
+
+        @s3
+        Examples: S3 storage
+        | storage           |
+        | s3_us_west_oregon     |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           |
+        | google_storage      |
