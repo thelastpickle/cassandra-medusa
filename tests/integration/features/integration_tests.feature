@@ -430,7 +430,7 @@ Feature: Integration tests
     @13
     Scenario Outline: Perform a backup and a restore, then verify the restore
         Given I have a fresh ccm cluster running named "scenario13"
-        Given I am using "<Storage>" as storage provider
+        Given I am using "<storage>" as storage provider
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
@@ -457,7 +457,7 @@ Feature: Integration tests
     @14
     Scenario Outline: Perform a backup & restore of a table with secondary index
         Given I have a fresh ccm cluster running named "scenario14"
-        Given I am using "<Storage>" as storage provider
+        Given I am using "<storage>" as storage provider
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
