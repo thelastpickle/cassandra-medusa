@@ -166,12 +166,14 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                 table_path = os.path.join(str(ks_path), table)
                 if os.path.isdir(table_path) and table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
+                    cql_username = 'foo' if config.cassandra.cql_username is None else config.cassandra.cql_username
+                    cql_password = 'foo' if config.cassandra.cql_password is None else config.cassandra.cql_password
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,
                                                       '-d', socket.getfqdn() if cassandra_is_ccm == 0
                                                       else '127.0.0.1',
                                                       '--storage-port', storage_port,
-                                                      '-u', config.cassandra.cql_username,
-                                                      '--password', config.cassandra.cql_password,
+                                                      '-u', cql_username,
+                                                      '--password', cql_password,
                                                       '--no-progress',
                                                       os.path.join(ks_path, table)])
                     for line in output.decode('utf-8').split('\n'):

@@ -397,17 +397,13 @@ class RestoreJob(object):
         for mv in keyspace_schema['materialized_views']:
             # MVs need to be dropped before we drop the tables
             logging.debug("Dropping MV {}.{}".format(keyspace, mv[0]))
-            session.execute("DROP MATERIALIZED VIEW {}.{}".format(keyspace, mv[0]))
+            session.execute("DROP MATERIALIZED VIEW IF EXISTS {}.{}".format(keyspace, mv[0]))
         for table in keyspace_schema['tables'].items():
             logging.debug("Dropping table {}.{}".format(keyspace, table[0]))
-            if table[0] in session.cluster.metadata.keyspaces[keyspace].tables.keys():
-                # table already exists, drop it first
-                session.execute("DROP TABLE {}.{}".format(keyspace, table[0]))
+            session.execute("DROP TABLE IF EXISTS {}.{}".format(keyspace, table[0]))
         for udt in keyspace_schema['udt'].items():
             # then custom types as they can be used in tables
-            if udt[0] in session.cluster.metadata.keyspaces[keyspace].user_types.keys():
-                # UDT already exists, drop it first
-                session.execute("DROP TYPE {}.{}".format(keyspace, udt[0]))
+            session.execute("DROP TYPE IF EXISTS {}.{}".format(keyspace, udt[0]))
             # Then we create the missing ones
             session.execute(udt[1])
         for table in keyspace_schema['tables'].items():
