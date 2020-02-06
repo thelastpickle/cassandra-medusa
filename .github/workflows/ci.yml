@@ -25,6 +25,48 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
+    - uses: actions/cache@v1
+      with:
+        path: ./venv
+        key: ${{ runner.os }}-venv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-venv-${{ matrix.tox-py }}-
+    - name: Install dependencies
+      run: |
+        python3 -m venv venv
+        . venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install tox
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
+    - name: Run tox
+      run: |
+        . venv/bin/activate
+        tox -e ${{ matrix.tox-py }}
+  integration-tests:
+    needs: build
+    strategy:
+        matrix:
+          python-version: [3.5, 3.6]
+          it-backend: [local, s3]
+          include:
+            - python-version: 3.5
+              tox-py: py35
+            - python-version: 3.6
+              tox-py: py36
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
       uses: actions/setup-java@v1 
       with:
@@ -43,37 +85,37 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install ccm
-        pip install tox
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
-    - name: Run tox
-      run: |
-        . venv/bin/activate
-        tox -e ${{ matrix.tox-py }}
     - name: Run integration tests
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
-        . venv/bin/activate
-        # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
-        ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
-        ccm node1 updateconf 'storage_port: 7011'
-        ccm node1 updateconf 'concurrent_reads: 4'
-        ccm node1 updateconf 'concurrent_writes: 4'
-        ccm node1 updateconf 'concurrent_counter_writes: 4'
-        ccm node1 updateconf 'num_tokens: 4'
-        sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
-        sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh        
-        ccm start -v
-        ccm showlastlog|tail -100
-        ccm stop
-        ./run_integration_tests.sh
+        if [[ ( ! -z "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || "${{ matrix.it-backend }}" == "local" ]];
+        then
+          . venv/bin/activate
+          # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
+          ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
+          ccm node1 updateconf 'storage_port: 7011'
+          ccm node1 updateconf 'concurrent_reads: 4'
+          ccm node1 updateconf 'concurrent_writes: 4'
+          ccm node1 updateconf 'concurrent_counter_writes: 4'
+          ccm node1 updateconf 'num_tokens: 4'
+          sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
+          sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh        
+          ccm start -v
+          ccm showlastlog|tail -100
+          ccm stop
+          if [ "${{ matrix.it-backend }}" == "s3" ]
+          then
+            ./run_integration_tests.sh -v --s3 --no-local
+          else
+            ./run_integration_tests.sh -v
+          fi
+        fi
+        
   release:
     # We can only release if the build above succeeded first
-    needs: build
+    needs: [build, integration-tests]
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-18.04
     steps:

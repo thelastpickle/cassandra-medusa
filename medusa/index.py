@@ -82,6 +82,7 @@ def build_indices(config, noop):
         traceback.print_exc()
         sys.exit(1)
 
+
 def add_backup_start_to_index(storage, node_backup):
     dst = '{}index/backup_index/{}/tokenmap_{}.json'.format(
         storage.prefix_path, node_backup.name, node_backup.fqdn)
