@@ -391,27 +391,27 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
         for obj in already_backed_up:
             manifest_objects.append(obj)
 
-        manifest.append(make_manifest_object(node_backup.fqdn, snapshot_path, manifest_objects))
+        manifest.append(make_manifest_object(node_backup.fqdn, snapshot_path, manifest_objects, storage))
 
     return num_files
 
 
-def make_manifest_object(fqdn, snapshot_path, manifest_objects):
+def make_manifest_object(fqdn, snapshot_path, manifest_objects, storage):
     return {
         'keyspace': snapshot_path.keyspace,
         'columnfamily': snapshot_path.columnfamily,
         'objects': [{
-            'path': url_to_path(manifest_object.path, fqdn),
+            'path': url_to_path(manifest_object.path, fqdn, storage),
             'MD5': manifest_object.MD5,
             'size': manifest_object.size,
         } for manifest_object in manifest_objects]
     }
 
 
-def url_to_path(url, fqdn):
+def url_to_path(url, fqdn, storage):
     # the path with store in the manifest starts with the fqdn, but we can get longer urls
     # depending on the storage provider and type of backup
-    # Full backup path is : <fqdn>/<backup_name>/data/<keyspace>/<table>/...
-    # Differential backup path is : <fqdn>/data/<keyspace>/<table>/...
+    # Full backup path is : (<prefix>/)<fqdn>/<backup_name>/data/<keyspace>/<table>/...
+    # Differential backup path is : (<prefix>/)<fqdn>/data/<keyspace>/<table>/...
     url_parts = url.split('/')
-    return '/'.join(url_parts[url_parts.index(fqdn):])
+    return storage.prefix_path + ('/'.join(url_parts[url_parts.index(fqdn):]))

@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 
 def before_all(context):
     context.cassandra_version = "2.2.14"
     context.session = None
+    if not context.config.log_capture:
+        logging.basicConfig(level=logging.DEBUG)
