@@ -52,7 +52,8 @@ class RestoreNodeTest(unittest.TestCase):
             'fqdn': '127.0.0.1',
             'api_key_or_username': '',
             'api_secret_or_password': '',
-            'base_path': '/tmp'
+            'base_path': '/tmp',
+            'prefix': 'pre'
         }
         config['cassandra'] = {
             'is_ccm': 1

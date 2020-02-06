@@ -60,7 +60,8 @@ class S3Storage(AbstractStorage):
         """
         logging.debug('Getting IAM Role:')
         try:
-            aws_instance_profile = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials', timeout=10)
+            aws_instance_profile = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials',
+                                                timeout=10)
         except requests.exceptions.RequestException:
             logging.warn('Can\'t fetch IAM Role.')
             return None

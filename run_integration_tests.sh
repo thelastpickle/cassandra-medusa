@@ -16,14 +16,94 @@
 set -x
 # Keep the following rm for the sake of running the integration tests in CI
 rm -Rf .python-version
+
+SCENARIO=""
+STORAGE_TAGS=""
+LOCAL="yes"
+S3="no"
+GCS="no"
+LOGGING_FLAGS=""
+
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      echo "run_integration_tests.sh: Run the integration test suite for Medusa"
+      echo " "
+      echo " "
+      echo "options:"
+      echo "-h, --help                                  show brief help"
+      echo "-t, --test=1                                Test scenario to run (1, 2, 3, etc...). If not provided, all tests will run"
+      echo "--no-local                                  Don't run the tests with the local storage backend"
+      echo "--s3                                        Include S3 in the storage backends"
+      echo "--gcs                                       Include GCS in the storage backends"
+      echo "-v                                          Verbose output (logging won't be captured by behave)"
+      exit 0
+      ;;
+    -t)
+      shift
+      if test $# -gt 0; then
+        SCENARIO="--tags=@$1"
+      else
+        echo "no test scenario specified"
+        exit 1
+      fi
+      shift
+      ;;
+    --test*)
+      TEST=`echo $1 | sed -e 's/^[^=]*=//g'`
+      SCENARIO="--tags=@${TEST}"
+      shift
+      ;;
+    --no-local)
+      LOCAL="no"
+      shift
+      ;;
+    --s3)
+      S3="yes"
+      shift
+      ;;
+    --gcs)
+      GCS="yes"
+      shift
+      ;;
+    -v)
+      LOGGING="--no-capture --no-capture-stderr --format=plain"
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
 export LOCAL_JMX=yes
 export PYTHONWARNINGS="ignore"
 pip3 install -r requirements.txt
 pip3 install -r requirements-test.txt
 cd tests/integration
-if [ -z "$1" ]
+if [ "$LOCAL" == "yes" ]
 then
-    PYTHONPATH=../.. behave --stop --no-capture-stderr --no-capture --tags=@local
-else
-    PYTHONPATH=../.. PYTHONPATH=../.. behave --tags=$1 --tags=@local --stop --no-capture-stderr --no-capture
+    STORAGE_TAGS="@local"
 fi
+
+if [ "$S3" == "yes" ]
+then
+    if [ "$STORAGE_TAGS" == "" ]
+    then
+        STORAGE_TAGS="@s3"
+    else
+        STORAGE_TAGS="${STORAGE_TAGS},@s3"
+    fi
+fi
+
+if [ "$GCS" == "yes" ]
+then
+    if [ "$STORAGE_TAGS" == "" ]
+    then
+        STORAGE_TAGS="@gcs"
+    else
+        STORAGE_TAGS="${STORAGE_TAGS},@gcs"
+    fi
+fi
+
+PYTHONPATH=../.. behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING
