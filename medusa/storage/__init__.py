@@ -55,6 +55,7 @@ class Storage(object):
     def __init__(self, *, config):
         self._config = config
         self._prefix = pathlib.Path(config.prefix or '.')
+        self.prefix_path = str(self._prefix) + '/' if self._prefix != '.' else ''
         self.storage_driver = self._connect_storage()
         self.storage_provider = self._config.storage_provider
 
@@ -92,7 +93,10 @@ class Storage(object):
 
         def get_backup_name_from_blob(blob):
             blob_path = pathlib.Path(blob.name)
-            fqdn, name, *_ = blob_path.parts
+            if self.prefix_path == '':
+                fqdn, name, *_ = blob_path.parts
+            else:
+                _, fqdn, name, *_ = blob_path.parts
             return fqdn, name
 
         def is_schema_blob(blob):
@@ -161,7 +165,12 @@ class Storage(object):
         # use the backup names and fqdns from index entries to construct NodeBackup objects
         node_backups = list()
         for backup_index_entry in relevant_backup_names:
-            _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
+            if self.prefix_path == '':
+                # no prefix in the buckets
+                _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
+            else:
+                # prefix is being used for multi tenancy in the cluster
+                _, _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
             # tokenmap file is in format 'tokenmap_fqdn.json'
             tokenmap_fqdn = self.get_fqdn_from_any_index_blob(tokenmap_file)
             manifest_blob, schema_blob, tokenmap_blob = None, None, None
@@ -228,13 +237,13 @@ class Storage(object):
                         .format(node_backup.name, node_backup.fqdn))
 
     def list_backup_index_blobs(self):
-        path = 'index/backup_index'
+        path = '{}index/backup_index'.format(self.prefix_path)
         return self.storage_driver.list_objects(path)
 
     def group_backup_index_by_backup_and_node(self, backup_index_blobs):
 
         def get_backup_name(blob):
-            return blob.name.split('/')[2]
+            return blob.name.split('/')[2] if self.prefix_path == '.' else blob.name.split('/')[3]
 
         def name_and_fqdn(blob):
             return get_backup_name(blob), Storage.get_fqdn_from_any_index_blob(blob)
@@ -311,12 +320,14 @@ class Storage(object):
             yield ClusterBackup(name, node_backups)
 
     def latest_node_backup(self, *, fqdn):
-        index_path = 'index/latest_backup/{}/backup_name.txt'.format(fqdn)
+        index_path = '{}index/latest_backup/{}/backup_name.txt'.format(self.prefix_path, fqdn)
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
-            differential_blob = self.storage_driver.get_blob('{}/{}/meta/differential'.format(fqdn, latest_backup_name))
+            differential_blob = self.storage_driver.get_blob(
+                '{}{}/{}/meta/differential'.format(self.prefix_path, fqdn, latest_backup_name))
             # Should be removed after while. Here for backwards compatibility.
-            incremental_blob = self.storage_driver.get_blob('{}/{}/meta/incremental'.format(fqdn, latest_backup_name))
+            incremental_blob = self.storage_driver.get_blob(
+                '{}{}/{}/meta/incremental'.format(self.prefix_path, fqdn, latest_backup_name))
 
             node_backup = NodeBackup(
                 storage=self,
@@ -383,6 +394,6 @@ class Storage(object):
         get the blobs from anywhere.
         Then we can call the delete object on the results.
         """
-        markers = self.storage_driver.list_objects('index/latest_backup/{}/'.format(fqdn))
+        markers = self.storage_driver.list_objects('{}index/latest_backup/{}/'.format(self.prefix_path, fqdn))
         for marker in markers:
             self.storage_driver.delete_object(marker)

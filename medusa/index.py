@@ -82,41 +82,43 @@ def build_indices(config, noop):
         traceback.print_exc()
         sys.exit(1)
 
-
 def add_backup_start_to_index(storage, node_backup):
-    dst = 'index/backup_index/{}/tokenmap_{}.json'.format(node_backup.name, node_backup.fqdn)
+    dst = '{}index/backup_index/{}/tokenmap_{}.json'.format(
+        storage.prefix_path, node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
-    dst = 'index/backup_index/{}/schema_{}.cql'.format(node_backup.name, node_backup.fqdn)
+    dst = '{}index/backup_index/{}/schema_{}.cql'.format(
+        storage.prefix_path, node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.schema)
-    dst = 'index/backup_index/{}/started_{}_{}.timestamp'.format(
-        node_backup.name, node_backup.fqdn, node_backup.started
+    dst = '{}index/backup_index/{}/started_{}_{}.timestamp'.format(
+        storage.prefix_path, node_backup.name, node_backup.fqdn, node_backup.started
     )
 
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
 
     if node_backup.is_differential is True:
-        dst = 'index/backup_index/{}/differential_{}'.format(node_backup.name, node_backup.fqdn)
+        dst = '{}index/backup_index/{}/differential_{}'.format(storage.prefix_path, node_backup.name, node_backup.fqdn)
         storage.storage_driver.upload_blob_from_string(dst, 'differential')
 
 
 def add_backup_finish_to_index(storage, node_backup):
-    dst = 'index/backup_index/{}/manifest_{}.json'.format(node_backup.name, node_backup.fqdn)
+    dst = '{}index/backup_index/{}/manifest_{}.json'.format(storage.prefix_path, node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.manifest)
-    dst = 'index/backup_index/{}/finished_{}_{}.timestamp'.format(
-        node_backup.name, node_backup.fqdn, node_backup.finished
+    dst = '{}index/backup_index/{}/finished_{}_{}.timestamp'.format(
+        storage.prefix_path, node_backup.name, node_backup.fqdn, node_backup.finished
     )
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.finished))
 
 
 def set_latest_backup_in_index(storage, node_backup):
-    dst = 'index/latest_backup/{}/tokenmap.json'.format(node_backup.fqdn)
+    dst = '{}index/latest_backup/{}/tokenmap.json'.format(storage.prefix_path, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
-    dst = 'index/latest_backup/{}/backup_name.txt'.format(node_backup.fqdn)
+    dst = '{}index/latest_backup/{}/backup_name.txt'.format(storage.prefix_path, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.name)
 
 
 def clean_backup_from_index(storage, node_backup):
-    index_files = storage.storage_driver.list_objects("index/backup_index/{}".format(node_backup.name))
+    index_files = storage.storage_driver.list_objects(
+        "{}index/backup_index/{}".format(storage.prefix_path, node_backup.name))
     for obj in index_files:
         if "_" + node_backup.fqdn in obj.name:
             logging.debug("Cleaning from backup index: {}".format(obj.name))
@@ -124,4 +126,4 @@ def clean_backup_from_index(storage, node_backup):
 
 
 def index_exists(storage):
-    return len(storage.storage_driver.list_objects(path='index')) > 0
+    return len(storage.storage_driver.list_objects(path='{}index'.format(storage.prefix_path))) > 0

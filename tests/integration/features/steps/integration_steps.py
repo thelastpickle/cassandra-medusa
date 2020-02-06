@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import time
+import uuid
 
 from behave import given, when, then
 from pathlib import Path
@@ -49,6 +50,8 @@ from medusa.config import _namedtuple_from_dict
 from medusa.storage import Storage
 from medusa.monitoring import LocalMonitoring
 
+storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
+
 
 def kill_cassandra():
     p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
@@ -71,7 +74,7 @@ def cleanup_storage(context, storage_provider):
         os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
     elif storage_provider == "google_storage" or storage_provider.find("s3") == 0:
         storage = Storage(config=context.medusa_config.storage)
-        objects = storage.storage_driver.list_objects()
+        objects = storage.storage_driver.list_objects(storage._prefix)
         for obj in objects:
             storage.storage_driver.delete_object(obj)
 
@@ -139,6 +142,7 @@ def i_am_using_storage_provider(context, storage_provider):
             "api_key_or_username": "",
             "api_secret_or_password": "",
             "base_path": "/tmp",
+            "prefix": storage_prefix
         }
     elif storage_provider == "google_storage":
         config["storage"] = {
@@ -150,6 +154,7 @@ def i_am_using_storage_provider(context, storage_provider):
             "api_key_or_username": "",
             "api_secret_or_password": "",
             "base_path": "/tmp",
+            "prefix": storage_prefix
         }
     elif storage_provider.startswith("s3"):
         config["storage"] = {
@@ -163,7 +168,8 @@ def i_am_using_storage_provider(context, storage_provider):
             "api_profile": "default",
             "base_path": "/tmp",
             "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4
+            "concurrent_transfers": 4,
+            "prefix": storage_prefix
         }
 
     config["cassandra"] = {
@@ -299,7 +305,7 @@ def _the_backup_named_backupname_has_nb_sstables_for_the_whatever_table(
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
-        context.medusa_config.storage.fqdn, backup_name, "data", keyspace, table_name
+        storage.prefix_path + context.medusa_config.storage.fqdn, backup_name, "data", keyspace, table_name
     )
     objects = storage.storage_driver.list_objects(path)
     sstables = list(filter(lambda obj: "-Data.db" in obj.name, objects))
@@ -374,19 +380,19 @@ def _the_backup_named_backupname_is_present_in_the_index(context, backup_name):
     storage = Storage(config=context.medusa_config.storage)
     fqdn = context.medusa_config.storage.fqdn
     path = os.path.join(
-        "index/backup_index", backup_name, "tokenmap_{}.json".format(fqdn)
+        "{}index/backup_index".format(storage.prefix_path), backup_name, "tokenmap_{}.json".format(fqdn)
     )
     tokenmap_from_index = storage.storage_driver.get_blob_content_as_string(path)
-    path = os.path.join(fqdn, backup_name, "meta", "tokenmap.json")
+    path = os.path.join(storage.prefix_path + fqdn, backup_name, "meta", "tokenmap.json")
     tokenmap_from_backup = storage.storage_driver.get_blob_content_as_string(path)
     # Check that we have the manifest as well there
     manifest_path = os.path.join(
-        "index/backup_index", backup_name, "manifest_{}.json".format(fqdn)
+        "{}index/backup_index".format(storage.prefix_path), backup_name, "manifest_{}.json".format(fqdn)
     )
     manifest_from_index = storage.storage_driver.get_blob_content_as_string(
         manifest_path
     )
-    path = os.path.join(fqdn, backup_name, "meta", "manifest.json")
+    path = os.path.join(storage.prefix_path + fqdn, backup_name, "meta", "manifest.json")
     manifest_from_backup = storage.storage_driver.get_blob_content_as_string(path)
     assert (
         tokenmap_from_backup == tokenmap_from_index
@@ -416,6 +422,7 @@ def _there_is_no_latest_backup_for_node_fqdn(context, fqdn):
     r'node "{fqdn}" fakes a complete backup named "{backup_name}" on "{backup_datetime}"'
 )
 def _node_fakes_a_complete_backup(context, fqdn, backup_name, backup_datetime):
+    storage = Storage(config=context.medusa_config.storage)
     path_root = "/tmp/medusa_it_bucket"
 
     fake_tokenmap = json.dumps(
@@ -426,55 +433,55 @@ def _node_fakes_a_complete_backup(context, fqdn, backup_name, backup_datetime):
         }
     )
 
-    dir_path = os.path.join(path_root, "index", "backup_index", backup_name)
+    dir_path = os.path.join(path_root, storage.prefix_path + "index", "backup_index", backup_name)
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
     # fake token map, manifest and schema in index
-    path_tokenmap = "{}/index/backup_index/{}/tokenmap_{}.json".format(
-        path_root, backup_name, fqdn
+    path_tokenmap = "{}/{}index/backup_index/{}/tokenmap_{}.json".format(
+        path_root, storage.prefix_path, backup_name, fqdn
     )
     write_dummy_file(path_tokenmap, backup_datetime, fake_tokenmap)
-    path_manifest = "{}/index/backup_index/{}/manifest_{}.json".format(
-        path_root, backup_name, fqdn
+    path_manifest = "{}/{}index/backup_index/{}/manifest_{}.json".format(
+        path_root, storage.prefix_path, backup_name, fqdn
     )
     write_dummy_file(path_manifest, backup_datetime, fake_tokenmap)
-    path_schema = "{}/index/backup_index/{}/schema_{}.cql".format(
-        path_root, backup_name, fqdn
+    path_schema = "{}/{}index/backup_index/{}/schema_{}.cql".format(
+        path_root, storage.prefix_path, backup_name, fqdn
     )
     write_dummy_file(path_schema, backup_datetime, fake_tokenmap)
 
-    dir_path = os.path.join(path_root, "index", "latest_backup", fqdn)
+    dir_path = os.path.join(path_root, storage.prefix_path + "index", "latest_backup", fqdn)
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
     # fake token map in latest_backup
-    path_latest_backup_tokenmap = "{}/index/latest_backup/{}/tokenmap.json".format(
-        path_root, fqdn
+    path_latest_backup_tokenmap = "{}/{}index/latest_backup/{}/tokenmap.json".format(
+        path_root, storage.prefix_path, fqdn
     )
     write_dummy_file(path_latest_backup_tokenmap, backup_datetime, fake_tokenmap)
 
     # fake token name in latest_backup
-    path_latest_backup_name = "{}/index/latest_backup/{}/backup_name.txt".format(
-        path_root, fqdn
+    path_latest_backup_name = "{}/{}index/latest_backup/{}/backup_name.txt".format(
+        path_root, storage.prefix_path, fqdn
     )
     write_dummy_file(path_latest_backup_name, backup_datetime)
 
     # fake actual backup folder
-    dir_path = os.path.join(path_root, fqdn, backup_name, "meta")
+    dir_path = os.path.join(path_root, storage.prefix_path + fqdn, backup_name, "meta")
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
     # fake schema in actual backup path
-    path_schema = "{}/{}/{}/meta/schema.cql".format(path_root, fqdn, backup_name)
+    path_schema = "{}/{}{}/{}/meta/schema.cql".format(path_root, storage.prefix_path, fqdn, backup_name)
     write_dummy_file(path_schema, backup_datetime)
 
     # fake manifest in actual backup path
-    path_manifest = "{}/{}/{}/meta/manifest.json".format(path_root, fqdn, backup_name)
+    path_manifest = "{}/{}{}/{}/meta/manifest.json".format(path_root, storage.prefix_path, fqdn, backup_name)
     write_dummy_file(path_manifest, backup_datetime)
 
     # fake token map in actual backup path
-    path_tokenmap = "{}/{}/{}/meta/tokenmap.json".format(path_root, fqdn, backup_name)
+    path_tokenmap = "{}/{}{}/{}/meta/tokenmap.json".format(path_root, storage.prefix_path, fqdn, backup_name)
     write_dummy_file(path_tokenmap, backup_datetime, fake_tokenmap)
 
 
@@ -507,15 +514,17 @@ def _the_latest_complete_cluster_backup_is(context, expected_backup_name):
 
 @when(r"I truncate the backup index")
 def _truncate_the_index(context):
+    storage = Storage(config=context.medusa_config.storage)
     path_root = "/tmp/medusa_it_bucket"
-    index_path = "{}/index".format(path_root)
+    index_path = "{}/{}index".format(path_root, storage.prefix_path)
     shutil.rmtree(index_path)
 
 
 @when(r"I truncate the backup folder")
 def _truncate_the_backup_folder(context):
+    storage = Storage(config=context.medusa_config.storage)
     path_root = "/tmp/medusa_it_bucket"
-    backup_path = "{}/localhost".format(path_root)
+    backup_path = "{}/{}localhost".format(path_root, storage.prefix_path)
     shutil.rmtree(backup_path)
 
 
@@ -549,7 +558,7 @@ def _i_can_see_nb_sstables_in_the_sstable_pool(
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
-        context.medusa_config.storage.fqdn, "data", keyspace, table_name
+        storage.prefix_path + context.medusa_config.storage.fqdn, "data", keyspace, table_name
     )
     objects = storage.storage_driver.list_objects(path)
     sstables = list(filter(lambda obj: "-Data.db" in obj.name, objects))
