@@ -15,6 +15,7 @@
 
 import logging
 
+
 def before_all(context):
     context.cassandra_version = "2.2.14"
     context.session = None

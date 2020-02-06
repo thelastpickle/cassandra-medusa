@@ -55,7 +55,7 @@ class Storage(object):
     def __init__(self, *, config):
         self._config = config
         self._prefix = pathlib.Path(config.prefix or '.')
-        self.prefix_path = str(self._prefix) + '/' if self._prefix != '.' else ''
+        self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
         self.storage_driver = self._connect_storage()
         self.storage_provider = self._config.storage_provider
 
@@ -243,7 +243,7 @@ class Storage(object):
     def group_backup_index_by_backup_and_node(self, backup_index_blobs):
 
         def get_backup_name(blob):
-            return blob.name.split('/')[2] if self.prefix_path == '.' else blob.name.split('/')[3]
+            return blob.name.split('/')[2] if len(str(self.prefix_path)) <= 1 else blob.name.split('/')[3]
 
         def name_and_fqdn(blob):
             return get_backup_name(blob), Storage.get_fqdn_from_any_index_blob(blob)
