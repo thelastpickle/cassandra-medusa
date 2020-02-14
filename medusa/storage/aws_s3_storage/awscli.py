@@ -18,6 +18,7 @@ import logging
 import os
 import subprocess
 import uuid
+import sys
 
 from retrying import retry
 
@@ -36,18 +37,41 @@ class AwsCli(object):
             self._env = dict(os.environ, AWS_SHARED_CREDENTIALS_FILE=self._config.key_file)
         else:
             self._env = dict(os.environ)
+
+        if self._config.aws_cli_path == 'dynamic':
+            self._aws_cli_path = self.find_aws_cli()
+        else:
+            self._aws_cli_path = self._config.aws_cli_path
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._env = dict(os.environ)
         return False
 
+    @staticmethod
+    def find_aws_cli():
+        """
+        Construct the AWS command line with parameters and variables
+        Also includes a lookup for the AWS binary, in case we are running
+        under a venv
+        """
+        aws_bin = '/usr/bin/aws'
+        for path in sys.path:
+            if not path:
+                continue
+            tpath = '/'.join([path, 'aws'])
+            if os.path.exists(tpath) and os.path.isfile(tpath) and os.access(tpath, os.X_OK):
+                aws_bin = tpath
+                break
+        return aws_bin
+
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         for src in srcs:
-            cmd = ["aws", "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
+            cmd = [self._aws_cli_path, "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
@@ -56,7 +80,7 @@ class AwsCli(object):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
-        cmd = ["aws", "s3", "cp", "s3://{}/{}".format(bucket_name, src), dest]
+        cmd = [self._aws_cli_path, "s3", "cp", "s3://{}/{}".format(bucket_name, src), dest]
         self.download_file(cmd, dest, awscli_output)
 
         return objects
