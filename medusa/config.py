@@ -39,7 +39,7 @@ CassandraConfig = collections.namedtuple(
 
 SSHConfig = collections.namedtuple(
     'SSHConfig',
-    ['username', 'key_file']
+    ['username', 'key_file', 'port']
 )
 
 ChecksConfig = collections.namedtuple(
@@ -101,7 +101,8 @@ def load_config(args, config_file):
 
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
-        'key_file': ''
+        'key_file': '',
+        'port': 22
     }
 
     config['checks'] = {
