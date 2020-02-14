@@ -154,6 +154,7 @@ class RestoreJob(object):
         """
         pssh_run_success = False
         username = self.config.ssh.username if self.config.ssh.username != '' else None
+        port = self.config.ssh.port
         pkey = None
         if self.config.ssh.key_file is not None and self.config.ssh.key_file != '':
             pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
@@ -162,6 +163,7 @@ class RestoreJob(object):
                                    forward_ssh_agent=True,
                                    pool_size=self.pssh_pool_size,
                                    user=username,
+                                   port=port,
                                    pkey=pkey)
         logging.info('Executing "{}" on all nodes.'
                      .format(command))
