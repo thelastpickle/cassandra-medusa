@@ -121,6 +121,10 @@ concurrent_transfers = 1
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
 multi_part_upload_threshold = 104857600
 
+; in the case awscli binaryis not located in the default python path  i.e venv supply the path to binary if the string 'dynamic' 
+; is supplied medusa will attempt to the location awscli binary find by looping through directories 
+;aws_cli_path=/path/to/awsclibinary/aws
+
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
 

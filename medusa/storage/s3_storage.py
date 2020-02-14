@@ -28,6 +28,8 @@ from libcloud.storage.providers import get_driver
 
 from medusa.storage.abstract_storage import AbstractStorage
 import medusa.storage.aws_s3_storage.concurrent
+from medusa.storage.aws_s3_storage.awscli import AwsCli
+
 import medusa
 
 
@@ -130,8 +132,13 @@ class S3Storage(AbstractStorage):
         return driver
 
     def check_dependencies(self):
+        if self.config.aws_cli_path == 'dynamic':
+            aws_cli_path = AwsCli.find_aws_cli()
+        else:
+            aws_cli_path = self.config.aws_cli_path
+
         try:
-            subprocess.check_call(["aws", "help"], stdout=PIPE, stderr=PIPE)
+            subprocess.check_call([aws_cli_path, "help"], stdout=PIPE, stderr=PIPE)
         except Exception:
             raise RuntimeError(
                 "AWS cli doesn't seem to be installed on this system and is a "
