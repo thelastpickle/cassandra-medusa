@@ -129,7 +129,7 @@ class S3Storage(AbstractStorage):
         )
         return driver
 
-    def _test_awscli_presence(self):
+    def check_dependencies(self):
         try:
             subprocess.check_call(["aws", "help"], stdout=PIPE, stderr=PIPE)
         except Exception:
