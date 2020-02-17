@@ -13,7 +13,6 @@ then
     # We need to create a new release branch
     echo "Creating release branch $release_branch"
     git checkout -b $release_branch
-    git branch --set-upstream-to origin/$release_branch
     current_branch=$(git rev-parse --abbrev-ref HEAD)
 fi
 
@@ -41,6 +40,7 @@ do
     read -p 'Is the changelog up to date? [y/n]' changelog_ok
 done
 
+changelog_updated="n"
 if [ "$changelog_ok" == "n" ]
 then
     hash_before=$(md5 CHANGELOG.md)
@@ -51,7 +51,7 @@ then
         echo "Changelog was not updated. Exiting..."
         exit 1
     fi
-    git commit -a -m "Update changelog for release $RELEASE_VERSION"
+    changelog_updated="y"
 fi
 
 version_exists=$(cat debian/changelog | grep "($RELEASE_VERSION)")
@@ -60,10 +60,17 @@ then
     echo "Updating debian changelog..."
     cd packaging/docker-build
     docker-compose build release && docker-compose run release
+    changelog_updated="y"
+    cd ../..
+fi
+
+if [ "$changelog_updated" == "y" ]
+then
+    git commit -a -m "Update changelog for release $RELEASE_VERSION"
 fi
 
 git tag -a v$RELEASE_VERSION -m "Release v$RELEASE_VERSION"
-git push --set-upstream-to origin/$release_branch --follow-tags
+git push -u origin my-branch --follow-tags
 git push origin v$RELEASE_VERSION
 
 # post release work
