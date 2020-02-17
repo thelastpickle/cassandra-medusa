@@ -1,5 +1,13 @@
 ## Change Log
 
+### 0.5.0
+
+- Add customized port to ssh section (@alvaropalmeirao)
+- Fix the usage of prefix for multi tenant buckets (@adejanovski)
+- Fix sstableloader calls for clusters without authentication (@adejanovski)
+- Adding support for Env Credentials and IAM Role (@alvaropalmeirao)
+- add aws regions by bumping libcloud (@arodrime)
+
 ### 0.4.1
 - Publish debian packages (@arodrime/@adejanovski)
 - Fixed the path to the file where S3 is configured for integration tests. (@pumpkiny9120)
