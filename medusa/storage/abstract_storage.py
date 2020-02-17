@@ -135,3 +135,10 @@ class AbstractStorage(abc.ABC):
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def delete_object(self, object):
         self.driver.delete_object(object)
+
+    def check_dependencies(self):
+        """
+        Check that required dependencies are available.
+        Each child class should implement this function if it relies on an optional dependency.
+        """
+        pass

@@ -61,11 +61,15 @@ class Storage(object):
 
     def _connect_storage(self):
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
-            return GoogleStorage(self._config)
+            google_storage = GoogleStorage(self._config)
+            google_storage.check_dependencies()
+            return google_storage
         elif self._config.storage_provider == Provider.S3_RGW:
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.startswith(Provider.S3):
-            return S3Storage(self._config)
+            s3_storage = S3Storage(self._config)
+            s3_storage.check_dependencies()
+            return s3_storage
         elif self._config.storage_provider == Provider.LOCAL:
             return LocalStorage(self._config)
 
