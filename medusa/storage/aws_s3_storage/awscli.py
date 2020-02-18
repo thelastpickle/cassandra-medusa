@@ -32,7 +32,10 @@ class AwsCli(object):
         return self._config.bucket_name
 
     def __enter__(self):
-        self._env = dict(os.environ, AWS_SHARED_CREDENTIALS_FILE=self._config.key_file)
+        if self._config.key_file:
+            self._env = dict(os.environ, AWS_SHARED_CREDENTIALS_FILE=self._config.key_file)
+        else:
+            self._env = dict(os.environ)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
