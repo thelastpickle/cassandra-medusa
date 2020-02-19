@@ -174,11 +174,10 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                                           '--username', cql_username,
                                           '--password', cql_password,
                                           '--no-progress',
-                                          '--storage-port', storage_port,
                                           os.path.join(ks_path, table)]
-                    if storage_port == "7000":
-                        sstableloader_args.remove("--storage-port")
-                        sstableloader_args.remove(storage_port)
+                    if storage_port != "7000":
+                        sstableloader_args.append("--storage-port")
+                        sstableloader_args.append(storage_port)
                     output = subprocess.check_output(sstableloader_args)
                     for line in output.decode('utf-8').split('\n'):
                         logging.debug(line)
