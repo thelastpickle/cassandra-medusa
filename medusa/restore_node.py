@@ -170,7 +170,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     cql_password = 'foo' if config.cassandra.cql_password is None else config.cassandra.cql_password
                     sstableloader_args = [config.cassandra.sstableloader_bin,'-d', socket.getfqdn() if cassandra_is_ccm == 0 else '127.0.0.1',
                     '--username', cql_username,'--password', cql_password, '--no-progress', '--storage-port', storage_port, os.path.join(ks_path, table)]
-                    if storage_port == "7000" or "7001":
+                    if storage_port == "7000":
                         sstableloader_args.remove("--storage-port")
                         sstableloader_args.remove(storage_port)
                     output = subprocess.check_output(sstableloader_args)
