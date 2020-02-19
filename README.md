@@ -56,7 +56,7 @@ Running the installation using `sudo` is necessary to have the `/usr/local/bin/m
 
 ### Offline installation
 
-If your Cassandra servers do not have internet access:  
+If your Cassandra servers do not have internet access:
 
 - on a machine with the same target os and python version, clone the cassandra-medusa repo and cd into the root directory
 - run `mkdir pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
@@ -127,6 +127,7 @@ multi_part_upload_threshold = 104857600
 [ssh]
 ;username = <SSH username to use for restoring clusters>
 ;key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
+;port = <SSH port for use for restoring clusters. Default to port 22.
 
 [checks]
 ;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>
