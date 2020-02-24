@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.5.1
+
+- Improve S3 connection performance when IAM roles aren't used (@adejanovski)
+
 ### 0.5.0
 
 - Add customized port to ssh section (@alvaropalmeirao)
