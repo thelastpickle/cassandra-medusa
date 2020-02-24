@@ -34,7 +34,6 @@ class GoogleStorage(AbstractStorage):
     def connect_storage(self):
         with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
-            self._test_gsutil_presence()
 
         driver = GoogleStorageDriver(
             key=credentials['client_email'],
@@ -44,7 +43,7 @@ class GoogleStorage(AbstractStorage):
 
         return driver
 
-    def _test_gsutil_presence(self):
+    def check_dependencies(self):
         try:
             subprocess.check_call(["gsutil", "help"], stdout=PIPE, stderr=PIPE)
         except Exception:

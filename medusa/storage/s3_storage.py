@@ -79,35 +79,9 @@ class S3Storage(AbstractStorage):
         :return driver: EC2 driver object
         """
         aws_security_token = ''
-        aws_instance_profile = self.get_aws_instance_profile()
-
-        # Authentication via environment variables
-        if 'AWS_ACCESS_KEY_ID' in os.environ and \
-                'AWS_SECRET_ACCESS_KEY' in os.environ:
-            logging.debug("Reading AWS credentials from Environment Variables:")
-            aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
-            aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
-
-            # Access token for credentials fetched from STS service:
-            if 'AWS_SECURITY_TOKEN' in os.environ:
-                aws_security_token = os.environ['AWS_SECURITY_TOKEN']
-
-        # or authentication via IAM Role credentials
-        elif aws_instance_profile:
-            logging.debug('Reading AWS credentials from IAM Role: %s', aws_instance_profile.text)
-            url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" + aws_instance_profile.text
-            try:
-                auth_data = requests.get(url).json()
-            except requests.exceptions.RequestException:
-                logging.error('Can\'t fetch AWS IAM Role credentials.')
-                sys.exit(1)
-
-            aws_access_key_id = auth_data['AccessKeyId']
-            aws_secret_access_key = auth_data['SecretAccessKey']
-            aws_security_token = auth_data['Token']
-
+        aws_access_key_id = None
         # or authentication via AWS credentials file
-        elif self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
+        if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
             logging.debug("Reading AWS credentials from {}".format(
                 self.config.key_file
             ))
@@ -119,7 +93,34 @@ class S3Storage(AbstractStorage):
                 profile = aws_config[aws_profile]
                 aws_access_key_id = profile['aws_access_key_id']
                 aws_secret_access_key = profile['aws_secret_access_key']
+        # Authentication via environment variables
+        elif 'AWS_ACCESS_KEY_ID' in os.environ and \
+                'AWS_SECRET_ACCESS_KEY' in os.environ:
+            logging.debug("Reading AWS credentials from Environment Variables:")
+            aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
+            aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
+
+            # Access token for credentials fetched from STS service:
+            if 'AWS_SECURITY_TOKEN' in os.environ:
+                aws_security_token = os.environ['AWS_SECURITY_TOKEN']
+
+        # or authentication via IAM Role credentials
         else:
+            aws_instance_profile = self.get_aws_instance_profile()
+            if aws_instance_profile:
+                logging.debug('Reading AWS credentials from IAM Role: %s', aws_instance_profile.text)
+                url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" + aws_instance_profile.text
+                try:
+                    auth_data = requests.get(url).json()
+                except requests.exceptions.RequestException:
+                    logging.error('Can\'t fetch AWS IAM Role credentials.')
+                    sys.exit(1)
+
+                aws_access_key_id = auth_data['AccessKeyId']
+                aws_secret_access_key = auth_data['SecretAccessKey']
+                aws_security_token = auth_data['Token']
+
+        if aws_access_key_id is None:
             raise NotImplementedError("No valid method of AWS authentication provided.")
 
         cls = get_driver(self.config.storage_provider)
@@ -128,7 +129,7 @@ class S3Storage(AbstractStorage):
         )
         return driver
 
-    def _test_awscli_presence(self):
+    def check_dependencies(self):
         try:
             subprocess.check_call(["aws", "help"], stdout=PIPE, stderr=PIPE)
         except Exception:
