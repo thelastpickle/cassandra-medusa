@@ -321,6 +321,53 @@ def _i_can_verify_the_backup_named_successfully(context, backup_name):
     medusa.verify.verify(context.medusa_config, backup_name)
 
 
+@then(r'I can download the backup named "{backup_name}" for all tables')
+def _i_can_download_the_backup_all_tables_successfully(context, backup_name):
+    def cleanup(temp_path):
+        if os.path.exists(temp_path) and os.path.isdir(temp_path):
+            shutil.rmtree(temp_path)
+
+    storage = Storage(config=context.medusa_config.storage)
+    config = context.medusa_config
+    download_path = os.path.join("/tmp", "medusa-download-all-tables/")
+    cleanup(download_path)
+    os.makedirs(download_path)
+
+    backup = storage.get_node_backup(
+        fqdn=config.storage.fqdn,
+        name=backup_name,
+    )
+    fqtn = set({})
+    medusa.download.download_data(context.medusa_config.storage, backup, fqtn, Path(download_path))
+
+    sys_dist = os.path.join(download_path, 'system_distributed')
+    assert os.path.isdir(sys_dist)
+    cleanup(download_path)
+
+
+@then(r'I can download the backup named "{backup_name}" for "{fqtn}"')
+def _i_can_download_the_backup_single_table_successfully(context, backup_name, fqtn):
+    def cleanup(temp_path):
+        if os.path.exists(temp_path) and os.path.isdir(temp_path):
+            shutil.rmtree(temp_path)
+
+    storage = Storage(config=context.medusa_config.storage)
+    config = context.medusa_config
+    download_path = os.path.join("/tmp", "medusa-download-one-table/")
+    cleanup(download_path)
+    os.makedirs(download_path)
+
+    backup = storage.get_node_backup(
+        fqdn=config.storage.fqdn,
+        name=backup_name,
+    )
+    medusa.download.download_data(context.medusa_config.storage, backup, fqtn, Path(download_path))
+
+    sys_dist = os.path.join(download_path, 'system_distributed')
+    assert os.path.isdir(sys_dist)
+    cleanup(download_path)
+
+
 @when(r'I restore the backup named "{backup_name}"')
 def _i_restore_the_backup_named(context, backup_name):
     medusa.restore_node.restore_node(
