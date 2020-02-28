@@ -28,6 +28,8 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "full" mode of the node named "first_backup"
         Then I can see the backup named "first_backup" when I list the backups
+        Then I can download the backup named "first_backup" for all tables
+        Then I can download the backup named "first_backup" for "medusa.test"
         Then I can see the backup status for "first_backup" when I run the status command
         Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
         Then the backup index exists

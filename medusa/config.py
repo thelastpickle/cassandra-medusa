@@ -18,6 +18,7 @@ import configparser
 import logging
 import os
 import pathlib
+import socket
 import sys
 
 import medusa.storage
@@ -80,6 +81,7 @@ def load_config(args, config_file):
         'multi_part_upload_threshold': 100 * 1024 * 1024,
         'secure': True,
         'aws_cli_path': 'aws',
+        'fqdn': socket.getfqdn(),
     }
 
     config['logging'] = {

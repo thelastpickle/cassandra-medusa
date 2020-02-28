@@ -19,7 +19,6 @@ monkey.patch_all()
 import datetime
 import logging
 import logging.handlers
-import socket
 import click
 import sys
 
@@ -96,7 +95,7 @@ def configure_console_logging(verbosity, without_log_timestamp):
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
-@click.option('--fqdn', help='Act as another host', default=socket.getfqdn())
+@click.option('--fqdn', help='Act as another host')
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.pass_context
@@ -250,7 +249,10 @@ def get_last_complete_cluster_backup(medusa_config):
     Pints the name of the latest complete cluster backup
     """
     backup = medusa.report_latest.get_latest_complete_cluster_backup(medusa_config)
-    print(backup.name)
+    if backup is not None:
+        print(backup.name)
+    else:
+        print("Could not find any full backup for the cluster")
 
 
 @cli.command(name='build-index')
