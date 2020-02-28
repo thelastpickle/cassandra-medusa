@@ -42,10 +42,10 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
         for subfolder in dst_subfolders:
             subfolder.mkdir(parents=False)
 
-        if len(srcs) > 0 and fqtn in fqtns_to_restore:
+        if len(srcs) > 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.info('Downloading backup data')
             storage.storage_driver.download_blobs(srcs, dst)
-        elif len(srcs) == 0 and fqtn in fqtns_to_restore:
+        elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.debug('There is nothing to download for {}'.format(fqtn))
         else:
             logging.debug('Download of {} was not requested, skipping'.format(fqtn))
@@ -72,4 +72,4 @@ def download_cmd(config, backup_name, download_destination):
         logging.error('No such backup')
         sys.exit(1)
 
-    download_data(config.storage, node_backup, download_destination)
+    download_data(config.storage, node_backup, set({}), download_destination)
