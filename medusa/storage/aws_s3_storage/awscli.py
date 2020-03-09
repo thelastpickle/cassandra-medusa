@@ -56,8 +56,10 @@ class AwsCli(object):
         Also includes a lookup for the AWS binary, in case we are running
         under a venv
         """
-        aws_bin = '/usr/bin/aws'
-        for path in sys.path:
+        aws_bin = 'aws'
+        binary_paths = ['/usr/bin', '/usr/local/bin']
+        paths = sys.path + binary_paths
+        for path in paths:
             if not path:
                 continue
             tpath = '/'.join([path, 'aws'])
