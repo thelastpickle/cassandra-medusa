@@ -169,7 +169,8 @@ def i_am_using_storage_provider(context, storage_provider):
             "base_path": "/tmp",
             "multi_part_upload_threshold": 1 * 1024,
             "concurrent_transfers": 4,
-            "prefix": storage_prefix
+            "prefix": storage_prefix,
+            "aws_cli_path": "aws"
         }
 
     config["cassandra"] = {
