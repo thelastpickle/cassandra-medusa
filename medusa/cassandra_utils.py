@@ -30,6 +30,7 @@ from subprocess import PIPE
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
+from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
 
 
 class SnapshotPath(object):
@@ -46,11 +47,25 @@ class SnapshotPath(object):
 
 class CqlSessionProvider(object):
 
-    def __init__(self, ip_addresses, *, username=None, password=None):
+    def __init__(self, ip_addresses, cassandra_config):
         self._ip_addresses = ip_addresses
+        self._auth_provider = None
+        self._ssl_context = None
 
-        auth_provider = PlainTextAuthProvider(username=username, password=password) if username and password else None
-        self._auth_provider = auth_provider
+        if cassandra_config.cql_username is not None and cassandra_config.cql_password is not None:
+            auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
+                                                  password=cassandra_config.cql_password)
+            self._auth_provider = auth_provider
+
+        if cassandra_config.certfile is not None and cassandra_config.usercert is not None and \
+           cassandra_config.userkey is not None:
+            ssl_context = SSLContext(PROTOCOL_TLSv1)
+            ssl_context.load_verify_locations(cassandra_config.certfile)
+            ssl_context.verify_mode = CERT_REQUIRED
+            ssl_context.load_cert_chain(
+                certfile=cassandra_config.usercert,
+                keyfile=cassandra_config.userkey)
+            self._ssl_context = ssl_context
 
         load_balancing_policy = WhiteListRoundRobinPolicy(ip_addresses)
         self._execution_profiles = {
@@ -66,7 +81,8 @@ class CqlSessionProvider(object):
 
         cluster = Cluster(contact_points=self._ip_addresses,
                           auth_provider=self._auth_provider,
-                          execution_profiles=self._execution_profiles)
+                          execution_profiles=self._execution_profiles,
+                          ssl_context=self._ssl_context)
 
         if retry:
             max_retries = 5
@@ -268,9 +284,8 @@ class Cassandra(object):
         self._hostname = contact_point if contact_point is not None else config_reader.listen_address
         self._cql_session_provider = CqlSessionProvider(
             [self._hostname],
-            username=cassandra_config.cql_username,
-            password=cassandra_config.cql_password
-        )
+            cassandra_config)
+
         self._storage_port = config_reader.storage_port
 
     def _has_systemd(self):
