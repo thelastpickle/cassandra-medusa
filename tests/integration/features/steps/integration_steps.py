@@ -29,6 +29,7 @@ from pathlib import Path
 from subprocess import PIPE
 import signal
 from cassandra.cluster import Cluster
+from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
 
 import medusa.backup
 import medusa.index
@@ -51,6 +52,12 @@ from medusa.storage import Storage
 from medusa.monitoring import LocalMonitoring
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
+os.chdir("..")
+certfile = "{}/resources/local_with_ssl/rootCa.crt".format(os.getcwd())
+usercert = "{}/resources/local_with_ssl/client.pem".format(os.getcwd())
+userkey = "{}/resources/local_with_ssl/client.key.pem".format(os.getcwd())
+keystore_path = "{}/resources/local_with_ssl/127.0.0.1.jks".format(os.getcwd())
+trustore_path = "{}/resources/local_with_ssl/generic-server-truststore.jks".format(os.getcwd())
 
 
 def kill_cassandra():
@@ -79,11 +86,12 @@ def cleanup_storage(context, storage_provider):
             storage.storage_driver.delete_object(obj)
 
 
-@given(r'I have a fresh ccm cluster running named "{cluster_name}"')
-def _i_have_a_fresh_ccm_cluster_running(context, cluster_name):
+@given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
+def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption):
     context.cassandra_version = "2.2.14"
     context.session = None
     context.cluster_name = cluster_name
+    is_client_encryption_enable = False
     subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
     kill_cassandra()
     res = subprocess.run(
@@ -106,6 +114,15 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name):
     )
 
     os.popen("ccm node1 updateconf 'storage_port: 7011'").read()
+
+    if client_encryption == 'with_client_encryption':
+        is_client_encryption_enable = True
+        update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
+        optional: false,keystore: " + keystore_path + ",keystore_password: testdata1,\
+        require_client_auth: true,truststore: " + trustore_path + ",truststore_password: truststorePass1,\
+        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}'"
+        os.popen(update_client_encrytion_opts).read()
+
     if os.uname().sysname == "Linux":
         os.popen(
             """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
@@ -118,11 +135,11 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name):
             + """/node1/conf/cassandra-env.sh"""
         ).read()
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
-    context.session = connect_cassandra()
+    context.session = connect_cassandra(is_client_encryption_enable)
 
 
-@given(r'I am using "{storage_provider}" as storage provider')
-def i_am_using_storage_provider(context, storage_provider):
+@given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
+def i_am_using_storage_provider(context, storage_provider, client_encryption):
     logging.info("Starting the tests")
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -194,6 +211,19 @@ def i_am_using_storage_provider(context, storage_provider):
             )
         ),
     }
+
+    if client_encryption == 'with_client_encryption':
+        config["cassandra"].update(
+            {
+                "certfile": certfile,
+                "usercert": usercert,
+                "userkey": userkey,
+                "sstableloader_ts": trustore_path,
+                "sstableloader_tspw": "truststorePass1",
+                "sstableloader_ks": keystore_path,
+                "sstableloader_kspw": "testdata1"
+            }
+        )
 
     config["monitoring"] = {"monitoring_provider": "local"}
 
@@ -416,9 +446,12 @@ def _i_restore_the_backup_named_for_table(context, backup_name, fqtn):
     )
 
 
-@then(r'I have {nb_rows} rows in the "{table_name}" table')
-def _i_have_rows_in_the_table(context, nb_rows, table_name):
-    context.session = connect_cassandra()
+@then(r'I have {nb_rows} rows in the "{table_name}" table in ccm cluster "{client_encryption}"')
+def _i_have_rows_in_the_table(context, nb_rows, table_name, client_encryption):
+    is_client_encryption_enable = False
+    if client_encryption == 'with_client_encryption':
+        is_client_encryption_enable = True
+    context.session = connect_cassandra(is_client_encryption_enable)
     rows = context.session.execute("select count(*) as nb from {}".format(table_name))
     assert rows[0].nb == int(nb_rows)
 
@@ -682,9 +715,13 @@ def _i_see_metrics_emitted(context, metrics_count):
     assert int(len(metrics)) == int(metrics_count)
 
 
-@when(r'I truncate the "{table_name}" table')
-def _i_truncate_the_table(context, table_name):
-    context.session = connect_cassandra()
+@when(r'I truncate the "{table_name}" table in ccm cluster "{client_encryption}"')
+def _i_truncate_the_table(context, table_name, client_encryption):
+    is_client_encryption_enable = False
+
+    if client_encryption == 'with_client_encryption':
+        is_client_encryption_enable = True
+    context.session = connect_cassandra(is_client_encryption_enable)
     context.session.execute("truncate {}".format(table_name))
 
 
@@ -712,13 +749,25 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
                                backup_name=backup_name, all_nodes=all_nodes)
 
 
-def connect_cassandra():
+def connect_cassandra(is_client_encryption_enable):
     connected = False
     attempt = 0
     session = None
+    _ssl_context = None
+
+    if is_client_encryption_enable:
+
+        ssl_context = SSLContext(PROTOCOL_TLSv1)
+        ssl_context.load_verify_locations(certfile)
+        ssl_context.verify_mode = CERT_REQUIRED
+        ssl_context.load_cert_chain(
+            certfile=usercert,
+            keyfile=userkey)
+        _ssl_context = ssl_context
+
     while not connected and attempt < 10:
         try:
-            cluster = Cluster(["127.0.0.1"])
+            cluster = Cluster(contact_points=["127.0.0.1"], ssl_context=_ssl_context)
             session = cluster.connect()
             connected = True
         except cassandra.cluster.NoHostAvailable:

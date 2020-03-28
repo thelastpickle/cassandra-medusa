@@ -79,7 +79,7 @@ def _get_cql_session_provider(config, hosts):
     else:
         cql_hosts = hosts
 
-    return CqlSessionProvider(cql_hosts, username=config.cassandra.cql_username, password=config.cassandra.cql_password)
+    return CqlSessionProvider(cql_hosts, config.cassandra)
 
 
 def _consume_results(cql_results):
