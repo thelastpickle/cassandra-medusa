@@ -178,6 +178,19 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     if storage_port != "7000":
                         sstableloader_args.append("--storage-port")
                         sstableloader_args.append(storage_port)
+                    if config.cassandra.sstableloader_ts is not None and \
+                       config.cassandra.sstableloader_tspw is not None and \
+                       config.cassandra.sstableloader_ks is not None and \
+                       config.cassandra.sstableloader_kspw is not None:
+                        sstableloader_args.append("-ts")
+                        sstableloader_args.append(config.cassandra.sstableloader_ts)
+                        sstableloader_args.append("-tspw")
+                        sstableloader_args.append(config.cassandra.sstableloader_tspw)
+                        sstableloader_args.append("-ks")
+                        sstableloader_args.append(config.cassandra.sstableloader_ks)
+                        sstableloader_args.append("-kspw")
+                        sstableloader_args.append(config.cassandra.sstableloader_kspw)
+
                     output = subprocess.check_output(sstableloader_args)
                     for line in output.decode('utf-8').split('\n'):
                         logging.debug(line)
