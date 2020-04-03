@@ -34,6 +34,10 @@ Medusa is a command line tool that offers the following features:
 * Support for clusters using single tokens or vnodes
 * Full or incremental backups
 
+Medusa currently does not support (but we would gladly accept help with changing that):
+
+* Cassandra deployments with multiple data folder directories.
+
 
 Setup
 -----
@@ -550,7 +554,7 @@ $ medusa status --backup-name=2019090503
 ```
 
 
-Display informations on the latest backup
+Display information on the latest backup
 -----------------------------------------
 ```
 $ medusa report-last-backup --help
