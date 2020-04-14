@@ -33,7 +33,7 @@ class S3RGWStorage(AbstractStorage):
         driver = S3RGWStorageDriver(
             host=self.config.host,
             port=self.config.port,
-            region="default",
+            region="default" if credentials['region'].lower() in ('0', 'false') else credentials['region'],
             signature_version="4",
             key=credentials['access_key_id'],
             secret=credentials['secret_access_key'],

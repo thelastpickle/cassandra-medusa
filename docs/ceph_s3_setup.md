@@ -12,7 +12,8 @@ Create an user for the backups and generate access keys for that user and save t
 ```
 {
     "access_key_id": "accesskeyid",
-    "secret_access_key": "secretkey"
+    "secret_access_key": "secretkey",
+    "region": "s3-region"
 }
 
 ```
