@@ -28,7 +28,7 @@ StorageConfig = collections.namedtuple(
     'StorageConfig',
     ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider',
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
-     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'port', 'secure', 'aws_cli_path']
+     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'aws_cli_path']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -83,6 +83,7 @@ def load_config(args, config_file):
         'secure': True,
         'aws_cli_path': 'aws',
         'fqdn': socket.getfqdn(),
+        'region': 'default',
     }
 
     config['logging'] = {
