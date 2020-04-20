@@ -107,6 +107,8 @@ class Nodetool(object):
 
     def __init__(self, cassandra_config):
         self._nodetool = ['nodetool']
+        if cassandra_config.nodetool_ssl == "true":
+            self._nodetool += ['--ssl']
         if cassandra_config.nodetool_username is not None:
             self._nodetool += ['-u', cassandra_config.nodetool_username]
         if cassandra_config.nodetool_password is not None:

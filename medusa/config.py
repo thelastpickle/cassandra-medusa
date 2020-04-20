@@ -36,7 +36,7 @@ CassandraConfig = collections.namedtuple(
     ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts', 'sstableloader_tspw',
-     'sstableloader_ks', 'sstableloader_kspw']
+     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl']
 )
 
 SSHConfig = collections.namedtuple(
