@@ -140,6 +140,30 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_nodetool_command_with_parameters(self):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
+            'nodetool_ssl': 'true',
+            'nodetool_username': 'cassandra',
+            'nodetool_password': 'password',
+            'nodetool_password_file_path': '/etc/cassandra/jmx.password',
+            'nodetool_host': '127.0.0.1',
+            'nodetool_port': '7199'
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+        n = Nodetool(medusa_config.cassandra).nodetool
+        expected = ['nodetool', '--ssl', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
+                    '-h', '127.0.0.1', '-p', '7199']
+        self.assertEqual(n, expected)
+
+    def test_nodetool_command_with_ssl_false(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'nodetool_ssl': 'false',
             'nodetool_username': 'cassandra',
             'nodetool_password': 'password',
             'nodetool_password_file_path': '/etc/cassandra/jmx.password',
