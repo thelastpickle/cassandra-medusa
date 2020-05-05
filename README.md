@@ -16,4 +16,4 @@
 
 For user questions and general/dev discussions, please join the #cassandra-medusa channel on the ASF slack at [http://s.apache.org/slack-invite](http://s.apache.org/slack-invite).
 
-To get started with Medusa, Backups and Restore for Cassandra, check the documentation in the [wiki of the project](../../wiki).
+To get started with Medusa, Backups and Restore for Cassandra, check the documentation in the [wiki of the project](https://github.com/thelastpickle/cassandra-medusa/wiki).
