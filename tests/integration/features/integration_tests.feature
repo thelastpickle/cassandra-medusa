@@ -266,7 +266,8 @@ Feature: Integration tests
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup named "third_backup" when I list the backups
-        Then verify fails on the backup named "third_backup"
+        # The following is disabled as we don't compare hashes with local storage
+        # Then verify fails on the backup named "third_backup"
         When I delete the backup named "first_backup"
         Then I cannot see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
