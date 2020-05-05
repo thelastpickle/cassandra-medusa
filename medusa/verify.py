@@ -17,6 +17,7 @@ import base64
 import json
 import logging
 
+from libcloud.storage.providers import Provider
 from medusa.storage import Storage
 
 
@@ -89,6 +90,9 @@ def validate_manifest(storage, node_backup):
             yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
             continue
 
+        if storage.storage_provider == Provider.LOCAL:
+            # the local provider doesn't provide reliable hashes.
+            continue
         if "-" in object_in_manifest['MD5']:
             # multi part S3 uploads
             if object_in_manifest['MD5'] != str(blob.hash):
