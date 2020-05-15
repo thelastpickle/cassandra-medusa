@@ -1,11 +1,22 @@
 ## Change Log
 
-### 0.5.1
+### 0.6.0 (2020/05/15 13:27 +00:00)
+- Add ini option to enable -ssl parameter for nodetool (@ANeumann82)
+- Add S3 region selector for S3 rgw (@mclpfr)
+- Disable checksum comparisons for the local storage provider. (@adejanovski)
+- Enable SSL Authentication for Medusa to access Cassandra SSL Clusters (@SINDHUJA21)
+- Local and s3 RGW backends now use streams for both uploads and downloads. (@nicholasamorim)
+- fix fqdn not honored in config file (@chebelom)
+- fix medusa download command not working due to missing parameter (@chebelom)
+- medusa get_last_complete_cluster_backup explodes if no complete cluster backup exists (@chebelom)
+- Add a delete-backup command (@arodrime)
+- Allow awscli binary path to be specified (@bishoprunout)
+- Add ssh port info to Readme.md and medusa-example.ini (@alvaropalmeirao)
 
+### 0.5.1
 - Improve S3 connection performance when IAM roles aren't used (@adejanovski)
 
 ### 0.5.0
-
 - Add customized port to ssh section (@alvaropalmeirao)
 - Fix the usage of prefix for multi tenant buckets (@adejanovski)
 - Fix sstableloader calls for clusters without authentication (@adejanovski)
