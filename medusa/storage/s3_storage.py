@@ -12,25 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
-import requests
 import configparser
-import logging
-import os
 import io
 import itertools
+import logging
+import os
 import subprocess
-from subprocess import PIPE
-from dateutil import parser
+import sys
 from pathlib import Path
+from subprocess import PIPE
 
+import requests
+from dateutil import parser
 from libcloud.storage.providers import get_driver
 
-from medusa.storage.abstract_storage import AbstractStorage
-import medusa.storage.aws_s3_storage.concurrent
-from medusa.storage.aws_s3_storage.awscli import AwsCli
-
 import medusa
+import medusa.storage.aws_s3_storage.concurrent
+from medusa import backup
+from medusa.storage.abstract_storage import AbstractStorage
+from medusa.storage.aws_s3_storage.awscli import AwsCli
 
 
 class S3Storage(AbstractStorage):
@@ -56,6 +56,12 @@ class S3Storage(AbstractStorage):
     S3_RGW = 's3_rgw'
     S3_RGW_OUTSCALE = 's3_rgw_outscale'
     """
+
+    BLOCK_SIZE_BYTES = 65536
+    MULTIPART_PART_SIZE_IN_MB = 8
+    MULTIPART_BLOCK_SIZE_BYTES = 65536
+    MULTIPART_BLOCKS_PER_MB = 16
+
     def get_aws_instance_profile(self):
         """
         Get IAM Role from EC2
@@ -184,6 +190,14 @@ class S3Storage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return path
+
+    def checksums_match(self, blob, src):
+        if "-" in blob['MD5']:
+            md5_hash = backup.md5_multipart(src)
+        else:
+            md5_hash = backup.generate_md5_hash(src)
+
+        return blob['MD5'] == md5_hash
 
 
 def _group_by_parent(paths):

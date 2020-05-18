@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import base64
 import io
 import itertools
 import json
@@ -27,6 +27,7 @@ from pathlib import Path
 
 from medusa.storage.abstract_storage import AbstractStorage
 from medusa.storage.google_cloud_storage.gsutil import GSUtil
+from medusa import backup
 
 
 class GoogleStorage(AbstractStorage):
@@ -115,6 +116,12 @@ class GoogleStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return self.get_download_path(path)
+
+    def checksums_match(self, blob, src):
+        md5_hash = backup.generate_md5_hash(src)
+        b64_encoded_hash = base64.b64decode(md5_hash).hex()
+
+        return b64_encoded_hash == blob['MD5']
 
 
 def _is_in_folder(file_path, folder_path):

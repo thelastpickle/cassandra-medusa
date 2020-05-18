@@ -49,3 +49,14 @@ class LocalStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)
+
+    def checksums_match(self, blob, src):
+        """
+        This is basically a no-op. It always returns True because the local provider checksum implementation is
+        unreliable.
+
+        :param blob: An object that represents a file in remote storage
+        :param src: A pathlib.Path object
+        :return: True
+        """
+        return True

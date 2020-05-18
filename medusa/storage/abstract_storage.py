@@ -142,3 +142,18 @@ class AbstractStorage(abc.ABC):
         Each child class should implement this function if it relies on an optional dependency.
         """
         pass
+
+    @abc.abstractmethod
+    def checksums_match(self, blob, src):
+        pass
+
+    def files_are_different(self, blob, src):
+        """
+        Compares a local file and a blob from remote storage using their sizes and checksums. Note that checksums vary
+        by storage provider. See implementations of checksums_match for more details.
+
+        :param blob: An object that represents a file in remote storage
+        :param src: A pathlib.Path object
+        :return: True if the files do not match.
+        """
+        return src.stat().st_size != blob['size'] or not self.checksums_match(blob, src)

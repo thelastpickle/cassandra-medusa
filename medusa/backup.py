@@ -136,11 +136,7 @@ class NodeBackupCache(object):
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
 
-                if cached_item is None \
-                    or files_are_different(src,
-                                           cached_item,
-                                           self._storage_config.multi_part_upload_threshold,
-                                           self._storage_provider):
+                if cached_item is None or self._storage_driver.files_are_different(cached_item, src):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
                 else:
@@ -266,7 +262,7 @@ def main(config, backup_name_arg, stagger_time, mode):
                     time.sleep(60)
                 else:
                     raise IOError('Backups on previous nodes did not complete'
-                                  ' within our stagger time.'.format(backup_name))
+                                  ' within our stagger time.')
 
         actual_start = datetime.datetime.now()
 
