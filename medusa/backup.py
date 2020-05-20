@@ -146,10 +146,14 @@ class NodeBackupCache(object):
                 else:
                     # File was already present in the previous backup
                     # In case the backup isn't differential or the cache backup isn't differential, copy from cache
-                    if self._differential_mode is False or self._node_backup_cache_is_differential is False:
+                    if self._differential_mode is False and self._node_backup_cache_is_differential is False:
                         prefixed_path = '{}{}'.format(path_prefix, cached_item['path'])
                         cached_item_path = self._storage_driver.get_cache_path(prefixed_path)
                         retained.append(cached_item_path)
+                    # This backup is differential, but the cached one wasn't
+                    # We must re-upload the files according to the differential format
+                    elif self._differential_mode is True and self._node_backup_cache_is_differential is False:
+                        retained.append(src)
                     else:
                         # in case the backup is differential, we want to rule out files, not copy them from cache
                         manifest_object = self._make_manifest_object(path_prefix, cached_item)

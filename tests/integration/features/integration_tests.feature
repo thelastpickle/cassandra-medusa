@@ -491,6 +491,24 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+    @15
+    Scenario Outline: Do a full backup, then a differential one
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario15"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "second_backup"
+        Then I can verify the backup named "first_backup" successfully
+        Then I can verify the backup named "second_backup" successfully
 
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
 
-
+        @s3
+        Examples: S3 storage
+        | storage           | client encryption |
+        | s3_us_west_oregon     |  without_client_encryption |
