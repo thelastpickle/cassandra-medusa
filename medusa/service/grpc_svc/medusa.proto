@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+service Medusa {
+    rpc Backup(BackupRequest) returns (BackupResponse);
+}
+
+message BackupRequest {
+    string name = 1;
+    enum Mode {
+        DIFFERENTIAL = 0;
+        FULL = 1;
+    }
+    Mode mode = 2;
+}
+
+message BackupResponse {
+
+}

@@ -1,0 +1,45 @@
+FROM  ubuntu:18.04 as base
+
+RUN mkdir /install
+WORKDIR /install
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common
+
+RUN add-apt-repository ppa:kalon33/gamesgiroll -y
+
+RUN apt-get update \
+    && apt-get install -y \
+        debhelper \
+        dh-python \
+        python3-all \
+        python3-all-dev \
+        python3-dev \
+        python-dev \
+        python-pip \
+        python3-pip \
+        python3-setuptools \
+        python3-venv \
+        build-essential \
+        devscripts \
+        dh-virtualenv \
+        equivs \
+        wget
+
+FROM base
+COPY --from=base /install /usr/local
+
+COPY requirements.txt /requirements.txt
+COPY requirements-grpc.txt /requirements-grpc.txt
+
+RUN pip3 install -r /requirements.txt && \
+    pip3 install -r /requirements-grpc.txt
+
+RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
+    wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
+
+COPY build/lib/medusa /app/medusa
+WORKDIR /app
+
+CMD ["python3", "-m", "medusa.service.grpc_svc.server", "server.py"]
