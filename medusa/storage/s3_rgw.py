@@ -22,6 +22,7 @@ from dateutil import parser
 from libcloud.storage.drivers.rgw import S3RGWStorageDriver
 
 from medusa.storage.abstract_storage import AbstractStorage
+from medusa.storage.s3_storage import S3Storage
 
 
 class S3RGWStorage(AbstractStorage):
@@ -53,3 +54,16 @@ class S3RGWStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return path
+
+    @staticmethod
+    def blob_matches_manifest(blob, object_in_manifest):
+        return S3Storage.blob_matches_manifest(blob, object_in_manifest)
+
+    @staticmethod
+    def file_matches_cache(src, cached_item, threshold=None):
+        # for S3RGW, we never set threshold so the S3's multipart never happens
+        return S3Storage.file_matches_cache(src, cached_item, None)
+
+    @staticmethod
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        return S3Storage.compare_with_manifest(actual_size, size_in_manifest, actual_hash, hash_in_manifest, None)

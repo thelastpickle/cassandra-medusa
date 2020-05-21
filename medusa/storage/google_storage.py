@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import io
 import itertools
 import json
@@ -115,6 +116,39 @@ class GoogleStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return self.get_download_path(path)
+
+    @staticmethod
+    def blob_matches_manifest(blob, object_in_manifest):
+        return GoogleStorage.compare_with_manifest(
+            actual_size=blob.size,
+            size_in_manifest=object_in_manifest['size'],
+            actual_hash=str(blob.hash),
+            hash_in_manifest=object_in_manifest['MD5']
+        )
+
+    @staticmethod
+    def file_matches_cache(src, cached_item, threshold=None):
+        return GoogleStorage.compare_with_manifest(
+            actual_size=src.stat().st_size,
+            size_in_manifest=cached_item['size'],
+            actual_hash=AbstractStorage.generate_md5_hash(src),
+            hash_in_manifest=cached_item['MD5']
+        )
+
+    @staticmethod
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        sizes_match = actual_size == size_in_manifest
+
+        hashes_match = (
+            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
+            actual_hash == base64.b64decode(hash_in_manifest).hex()
+            # this comes from comparing files to a cache
+            or hash_in_manifest == base64.b64decode(actual_hash).hex()
+            # and perhaps we need the to check for match even without base64 encoding
+            or actual_hash == hash_in_manifest
+        )
+
+        return sizes_match and hashes_match
 
 
 def _is_in_folder(file_path, folder_path):
