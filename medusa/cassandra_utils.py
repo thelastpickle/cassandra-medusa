@@ -342,6 +342,10 @@ class Cassandra(object):
         return self._saved_caches_path
 
     @property
+    def hostname(self):
+        return self._hostname
+
+    @property
     def storage_port(self):
         return self._storage_port
 
@@ -533,28 +537,44 @@ class Cassandra(object):
 
 
 def wait_for_node_to_come_up(config, host, retries=10, delay=6):
-    """
-        Polls the node until the health check passes.
+    logging.info('Waiting for Cassandra to come up on %s', host)
+    check_function = is_node_up
+    if not _wait_for_node(config, host, check_function, retries, delay):
+        raise CassandraNodeNotUpError(host, retries)
+    logging.info('Cassandra is up on %s', host)
 
-        :param health_check: The type of health check to perform, one of cql, thrift, all.
+
+def wait_for_node_to_go_down(config, host, retries=10, delay=6):
+    logging.info('Waiting for Cassandra to go down on %s', host)
+
+    def check_function(config, host):
+        return not is_node_up(config, host)
+
+    if not _wait_for_node(config, host, check_function, retries, delay):
+        # TODO can do a kill here
+        raise CassandraNodeNotDownError(host, retries)
+    logging.info('Cassandra is down %s', host)
+
+
+def _wait_for_node(config, host, check_function, retries, delay):
+    """
+        Polls the node until the check_function check passes.
+
         :param host: The target host on which to run the check
+        :param check_function: called to determine node state
         :param retries: The number of times to retry the health check. Defaults to 10
         :param delay: A delay in seconds to wait before polling again. Defaults to 6 seconds.
-        :return: None when the node is determined to be up. If the retries are exhausted, an exception is raised.
-        """
-
-    logging.info('Waiting for Cassandra to come up on %s', host)
-
+        :return: True when the node is determined to be up. If the retries are exhausted, returns False
+    """
     attempts = 0
     while attempts < retries:
-        if is_node_up(config, host):
-            logging.info('Cassandra is up on %s', host)
-            return None
+        if check_function(config, host):
+            return True
         else:
             time.sleep(delay)
             attempts = attempts + 1
 
-    raise CassandraNodeNotUpError(host, attempts)
+    return False
 
 
 def is_node_up(config, host):
@@ -570,7 +590,7 @@ def is_node_up(config, host):
     must be ready to accept requests for both in order for the health check to be successful.
     """
 
-    health_check = config.restore.health_check
+    health_check = config.checks.health_check
     if int(config.cassandra.is_ccm) == 1:
         args = ['ccm', 'node1', 'nodetool']
         if health_check == 'thrift':
@@ -589,6 +609,7 @@ def is_node_up(config, host):
         elif health_check == 'all':
             return is_cassandra_up(list(args), rpc_port) and is_cassandra_up(list(args), native_port)
         else:
+            # cql only
             return is_cassandra_up(args, native_port)
 
 
@@ -615,7 +636,7 @@ def is_cassandra_up(args, port):
 
 class CassandraNodeNotUpError(Exception):
     """
-    Raised when it cannot be veriffied that a node is up by checking either nodetool statusbinary and/or
+    Raised when it cannot be verified that a node is up by checking either nodetool statusbinary and/or
     nodetool statusthrift
 
     Attributes:
@@ -626,3 +647,13 @@ class CassandraNodeNotUpError(Exception):
     def __init(self, host, attempts):
         msg = 'Could not verify that Cassandra is up on {host} after {attempts}'.format(host=host, attempts=attempts)
         super(CassandraNodeNotUpError, self).__init__(msg)
+
+
+class CassandraNodeNotDownError(Exception):
+    """
+    Raised when we give up waiting on a node to go down, meaning nodetool statusbinary and/or statusthrift keep
+    reporting open ports.
+    """
+    def __init(self, host, attempts):
+        msg = 'Could not verify that Cassandra is down on {host} after {attempts}'.format(host=host, attempts=attempts)
+        super(CassandraNodeNotDownError, self).__init__(msg)
