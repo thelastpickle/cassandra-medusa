@@ -24,7 +24,7 @@ import unittest
 
 import medusa.storage.abstract_storage
 
-from medusa.backup import generate_md5_hash
+from medusa.storage.abstract_storage import AbstractStorage
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
 from medusa.storage import Storage
@@ -157,24 +157,24 @@ class RestoreNodeTest(unittest.TestCase):
 
             # compute checksum using default-size chunks
             tf.seek(0)
-            digest_chunk = generate_md5_hash(tf.name)
+            digest_chunk = AbstractStorage.generate_md5_hash(tf.name)
 
             # compare the digests
             self.assertEqual(digest_chunk, digest_full)
 
             # compute checksum using custom size chunks
             tf.seek(0)
-            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=128))
+            self.assertEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=128))
             tf.seek(0)
-            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=256))
+            self.assertEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=256))
             tf.seek(0)
-            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=1024))
+            self.assertEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=1024))
             tf.seek(0)
-            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=100000000))     # 100M
+            self.assertEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=100000000))     # 100M
             tf.seek(0)
-            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=-1))
+            self.assertEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=-1))
             tf.seek(0)
-            self.assertNotEqual(digest_full, generate_md5_hash(tf.name, block_size=0))
+            self.assertNotEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=0))
 
     def test_get_object_datetime(self):
         file1_content = "content of the test file1"

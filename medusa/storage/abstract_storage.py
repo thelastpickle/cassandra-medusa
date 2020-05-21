@@ -15,6 +15,7 @@
 
 import abc
 import base64
+import hashlib
 import io
 import logging
 
@@ -23,6 +24,12 @@ from retrying import retry
 
 import medusa.storage
 import medusa.storage.concurrent
+
+
+BLOCK_SIZE_BYTES = 65536
+MULTIPART_PART_SIZE_IN_MB = 8
+MULTIPART_BLOCK_SIZE_BYTES = 65536
+MULTIPART_BLOCKS_PER_MB = 16
 
 
 class AbstractStorage(abc.ABC):
@@ -140,5 +147,99 @@ class AbstractStorage(abc.ABC):
         """
         Check that required dependencies are available.
         Each child class should implement this function if it relies on an optional dependency.
+        """
+        pass
+
+    @staticmethod
+    def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
+
+        checksum = hashlib.md5()
+        with open(str(src), 'rb') as f:
+            # Incrementally read data and update the digest
+            while True:
+                read_data = f.read(block_size)
+                if not read_data:
+                    break
+                checksum.update(read_data)
+
+        # Once we have all the data, compute checksum
+        checksum = checksum.digest()
+        # Convert into a bytes type that can be base64 encoded
+        base64_md5 = base64.encodebytes(checksum).decode('UTF-8').strip()
+        # Print the Base64 encoded CRC32C
+        return base64_md5
+
+    @staticmethod
+    def md5_multipart(src):
+        eof = False
+        hash_list = []
+        with open(str(src), 'rb') as f:
+            while eof is False:
+                (md5_hash, eof) = AbstractStorage.md5_part(f)
+                hash_list.append(md5_hash)
+
+        multipart_hash = hashlib.md5(b''.join(hash_list)).hexdigest()
+
+        return '%s-%d' % (multipart_hash, len(hash_list))
+
+    @staticmethod
+    def md5_part(f):
+        hash_md5 = hashlib.md5()
+        eof = False
+        for i in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
+            chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
+            if chunk == b'':
+                eof = True
+                break
+            hash_md5.update(chunk)
+        return hash_md5.digest(), eof
+
+    @staticmethod
+    @abc.abstractmethod
+    def blob_matches_manifest(blob, object_in_manifest):
+        """
+        Compares a blob with its records in the manifest. This happens during backup verification.
+
+        Implementations of this are expected to work out the size of the original blob and its equivalent in
+        the manifest. If the storage implementation supports hashes (all but local do), then this function should
+        also work out the blob hash, its equivalent in the manifest.
+
+        Ultimately, this should just work out the values, then call _compare_blob_with_manifest() to compare them.
+
+        :param blob: blob from (any) storage
+        :param object_in_manifest: a record (dict) from the Medusa manifest
+        :return: boolean informing if the blob matches or not
+        """
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def file_matches_cache(src, cached_item, threshold=None):
+        """
+        Compares a local file with its entry in the cache of backed up items. This happens when doing an actual backup.
+
+        This method is expected to take care of actually computing the local hash, but leave the actual comparing to
+        _compare_blob_with_manifest().
+
+        :param src: typically, local file that comes as a string/path
+        :param cached_item: usually a reference to a item in the storage, mostly a dict. Likely a manifest object
+        :param threshold: files bigger than this are digested by chunks
+        :return: boolean informing if the files match or not
+        """
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        """
+        Actually compares the sizes and hashes of a blob. Different implementations do this differently, for example:
+        - local storage just compares sizes
+        - S3 does multipart hashes if files are too big
+        - GCS doesn't do multipart at ll
+        :param actual_size: the size of local blob/file
+        :param size_in_manifest: the size of the blob/file in the manifest
+        :param actual_hash: hash of the local blob/file
+        :param hash_in_manifest: hash of the blob/file in the manifest
+        :return: boolean informing if the blob matches or not
         """
         pass

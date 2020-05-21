@@ -14,9 +14,7 @@
 # limitations under the License.
 
 
-import base64
 import datetime
-import hashlib
 import json
 import logging
 import os
@@ -34,56 +32,6 @@ from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, 
 from medusa.monitoring import Monitoring
 from medusa.storage.s3_storage import is_aws_s3
 from medusa.storage import Storage, format_bytes_str, ManifestObject
-
-
-BLOCK_SIZE_BYTES = 65536
-MULTIPART_PART_SIZE_IN_MB = 8
-MULTIPART_BLOCK_SIZE_BYTES = 65536
-MULTIPART_BLOCKS_PER_MB = 16
-
-
-def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
-
-    checksum = hashlib.md5()
-    with open(str(src), 'rb') as f:
-        # Incrementally read data and update the digest
-        while True:
-            read_data = f.read(block_size)
-            if not read_data:
-                break
-            checksum.update(read_data)
-
-    # Once we have all the data, compute checksum
-    checksum = checksum.digest()
-    # Convert into a bytes type that can be base64 encoded
-    base64_md5 = base64.encodebytes(checksum).decode('UTF-8').strip()
-    # Print the Base64 encoded CRC32C
-    return base64_md5
-
-
-def md5_multipart(src):
-    eof = False
-    hash_list = []
-    with open(str(src), 'rb') as f:
-        while eof is False:
-            (md5_hash, eof) = md5_part(f)
-            hash_list.append(md5_hash)
-
-    multipart_hash = hashlib.md5(b''.join(hash_list)).hexdigest()
-
-    return '%s-%d' % (multipart_hash, len(hash_list))
-
-
-def md5_part(f):
-    hash_md5 = hashlib.md5()
-    eof = False
-    for i in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
-        chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
-        if chunk == b'':
-            eof = True
-            break
-        hash_md5.update(chunk)
-    return (hash_md5.digest(), eof)
 
 
 class NodeBackupCache(object):
@@ -136,11 +84,9 @@ class NodeBackupCache(object):
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
 
-                if cached_item is None \
-                    or files_are_different(src,
-                                           cached_item,
-                                           self._storage_config.multi_part_upload_threshold,
-                                           self._storage_provider):
+                threshold = self._storage_config.multi_part_upload_threshold \
+                    if is_aws_s3(self._storage_provider) else None
+                if cached_item is None or not self._storage_driver.file_matches_cache(src, cached_item, threshold):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
                 else:
@@ -166,21 +112,6 @@ class NodeBackupCache(object):
 
     def _make_manifest_object(self, path_prefix, cached_item):
         return ManifestObject('{}{}'.format(path_prefix, cached_item['path']), cached_item['size'], cached_item['MD5'])
-
-
-def files_are_different(src, cached_item, multi_part_upload_threshold, storage_provider):
-    multi_part_threshold = int(multi_part_upload_threshold) if multi_part_upload_threshold is not None else -1
-    if src.stat().st_size >= multi_part_threshold and multi_part_threshold > 0 and is_aws_s3(storage_provider):
-        md5_hash = md5_multipart(src)
-        b64_encoded_hash = ""
-    else:
-        md5_hash = generate_md5_hash(src)
-        b64_encoded_hash = base64.b64decode(md5_hash).hex()
-
-    return (src.stat().st_size != cached_item['size']
-            or (md5_hash != cached_item['MD5']  # single or multi part md5 hash. Used by S3 uploads.
-                and b64_encoded_hash != cached_item['MD5']  # b64 encoded md5 hash. Used by GCS.
-                and storage_provider != Provider.LOCAL))  # the local provider doesn't provide reliable hashes.
 
 
 def throttle_backup():

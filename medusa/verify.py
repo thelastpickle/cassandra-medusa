@@ -13,11 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 import json
 import logging
 
-from libcloud.storage.providers import Provider
 from medusa.storage import Storage
 
 
@@ -90,27 +88,9 @@ def validate_manifest(storage, node_backup):
             yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
             continue
 
-        if storage.storage_provider == Provider.LOCAL:
-            # the local provider doesn't provide reliable hashes.
-            continue
-        if "-" in object_in_manifest['MD5']:
-            # multi part S3 uploads
-            if object_in_manifest['MD5'] != str(blob.hash):
-                logging.error("Expected {} but got {} for {}".format(object_in_manifest['MD5'],
-                                                                     blob.hash,
-                                                                     object_in_manifest['path']))
-                yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
-                continue
-        else:
-            base64_hex = base64.b64decode(object_in_manifest['MD5']).hex()
-            if base64_hex != str(blob.hash) and object_in_manifest['MD5'] != str(blob.hash):
-                logging.error("Expected {} but got {} for {}".format(base64_hex, blob.hash, object_in_manifest['path']))
-                yield("  - [{}] Wrong checksum".format(object_in_manifest['path']))
-                continue
-
-        if object_in_manifest['size'] != blob.size:
-            yield("  - [{}] Wrong file size".format(object_in_manifest['path']))
-            continue
+        if not storage.storage_driver.blob_matches_manifest(blob, object_in_manifest):
+            logging.error("Expected {} but got {}".format(object_in_manifest, blob))
+            yield("  - [{}] Blob different".format(object_in_manifest['path']))
 
     # Checking for files existing in storage, but in not in the manifest
     # Relevant for full backups only because
