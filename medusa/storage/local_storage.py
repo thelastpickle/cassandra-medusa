@@ -49,3 +49,21 @@ class LocalStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)
+
+    @staticmethod
+    def blob_matches_manifest(blob, object_in_manifest):
+        return LocalStorage.compare_with_manifest(
+            actual_size=blob.size,
+            size_in_manifest=object_in_manifest['size']
+        )
+
+    @staticmethod
+    def file_matches_cache(src, cached_item, threshold=None):
+        return LocalStorage.compare_with_manifest(
+            actual_size=src.stat().st_size,
+            size_in_manifest=cached_item['size']
+        )
+
+    @staticmethod
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        return actual_size == size_in_manifest

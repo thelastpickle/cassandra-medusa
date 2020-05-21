@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
 import sys
 import requests
 import configparser
@@ -184,6 +185,62 @@ class S3Storage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return path
+
+    @staticmethod
+    def blob_matches_manifest(blob, object_in_manifest):
+        return S3Storage.compare_with_manifest(
+            actual_size=blob.size,
+            size_in_manifest=object_in_manifest['size'],
+            actual_hash=str(blob.hash),
+            hash_in_manifest=object_in_manifest['MD5']
+        )
+
+    @staticmethod
+    def file_matches_cache(src, cached_item, threshold=None):
+
+        threshold = int(threshold) if threshold else -1
+
+        # single or multi part md5 hash. Used by S3 uploads.
+        if src.stat().st_size >= threshold > 0:
+            md5_hash = AbstractStorage.md5_multipart(src)
+        else:
+            md5_hash = AbstractStorage.generate_md5_hash(src)
+
+        return S3Storage.compare_with_manifest(
+            actual_size=src.stat().st_size,
+            size_in_manifest=cached_item['size'],
+            actual_hash=md5_hash,
+            hash_in_manifest=cached_item['MD5'],
+            threshold=threshold
+        )
+
+    @staticmethod
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+
+        if not threshold:
+            threshold = -1
+        else:
+            threshold = int(threshold)
+
+        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
+            multipart = True
+        else:
+            multipart = False
+
+        sizes_match = actual_size == size_in_manifest
+
+        if multipart:
+            hashes_match = (
+                actual_hash == hash_in_manifest
+            )
+        else:
+            hashes_match = (
+                actual_hash == base64.b64decode(hash_in_manifest).hex()
+                or hash_in_manifest == base64.b64decode(actual_hash).hex()
+                or actual_hash == hash_in_manifest
+            )
+
+        return sizes_match and hashes_match
 
 
 def _group_by_parent(paths):
