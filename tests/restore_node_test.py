@@ -36,7 +36,7 @@ class RestoreNodeTest(unittest.TestCase):
             monitoring={},
             cassandra=None,
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 

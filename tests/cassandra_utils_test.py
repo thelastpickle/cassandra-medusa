@@ -42,7 +42,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring={},
             cassandra=None,
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 
@@ -134,7 +134,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
         n = Nodetool(medusa_config.cassandra).nodetool
@@ -155,7 +155,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
         n = Nodetool(medusa_config.cassandra).nodetool
@@ -178,7 +178,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
         n = Nodetool(medusa_config.cassandra).nodetool
@@ -203,7 +203,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 
@@ -234,7 +234,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 
@@ -266,7 +266,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 
@@ -297,7 +297,7 @@ class CassandraUtilsTest(unittest.TestCase):
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 

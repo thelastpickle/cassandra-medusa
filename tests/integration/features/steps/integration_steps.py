@@ -227,12 +227,16 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
     config["monitoring"] = {"monitoring_provider": "local"}
 
+    config["checks"] = {
+        "health_check": "cql"
+    }
+
     context.medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
         ssh=None,
-        restore=None,
+        checks=_namedtuple_from_dict(ChecksConfig, config["checks"]),
         logging=None
     )
     cleanup_storage(context, storage_provider)
@@ -736,7 +740,7 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
         storage=context.medusa_config.storage,
         cassandra=context.medusa_config.cassandra,
         monitoring=context.medusa_config.monitoring,
-        restore=_namedtuple_from_dict(ChecksConfig, restore_config),
+        checks=_namedtuple_from_dict(ChecksConfig, restore_config),
         ssh=None,
         logging=None
     )

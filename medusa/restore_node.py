@@ -24,7 +24,7 @@ import sys
 import time
 import uuid
 
-from medusa.cassandra_utils import Cassandra, is_node_up
+from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_down
 from medusa.download import download_data
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
@@ -82,6 +82,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
+    wait_for_node_to_go_down(config, cassandra.hostname)
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.

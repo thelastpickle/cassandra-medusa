@@ -35,7 +35,7 @@ def verify_restore(hosts, config):
     for host in hosts:
         wait_for_node_to_come_up(config, host)
 
-    restore_verify_query = config.restore.query
+    restore_verify_query = config.checks.query
 
     if len(restore_verify_query) > 0:
         logging.info('Executing restore verify query: {}'.format(restore_verify_query))
@@ -47,9 +47,9 @@ def verify_restore(hosts, config):
             logging.info('Restore verify query completed successfully')
 
             # if config tells us to check for expected row count, we check that
-            expected_row_count = int(config.restore.expected_rows)
+            expected_row_count = int(config.checks.expected_rows)
             if expected_row_count:
-                if actual_row_count == int(config.restore.expected_rows):
+                if actual_row_count == int(config.checks.expected_rows):
                     logging.info('Restore verify query returned expected number of rows {}'.format(expected_row_count))
                 else:
                     logging.error('Restore verify query returned unexpected number of rows')
@@ -57,9 +57,9 @@ def verify_restore(hosts, config):
                     sys.exit(1)
 
             # if the config tells us to check for actual results, we check that too
-            if config.restore.expected_result:
+            if config.checks.expected_result:
                 # expected result allows just one row
-                expected_result = config.restore.expected_result
+                expected_result = config.checks.expected_result
                 actual_result = ','.join(rows[0] if len(rows) >= 1 else [])
                 if actual_result == expected_result:
                     logging.info('Restore verify query returned expected result {}'.format(expected_result))

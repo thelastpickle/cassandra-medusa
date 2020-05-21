@@ -56,7 +56,7 @@ MonitoringConfig = collections.namedtuple(
 
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'restore', 'monitoring', 'logging']
+    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging']
 )
 
 LoggingConfig = collections.namedtuple(
