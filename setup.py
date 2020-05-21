@@ -57,7 +57,8 @@ setuptools.setup(
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
-        'GCS': ["google-cloud-storage>=1.7.0"]
+        'GCS': ["google-cloud-storage>=1.7.0"],
+        'GRPC': ["protobuf>=3.12.0", "grpcio>=1.29.0", "grpcio-health-checking-1.29.0", "grpcio-tools>=1.29.0"]
     },
     entry_points={
         'console_scripts': [
