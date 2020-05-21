@@ -48,7 +48,7 @@ class RestoreClusterTest(unittest.TestCase):
             monitoring={},
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
-            restore=None,
+            checks=None,
             logging=None
         )
 
