@@ -2,6 +2,8 @@ syntax = "proto3";
 
 service Medusa {
     rpc Backup(BackupRequest) returns (BackupResponse);
+
+    rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse);
 }
 
 message BackupRequest {
@@ -15,4 +17,16 @@ message BackupRequest {
 
 message BackupResponse {
 
+}
+
+message BackupStatusRequest {
+    string backupName = 1;
+}
+
+message BackupStatusResponse {
+    repeated string finishedNodes = 1;
+    repeated string unfinishedNodes = 2;
+    repeated string missingNodes = 3;
+    string startTime = 4;
+    string finishTime = 5;
 }

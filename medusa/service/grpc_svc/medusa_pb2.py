@@ -18,7 +18,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"\x10\n\x0e\x42\x61\x63kupResponse23\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponseb\x06proto3'
+  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"\x10\n\x0e\x42\x61\x63kupResponse\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\x83\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t2p\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponseb\x06proto3'
 )
 
 
@@ -108,10 +108,102 @@ _BACKUPRESPONSE = _descriptor.Descriptor(
   serialized_end=134,
 )
 
+
+_BACKUPSTATUSREQUEST = _descriptor.Descriptor(
+  name='BackupStatusRequest',
+  full_name='BackupStatusRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='backupName', full_name='BackupStatusRequest.backupName', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=136,
+  serialized_end=177,
+)
+
+
+_BACKUPSTATUSRESPONSE = _descriptor.Descriptor(
+  name='BackupStatusResponse',
+  full_name='BackupStatusResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='finishedNodes', full_name='BackupStatusResponse.finishedNodes', index=0,
+      number=1, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='unfinishedNodes', full_name='BackupStatusResponse.unfinishedNodes', index=1,
+      number=2, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='missingNodes', full_name='BackupStatusResponse.missingNodes', index=2,
+      number=3, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='startTime', full_name='BackupStatusResponse.startTime', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='finishTime', full_name='BackupStatusResponse.finishTime', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=180,
+  serialized_end=311,
+)
+
 _BACKUPREQUEST.fields_by_name['mode'].enum_type = _BACKUPREQUEST_MODE
 _BACKUPREQUEST_MODE.containing_type = _BACKUPREQUEST
 DESCRIPTOR.message_types_by_name['BackupRequest'] = _BACKUPREQUEST
 DESCRIPTOR.message_types_by_name['BackupResponse'] = _BACKUPRESPONSE
+DESCRIPTOR.message_types_by_name['BackupStatusRequest'] = _BACKUPSTATUSREQUEST
+DESCRIPTOR.message_types_by_name['BackupStatusResponse'] = _BACKUPSTATUSRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 BackupRequest = _reflection.GeneratedProtocolMessageType('BackupRequest', (_message.Message,), {
@@ -128,6 +220,20 @@ BackupResponse = _reflection.GeneratedProtocolMessageType('BackupResponse', (_me
   })
 _sym_db.RegisterMessage(BackupResponse)
 
+BackupStatusRequest = _reflection.GeneratedProtocolMessageType('BackupStatusRequest', (_message.Message,), {
+  'DESCRIPTOR' : _BACKUPSTATUSREQUEST,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:BackupStatusRequest)
+  })
+_sym_db.RegisterMessage(BackupStatusRequest)
+
+BackupStatusResponse = _reflection.GeneratedProtocolMessageType('BackupStatusResponse', (_message.Message,), {
+  'DESCRIPTOR' : _BACKUPSTATUSRESPONSE,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:BackupStatusResponse)
+  })
+_sym_db.RegisterMessage(BackupStatusResponse)
+
 
 
 _MEDUSA = _descriptor.ServiceDescriptor(
@@ -136,8 +242,8 @@ _MEDUSA = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=136,
-  serialized_end=187,
+  serialized_start=313,
+  serialized_end=425,
   methods=[
   _descriptor.MethodDescriptor(
     name='Backup',
@@ -146,6 +252,15 @@ _MEDUSA = _descriptor.ServiceDescriptor(
     containing_service=None,
     input_type=_BACKUPREQUEST,
     output_type=_BACKUPRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='BackupStatus',
+    full_name='Medusa.BackupStatus',
+    index=1,
+    containing_service=None,
+    input_type=_BACKUPSTATUSREQUEST,
+    output_type=_BACKUPSTATUSRESPONSE,
     serialized_options=None,
   ),
 ])
