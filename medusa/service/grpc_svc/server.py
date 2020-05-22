@@ -11,6 +11,11 @@ import medusa.config
 from medusa.service.grpc_svc import medusa_pb2
 from medusa.service.grpc_svc import medusa_pb2_grpc
 from grpc_health.v1 import health_pb2_grpc
+from datetime import datetime
+
+from medusa.storage import Storage
+
+TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
 class MedusaService(medusa_pb2_grpc.MedusaServicer):
@@ -20,12 +25,33 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         config_file = Path("/etc/medusa/medusa.ini")
         args = defaultdict(lambda: None)
         self.config = medusa.config.load_config(args, config_file)
+        self.storage = Storage(config=self.config.storage)
 
     def Backup(self, request, context):
         print("Performing backup {}".format(request.name))
-        # medusa.backup.main(self.config, request.name, None, "differential")
+        # TODO pass the staggered and mode args
         medusa.backup.main(self.config, request.name, None, "differential")
         return medusa_pb2.BackupResponse()
+
+    def BackupStatus(self, request, context):
+        try:
+            backup = self.storage.get_cluster_backup(request.name)
+
+            response = medusa_pb2.BackupStatusResponse()
+            # TODO how is the startTime determined?
+            response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
+            response.finishedNodes = [node.fqdn for node in backup.complete_nodes()]
+            response.unfinishedNodes = [node.fqdn for node in backup.incomplete_nodes()]
+            response.missingNodes = [node.fqdn for node in backup.missing_nodes()]
+
+            if backup.finished:
+                response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
+            else:
+                response.finishTime = ""
+
+            return response
+        except KeyError:
+            raise Exception("backup <{}> does not exist".format(request.name))
 
 
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
