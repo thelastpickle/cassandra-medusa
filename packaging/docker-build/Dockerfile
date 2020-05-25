@@ -21,7 +21,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV WORKDIR /usr/src/app
 RUN mkdir -p ${WORKDIR}
 WORKDIR ${WORKDIR}
-
+ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
 # add a repo that contains a backport of dh-virtualenv 1.1 for Bionic
@@ -39,13 +39,17 @@ RUN apt-get update \
         python3-dev \
         python-dev \
         python-pip \
+        python3-pip \
         python3-setuptools \
         python3-venv \
         build-essential \
         devscripts \
         dh-virtualenv \
-        equivs
+        equivs \
+        libevent-dev
 
+RUN pip3 install greenlet
+RUN pip3 install gevent
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}
