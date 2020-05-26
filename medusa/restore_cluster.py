@@ -280,7 +280,8 @@ class RestoreJob(object):
             for line in f.readlines():
                 seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
-                self.host_map[socket.getfqdn(target.strip())] = {'source': [socket.getfqdn(source.strip())], 'seed': seed in ['True']}
+                self.host_map[socket.getfqdn(target.strip())] = {'source': [socket.getfqdn(source.strip())],
+                                                                 'seed': seed in ['True']}
 
     def _restore_data(self):
         # create workdir on each target host
