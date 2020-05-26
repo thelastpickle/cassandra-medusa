@@ -22,6 +22,7 @@ import uuid
 import datetime
 import traceback
 import paramiko
+import socket
 
 from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider
@@ -279,7 +280,7 @@ class RestoreJob(object):
             for line in f.readlines():
                 seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
-                self.host_map[target.strip()] = {'source': [source.strip()], 'seed': seed in ['True']}
+                self.host_map[socket.getfqdn(target.strip())] = {'source': [socket.getfqdn(source.strip())], 'seed': seed in ['True']}
 
     def _restore_data(self):
         # create workdir on each target host
