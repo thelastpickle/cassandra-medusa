@@ -161,7 +161,7 @@ def main(config, backup_name_arg, stagger_time, mode):
 
     try:
         storage = Storage(config=config.storage)
-        cassandra = Cassandra(config.cassandra)
+        cassandra = Cassandra(config)
 
         differential_mode = False
         if mode == "differential":

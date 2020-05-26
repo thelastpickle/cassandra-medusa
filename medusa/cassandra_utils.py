@@ -27,6 +27,7 @@ import subprocess
 import time
 import uuid
 import yaml
+import requests
 
 from subprocess import PIPE
 from retrying import retry
@@ -298,7 +299,9 @@ class Cassandra(object):
 
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
-    def __init__(self, cassandra_config, contact_point=None):
+    # def __init__(self, cassandra_config, contact_point=None):
+    def __init__(self, config, contact_point=None):
+        cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
@@ -320,6 +323,8 @@ class Cassandra(object):
         self._native_port = config_reader.native_port
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds
+
+        self.grpc_config = config.grpc
 
     def _has_systemd(self):
         try:
@@ -410,11 +415,26 @@ class Cassandra(object):
         tag = 'medusa-{}'.format(uuid.uuid4())
         cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
 
-        if self._is_ccm == 1:
-            os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
+        # TODO introduce abstraction layer/interface for invoking Cassandra
+        # Eventually I think we will want to introduce an abstraction layer for Cassandra's
+        # API that Medusa requires. There should be an implementation for using nodetool,
+        # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
+        if self.grpc_config.enabled:
+            data = {
+                "type": "exec",
+                "mbean": "org.apache.cassandra.db:type=StorageService",
+                "operation": "takeSnapshot(java.lang.String,java.util.Map,[Ljava.lang.String;)",
+                "arguments": [tag, {}, []]
+            }
+            response = requests.post(self.grpc_config.cassandra_url, data=data)
+            if response.status_code != 200:
+                raise Exception("failed to create snapshot: {}".format(response.text))
         else:
-            logging.debug('Executing: {}'.format(' '.join(cmd)))
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+            if self._is_ccm == 1:
+                os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
+            else:
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
 
         return Cassandra.Snapshot(self, tag)
 

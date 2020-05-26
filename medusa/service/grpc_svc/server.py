@@ -22,7 +22,8 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
     def __init__(self):
         print("Init service")
-        config_file = Path("/etc/medusa/medusa.ini")
+        # config_file = Path("/etc/medusa/medusa.ini")
+        config_file = Path("/Users/jsanda/tmp/medusa/medusa.ini")
         args = defaultdict(lambda: None)
         self.config = medusa.config.load_config(args, config_file)
         self.storage = Storage(config=self.config.storage)

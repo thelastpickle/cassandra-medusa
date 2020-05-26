@@ -56,12 +56,17 @@ MonitoringConfig = collections.namedtuple(
 
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging']
+    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc']
 )
 
 LoggingConfig = collections.namedtuple(
     'LoggingConfig',
     ['enabled', 'file', 'format', 'level', 'maxBytes', 'backupCount']
+)
+
+GrpcConfig = collections.namedtuple(
+    'GrpcConfig',
+    ['enabled', 'cassandra_url']
 )
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -122,6 +127,11 @@ def load_config(args, config_file):
         'monitoring_provider': 'None'
     }
 
+    config['grpc'] = {
+        'enabled': False,
+        'cassandra_url': 'http://localhost:8778/jolokia/'
+    }
+
     if config_file:
         logging.debug('Loading configuration from {}'.format(config_file))
         config.read_file(config_file.open())
@@ -164,6 +174,12 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    config.read_dict({'grpc': {
+        key: value
+        for key, value in _zip_fields_with_arg_values(GrpcConfig._fields, args)
+        if value is not None
+    }})
+
     if config['storage']['fqdn'] == socket.getfqdn() \
             and not evaluate_boolean(config['cassandra']['resolve_ip_addresses']):
         # Use the ip address instead of the fqdn when DNS resolving is turned off
@@ -176,6 +192,7 @@ def load_config(args, config_file):
         checks=_namedtuple_from_dict(ChecksConfig, config['checks']),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
         logging=_namedtuple_from_dict(LoggingConfig, config['logging']),
+        grpc=_namedtuple_from_dict(GrpcConfig, config['grpc'])
     )
 
     for field in ['bucket_name', 'storage_provider']:
