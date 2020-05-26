@@ -198,7 +198,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
 
 
 def keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
-    if keyspace == 'system':
+    if keyspace == 'system' or keyspace == 'system_schema':
         return False
 
     if keyspace == 'system_auth' and keep_auth is True:
@@ -302,6 +302,7 @@ def wait_for_seeds(config, seeds):
 
 def get_fqtns_to_restore(keep_keyspaces, keep_tables, manifest_str):
 
+    SYSTEM_KEYSPACES = ['system', 'system_schema', 'system_auth', 'system_distributed']
     fqtns = set()
     manifest = json.loads(manifest_str)
 
@@ -319,8 +320,8 @@ def get_fqtns_to_restore(keep_keyspaces, keep_tables, manifest_str):
             fqtns.add(fqtn_with_id)
             continue
 
-        # if the whole keyspace is a keep
-        if ks in keep_keyspaces:
+        # if the whole keyspace is a keep, or a system keyspace (C* internal)
+        if ks in keep_keyspaces or ks in SYSTEM_KEYSPACES:
             fqtns.add(fqtn_with_id)
             continue
 
