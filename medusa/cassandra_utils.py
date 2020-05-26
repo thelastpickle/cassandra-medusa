@@ -261,10 +261,21 @@ class CassandraConfigReader(object):
         if 'storage_port' in self._config:
             if self._config['storage_port']:
                 return self._config['storage_port']
-            else:
-                return "7000"
-        else:
-            return "7000"
+        return "7000"
+
+    @property
+    def native_port(self):
+        if 'native_transport_port' in self._config:
+            if self._config['native_transport_port']:
+                return self._config['native_transport_port']
+        return "9042"
+
+    @property
+    def rpc_port(self):
+        if 'rpc_port' in self._config:
+            if self._config['rpc_port']:
+                return self._config['rpc_port']
+        return "9160"
 
 
 class Cassandra(object):
@@ -289,6 +300,8 @@ class Cassandra(object):
             cassandra_config)
 
         self._storage_port = config_reader.storage_port
+        self._native_port = config_reader.native_port
+        self._rpc_port = config_reader.rpc_port
 
     def _has_systemd(self):
         try:
@@ -319,6 +332,14 @@ class Cassandra(object):
     @property
     def storage_port(self):
         return self._storage_port
+
+    @property
+    def native_port(self):
+        return self._native_port
+
+    @property
+    def rpc_port(self):
+        return self._rpc_port
 
     class Snapshot(object):
         def __init__(self, parent, tag):
@@ -526,25 +547,31 @@ def is_node_up(config, host):
     must be ready to accept requests for both in order for the health check to be successful.
     """
 
+    health_check = config.restore.health_check
     if int(config.cassandra.is_ccm) == 1:
         args = ['ccm', 'node1', 'nodetool']
+        if health_check == 'thrift':
+            return is_ccm_up(args, 'statusthrift')
+        elif health_check == 'all':
+            return is_ccm_up(list(args), 'statusbinary') and is_ccm_up(list(args), 'statusthrift')
+        else:
+            return is_ccm_up(args, 'statusbinary')
     else:
-        args = Nodetool(config.cassandra).nodetool + ['-h', host]
+        cassandra = Cassandra(config.cassandra)
+        native_port = cassandra.native_port
+        rpc_port = cassandra.rpc_port
+        args = ['nc', '-zv', host]
+        if health_check == 'thrift':
+            return is_cassandra_up(args, rpc_port)
+        elif health_check == 'all':
+            return is_cassandra_up(list(args), rpc_port) and is_cassandra_up(list(args), native_port)
+        else:
+            return is_cassandra_up(args, native_port)
 
-    health_check = config.restore.health_check
-    if health_check == 'cql':
-        return is_cql_up(args)
-    elif health_check == 'thrift':
-        return is_thrift_up(args)
-    elif health_check == 'all':
-        return is_cql_up(list(args)) and is_thrift_up(list(args))
-    else:
-        return is_cql_up(args)
 
-
-def is_cql_up(args):
+def is_ccm_up(args, nodetool_command):
     try:
-        args.append('statusbinary')
+        args.append(nodetool_command)
         output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
         return output.find('running') >= 0
     except subprocess.CalledProcessError as e:
@@ -553,13 +580,13 @@ def is_cql_up(args):
         return False
 
 
-def is_thrift_up(args):
+def is_cassandra_up(args, port):
     try:
-        args.append('statusthrift')
+        args.append(port)
         output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
-        return output.find('running') >= 0
+        return output.find('succeeded') >= 0
     except subprocess.CalledProcessError:
-        logging.debug('The thrift server is not up yet')
+        logging.debug('The node is not up yet')
         return False
 
 
