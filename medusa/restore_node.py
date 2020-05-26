@@ -74,7 +74,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.error('There is nothing to restore')
         sys.exit(0)
 
-    cassandra = Cassandra(config.cassandra)
+    cassandra = Cassandra(config)
 
     # Download the backup
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
@@ -126,7 +126,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
 
 def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
-    cassandra = Cassandra(config.cassandra)
+    cassandra = Cassandra(config)
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
     for fqdn in fqdns:
