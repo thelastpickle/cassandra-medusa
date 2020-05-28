@@ -4,9 +4,12 @@ RUN mkdir /install
 WORKDIR /install
 
 RUN apt-get update && \
-    apt-get install -y software-properties-common
+    apt-get install -y software-properties-common curl gnupg
 
 RUN add-apt-repository ppa:kalon33/gamesgiroll -y
+
+RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
 
 RUN apt-get update \
     && apt-get install -y \
@@ -24,7 +27,10 @@ RUN apt-get update \
         devscripts \
         dh-virtualenv \
         equivs \
-        wget
+        wget \
+        apt-transport-https \
+        ca-certificates \
+        google-cloud-sdk
 
 FROM base
 COPY --from=base /install /usr/local
