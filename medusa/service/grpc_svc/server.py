@@ -79,7 +79,7 @@ def configure_console_logging(config):
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
-if len(sys.argv) >= 2:
+if len(sys.argv) > 2:
     config_file_path = sys.argv[2]
 else:
     config_file_path = "/etc/medusa/medusa.ini"
