@@ -234,7 +234,7 @@ class CassandraConfigReader(object):
 
     @property
     def root(self):
-        data_file_directories = self._config.get('data_file_directories')
+        data_file_directories = self._config.get('data_file_directories', ['/var/lib/cassandra/data'])
         if not data_file_directories:
             raise RuntimeError('data_file_directories must be properly configured')
         if len(data_file_directories) > 1:
@@ -243,14 +243,14 @@ class CassandraConfigReader(object):
 
     @property
     def commitlog_directory(self):
-        commitlog_directory = self._config.get('commitlog_directory')
+        commitlog_directory = self._config.get('commitlog_directory', '/var/lib/cassandra/commitlog')
         if not commitlog_directory:
             raise RuntimeError('commitlog_directory must be properly configured')
         return pathlib.Path(commitlog_directory)
 
     @property
     def saved_caches_directory(self):
-        saved_caches_directory = self._config.get('saved_caches_directory')
+        saved_caches_directory = self._config.get('saved_caches_directory', '/var/lib/cassandra/saved_caches')
         if not saved_caches_directory:
             raise RuntimeError('saved_caches_directory must be properly configured')
         return pathlib.Path(saved_caches_directory)
