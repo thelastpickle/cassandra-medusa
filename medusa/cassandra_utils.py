@@ -18,6 +18,7 @@
 
 import fileinput
 import itertools
+import json
 import logging
 import os
 import pathlib
@@ -424,9 +425,9 @@ class Cassandra(object):
                 "operation": "takeSnapshot(java.lang.String,java.util.Map,[Ljava.lang.String;)",
                 "arguments": [tag, {}, []]
             }
-            response = requests.post(self.grpc_config.cassandra_url, data=data)
-            if response.status_code != 200:
-                raise Exception("failed to create snapshot: {}".format(response.text))
+            response = self.__do_post(data)
+            if response["status"] != 200:
+                raise Exception("failed to create snapshot: {}".format(response["error"]))
         else:
             if self._is_ccm == 1:
                 os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
@@ -439,19 +440,36 @@ class Cassandra(object):
     def delete_snapshot(self, tag):
         cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
 
-        if self._is_ccm == 1:
-            os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
+        if self.grpc_config.enabled:
+            data = {
+                "type": "exec",
+                "mbean": "org.apache.cassandra.db:type=StorageService",
+                "operation": "clearSnapshot",
+                "arguments": [tag, []]
+            }
+            response = self.__do_post(data)
+            if response["status"] != 200:
+                raise Exception("failed to delete snapshot: {}".format(response["error"]))
         else:
-            logging.debug('Executing: {}'.format(' '.join(cmd)))
-            try:
-                output = subprocess.check_output(cmd, universal_newlines=True)
-                logging.debug('nodetool output: %s', output)
-            except subprocess.CalledProcessError as e:
-                logging.debug('nodetool resulted in error: %s', e.output)
-                logging.warning(
-                    'Medusa may have failed at cleaning up snapshot %s. '
-                    'Check if the snapshot exists and clear it manually by running: %s',
-                    tag, ' '.join(cmd))
+            if self._is_ccm == 1:
+                os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
+            else:
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                try:
+                    output = subprocess.check_output(cmd, universal_newlines=True)
+                    logging.debug('nodetool output: %s', output)
+                except subprocess.CalledProcessError as e:
+                    logging.debug('nodetool resulted in error: %s', e.output)
+                    logging.warning(
+                        'Medusa may have failed at cleaning up snapshot %s. '
+                        'Check if the snapshot exists and clear it manually by running: %s',
+                        tag, ' '.join(cmd))
+
+    def __do_post(self, data):
+        json_data = json.dumps(data)
+        response = requests.post(self.grpc_config.cassandra_url, data=json_data)
+
+        return json.loads(response.text)
 
     def list_snapshotnames(self):
         return {
