@@ -14,15 +14,18 @@
 # limitations under the License.
 
 import configparser
+import shutil
 import tempfile
 import unittest
+import yaml
+import os
 
 from cassandra.metadata import Murmur3Token
 from pathlib import Path
 from unittest.mock import Mock
 
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
-from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool
+from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool, Cassandra
 
 
 class CassandraUtilsTest(unittest.TestCase):
@@ -182,6 +185,124 @@ class CassandraUtilsTest(unittest.TestCase):
         expected = ['nodetool', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
                     '-h', '127.0.0.1', '-p', '7199']
         self.assertEqual(n, expected)
+
+    def test_yaml_token_enforcement_no_tokens(self):
+        with open('tests/resources/yaml/original/cassandra_no_tokens.yaml', 'r') as f:
+            shutil.copyfile('tests/resources/yaml/original/cassandra_no_tokens.yaml',
+                            'tests/resources/yaml/work/cassandra_no_tokens.yaml')
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_no_tokens.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+
+        cassandra = Cassandra(medusa_config.cassandra)
+        tokens = ['1', '2', '3']
+        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+
+        with open('tests/resources/yaml/work/cassandra_no_tokens.yaml', 'r') as f:
+            modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
+            self.assertEqual(modified_yaml.get('num_tokens'), '3')
+            self.assertEqual(modified_yaml.get('initial_token'), '1,2,3')
+            self.assertEqual(modified_yaml.get('auto_bootstrap'), 'false')
+
+    def test_yaml_token_enforcement_with_tokens(self):
+        with open('tests/resources/yaml/original/cassandra_with_tokens.yaml', 'r') as f:
+            shutil.copyfile('tests/resources/yaml/original/cassandra_with_tokens.yaml',
+                            'tests/resources/yaml/work/cassandra_with_tokens.yaml')
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_with_tokens.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+
+        cassandra = Cassandra(medusa_config.cassandra)
+        tokens = ['1', '2', '3']
+        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+
+        with open('tests/resources/yaml/work/cassandra_with_tokens.yaml', 'r') as f:
+            modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
+            self.assertEqual(modified_yaml.get('num_tokens'), '3')
+            self.assertEqual(modified_yaml.get('initial_token'), '1,2,3')
+            self.assertEqual(modified_yaml.get('auto_bootstrap'), 'false')
+
+    def test_yaml_token_enforcement_with_tokens_and_autobootstrap(self):
+        with open('tests/resources/yaml/original/cassandra_with_tokens.yaml', 'r') as f:
+            shutil.copyfile('tests/resources/yaml/original/cassandra_with_tokens_and_autobootstrap.yaml',
+                            'tests/resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml')
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+
+        cassandra = Cassandra(medusa_config.cassandra)
+        tokens = ['1', '2', '3']
+        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+
+        with open('tests/resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml', 'r') as f:
+            modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
+            self.assertEqual(modified_yaml.get('num_tokens'), '3')
+            self.assertEqual(modified_yaml.get('initial_token'), '1,2,3')
+            self.assertEqual(modified_yaml.get('auto_bootstrap'), 'false')
+
+    def test_seed_parsing(self):
+        shutil.copyfile('tests/resources/yaml/original/cassandra_with_tokens_and_autobootstrap.yaml',
+                        'tests/resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml')
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            restore=None,
+            logging=None
+        )
+
+        cassandra = Cassandra(medusa_config.cassandra)
+        self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
 
 
 if __name__ == '__main__':
