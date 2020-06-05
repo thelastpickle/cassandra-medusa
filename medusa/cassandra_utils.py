@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright 2020 Spotify Inc. All rights reserved.
 # Copyright 2019 Spotify AB. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,7 @@
 # limitations under the License.
 
 
+import fileinput
 import itertools
 import logging
 import os
@@ -277,6 +279,14 @@ class CassandraConfigReader(object):
                 return self._config['rpc_port']
         return "9160"
 
+    @property
+    def seeds(self):
+        seeds = list()
+        if 'seed_provider' in self._config:
+            if self._config['seed_provider']:
+                return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
+        return seeds
+
 
 class Cassandra(object):
 
@@ -291,6 +301,7 @@ class Cassandra(object):
         logging.warning('is ccm : {}'.format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
+        self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
@@ -302,6 +313,7 @@ class Cassandra(object):
         self._storage_port = config_reader.storage_port
         self._native_port = config_reader.native_port
         self._rpc_port = config_reader.rpc_port
+        self.seeds = config_reader.seeds
 
     def _has_systemd(self):
         try:
@@ -487,26 +499,37 @@ class Cassandra(object):
 
     def start(self, token_list):
         if self._is_ccm == 0:
-            jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
-            if self._os_has_systemd:
-                tokens_env = 'sudo systemctl set-environment JVM_OPTS="{}"'.format(jvm_opts)
-                cmd = '{} && {}'.format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
-            else:
-                tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
-                # Have to use command line as Subprocess does not handle quotes well
-                # undoing 'shlex' split, back to a string in this case for '_start_cmd'
-                # joining the 2 pieces of the command
-                # Also, if the command to run cassandra uses sudo, we need to remove it
-                # to add it as the first element
-                if 'sudo' in self._start_cmd:
-                    self._start_cmd.remove('sudo')
-                cmd = '{} {}'.format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
+            self.replaceTokensInCassandraYamlAndDisableBootstrap(token_list)
+            cmd = '{}'.format(' '.join(shlex.quote(x) for x in self._start_cmd))
             logging.debug('Starting Cassandra with {}'.format(cmd))
             # run the command using 'shell=True' option
             # to interpret the string command well
             subprocess.check_output(cmd, shell=True)
         else:
             subprocess.check_output(self._start_cmd, shell=True)
+
+    def replaceTokensInCassandraYamlAndDisableBootstrap(self, token_list):
+        initial_token_line_found = False
+        auto_bootstrap_line_found = False
+        for line in fileinput.input(self._cassandra_config_file, inplace=True):
+            if (line.startswith("initial_token:")):
+                initial_token_line_found = True
+                print('initial_token: {}'.format(','.join(token_list)), end='\n')
+            elif (line.startswith("num_tokens:")):
+                print('num_tokens: {}'.format(len(token_list)), end='\n')
+            elif (line.startswith("auto_bootstrap:")):
+                auto_bootstrap_line_found = True
+                print('auto_bootstrap: false', end='\n')
+            else:
+                print('{}'.format(line), end='')
+
+        if (not initial_token_line_found):
+            with open(self._cassandra_config_file, "a") as cassandra_yaml:
+                cassandra_yaml.write('\ninitial_token: {}'.format(','.join(token_list)))
+
+        if (not auto_bootstrap_line_found):
+            with open(self._cassandra_config_file, "a") as cassandra_yaml:
+                cassandra_yaml.write('\nauto_bootstrap: false')
 
 
 def wait_for_node_to_come_up(config, host, retries=10, delay=6):
