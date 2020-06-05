@@ -16,13 +16,14 @@
 import configparser
 import json
 import unittest
+import os
 
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
+from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 
 
 class RestoreClusterTest(unittest.TestCase):
@@ -35,10 +36,17 @@ class RestoreClusterTest(unittest.TestCase):
         config['storage'] = {
             'host_file_separator': ','
         }
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
-            cassandra=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             restore=None,
             logging=None

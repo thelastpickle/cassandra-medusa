@@ -25,7 +25,7 @@ import paramiko
 import socket
 
 from medusa.monitoring import Monitoring
-from medusa.cassandra_utils import CqlSessionProvider
+from medusa.cassandra_utils import CqlSessionProvider, Cassandra
 from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
@@ -121,6 +121,7 @@ class RestoreJob(object):
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
         self.pssh_pool_size = pssh_pool_size
+        self.cassandra = Cassandra(config.cassandra)
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -213,7 +214,7 @@ class RestoreJob(object):
 
         def _token_counts_per_host(tokenmap):
             for host, ringitem in tokenmap.items():
-                yield len(ringitem['tokens'])
+                return len(ringitem['tokens'])
 
         def _hosts_from_tokenmap(tokenmap):
             hosts = set()
@@ -235,8 +236,8 @@ class RestoreJob(object):
             target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
             backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
 
-            target_tokens_per_host = set(_token_counts_per_host(tokenmap))
-            backup_tokens_per_host = set(_token_counts_per_host(target_tokenmap))
+            target_tokens_per_host = _token_counts_per_host(tokenmap)
+            backup_tokens_per_host = _token_counts_per_host(target_tokenmap)
 
             # we must have the same number of tokens per host in both vnode and normal clusters
             if target_tokens_per_host != backup_tokens_per_host:
@@ -247,21 +248,32 @@ class RestoreJob(object):
                 topology_matches = False
 
             # if not using vnodes, the tokens must match exactly
-            if len(backup_tokens_per_host) == 1 and target_tokens.keys() != backup_tokens.keys():
+            if backup_tokens_per_host == 1 and target_tokens.keys() != backup_tokens.keys():
                 extras = target_tokens.keys() ^ backup_tokens.keys()
                 logging.info('Tokenmap is differently distributed. Extra items: {}'.format(extras))
                 topology_matches = False
 
         if topology_matches:
+            if target_tokens.keys() != backup_tokens.keys():
+                # if the tokens don't match, then we're not doing an in place restore
+                # tokens need to be enforced and system.local can't be retained
+                self.in_place = False
             # We can associate each restore node with exactly one backup node
-            ringmap = collections.defaultdict(list)
-            for ring in backup_tokens, target_tokens:
-                for token, host in ring.items():
-                    ringmap[token].append(host)
+            backup_ringmap = collections.defaultdict(list)
+            target_ringmap = collections.defaultdict(list)
+            for token, host in backup_tokens.items():
+                backup_ringmap[token].append(host)
+            for token, host in target_tokens.items():
+                target_ringmap[token].append(host)
 
-            self.ringmap = ringmap
-            for token, hosts in ringmap.items():
-                self.host_map[hosts[1]] = {'source': [hosts[0]], 'seed': False}
+            self.ringmap = backup_ringmap
+            i = 0
+            for token, hosts in backup_ringmap.items():
+                # take the node that has the same token list or pick the one with the same position in the map.
+                restore_host = target_ringmap.get(token, list(target_ringmap.values())[i])[0]
+                isSeed = True if socket.getfqdn(restore_host) in self._get_seeds_fqdn() else False
+                self.host_map[restore_host] = {'source': [hosts[0]], 'seed': isSeed}
+                i += 1
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
             self.use_sstableloader = True
@@ -274,6 +286,12 @@ class RestoreJob(object):
             for i in range(min([len(grouped_backups), len(restore_hosts)])):
                 # associate one restore host with several backups as we don't have the same number of nodes.
                 self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
+
+    def _get_seeds_fqdn(self):
+        seeds = list()
+        for seed in self.cassandra.seeds:
+            seeds.append(socket.getfqdn(seed))
+        return seeds
 
     def _populate_hostmap(self):
         with open(self.host_list, 'r') as f:
