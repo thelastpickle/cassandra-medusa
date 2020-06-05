@@ -34,17 +34,17 @@ from medusa.verify_restore import verify_restore
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
                 verify, keyspaces, tables, pssh_pool_size, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
+    retained_seed_target = seed_target
     try:
         restore_start_time = datetime.datetime.now()
-        if seed_target is not None:
+        if seed_target is not None and host_list is None:
             keep_auth = False
 
         if seed_target is None and host_list is None:
-            err_msg = 'You must either provide a seed target or a list of host'
-            logging.error(err_msg)
-            raise Exception(err_msg)
+            retained_seed_target = socket.getfqdn()
+            logging.warn("Seed target was not provided, using the local hostname: {}".format(retained_seed_target))
 
-        if seed_target is not None and host_list is not None:
+        if retained_seed_target is not None and host_list is not None:
             err_msg = 'You must either provide a seed target or a list of host, not both'
             logging.error(err_msg)
             raise Exception(err_msg)
@@ -68,7 +68,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
+        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, retained_seed_target, keep_auth, verify,
                              pssh_pool_size, keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
