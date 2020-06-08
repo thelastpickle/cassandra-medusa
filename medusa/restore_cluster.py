@@ -233,7 +233,8 @@ class RestoreJob(object):
                 # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
                 really_keep_auth = None
                 while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not self.bypass_checks:
-                    really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the credentials of the target cluster? (Y/n)')
+                    really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the'
+                                             + ' credentials of the target cluster? (Y/n)')
                 self.keep_auth = True if really_keep_auth == 'Y' else False
 
         if topology_matches:
