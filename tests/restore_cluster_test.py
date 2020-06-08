@@ -153,5 +153,45 @@ class RestoreClusterTest(unittest.TestCase):
         self.assertEqual('--keyspace k1 --keyspace k2', result)
 
 
+    def test_restore_is_in_place_no_diff(self):
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
+            cluster_backup = Mock()
+            tokenmap_content = f.read()
+            tokenmap = json.loads(tokenmap_content)
+            backup_tokenmap = json.loads(tokenmap_content)
+            cluster_backup.tokenmap.return_value = tokenmap
+            restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+            in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+            self.assertTrue(in_place)
+
+    def test_restore_is_in_place_one_diff(self):
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
+            with open("tests/resources/restore_cluster_tokenmap.one_changed.json", 'r') as f2:
+                cluster_backup = Mock()
+                tokenmap = json.loads(f2.read())
+                backup_tokenmap = json.loads(f.read())
+                cluster_backup.tokenmap.return_value = tokenmap
+                restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+                in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+                self.assertTrue(in_place)
+
+    def test_restore_is_not_in_place(self):
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
+            with open("tests/resources/restore_cluster_tokenmap.target.json", 'r') as f2:
+                cluster_backup = Mock()
+                tokenmap = json.loads(f2.read())
+                backup_tokenmap = json.loads(f.read())
+                cluster_backup.tokenmap.return_value = tokenmap
+                restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+                in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+                self.assertFalse(in_place)
+
+
 if __name__ == '__main__':
     unittest.main()

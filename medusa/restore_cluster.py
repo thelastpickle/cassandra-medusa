@@ -129,17 +129,15 @@ class RestoreJob(object):
         if not self.cluster_backup.is_complete():
             raise Exception('Backup is not complete')
 
-        # CASE 1 : We're restoring in place and a seed target has been provided
+        # CASE 1 : We're restoring using a seed target. Source/target mapping will be built based on tokenmap.
         if self.seed_target is not None:
-            logging.info('Restore will happen "In-Place", no new hardware is involved')
-            self.in_place = True
             self.session_provider = CqlSessionProvider([self.seed_target],
                                                        self.config.cassandra)
 
             with self.session_provider.new_session() as session:
                 self._populate_ringmap(self.cluster_backup.tokenmap, session.tokenmap())
 
-        # CASE 2 : We're restoring out of place, i.e. doing a restore test
+        # CASE 2 : We're restoring a backup on a different cluster
         if self.host_list is not None:
             logging.info('Restore will happen on new hardware')
             self.in_place = False
@@ -232,6 +230,11 @@ class RestoreJob(object):
             return groups
 
         topology_matches = self._validate_ringmap(tokenmap, target_tokenmap)
+        self.in_place = self._is_restore_in_place(tokenmap, target_tokenmap)
+        if self.in_place:
+            logging.info("Restoring on the same cluster that was the backup was taken on (in place fashion)")
+        else:
+            logging.info("Restoring on a different cluster than the backup one (remote fashion)")
 
         if topology_matches:
             target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
@@ -255,10 +258,6 @@ class RestoreJob(object):
                 topology_matches = False
 
         if topology_matches:
-            if target_tokens.keys() != backup_tokens.keys():
-                # if the tokens don't match, then we're not doing an in place restore
-                # tokens need to be enforced and system.local can't be retained
-                self.in_place = False
             # We can associate each restore node with exactly one backup node
             backup_ringmap = collections.defaultdict(list)
             target_ringmap = collections.defaultdict(list)
@@ -287,6 +286,11 @@ class RestoreJob(object):
             for i in range(min([len(grouped_backups), len(restore_hosts)])):
                 # associate one restore host with several backups as we don't have the same number of nodes.
                 self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
+
+    def _is_restore_in_place(self, backup_tokenmap, target_tokenmap):
+        # If at least one node is part of both tokenmaps, then we're restoring in place
+        # Otherwise we're restoring a remote cluster
+        return len(set(backup_tokenmap.keys()) & set(target_tokenmap.keys())) > 0
 
     def _get_seeds_fqdn(self):
         seeds = list()
