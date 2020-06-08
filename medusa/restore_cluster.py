@@ -51,15 +51,6 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        if keep_auth:
-            really_keep_auth = "Y"
-            logging.info('system_auth keyspace will be left untouched on the target nodes')
-        else:
-            # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
-            really_keep_auth = None
-            while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not bypass_checks:
-                really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the credentials of the target cluster? (Y/n)')
-
         storage = Storage(config=config.storage)
 
         try:
@@ -69,7 +60,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, True if really_keep_auth == "Y" else False, verify,
+        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
                              pssh_pool_size, keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
@@ -233,8 +224,17 @@ class RestoreJob(object):
         self.in_place = self._is_restore_in_place(tokenmap, target_tokenmap)
         if self.in_place:
             logging.info("Restoring on the same cluster that was the backup was taken on (in place fashion)")
+            self.keep_auth = False
         else:
             logging.info("Restoring on a different cluster than the backup one (remote fashion)")
+            if self.keep_auth:
+                logging.info('system_auth keyspace will be left untouched on the target nodes')
+            else:
+                # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
+                really_keep_auth = None
+                while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not self.bypass_checks:
+                    really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the credentials of the target cluster? (Y/n)')
+                self.keep_auth = True if really_keep_auth == 'Y' else False
 
         if topology_matches:
             target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
