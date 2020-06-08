@@ -156,7 +156,7 @@ def download(medusaconfig, backup_name, download_destination):
 @click.option('--seed-target', help='seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--host-list', help='List of nodes to restore with the associated target host', required=False)
-@click.option('--keep-auth', help='Keep/overwrite system_auth as found on the nodes', default=False)
+@click.option('--keep-auth', help='Keep system_auth as found on the nodes', default=False, is_flag=True)
 @click.option('-y', '--bypass-checks', help='Bypasses the security check for restoring a cluster',
               default=False, is_flag=True)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
