@@ -77,7 +77,15 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
-                    cluster_backup, self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None
+                    cluster_backup,
+                    self.config,
+                    Path('/tmp'),
+                    None,
+                    "node1.mydomain.net",
+                    False,
+                    False,
+                    None,
+                    bypass_checks=True
                 )
 
                 target_tokenmap = json.loads(f_target.read())
@@ -97,7 +105,15 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
-                    cluster_backup, self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None
+                    cluster_backup,
+                    self.config,
+                    Path('/tmp'),
+                    None,
+                    "node1.mydomain.net",
+                    False,
+                    False,
+                    None,
+                    bypass_checks=True
                 )
 
                 target_tokenmap = json.loads(f_target.read())
@@ -151,7 +167,6 @@ class RestoreClusterTest(unittest.TestCase):
         option, values = 'keyspace', {'k1', 'k2'}
         result = expand_repeatable_option(option, sorted(list(values)))
         self.assertEqual('--keyspace k1 --keyspace k2', result)
-
 
     def test_restore_is_in_place_no_diff(self):
         node_backups = list()
