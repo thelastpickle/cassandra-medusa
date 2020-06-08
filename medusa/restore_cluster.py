@@ -34,17 +34,14 @@ from medusa.verify_restore import verify_restore
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
                 verify, keyspaces, tables, pssh_pool_size, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
-    retained_seed_target = seed_target
     try:
         restore_start_time = datetime.datetime.now()
-        if seed_target is not None and host_list is None:
-            keep_auth = False
-
         if seed_target is None and host_list is None:
-            retained_seed_target = socket.getfqdn()
-            logging.warn("Seed target was not provided, using the local hostname: {}".format(retained_seed_target))
+            # if no target node is provided, nor a host list file, default to the local node as seed target
+            seed_target = socket.getfqdn()
+            logging.warn("Seed target was not provided, using the local hostname: {}".format(seed_target))
 
-        if retained_seed_target is not None and host_list is not None:
+        if seed_target is not None and host_list is not None:
             err_msg = 'You must either provide a seed target or a list of host, not both'
             logging.error(err_msg)
             raise Exception(err_msg)
@@ -55,9 +52,13 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise Exception(err_msg)
 
         if keep_auth:
+            really_keep_auth = "Y"
             logging.info('system_auth keyspace will be left untouched on the target nodes')
         else:
-            logging.info('system_auth keyspace will be overwritten with the backup on target nodes')
+            # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
+            really_keep_auth = None
+            while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not bypass_checks:
+                really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the credentials of the target cluster? (Y/n)')
 
         storage = Storage(config=config.storage)
 
@@ -68,7 +69,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, retained_seed_target, keep_auth, verify,
+        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, True if really_keep_auth == "Y" else False, verify,
                              pssh_pool_size, keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
