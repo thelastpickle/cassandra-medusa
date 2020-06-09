@@ -135,6 +135,8 @@ class NodeBackupCache(object):
                 cached_item = None
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
+                    logging.debug("Cached item found for file {} : {}".format(
+                        src.name, cached_item if cached_item is not None else "No match in cache"))
 
                 if cached_item is None \
                     or files_are_different(src,
@@ -172,11 +174,15 @@ def files_are_different(src, cached_item, multi_part_upload_threshold, storage_p
     else:
         md5_hash = generate_md5_hash(src)
         b64_encoded_hash = base64.b64decode(md5_hash).hex()
-
-    return (src.stat().st_size != cached_item['size']
-            or (md5_hash != cached_item['MD5']  # single or multi part md5 hash. Used by S3 uploads.
-                and b64_encoded_hash != cached_item['MD5']  # b64 encoded md5 hash. Used by GCS.
-                and storage_provider != Provider.LOCAL))  # the local provider doesn't provide reliable hashes.
+    are_different = (src.stat().st_size != cached_item['size']
+                     or (md5_hash != cached_item['MD5']  # single or multi part md5 hash. Used by S3 uploads.
+                     and b64_encoded_hash != cached_item['MD5']  # b64 encoded md5 hash. Used by GCS.
+                     and storage_provider != Provider.LOCAL))  # the local provider doesn't provide reliable hashes.
+    if are_different:
+        logging.debug("Cache mismatch for {} >> Size {} vs {} / {} != {} or {} != {}".format(
+            src.name, src.stat().st_size, cached_item['size'], md5_hash,
+            cached_item['MD5'], b64_encoded_hash, cached_item['MD5']))
+    return are_different
 
 
 def throttle_backup():
