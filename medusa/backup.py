@@ -135,8 +135,8 @@ class NodeBackupCache(object):
                 cached_item = None
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
-                    logging.debug("Cached item found for file {} : {}".format(
-                        src.name, cached_item if cached_item is not None else "No match in cache"))
+                    logging.debug("Cached item found for file {}/{} : {}".format(
+                        fqtn, src.name, cached_item if cached_item is not None else "No match in cache"))
 
                 if cached_item is None \
                     or files_are_different(src,
@@ -317,6 +317,9 @@ def do_backup(cassandra, node_backup, storage, differential_mode, config):
     )
 
     logging.info('Starting backup')
+    logging.info("Using the following cache: {} with {} tables. The cache backup is differential: {}".format(
+        node_backup_cache._backup_name, len(node_backup_cache._cached_objects.keys()),
+        node_backup_cache._node_backup_cache_is_differential))
 
     # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
     # so even if exception is thrown, a new snapshot will be created on the next run
