@@ -17,7 +17,6 @@ Create an IAM Policy called `MedusaStorageStrategy`, with the following definiti
             "Sid": "VisualEditor0",
             "Effect": "Allow",
             "Action": [
-                "s3:ListBucketByTags",
                 "s3:GetLifecycleConfiguration",
                 "s3:GetBucketTagging",
                 "s3:GetInventoryConfiguration",
