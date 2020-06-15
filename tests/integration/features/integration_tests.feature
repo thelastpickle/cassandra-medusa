@@ -512,3 +512,59 @@ Feature: Integration tests
         Examples: S3 storage
         | storage           | client encryption |
         | s3_us_west_oregon     |  without_client_encryption |
+
+    @16
+    Scenario Outline: Backup, then drop the table, then restore a table
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario16"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "full" mode of the node named "first_backup"
+        Then I can verify the backup named "first_backup" successfully
+        When I drop the "test" table in keyspace "medusa"
+        When I restore the backup named "first_backup"
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
+
+    @17
+    Scenario Outline: Backup, then drop a keyspace, then re-create keyspace, then restore a table
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario17"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "full" mode of the node named "first_backup"
+        Then I can verify the backup named "first_backup" successfully
+        When I drop the keyspace "medusa"
+        When I create an empty keyspace "medusa"
+        When I restore the backup named "first_backup"
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
+
+    @18
+    Scenario Outline: Backup, then drop a keyspace, then re-create keyspace, then restore with sstableloader
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario18"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "full" mode of the node named "first_backup"
+        Then I can verify the backup named "first_backup" successfully
+        When I drop the keyspace "medusa"
+        When I create an empty keyspace "medusa"
+        When I restore the backup named "first_backup" with the sstableloader
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |

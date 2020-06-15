@@ -43,7 +43,7 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
             subfolder.mkdir(parents=False)
 
         if len(srcs) > 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
-            logging.info('Downloading backup data')
+            logging.info('Downloading backup data for {}'.format(fqtn))
             storage.storage_driver.download_blobs(srcs, dst)
         elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.debug('There is nothing to download for {}'.format(fqtn))

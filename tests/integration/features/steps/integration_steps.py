@@ -46,6 +46,7 @@ from medusa.config import (
     CassandraConfig,
     MonitoringConfig,
     ChecksConfig,
+    LoggingConfig
 )
 from medusa.config import _namedtuple_from_dict
 from medusa.storage import Storage
@@ -68,6 +69,21 @@ def kill_cassandra():
             logging.info(line)
             pid = int(line.split(None, 1)[0])
             os.kill(pid, signal.SIGKILL)
+
+
+def setup_file_logging(config):
+    if not medusa.config.evaluate_boolean(config.enabled):
+        return
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        filename=config.file,
+        maxBytes=int(config.maxBytes),
+        backupCount=int(config.backupCount))
+
+    logging.getLogger().setLevel(config.level)
+    file_handler.setLevel(getattr(logging, config.level))
+    file_handler.setFormatter(logging.Formatter(config.format))
+    logging.getLogger('').addHandler(file_handler)
 
 
 def cleanup_monitoring(context):
@@ -231,16 +247,26 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         "health_check": "cql"
     }
 
+    config["logging"] = {
+        "enabled": True,
+        "file": "medusa_it.log",
+        "format": "[%(asctime)s] %(levelname)s: %(message)s",
+        "level": "DEBUG",
+        "maxBytes": 20000000,
+        "backupCount": 20
+    }
+
     context.medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
         ssh=None,
         checks=_namedtuple_from_dict(ChecksConfig, config["checks"]),
-        logging=None
+        logging=_namedtuple_from_dict(LoggingConfig, config["logging"])
     )
     cleanup_storage(context, storage_provider)
     cleanup_monitoring(context)
+    setup_file_logging(context.medusa_config.logging)
 
 
 @when(r'I create the "{table_name}" table in keyspace "{keyspace_name}"')
@@ -251,6 +277,25 @@ def _i_create_the_whatever_table(context, table_name, keyspace_name):
 
     table = "CREATE TABLE IF NOT EXISTS {}.{} (id timeuuid PRIMARY KEY, value text);"
     context.session.execute(table.format(keyspace_name, table_name))
+
+
+@when(r'I drop the "{table_name}" table in keyspace "{keyspace_name}"')
+def _i_drop_the_whatever_table(context, table_name, keyspace_name):
+    drop_table = "DROP TABLE {}.{}"
+    context.session.execute(drop_table.format(keyspace_name, table_name))
+
+
+@when(r'I drop the keyspace "{keyspace_name}"')
+def _i_drop_the_whatever_keyspace(context, keyspace_name):
+    drop_table = "DROP KEYSPACE {}"
+    context.session.execute(drop_table.format(keyspace_name))
+
+
+@when(r'I create an empty keyspace "{keyspace_name}"')
+def _i_create_blank_keyspace(context, keyspace_name):
+    keyspace = """CREATE KEYSPACE IF NOT EXISTS {} WITH replication = {{'class':'SimpleStrategy',
+    'replication_factor':1}}"""
+    context.session.execute(keyspace.format(keyspace_name))
 
 
 @when('I create the "{table_name}" table with secondary index in keyspace "{keyspace_name}"')
