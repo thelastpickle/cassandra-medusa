@@ -81,6 +81,25 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
+    # parse the tokenmap file for tokens (needed later) and the backup of the backed-up node
+    tokens, dc_from_backup = parse_tokenmap_file(download_dir, config.storage.fqdn)
+
+    # figure out what DC is the current node in
+    session = cassandra.new_session()
+    node_dc = session.datacenter()
+    session.shutdown()
+
+    # check if node's DC matches the DC in the backup
+    # we're not using using sstableloader in this path, so the names must match
+    # to handle backwards compatibility, if tokenmap doesn't have the DC info, we don't fail
+    if dc_from_backup is not None:
+        if dc_from_backup != node_dc:
+            logging.error('Node\'s DC {} != {} from the backup.'.format(node_dc, dc_from_backup))
+            logging.error('You can still restore this backup with sstableloader though.')
+            sys.exit(1)
+    else:
+        logging.warning('Restoring a backup without DC info. If the restore fails on DC mismatch, use sstableloader.')
+
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
     wait_for_node_to_go_down(config, cassandra.hostname)
@@ -99,12 +118,6 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
             logging.debug('Skipping restore for {}'.format(fqtn))
             continue
         maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth)
-
-    node_fqdn = storage.config.fqdn
-    token_map_file = download_dir / 'tokenmap.json'
-    with open(str(token_map_file), 'r') as f:
-        tokens = get_node_tokens(node_fqdn, f)
-        logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
     if seeds is not None:
@@ -290,8 +303,23 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
     subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
 
 
-def get_node_tokens(node_fqdn, token_map_file):
-    token_map = json.load(token_map_file)
+def parse_tokenmap_file(download_dir, node_fqdn):
+    token_map_file = '{}/{}'.format(download_dir, 'tokenmap.json')
+    with open(str(token_map_file), 'r') as f:
+        token_map = json.load(f)
+        tokens = get_node_tokens(token_map, node_fqdn)
+        dc = get_node_dc(token_map, node_fqdn)
+        logging.debug("Parsed tokens: {}".format(tokens))
+    return tokens, dc
+
+
+def get_node_dc(token_map, node_fqdn):
+    node_entry = token_map.get(node_fqdn, {})
+    node_dc = node_entry.get('dc', None)
+    return node_dc
+
+
+def get_node_tokens(token_map, node_fqdn):
     token = token_map[node_fqdn]['tokens']
 
     # if vnodes, then the tokens come as an iterable

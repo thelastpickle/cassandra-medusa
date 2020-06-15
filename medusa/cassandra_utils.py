@@ -198,6 +198,7 @@ class CqlSession(object):
 
         return {
             self.hostname_resolver.resolve_fqdn(host.address): {
+                'dc': host.datacenter,
                 'tokens': tokens,
                 'is_up': host.is_up
             }

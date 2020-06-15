@@ -42,13 +42,30 @@ class RestoreNodeTest(unittest.TestCase):
 
     def test_get_node_tokens(self):
         with open("tests/resources/restore_node_tokenmap.json", 'r') as f:
-            tokens = restore_node.get_node_tokens('node3.mydomain.net', f)
+            tokens = restore_node.get_node_tokens(json.load(f), 'node3.mydomain.net')
             self.assertEqual(tokens, ['3074457345618258400'])
 
     def test_get_node_tokens_vnodes(self):
         with open("tests/resources/restore_node_tokenmap_vnodes.json", 'r') as f:
-            tokens = restore_node.get_node_tokens('node3.mydomain.net', f)
+            tokens = restore_node.get_node_tokens(json.load(f), 'node3.mydomain.net')
             self.assertEqual(tokens, ['2', '3'])
+
+    def test_get_node_dc_legacy(self):
+        with open("tests/resources/restore_node_tokenmap_vnodes.json", 'r') as f:
+            dc = restore_node.get_node_dc(json.load(f), 'node3.mydomain.net')
+            self.assertIsNone(dc)
+
+    def test_get_node_dc_from(self):
+        with open("tests/resources/restore_node_tokenmap_with_dc.json", 'r') as f:
+            dc = restore_node.get_node_dc(json.load(f), 'node3.mydomain.net')
+            self.assertEqual(dc, 'datacenter1')
+
+        tokenmap = {'host1': {'is_up': True, 'tokens': '0'}}
+        self.assertEqual(None, restore_node.get_node_dc(tokenmap, 'host1'))
+        tokenmap = {'host1': {'is_up': True, 'tokens': '0'}}
+        self.assertEqual(None, restore_node.get_node_dc(tokenmap, 'host2'))
+        tokenmap = {'host1': {'is_up': True, 'tokens': '0', 'dc': 'datacenter1'}}
+        self.assertEqual('datacenter1', restore_node.get_node_dc(tokenmap, 'host1'))
 
     def test_get_sections_to_restore(self):
 

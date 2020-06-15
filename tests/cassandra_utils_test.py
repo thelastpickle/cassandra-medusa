@@ -53,6 +53,7 @@ class CassandraUtilsTest(unittest.TestCase):
         host = Mock()
         host.is_up = True
         host.address = '127.0.0.1'
+        host.datacenter = 'datacenter1'
         session = Mock()
         session.cluster = Mock()
         session.cluster.contact_points = ["localhost"]
@@ -62,7 +63,7 @@ class CassandraUtilsTest(unittest.TestCase):
         s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
         self.assertEqual(
-            {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
+            {'127.0.0.1': {'is_up': True, 'tokens': [-9], 'dc': 'datacenter1'}},
             token_map
         )
 
@@ -104,7 +105,7 @@ class CassandraUtilsTest(unittest.TestCase):
         s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
         self.assertEqual(
-            {'127.0.0.1': {'is_up': True, 'tokens': [-6]}},
+            {'127.0.0.1': {'is_up': True, 'tokens': [-6], 'dc': 'dcA'}},
             token_map
         )
 
