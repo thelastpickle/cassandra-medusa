@@ -210,6 +210,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
                 "sstableloader",
             )
         ),
+        "resolve_ip_addresses": True
     }
 
     if client_encryption == 'with_client_encryption':

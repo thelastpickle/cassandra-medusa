@@ -36,7 +36,7 @@ CassandraConfig = collections.namedtuple(
     ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts', 'sstableloader_tspw',
-     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl']
+     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses']
 )
 
 SSHConfig = collections.namedtuple(
@@ -101,7 +101,8 @@ def load_config(args, config_file):
         'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
         'is_ccm': 0,
-        'sstableloader_bin': 'sstableloader'
+        'sstableloader_bin': 'sstableloader',
+        'resolve_ip_addresses': True
     }
 
     config['ssh'] = {
@@ -163,6 +164,11 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    if config['storage']['fqdn'] == socket.getfqdn() \
+            and not evaluate_boolean(config['cassandra']['resolve_ip_addresses']):
+        # Use the ip address instead of the fqdn when DNS resolving is turned off
+        config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
+
     medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -196,9 +202,9 @@ def _zip_fields_with_arg_values(fields, args):
 
 def evaluate_boolean(value):
     # same behaviour as python's configparser
-    if value.lower() in ('0', 'false', 'no', 'off'):
+    if str(value).lower() in ('0', 'false', 'no', 'off'):
         return False
-    elif value.lower() in ('1', 'true', 'yes', 'on'):
+    elif str(value).lower() in ('1', 'true', 'yes', 'on'):
         return True
     else:
         raise TypeError('{} not a boolean'.format(value))

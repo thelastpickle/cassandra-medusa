@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import shlex
-import socket
 import subprocess
 import sys
 import time
@@ -28,7 +27,8 @@ from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_do
 from medusa.download import download_data
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
-
+from medusa.network.hostname_resolver import HostnameResolver
+import medusa.config
 
 A_MINUTE = 60
 MAX_ATTEMPTS = 60
@@ -51,7 +51,8 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
                                    keyspaces, tables)
 
     if verify:
-        verify_restore([socket.getfqdn()], config)
+        hostname_resolver = HostnameResolver(config.cassandra.cleanup_domain)
+        verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
 def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
@@ -161,6 +162,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
+    hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:
@@ -174,7 +176,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     cql_username = 'foo' if config.cassandra.cql_username is None else config.cassandra.cql_username
                     cql_password = 'foo' if config.cassandra.cql_password is None else config.cassandra.cql_password
                     sstableloader_args = [config.cassandra.sstableloader_bin,
-                                          '-d', socket.getfqdn() if cassandra_is_ccm == 0
+                                          '-d', hostname_resolver.resolve_fqdn() if cassandra_is_ccm == 0
                                           else '127.0.0.1',
                                           '--username', cql_username,
                                           '--password', cql_password,
