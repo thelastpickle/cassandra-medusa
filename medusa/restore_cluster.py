@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright 2020- Datastax, Inc. All rights reserved.
 # Copyright 2019 Spotify AB. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,11 +25,13 @@ import traceback
 import paramiko
 import socket
 
+import medusa.config
 from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
 from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
+from medusa.network.hostname_resolver import HostnameResolver
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
@@ -38,7 +41,8 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         restore_start_time = datetime.datetime.now()
         if seed_target is None and host_list is None:
             # if no target node is provided, nor a host list file, default to the local node as seed target
-            seed_target = socket.getfqdn()
+            hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+            seed_target = hostname_resolver.resolve_fqdn(socket.gethostbyname(socket.getfqdn()))
             logging.warn("Seed target was not provided, using the local hostname: {}".format(seed_target))
 
         if seed_target is not None and host_list is not None:
@@ -114,6 +118,8 @@ class RestoreJob(object):
         self.use_sstableloader = use_sstableloader
         self.pssh_pool_size = pssh_pool_size
         self.cassandra = Cassandra(config.cassandra)
+        fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
+        self.fqdn_resolver = HostnameResolver(fqdn_resolver)
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -143,6 +149,7 @@ class RestoreJob(object):
         There is no return made, to check the result there is a distinct function
         Return: True (success) or False (error)
         """
+        logging.debug("Running pssh command on {}".format(hosts))
         pssh_run_success = False
         username = self.config.ssh.username if self.config.ssh.username != '' else None
         port = self.config.ssh.port
@@ -272,7 +279,7 @@ class RestoreJob(object):
             for token, hosts in backup_ringmap.items():
                 # take the node that has the same token list or pick the one with the same position in the map.
                 restore_host = target_ringmap.get(token, list(target_ringmap.values())[i])[0]
-                isSeed = True if socket.getfqdn(restore_host) in self._get_seeds_fqdn() else False
+                isSeed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
                 self.host_map[restore_host] = {'source': [hosts[0]], 'seed': isSeed}
                 i += 1
         else:
@@ -296,7 +303,7 @@ class RestoreJob(object):
     def _get_seeds_fqdn(self):
         seeds = list()
         for seed in self.cassandra.seeds:
-            seeds.append(socket.getfqdn(seed))
+            seeds.append(self.fqdn_resolver.resolve_fqdn(seed))
         return seeds
 
     def _populate_hostmap(self):
@@ -304,8 +311,8 @@ class RestoreJob(object):
             for line in f.readlines():
                 seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
-                self.host_map[socket.getfqdn(target.strip())] = {'source': [socket.getfqdn(source.strip())],
-                                                                 'seed': seed in ['True']}
+                self.host_map[self.fqdn_resolver.resolve_fqdn(target.strip())] \
+                    = {'source': [self.fqdn_resolver.resolve_fqdn(source.strip())], 'seed': seed in ['True']}
 
     def _restore_data(self):
         # create workdir on each target host
@@ -335,6 +342,7 @@ class RestoreJob(object):
         logging.info("target seeds : {}".format(target_seeds))
         # work out which nodes are seeds in the target cluster
         target_hosts = self.host_map.keys()
+        logging.info("target hosts : {}".format(target_hosts))
 
         if self.use_sstableloader is False:
             # stop all target nodes
@@ -367,7 +375,9 @@ class RestoreJob(object):
             hosts_variables.append((','.join(source), seeds))
             command = self._build_restore_cmd(target, source, seeds)
 
-        pssh_run_success = self._pssh_run(target_hosts, command, hosts_variables=hosts_variables)
+        pssh_run_success = self._pssh_run(target_hosts,
+                                          command,
+                                          hosts_variables=hosts_variables)
 
         if not pssh_run_success:
             # we could implement a retry.

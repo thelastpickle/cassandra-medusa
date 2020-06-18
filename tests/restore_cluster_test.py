@@ -41,7 +41,8 @@ class RestoreClusterTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
+            'is_ccm': '1',
+            'resolve_ip_addresses': 'False'
         }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),

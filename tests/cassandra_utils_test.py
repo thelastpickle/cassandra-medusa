@@ -37,10 +37,13 @@ class CassandraUtilsTest(unittest.TestCase):
         config['storage'] = {
             'host_file_separator': ','
         }
+        config['cassandra'] = {
+            'resolve_ip_addresses': False
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
-            cassandra=None,
+            cassandra=_namedtuple_from_dict(StorageConfig, config['cassandra']),
             ssh=None,
             checks=None,
             logging=None
@@ -56,10 +59,10 @@ class CassandraUtilsTest(unittest.TestCase):
         session.cluster.metadata.token_map.token_to_host_owner = {
             Murmur3Token(-9): host
         }
-        s = CqlSession(session)
+        s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
         self.assertEqual(
-            {'localhost': {'is_up': True, 'tokens': [-9]}},
+            {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
             token_map
         )
 
@@ -75,10 +78,10 @@ class CassandraUtilsTest(unittest.TestCase):
             Murmur3Token(-6): host,
             Murmur3Token(0): host
         }
-        s = CqlSession(session)
+        s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
-        self.assertEqual(True, token_map["localhost"]["is_up"])
-        self.assertEqual([-9, -6, 0], sorted(token_map["localhost"]["tokens"]))
+        self.assertEqual(True, token_map["127.0.0.1"]["is_up"])
+        self.assertEqual([-9, -6, 0], sorted(token_map["127.0.0.1"]["tokens"]))
 
     def test_tokenmap_two_dc(self):
         hostA = Mock()
@@ -98,10 +101,10 @@ class CassandraUtilsTest(unittest.TestCase):
             Murmur3Token(-6): hostA,
             Murmur3Token(6): hostB
         }
-        s = CqlSession(session)
+        s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
         self.assertEqual(
-            {'localhost': {'is_up': True, 'tokens': [-6]}},
+            {'127.0.0.1': {'is_up': True, 'tokens': [-6]}},
             token_map
         )
 

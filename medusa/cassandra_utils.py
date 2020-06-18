@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright 2020- Datastax, Inc. All rights reserved.
 # Copyright 2020 Spotify Inc. All rights reserved.
 # Copyright 2019 Spotify AB. All rights reserved.
 #
@@ -33,6 +34,7 @@ from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
 from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
+from medusa.network.hostname_resolver import HostnameResolver
 
 
 class SnapshotPath(object):
@@ -53,6 +55,7 @@ class CqlSessionProvider(object):
         self._ip_addresses = ip_addresses
         self._auth_provider = None
         self._ssl_context = None
+        self._cassandra_config = cassandra_config
 
         if cassandra_config.cql_username is not None and cassandra_config.cql_password is not None:
             auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
@@ -94,7 +97,7 @@ class CqlSessionProvider(object):
             while attempts < max_retries:
                 try:
                     session = cluster.connect()
-                    return CqlSession(session)
+                    return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
                 except Exception as e:
                     logging.debug('Failed to create session', exc_info=e)
                 time.sleep(delay)
@@ -102,7 +105,7 @@ class CqlSessionProvider(object):
             raise Exception('Could not establish CQL session after {attempts}'.format(attempts=attempts))
         else:
             session = cluster.connect()
-            return CqlSession(session)
+            return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
 
 
 class Nodetool(object):
@@ -130,8 +133,9 @@ class Nodetool(object):
 class CqlSession(object):
     EXCLUDED_KEYSPACES = ['system_traces']
 
-    def __init__(self, session):
+    def __init__(self, session, resolve_ip_addresses=True):
         self._session = session
+        self.hostname_resolver = HostnameResolver(resolve_ip_addresses)
 
     def __enter__(self):
         return self
@@ -161,13 +165,13 @@ class CqlSession(object):
 
     def datacenter(self):
         logging.debug('Checking datacenter...')
-        listen_address = self.cluster.contact_points[0]
+        listen_address = socket.gethostbyname(self.cluster.contact_points[0])
         token_map = self.cluster.metadata.token_map
 
         for host in token_map.token_to_host_owner.values():
-            socket_host = socket.gethostbyname(listen_address)
+            socket_host = self.hostname_resolver.resolve_fqdn(listen_address)
             logging.debug('Checking host {} against {}/{}'.format(host.address, listen_address, socket_host))
-            if host.address == listen_address or host.address == socket_host:
+            if host.address == listen_address or self.hostname_resolver.resolve_fqdn(host.address) == socket_host:
                 return host.datacenter
 
         raise RuntimeError('Unable to current datacenter')
@@ -193,7 +197,7 @@ class CqlSession(object):
         host_tokens_pairs = [(host, list(map(get_token, tokens))) for host, tokens in host_tokens_groups]
 
         return {
-            socket.gethostbyaddr(host.address)[0]: {
+            self.hostname_resolver.resolve_fqdn(host.address): {
                 'tokens': tokens,
                 'is_up': host.is_up
             }
@@ -256,7 +260,7 @@ class CassandraConfigReader(object):
             if self._config['listen_address']:
                 return self._config['listen_address']
 
-        return socket.gethostname()
+        return socket.gethostbyname(socket.getfqdn())
 
     @property
     def storage_port(self):
