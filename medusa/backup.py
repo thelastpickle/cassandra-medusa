@@ -304,31 +304,37 @@ def update_monitoring(actual_backup_duration, backup_name, monitoring, node_back
 
 
 def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot):
+    try:
+        num_files = 0
+        for snapshot_path in snapshot.find_dirs():
+            logging.debug("Backing up {}".format(snapshot_path))
 
-    num_files = 0
+            (needs_backup, already_backed_up) = node_backup_cache.replace_or_remove_if_cached(
+                keyspace=snapshot_path.keyspace,
+                columnfamily=snapshot_path.columnfamily,
+                srcs=list(snapshot_path.list_files()))
 
-    for snapshot_path in snapshot.find_dirs():
+            num_files += len(needs_backup) + len(already_backed_up)
 
-        (needs_backup, already_backed_up) = node_backup_cache.replace_or_remove_if_cached(
-            keyspace=snapshot_path.keyspace,
-            columnfamily=snapshot_path.columnfamily,
-            srcs=list(snapshot_path.list_files()))
+            dst_path = str(node_backup.datapath(keyspace=snapshot_path.keyspace,
+                                                columnfamily=snapshot_path.columnfamily))
+            logging.debug("destination path: {}".format(dst_path))
 
-        num_files += len(needs_backup) + len(already_backed_up)
+            manifest_objects = list()
+            if len(needs_backup) > 0:
+                manifest_objects = storage.storage_driver.upload_blobs(needs_backup, dst_path)
 
-        dst_path = str(node_backup.datapath(keyspace=snapshot_path.keyspace, columnfamily=snapshot_path.columnfamily))
+            # Reintroducing already backed up objects in the manifest in differential
+            for obj in already_backed_up:
+                manifest_objects.append(obj)
 
-        manifest_objects = list()
-        if len(needs_backup) > 0:
-            manifest_objects = storage.storage_driver.upload_blobs(needs_backup, dst_path)
+            manifest.append(make_manifest_object(node_backup.fqdn, snapshot_path, manifest_objects, storage))
 
-        # Reintroducing already backed up objects in the manifest in differential
-        for obj in already_backed_up:
-            manifest_objects.append(obj)
-
-        manifest.append(make_manifest_object(node_backup.fqdn, snapshot_path, manifest_objects, storage))
-
-    return num_files
+        return num_files
+    except Exception as e:
+        logging.error('This error happened during the backup: {}'.format(str(e)))
+        traceback.print_exc()
+        raise e
 
 
 def make_manifest_object(fqdn, snapshot_path, manifest_objects, storage):
