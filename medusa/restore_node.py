@@ -86,8 +86,8 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    clean_path(cassandra.commit_logs_path)
-    clean_path(cassandra.saved_caches_path)
+    clean_path(cassandra.commit_logs_path, keep_folder=True)
+    clean_path(cassandra.saved_caches_path, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -195,7 +195,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     output = subprocess.check_output(sstableloader_args)
                     for line in output.decode('utf-8').split('\n'):
                         logging.debug(line)
-    clean_path(download_dir)
+    clean_path(download_dir, keep_folder=False)
 
 
 def keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
@@ -225,8 +225,10 @@ def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
     return True
 
 
-def clean_path(p):
+def clean_path(p, keep_folder=False):
     if p.exists():
+        if keep_folder:
+            p = p / '*'
         logging.debug('Cleaning ({})'.format(p))
         subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', str(p)])
 
