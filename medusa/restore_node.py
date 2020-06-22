@@ -119,6 +119,8 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     else:
         cassandra.start(tokens)
 
+    # Clean the restored data from local temporary folder
+    clean_path(download_dir, keep_folder=False)
     return node_backup
 
 
@@ -153,6 +155,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
+    # Clean the restored data from local temporary folder
+    clean_path(download_dir, keep_folder=False)
     return node_backup
 
 
@@ -195,7 +199,6 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     output = subprocess.check_output(sstableloader_args)
                     for line in output.decode('utf-8').split('\n'):
                         logging.debug(line)
-    clean_path(download_dir, keep_folder=False)
 
 
 def keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
@@ -226,11 +229,18 @@ def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
 
 
 def clean_path(p, keep_folder=False):
-    if p.exists():
+    path = str(p)
+    if p.exists() and os.path.isdir(path) and len(os.listdir(path)):
+        logging.debug('Cleaning ({})'.format(path))
         if keep_folder:
-            p = p / '*'
-        logging.debug('Cleaning ({})'.format(p))
-        subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', str(p)])
+            logging.debug('Removing files - keep folder {}'.format(path))
+            for f in os.listdir(path):
+                file_path = os.path.join(path, f)
+                logging.debug('Removing file {}'.format(file_path))
+                subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', file_path])
+        else:
+            logging.debug('Remove folder {} and content'.format(path))
+            subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
 
 
 def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth):
