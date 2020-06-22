@@ -44,6 +44,11 @@ INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential|i
 INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]+).timestamp$')
 
 
+def divide_chunks(values, step):
+    for i in range(0, len(values), step):
+        yield values[i:i + step]
+
+
 def format_bytes_str(value):
     for unit_shift, unit in enumerate(['B', 'KB', 'MB', 'GB', 'TB']):
         if value >> (unit_shift * 10) < 1024:
