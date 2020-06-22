@@ -161,8 +161,10 @@ def download(medusaconfig, backup_name, download_destination):
               default=False, is_flag=True)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
-@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace", multiple=True, default={})
-@click.option('--table', 'tables', help="Restore only this table", multiple=True, default={})
+@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace, use --keyspace ks1 [--keyspace ks2]",
+              multiple=True, default={})
+@click.option('--table', 'tables', help="Restore only this table, use --table ks.t1 [--table ks.t2]",
+              multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @click.option('--pssh-pool-size', help="Number of concurrent ssh sessions started by pssh", default=10)
@@ -197,8 +199,10 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               default=None)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
-@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace", multiple=True, default={})
-@click.option('--table', 'tables', help="Restore only this table", multiple=True, default={})
+@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace, use --keyspace ks1 [--keyspace ks2]",
+              multiple=True, default={})
+@click.option('--table', 'tables', help="Restore only this table, use --table ks.t1 [--table ks.t2]",
+              multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @pass_MedusaConfig
