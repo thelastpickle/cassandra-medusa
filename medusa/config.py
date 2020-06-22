@@ -151,7 +151,7 @@ def load_config(args, config_file):
         if value is not None
     }})
 
-    config.read_dict({'restore': {
+    config.read_dict({'checks': {
         key: value
         for key, value in _zip_fields_with_arg_values(ChecksConfig._fields, args)
         if value is not None
@@ -167,7 +167,7 @@ def load_config(args, config_file):
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
-        restore=_namedtuple_from_dict(ChecksConfig, config['checks']),
+        checks=_namedtuple_from_dict(ChecksConfig, config['checks']),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
         logging=_namedtuple_from_dict(LoggingConfig, config['logging']),
     )
