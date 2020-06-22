@@ -201,7 +201,7 @@ def main(config, backup_name_arg, stagger_time, mode):
                     time.sleep(60)
                 else:
                     raise IOError('Backups on previous nodes did not complete'
-                                  ' within our stagger time.'.format(backup_name))
+                                  ' within our stagger time.')
 
         actual_start = datetime.datetime.now()
 
