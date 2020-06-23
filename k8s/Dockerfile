@@ -60,6 +60,9 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     chmod +x /bin/grpc_health_probe
 
 COPY build/lib/medusa /app/medusa
+COPY k8s/docker-entrypoint.sh /app
+
 WORKDIR /app
 
-CMD ["python3", "-m", "medusa.service.grpc_svc.server", "server.py"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+#CMD ["python3", "-m", "medusa.service.grpc_svc.server", "server.py"]
