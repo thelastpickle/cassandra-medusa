@@ -152,7 +152,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
         download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
-        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port)
+        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port, fqdn)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
     # Clean the restored data from local temporary folder
@@ -160,7 +160,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
     return node_backup
 
 
-def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
+def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port, fqdn):
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:
@@ -174,8 +174,8 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     cql_username = 'foo' if config.cassandra.cql_username is None else config.cassandra.cql_username
                     cql_password = 'foo' if config.cassandra.cql_password is None else config.cassandra.cql_password
                     sstableloader_args = [config.cassandra.sstableloader_bin,
-                                          '-d', socket.getfqdn() if cassandra_is_ccm == 0
-                                          else '127.0.0.1',
+                                          '-d', socket.getfqdn() if cassandra_is_ccm == 0 and fqdn is None
+                                          else fqdn if fqdn is not None else '127.0.0.1',
                                           '--username', cql_username,
                                           '--password', cql_password,
                                           '--no-progress',
