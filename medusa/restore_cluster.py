@@ -391,7 +391,7 @@ class RestoreJob(object):
             verify_restore(target_hosts, self.config)
 
     def _build_restore_cmd(self, target, source, seeds):
-        in_place_option = '--in-place' if self.in_place else ''
+        in_place_option = '--in-place' if self.in_place else '--remote'
         keep_auth_option = '--keep-auth' if self.keep_auth else ''
         keyspace_options = expand_repeatable_option('keyspace', self.keyspaces)
         table_options = expand_repeatable_option('table', self.tables)
