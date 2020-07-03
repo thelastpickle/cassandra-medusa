@@ -191,8 +191,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
 @cli.command(name='restore-node')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--backup-name', help='Backup name', required=True)
-@click.option('--in-place', help='Indicates if the restore happens on the node the backup was done on.',
-              default=False, is_flag=True)
+@click.option('--in-place/--remote', help='Indicates if the restore happens on the node the backup was done on.',
+              default=True, is_flag=True)
 @click.option('--keep-auth', help='Keep system_auth keyspace as found on the node',
               default=False, is_flag=True)
 @click.option('--seeds', help='Nodes to wait for after downloading backup but before starting C*',
