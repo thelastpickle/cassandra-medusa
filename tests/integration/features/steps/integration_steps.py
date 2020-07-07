@@ -155,7 +155,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "bucket_name": "medusa_it_bucket",
             "key_file": "",
             "storage_provider": "local",
-            "fqdn": "localhost",
+            "fqdn": "127.0.0.1",
             "api_key_or_username": "",
             "api_secret_or_password": "",
             "base_path": "/tmp",
@@ -164,10 +164,10 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
     elif storage_provider == "google_storage":
         config["storage"] = {
             "host_file_separator": ",",
-            "bucket_name": "medusa_it_bucket",
+            "bucket_name": "medusa-integration-tests",
             "key_file": "~/medusa_credentials.json",
             "storage_provider": "google_storage",
-            "fqdn": "localhost",
+            "fqdn": "127.0.0.1",
             "api_key_or_username": "",
             "api_secret_or_password": "",
             "base_path": "/tmp",
@@ -179,7 +179,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "bucket_name": "tlp-medusa-dev",
             "key_file": "~/.aws/credentials",
             "storage_provider": storage_provider,
-            "fqdn": "localhost",
+            "fqdn": "127.0.0.1",
             "api_key_or_username": "",
             "api_secret_or_password": "",
             "api_profile": "default",
@@ -210,7 +210,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
                 "sstableloader",
             )
         ),
-        "resolve_ip_addresses": True
+        "resolve_ip_addresses": False
     }
 
     if client_encryption == 'with_client_encryption':
@@ -610,7 +610,7 @@ def _truncate_the_index(context):
 def _truncate_the_backup_folder(context):
     storage = Storage(config=context.medusa_config.storage)
     path_root = "/tmp/medusa_it_bucket"
-    backup_path = "{}/{}localhost".format(path_root, storage.prefix_path)
+    backup_path = "{}/{}127.0.0.1".format(path_root, storage.prefix_path)
     shutil.rmtree(backup_path)
 
 
@@ -745,7 +745,7 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
         ssh=None,
         logging=None
     )
-    medusa.verify_restore.verify_restore(["localhost"], custom_config)
+    medusa.verify_restore.verify_restore(["127.0.0.1"], custom_config)
 
 
 @when(r'I delete the backup named "{backup_name}"')
