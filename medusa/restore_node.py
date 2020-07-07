@@ -51,7 +51,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
                                    keyspaces, tables)
 
     if verify:
-        hostname_resolver = HostnameResolver(config.cassandra.cleanup_domain)
+        hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
         verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
