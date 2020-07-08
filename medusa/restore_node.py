@@ -81,14 +81,15 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
-    logging.info('Stopping Cassandra')
-    cassandra.shutdown()
-    wait_for_node_to_go_down(config, cassandra.hostname)
+    if not config.grpc.enabled:
+        logging.info('Stopping Cassandra')
+        cassandra.shutdown()
+        wait_for_node_to_go_down(config, cassandra.hostname)
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    clean_path(cassandra.commit_logs_path, keep_folder=True)
-    clean_path(cassandra.saved_caches_path, keep_folder=True)
+    clean_path(cassandra.commit_logs_path, not config.grpc.enabled, keep_folder=True)
+    clean_path(cassandra.saved_caches_path, not config.grpc.enabled, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -98,7 +99,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         if fqtn not in fqtns_to_restore:
             logging.debug('Skipping restore for {}'.format(fqtn))
             continue
-        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth)
+        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth, not config.grpc.enabled)
 
     node_fqdn = storage.config.fqdn
     token_map_file = download_dir / 'tokenmap.json'
@@ -107,18 +108,19 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
-    if seeds is not None:
-        wait_for_seeds(config, seeds)
-    else:
-        logging.info('No --seeds specified so we will not wait for any')
+    if not config.grpc.enabled:
+        if seeds is not None:
+            wait_for_seeds(config, seeds)
+        else:
+            logging.info('No --seeds specified so we will not wait for any')
 
-    # Start up Cassandra
-    logging.info('Starting Cassandra')
-    # restoring in place retains system.local, which has tokens in it. no need to specify extra
-    if in_place:
-        cassandra.start_with_implicit_token()
-    else:
-        cassandra.start(tokens)
+        # Start up Cassandra
+        logging.info('Starting Cassandra')
+        # restoring in place retains system.local, which has tokens in it. no need to specify extra
+        if in_place:
+            cassandra.start_with_implicit_token()
+        else:
+            cassandra.start(tokens)
 
     # Clean the restored data from local temporary folder
     clean_path(download_dir, keep_folder=False)
@@ -246,7 +248,7 @@ def clean_path(p, keep_folder=False):
             subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
 
 
-def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth):
+def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth, use_sudo=True):
 
     # decide whether to restore files for this table or not
 
@@ -273,12 +275,18 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
     # prepare the destination folder
     if dst.exists():
         logging.debug('Cleaning directory {}'.format(dst))
-        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
-                                 'rm', '-rf', str(dst)])
+        if use_sudo:
+            subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                     'rm', '-rf', str(dst)])
+        else:
+            subprocess.check_output(['rm', '-rf', str(dst)])
     else:
         logging.debug('Creating directory {}'.format(dst))
-        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
-                                 'mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
+        if use_sudo:
+            subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                     'mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
+        else:
+            subprocess.check_output(['mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
 
     if not restore_section:
         logging.debug("Skipping the actual restore of {}".format(section['columnfamily']))
@@ -286,9 +294,14 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
 
     # restore the table
     logging.debug('Restoring {} -> {}'.format(src, dst))
-    subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
-    file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
-    subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+    if use_sudo:
+        subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
+        file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
+        subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+    else:
+        subprocess.check_output(['mv', str(src), str(dst)])
+        file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
+        subprocess.check_output(['chown', '-R', file_ownership, str(dst)])
 
 
 def get_node_tokens(node_fqdn, token_map_file):
