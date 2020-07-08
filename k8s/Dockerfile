@@ -41,23 +41,19 @@ COPY requirements-grpc.txt /requirements-grpc.txt
 
 RUN pip3 install -r /requirements.txt && \
     pip3 install -r /requirements-grpc.txt
-#    mkdir -p /.config/gcloud/configurations && \
-#    mkdir -p /.config/gcloud && \
-#    chmod 777 /.config/gcloud/configurations && \
-#    chmod 777 /.config/gcloud && \
-#    chown -R 999:999 /.config/gcloud
-
 
 FROM base
 
 ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
+ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
 
 COPY --from=base /install /usr/local
 
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe
+    chmod +x /bin/grpc_health_probe && \
+    groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 cassandra
 
 COPY build/lib/medusa /app/medusa
 COPY k8s/docker-entrypoint.sh /app
@@ -65,4 +61,3 @@ COPY k8s/docker-entrypoint.sh /app
 WORKDIR /app
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-#CMD ["python3", "-m", "medusa.service.grpc_svc.server", "server.py"]
