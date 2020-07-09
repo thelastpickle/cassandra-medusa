@@ -233,7 +233,7 @@ def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
     return True
 
 
-def clean_path(p, keep_folder=False):
+def clean_path(p, use_sudo=True, keep_folder=False):
     path = str(p)
     if p.exists() and os.path.isdir(path) and len(os.listdir(path)):
         logging.debug('Cleaning ({})'.format(path))
@@ -242,10 +242,16 @@ def clean_path(p, keep_folder=False):
             for f in os.listdir(path):
                 file_path = os.path.join(path, f)
                 logging.debug('Removing file {}'.format(file_path))
-                subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', file_path])
+                if use_sudo:
+                    subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', file_path])
+                else:
+                    subprocess.check_output(['rm', '-rf', file_path])
         else:
             logging.debug('Remove folder {} and content'.format(path))
-            subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
+            if use_sudo:
+                subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
+            else:
+                subprocess.check_output(['rm', '-rf', path])
 
 
 def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth, use_sudo=True):
