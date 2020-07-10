@@ -298,7 +298,6 @@ class Cassandra(object):
 
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
-    # def __init__(self, cassandra_config, contact_point=None):
     def __init__(self, config, contact_point=None):
         cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
@@ -642,7 +641,7 @@ def is_node_up(config, host):
         else:
             return is_ccm_up(args, 'statusbinary')
     else:
-        cassandra = Cassandra(config.cassandra)
+        cassandra = Cassandra(config)
         native_port = cassandra.native_port
         rpc_port = cassandra.rpc_port
         nc_timeout = 10
