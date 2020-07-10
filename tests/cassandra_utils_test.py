@@ -46,7 +46,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(StorageConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
     def test_tokenmap_one_token(self):
@@ -138,7 +139,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         self.assertEqual(n, ['nodetool'])
@@ -159,7 +161,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '--ssl', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -182,7 +185,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -207,7 +211,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
         cassandra = Cassandra(medusa_config.cassandra)
@@ -238,7 +243,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
         cassandra = Cassandra(medusa_config.cassandra)
@@ -270,7 +276,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
         cassandra = Cassandra(medusa_config.cassandra)
@@ -301,7 +308,8 @@ class CassandraUtilsTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
         cassandra = Cassandra(medusa_config.cassandra)
