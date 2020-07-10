@@ -441,7 +441,7 @@ class Cassandra(object):
     def delete_snapshot(self, tag):
         cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
 
-        if self.grpc_config.enabled:
+        if self.grpc_config and self.grpc_config.enabled:
             data = {
                 "type": "exec",
                 "mbean": "org.apache.cassandra.db:type=StorageService",
