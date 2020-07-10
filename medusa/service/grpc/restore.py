@@ -31,6 +31,7 @@ def configure_console_logging(config):
         for logger_name in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
+
 if len(sys.argv) > 2:
     config_file_path = sys.argv[2]
 else:

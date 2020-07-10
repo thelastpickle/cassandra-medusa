@@ -23,14 +23,14 @@ restore() {
         echo "Skipping restore operation"    
     else
         echo "Restoring backup $backup_name"
-        python3 -m medusa.service.grpc_svc.restore 
+        python3 -m medusa.service.grpc.restore
         echo $BACKUP_NAME > $last_restore_file
     fi
 }
 
 grpc() {
     echo "Starting Medusa gRPC service"
-    python3 -m medusa.service.grpc_svc.server server.py
+    python3 -m medusa.service.grpc.server server.py
 }
 
 echo "sleeping for $DEBUG_SLEEP sec"

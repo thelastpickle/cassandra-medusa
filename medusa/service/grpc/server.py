@@ -11,8 +11,8 @@ import grpc_health.v1.health
 
 import medusa.backup
 import medusa.config
-from medusa.service.grpc_svc import medusa_pb2
-from medusa.service.grpc_svc import medusa_pb2_grpc
+from medusa.service.grpc import medusa_pb2
+from medusa.service.grpc import medusa_pb2_grpc
 from grpc_health.v1 import health_pb2_grpc
 from datetime import datetime
 
