@@ -117,7 +117,7 @@ class RestoreJob(object):
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
         self.pssh_pool_size = pssh_pool_size
-        self.cassandra = Cassandra(config.cassandra)
+        self.cassandra = Cassandra(config)
         fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
 

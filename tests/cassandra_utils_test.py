@@ -215,7 +215,7 @@ class CassandraUtilsTest(unittest.TestCase):
             grpc=None,
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -247,7 +247,7 @@ class CassandraUtilsTest(unittest.TestCase):
             grpc=None,
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -280,7 +280,7 @@ class CassandraUtilsTest(unittest.TestCase):
             grpc=None,
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -312,7 +312,7 @@ class CassandraUtilsTest(unittest.TestCase):
             grpc=None,
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
 
     def test_parsing_custom_seed_provider(self):
