@@ -46,8 +46,12 @@ For details on how to set up and configure the backup sidecar container and the 
 The image can be used for backups or for restores. The `docker-entrypoint.sh` script looks at the `MEDUSA_MODE` env var to determine whehter it should run the gRPC service for backups or do a restore.
 
 ## Building the Image
+If you made any changes to `medusa.proto`, then you first need to run the protobuf compiler as described above.
+
 Run the following from the project root:
 
 ```
+$ python setup.py build
+
 $ docker build -t <tag name> -f k8s/Dockerfile .
 ```
