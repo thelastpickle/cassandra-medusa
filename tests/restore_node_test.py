@@ -37,7 +37,8 @@ class RestoreNodeTest(unittest.TestCase):
             cassandra=None,
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None
         )
 
     def test_get_node_tokens(self):

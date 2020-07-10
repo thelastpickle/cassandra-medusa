@@ -50,7 +50,8 @@ class RestoreClusterTest(unittest.TestCase):
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
         )
 
     # Test that we can properly associate source and target nodes for restore using a host list

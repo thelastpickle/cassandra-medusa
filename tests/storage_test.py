@@ -64,7 +64,8 @@ class RestoreNodeTest(unittest.TestCase):
             monitoring={},
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None
         )
 
         self.storage = Storage(config=self.config.storage)
