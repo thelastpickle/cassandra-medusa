@@ -46,6 +46,7 @@ from medusa.config import (
     CassandraConfig,
     MonitoringConfig,
     ChecksConfig,
+    GrpcConfig,
 )
 from medusa.config import _namedtuple_from_dict
 from medusa.storage import Storage
@@ -232,6 +233,10 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         "health_check": "cql"
     }
 
+    config["grpc"] = {
+        "enabled": "0"
+    }
+
     context.medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
@@ -239,7 +244,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         ssh=None,
         checks=_namedtuple_from_dict(ChecksConfig, config["checks"]),
         logging=None,
-        grpc=None,
+        grpc=_namedtuple_from_dict(GrpcConfig, config["grpc"]),
     )
     cleanup_storage(context, storage_provider)
     cleanup_monitoring(context)

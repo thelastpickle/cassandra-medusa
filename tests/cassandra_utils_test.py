@@ -24,7 +24,7 @@ from cassandra.metadata import Murmur3Token
 from pathlib import Path
 from unittest.mock import Mock
 
-from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
+from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict
 from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool, Cassandra
 
 
@@ -40,6 +40,9 @@ class CassandraUtilsTest(unittest.TestCase):
         config['cassandra'] = {
             'resolve_ip_addresses': False
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
@@ -47,7 +50,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
 
     def test_tokenmap_one_token(self):
@@ -133,6 +136,9 @@ class CassandraUtilsTest(unittest.TestCase):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -140,7 +146,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         self.assertEqual(n, ['nodetool'])
@@ -155,6 +161,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_host': '127.0.0.1',
             'nodetool_port': '7199'
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -162,7 +171,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '--ssl', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -179,6 +188,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_host': '127.0.0.1',
             'nodetool_port': '7199'
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -186,7 +198,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -204,7 +216,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -212,7 +226,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
 
         cassandra = Cassandra(medusa_config)
@@ -236,7 +250,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -244,7 +260,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
 
         cassandra = Cassandra(medusa_config)
@@ -269,7 +285,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -277,7 +295,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
 
         cassandra = Cassandra(medusa_config)
@@ -301,7 +319,9 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
@@ -309,7 +329,7 @@ class CassandraUtilsTest(unittest.TestCase):
             ssh=None,
             checks=None,
             logging=None,
-            grpc=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
         )
 
         cassandra = Cassandra(medusa_config)
