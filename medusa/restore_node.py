@@ -81,15 +81,16 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
-    if not config.grpc.enabled:
+    if not medusa.config.evaluate_boolean(config.grpc.enabled):
         logging.info('Stopping Cassandra')
         cassandra.shutdown()
         wait_for_node_to_go_down(config, cassandra.hostname)
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    clean_path(cassandra.commit_logs_path, not config.grpc.enabled, keep_folder=True)
-    clean_path(cassandra.saved_caches_path, not config.grpc.enabled, keep_folder=True)
+    use_sudo = not medusa.config.evaluate_boolean(config.grpc.enabled)
+    clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
+    clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -99,7 +100,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         if fqtn not in fqtns_to_restore:
             logging.debug('Skipping restore for {}'.format(fqtn))
             continue
-        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth, not config.grpc.enabled)
+        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth, use_sudo)
 
     node_fqdn = storage.config.fqdn
     token_map_file = download_dir / 'tokenmap.json'
@@ -108,7 +109,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
-    if not config.grpc.enabled:
+    if not medusa.config.evaluate_boolean(config.grpc.enabled):
         if seeds is not None:
             wait_for_seeds(config, seeds)
         else:

@@ -29,6 +29,7 @@ import time
 import uuid
 import yaml
 import requests
+import medusa.config
 
 from subprocess import PIPE
 from retrying import retry
@@ -419,7 +420,7 @@ class Cassandra(object):
         # Eventually I think we will want to introduce an abstraction layer for Cassandra's
         # API that Medusa requires. There should be an implementation for using nodetool,
         # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
-        if self.grpc_config.enabled:
+        if medusa.config.evaluate_boolean(self.grpc_config.enabled):
             data = {
                 "type": "exec",
                 "mbean": "org.apache.cassandra.db:type=StorageService",
@@ -441,7 +442,7 @@ class Cassandra(object):
     def delete_snapshot(self, tag):
         cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
 
-        if self.grpc_config.enabled:
+        if medusa.config.evaluate_boolean(self.grpc_config.enabled):
             data = {
                 "type": "exec",
                 "mbean": "org.apache.cassandra.db:type=StorageService",
