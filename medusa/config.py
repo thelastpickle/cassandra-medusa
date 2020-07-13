@@ -23,6 +23,7 @@ import sys
 
 import medusa.storage
 import medusa.cassandra_utils
+from medusa.utils import evaluate_boolean
 
 StorageConfig = collections.namedtuple(
     'StorageConfig',
@@ -215,16 +216,6 @@ def load_config(args, config_file):
 
 def _zip_fields_with_arg_values(fields, args):
     return [(field, args[field]) for field in fields]
-
-
-def evaluate_boolean(value):
-    # same behaviour as python's configparser
-    if str(value).lower() in ('0', 'false', 'no', 'off'):
-        return False
-    elif str(value).lower() in ('1', 'true', 'yes', 'on'):
-        return True
-    else:
-        raise TypeError('{} not a boolean'.format(value))
 
 
 def _namedtuple_from_dict(cls, data):

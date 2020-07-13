@@ -23,6 +23,7 @@ import sys
 import time
 import uuid
 
+import medusa.utils
 from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_down
 from medusa.download import download_data
 from medusa.storage import Storage
@@ -81,14 +82,14 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
-    if not medusa.config.evaluate_boolean(config.grpc.enabled):
+    if not medusa.utils.evaluate_boolean(config.grpc.enabled):
         logging.info('Stopping Cassandra')
         cassandra.shutdown()
         wait_for_node_to_go_down(config, cassandra.hostname)
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    use_sudo = not medusa.config.evaluate_boolean(config.grpc.enabled)
+    use_sudo = not medusa.utils.evaluate_boolean(config.grpc.enabled)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
     clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
 
@@ -109,7 +110,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
-    if not medusa.config.evaluate_boolean(config.grpc.enabled):
+    if not medusa.utils.evaluate_boolean(config.grpc.enabled):
         if seeds is not None:
             wait_for_seeds(config, seeds)
         else:
@@ -165,7 +166,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
-    hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+    hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses))
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:

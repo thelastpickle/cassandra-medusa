@@ -15,6 +15,9 @@
 # limitations under the License.
 
 from gevent import monkey
+
+import medusa.utils
+
 monkey.patch_all()
 import datetime
 import logging
@@ -48,7 +51,7 @@ pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
 def configure_file_logging(config):
-    if not medusa.config.evaluate_boolean(config.enabled):
+    if not medusa.utils.evaluate_boolean(config.enabled):
         return
 
     logging.debug('Logging to file options: %s', config)
