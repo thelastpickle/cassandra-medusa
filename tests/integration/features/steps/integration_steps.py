@@ -230,6 +230,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
     context.session = connect_cassandra(is_client_encryption_enable)
 
+
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
     logging.info("Starting the tests")
@@ -342,7 +343,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
-def i_am_using_storage_provider(context, storage_provider, client_encryption):
+def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
     logging.info("Starting the tests")
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -505,6 +506,7 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
         = medusa.backup.main(context.medusa_config, backup_name, None, backup_mode)
     context.latest_backup_cache = node_backup_cache
+
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup_name):
