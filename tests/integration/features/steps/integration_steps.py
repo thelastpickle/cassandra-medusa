@@ -87,14 +87,13 @@ def cleanup_storage(context, storage_provider):
         for obj in objects:
             storage.storage_driver.delete_object(obj)
 
-class GRPCServer:
-    instance = None
 
+class GRPCServer:
     @staticmethod
     def init(config):
-        if GRPCServer.instance is None:
-            GRPCServer.instance = GRPCServer(config)
-            GRPCServer.instance.start()
+        server = GRPCServer(config)
+        server.start()
+        return server
 
     @staticmethod
     def destroy():
@@ -109,17 +108,9 @@ class GRPCServer:
         if os.path.isdir(os.path.join("/tmp", "medusa_grpc")):
             shutil.rmtree(os.path.join("/tmp", "medusa_grpc"))
 
-        GRPCServer.instance = None
-
     def __init__(self, config):
         self.config = config
-        self.config["grpc"] = {
-            "enabled": 1,
-            "cassandra_url": "http://127.0.0.1:8778/jolokia/",
-            "cwd": os.getcwd()
-        }
         self.medusa_conf_file = "/tmp/medusa_grpc/medusa.ini"
-        self.process = None
 
     def start(self):
         os.makedirs(os.path.join("/tmp", "medusa_grpc"))
@@ -127,7 +118,7 @@ class GRPCServer:
         with open(self.medusa_conf_file, "w") as config_file:
             self.config.write(config_file)
             cmd = ["python3", "-m", "medusa.service.grpc.server", "server.py", self.medusa_conf_file]
-            self.process = subprocess.Popen(cmd, cwd=os.path.abspath("../"))
+            subprocess.Popen(cmd, cwd=os.path.abspath("../"))
 
 
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
@@ -445,17 +436,18 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         "health_check": "cql"
     }
 
+    config["grpc"] = {
+        "enabled": 1,
+        "cassandra_url": "http://127.0.0.1:8778/jolokia/",
+    }
+
     GRPCServer.destroy()
-    GRPCServer.init(config)
+    context.grpc_server = GRPCServer.init(config)
 
     context.grpc_client = medusa.service.grpc.client.Client(
         "127.0.0.1:50051",
         channel_options=[('grpc.enable_retries', 0)]
     )
-
-    config["grpc"] = {
-        "enabled": "0"
-    }
 
     context.medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
