@@ -515,5 +515,19 @@ Feature: Integration tests
 
         @gcs
         Examples: Google Cloud Storage
+
+    @16
+    Scenario Outline: Perform a differential backup over gRPC and verify its index
+        Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario16"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
+        Then the backup index exists
+        Then I can see the backup index entry for "grpc_backup"
+        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
+
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |

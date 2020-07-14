@@ -4,18 +4,17 @@ import sys
 import time
 from collections import defaultdict
 from concurrent import futures
+from datetime import datetime
 from pathlib import Path
 
 import grpc
 import grpc_health.v1.health
+from grpc_health.v1 import health_pb2_grpc
 
 import medusa.backup
 import medusa.config
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
-from grpc_health.v1 import health_pb2_grpc
-from datetime import datetime
-
 from medusa.storage import Storage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -31,8 +30,13 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
     def Backup(self, request, context):
         logging.info("Performing backup {}".format(request.name))
         # TODO pass the staggered and mode args
-        medusa.backup.main(self.config, request.name, None, "differential")
-        return medusa_pb2.BackupResponse()
+        try:
+            medusa.backup.main(self.config, request.name, None, "differential")
+            return medusa_pb2.BackupResponse()
+        except Exception:
+            resp = medusa_pb2.BackupResponse()
+            logging.exception("backup failed")
+            return resp
 
     def BackupStatus(self, request, context):
         try:
