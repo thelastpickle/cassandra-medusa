@@ -23,6 +23,7 @@ import psutil
 import sys
 import time
 import traceback
+import medusa.utils
 
 from libcloud.storage.providers import Provider
 from retrying import retry
@@ -220,9 +221,14 @@ def main(config, backup_name_arg, stagger_time, mode):
     except Exception as e:
         tags = ['medusa-node-backup', 'backup-error', backup_name]
         monitoring.send(tags, 1)
-        logging.error('This error happened during the backup: {}'.format(str(e)))
-        traceback.print_exc()
-        sys.exit(1)
+        if medusa.utils.evaluate_boolean(config.grpc):
+            # Propagate the exception when running gRPC server so that exception/error
+            # details can be sent back to client.
+            raise e
+        else:
+            logging.error('This error happened during the backup: {}'.format(str(e)))
+            traceback.print_exc()
+            sys.exit(1)
 
 
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
