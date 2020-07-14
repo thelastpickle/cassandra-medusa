@@ -26,4 +26,3 @@ class Client:
 
         request = medusa_pb2.BackupRequest(name=name, mode=backup_mode)
         return stub.Backup(request)
-
