@@ -221,7 +221,7 @@ def main(config, backup_name_arg, stagger_time, mode):
     except Exception as e:
         tags = ['medusa-node-backup', 'backup-error', backup_name]
         monitoring.send(tags, 1)
-        if medusa.utils.evaluate_boolean(config.grpc):
+        if medusa.utils.evaluate_boolean(config.grpc.enabled):
             # Propagate the exception when running gRPC server so that exception/error
             # details can be sent back to client.
             raise e
