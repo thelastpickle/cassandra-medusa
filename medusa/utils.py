@@ -16,8 +16,6 @@ import logging
 import sys
 import traceback
 
-import medusa.monitoring
-
 
 def evaluate_boolean(value):
     # same behaviour as python's configparser
@@ -29,9 +27,8 @@ def evaluate_boolean(value):
         raise TypeError('{} not a boolean'.format(value))
 
 
-def handle_exception(exception, msg, tags, config):
-    medusa.monitoring.send(tags, 1)
-    if medusa.utils.evaluate_boolean(config.grpc.enabled):
+def handle_exception(exception, msg, config):
+    if evaluate_boolean(config.grpc.enabled):
         # Propagate the exception when running gRPC server so that exception/error
         # details can be sent back to client.
         raise exception

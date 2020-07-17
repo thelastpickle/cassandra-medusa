@@ -514,6 +514,16 @@ def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup
     context.grpc_client.backup(backup_name, backup_mode)
 
 
+@then(r'I delete the backup {backup_name} over gRPC')
+def _i_delete_backup_grpc(context, backup_name):
+    context.grpc_client.delete_backup(backup_name)
+
+
+@then(r'I verify over gRPC the backup {backup_name} does not exist')
+def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
+    assert not context.grpc_client.backup_exists(backup_name)
+
+
 @then(r'the gRPC server is up')
 def _check_grpc_server_is_up(context):
     resp = context.grpc_client.health_check()

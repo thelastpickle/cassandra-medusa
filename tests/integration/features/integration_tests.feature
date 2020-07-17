@@ -517,7 +517,7 @@ Feature: Integration tests
         Examples: Google Cloud Storage
 
     @16
-    Scenario Outline: Perform a differential backup over gRPC and verify its index
+    Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario16"
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
         Then the gRPC server is up
@@ -528,6 +528,9 @@ Feature: Integration tests
         Then the backup index exists
         Then I can see the backup index entry for "grpc_backup"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
-
+        Then I delete the backup "grpc_backup" over gRPC
+        Then I verify over gRPC the backup "grpc_backup" does not exist
+        @local
+        Examples: Local storage
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |

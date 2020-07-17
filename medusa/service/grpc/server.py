@@ -40,10 +40,10 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             return resp
 
     def BackupStatus(self, request, context):
+        response = medusa_pb2.BackupStatusResponse()
         try:
-            backup = self.storage.get_cluster_backup(request.name)
+            backup = self.storage.get_cluster_backup(request.backupName)
 
-            response = medusa_pb2.BackupStatusResponse()
             # TODO how is the startTime determined?
             response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
             response.finishedNodes = [node.fqdn for node in backup.complete_nodes()]
@@ -57,7 +57,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
             return response
         except KeyError:
-            raise Exception("backup <{}> does not exist".format(request.name))
+            context.set_details("backup <{}> does not exist".format(request.backupName))
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            return response
 
     def DeleteBackup(self, request, context):
         logging.info("Deleting backup {}".format(request.name))
