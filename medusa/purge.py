@@ -21,6 +21,7 @@ import traceback
 
 from datetime import datetime, timedelta
 
+import medusa.utils
 from medusa.index import clean_backup_from_index
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
@@ -199,8 +200,11 @@ def delete_backup(config, backup_name, all_nodes):
         tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
         monitoring.send(tags, 0)
     except Exception as e:
-        traceback.print_exc()
         tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
         monitoring.send(tags, 1)
-        logging.error('This error happened during the delete of backup "{}": {}'.format(backup_name, str(e)))
-        sys.exit(1)
+        if medusa.utils.evaluate_boolean(config.grpc.enabled):
+            raise e
+        else:
+            traceback.print_exc()
+            logging.error('This error happened during the delete of backup "{}": {}'.format(backup_name, str(e)))
+            sys.exit(1)

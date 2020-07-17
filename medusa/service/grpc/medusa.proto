@@ -4,6 +4,8 @@ service Medusa {
     rpc Backup(BackupRequest) returns (BackupResponse);
 
     rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse);
+
+    rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
 }
 
 message BackupRequest {
@@ -29,4 +31,11 @@ message BackupStatusResponse {
     repeated string missingNodes = 3;
     string startTime = 4;
     string finishTime = 5;
+}
+
+message DeleteBackupRequest {
+    string name = 1;
+}
+
+message DeleteBackupResponse {
 }
