@@ -26,3 +26,20 @@ class Client:
 
         request = medusa_pb2.BackupRequest(name=name, mode=backup_mode)
         return stub.Backup(request)
+
+    def delete_backup(self, name):
+        stub = medusa_pb2_grpc.MedusaStub(self.channel)
+        request = medusa_pb2.DeleteBackupRequest(name=name)
+        stub.DeleteBackup(request)
+
+    def backup_exists(self, name):
+        stub = medusa_pb2_grpc.MedusaStub(self.channel)
+        try:
+            request = medusa_pb2.BackupStatusRequest(backupName=name)
+            response = stub.BackupStatus(request)
+            return True
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                return False
+            raise e
+
