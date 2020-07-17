@@ -200,11 +200,10 @@ def delete_backup(config, backup_name, all_nodes):
         tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
         monitoring.send(tags, 0)
     except Exception as e:
-        tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
-        monitoring.send(tags, 1)
-        if medusa.utils.evaluate_boolean(config.grpc.enabled):
-            raise e
-        else:
-            traceback.print_exc()
-            logging.error('This error happened during the delete of backup "{}": {}'.format(backup_name, str(e)))
-            sys.exit(1)
+        medusa.utils.handle_exception(
+            e,
+            'This error happened during the delete of backup "{}": {}'.format(backup_name, str(e)),
+            ['medusa-node-backup', 'delete-error', 'DELETE-ERROR'],
+            config
+        )
+
