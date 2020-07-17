@@ -206,4 +206,3 @@ def delete_backup(config, backup_name, all_nodes):
             ['medusa-node-backup', 'delete-error', 'DELETE-ERROR'],
             config
         )
-

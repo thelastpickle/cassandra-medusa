@@ -18,6 +18,7 @@ import traceback
 
 import medusa.monitoring
 
+
 def evaluate_boolean(value):
     # same behaviour as python's configparser
     if str(value).lower() in ('0', 'false', 'no', 'off'):

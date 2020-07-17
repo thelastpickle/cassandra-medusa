@@ -19,21 +19,20 @@ import json
 import logging
 import os
 import pathlib
-import psutil
-import sys
 import time
 import traceback
-import medusa.utils
 
+import psutil
 from libcloud.storage.providers import Provider
 from retrying import retry
 
+import medusa.utils
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
-from medusa.storage.s3_storage import is_aws_s3
-from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
 from medusa.storage import Storage, format_bytes_str, ManifestObject, divide_chunks
+from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.storage.s3_storage import is_aws_s3
 
 
 class NodeBackupCache(object):
