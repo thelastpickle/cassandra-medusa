@@ -13,6 +13,7 @@ from grpc_health.v1 import health_pb2_grpc
 
 import medusa.backup
 import medusa.config
+import medusa.purge
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -57,6 +58,16 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             return response
         except KeyError:
             raise Exception("backup <{}> does not exist".format(request.name))
+
+    def DeleteBackup(self, request, context):
+        logging.info("Deleting backup {}".format(request.name))
+        resp = medusa_pb2.DeleteBackupResponse()
+        try:
+            medusa.purge.delete_backup(self.config, request.name, True)
+            return resp
+        except Exception:
+            logging.exception("Deleting backup {} failed".format(request.name))
+            return resp
 
 
 def create_config(config_file_path):

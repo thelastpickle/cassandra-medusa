@@ -18,7 +18,8 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"\x10\n\x0e\x42\x61\x63kupResponse\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\x83\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t2p\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponseb\x06proto3'
+  create_key=_descriptor._internal_create_key,
+  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"\x10\n\x0e\x42\x61\x63kupResponse\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\x83\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"\x16\n\x14\x44\x65leteBackupResponse2\xad\x01\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponseb\x06proto3'
 )
 
 
@@ -28,15 +29,18 @@ _BACKUPREQUEST_MODE = _descriptor.EnumDescriptor(
   full_name='BackupRequest.Mode',
   filename=None,
   file=DESCRIPTOR,
+  create_key=_descriptor._internal_create_key,
   values=[
     _descriptor.EnumValueDescriptor(
       name='DIFFERENTIAL', index=0, number=0,
       serialized_options=None,
-      type=None),
+      type=None,
+      create_key=_descriptor._internal_create_key),
     _descriptor.EnumValueDescriptor(
       name='FULL', index=1, number=1,
       serialized_options=None,
-      type=None),
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
@@ -52,6 +56,7 @@ _BACKUPREQUEST = _descriptor.Descriptor(
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
+  create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
       name='name', full_name='BackupRequest.name', index=0,
@@ -59,14 +64,14 @@ _BACKUPREQUEST = _descriptor.Descriptor(
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='mode', full_name='BackupRequest.mode', index=1,
       number=2, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -91,6 +96,7 @@ _BACKUPRESPONSE = _descriptor.Descriptor(
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
+  create_key=_descriptor._internal_create_key,
   fields=[
   ],
   extensions=[
@@ -115,6 +121,7 @@ _BACKUPSTATUSREQUEST = _descriptor.Descriptor(
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
+  create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
       name='backupName', full_name='BackupStatusRequest.backupName', index=0,
@@ -122,7 +129,7 @@ _BACKUPSTATUSREQUEST = _descriptor.Descriptor(
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -146,6 +153,7 @@ _BACKUPSTATUSRESPONSE = _descriptor.Descriptor(
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
+  create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
       name='finishedNodes', full_name='BackupStatusResponse.finishedNodes', index=0,
@@ -153,35 +161,35 @@ _BACKUPSTATUSRESPONSE = _descriptor.Descriptor(
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='unfinishedNodes', full_name='BackupStatusResponse.unfinishedNodes', index=1,
       number=2, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='missingNodes', full_name='BackupStatusResponse.missingNodes', index=2,
       number=3, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='startTime', full_name='BackupStatusResponse.startTime', index=3,
       number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
       name='finishTime', full_name='BackupStatusResponse.finishTime', index=4,
       number=5, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -198,12 +206,71 @@ _BACKUPSTATUSRESPONSE = _descriptor.Descriptor(
   serialized_end=311,
 )
 
+
+_DELETEBACKUPREQUEST = _descriptor.Descriptor(
+  name='DeleteBackupRequest',
+  full_name='DeleteBackupRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='name', full_name='DeleteBackupRequest.name', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=313,
+  serialized_end=348,
+)
+
+
+_DELETEBACKUPRESPONSE = _descriptor.Descriptor(
+  name='DeleteBackupResponse',
+  full_name='DeleteBackupResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=350,
+  serialized_end=372,
+)
+
 _BACKUPREQUEST.fields_by_name['mode'].enum_type = _BACKUPREQUEST_MODE
 _BACKUPREQUEST_MODE.containing_type = _BACKUPREQUEST
 DESCRIPTOR.message_types_by_name['BackupRequest'] = _BACKUPREQUEST
 DESCRIPTOR.message_types_by_name['BackupResponse'] = _BACKUPRESPONSE
 DESCRIPTOR.message_types_by_name['BackupStatusRequest'] = _BACKUPSTATUSREQUEST
 DESCRIPTOR.message_types_by_name['BackupStatusResponse'] = _BACKUPSTATUSRESPONSE
+DESCRIPTOR.message_types_by_name['DeleteBackupRequest'] = _DELETEBACKUPREQUEST
+DESCRIPTOR.message_types_by_name['DeleteBackupResponse'] = _DELETEBACKUPRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 BackupRequest = _reflection.GeneratedProtocolMessageType('BackupRequest', (_message.Message,), {
@@ -234,6 +301,20 @@ BackupStatusResponse = _reflection.GeneratedProtocolMessageType('BackupStatusRes
   })
 _sym_db.RegisterMessage(BackupStatusResponse)
 
+DeleteBackupRequest = _reflection.GeneratedProtocolMessageType('DeleteBackupRequest', (_message.Message,), {
+  'DESCRIPTOR' : _DELETEBACKUPREQUEST,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:DeleteBackupRequest)
+  })
+_sym_db.RegisterMessage(DeleteBackupRequest)
+
+DeleteBackupResponse = _reflection.GeneratedProtocolMessageType('DeleteBackupResponse', (_message.Message,), {
+  'DESCRIPTOR' : _DELETEBACKUPRESPONSE,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:DeleteBackupResponse)
+  })
+_sym_db.RegisterMessage(DeleteBackupResponse)
+
 
 
 _MEDUSA = _descriptor.ServiceDescriptor(
@@ -242,8 +323,9 @@ _MEDUSA = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=313,
-  serialized_end=425,
+  create_key=_descriptor._internal_create_key,
+  serialized_start=375,
+  serialized_end=548,
   methods=[
   _descriptor.MethodDescriptor(
     name='Backup',
@@ -253,6 +335,7 @@ _MEDUSA = _descriptor.ServiceDescriptor(
     input_type=_BACKUPREQUEST,
     output_type=_BACKUPRESPONSE,
     serialized_options=None,
+    create_key=_descriptor._internal_create_key,
   ),
   _descriptor.MethodDescriptor(
     name='BackupStatus',
@@ -262,6 +345,17 @@ _MEDUSA = _descriptor.ServiceDescriptor(
     input_type=_BACKUPSTATUSREQUEST,
     output_type=_BACKUPSTATUSRESPONSE,
     serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='DeleteBackup',
+    full_name='Medusa.DeleteBackup',
+    index=2,
+    containing_service=None,
+    input_type=_DELETEBACKUPREQUEST,
+    output_type=_DELETEBACKUPRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
   ),
 ])
 _sym_db.RegisterServiceDescriptor(_MEDUSA)
