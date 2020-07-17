@@ -36,4 +36,3 @@ def handle_exception(exception, msg, config):
         logging.error(msg)
         traceback.print_exc()
         sys.exit(1)
-
