@@ -36,10 +36,9 @@ class Client:
         stub = medusa_pb2_grpc.MedusaStub(self.channel)
         try:
             request = medusa_pb2.BackupStatusRequest(backupName=name)
-            response = stub.BackupStatus(request)
+            stub.BackupStatus(request)
             return True
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 return False
             raise e
-
