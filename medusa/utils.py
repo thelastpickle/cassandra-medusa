@@ -12,7 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
+import sys
+import traceback
 
+import medusa.monitoring
 
 def evaluate_boolean(value):
     # same behaviour as python's configparser
@@ -22,3 +26,16 @@ def evaluate_boolean(value):
         return True
     else:
         raise TypeError('{} not a boolean'.format(value))
+
+
+def handle_exception(exception, msg, tags, config):
+    medusa.monitoring.send(tags, 1)
+    if medusa.utils.evaluate_boolean(config.grpc.enabled):
+        # Propagate the exception when running gRPC server so that exception/error
+        # details can be sent back to client.
+        raise exception
+    else:
+        logging.error(msg)
+        traceback.print_exc()
+        sys.exit(1)
+

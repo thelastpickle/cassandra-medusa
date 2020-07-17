@@ -219,17 +219,12 @@ def main(config, backup_name_arg, stagger_time, mode):
         return (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
 
     except Exception as e:
-        tags = ['medusa-node-backup', 'backup-error', backup_name]
-        monitoring.send(tags, 1)
-        if medusa.utils.evaluate_boolean(config.grpc.enabled):
-            # Propagate the exception when running gRPC server so that exception/error
-            # details can be sent back to client.
-            raise e
-        else:
-            logging.error('This error happened during the backup: {}'.format(str(e)))
-            traceback.print_exc()
-            sys.exit(1)
-
+        medusa.utils.handle_exception(
+            e,
+            "This error happened during the backup: {}".format(str(e)),
+            ['medusa-node-backup', 'backup-error', backup_name],
+            config
+        )
 
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
 # attempt on which it waited for 60 seconds
