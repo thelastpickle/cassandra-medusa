@@ -40,7 +40,7 @@ Feature: Integration tests
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I restore the backup named "first_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        
+
         @local
         Examples: Local storage
         | storage           | client encryption |
@@ -512,3 +512,8 @@ Feature: Integration tests
         Examples: S3 storage
         | storage           | client encryption |
         | s3_us_west_oregon     |  without_client_encryption |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           | client encryption |
+        | google_storage      |  without_client_encryption |
