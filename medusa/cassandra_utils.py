@@ -607,7 +607,8 @@ def is_node_up(config, host):
         cassandra = Cassandra(config.cassandra)
         native_port = cassandra.native_port
         rpc_port = cassandra.rpc_port
-        args = ['nc', '-zv', host]
+        nc_timeout = 10
+        args = ['timeout', str(nc_timeout), 'nc', '-zv', host]
         if health_check == 'thrift':
             return is_cassandra_up(args, rpc_port)
         elif health_check == 'all':
