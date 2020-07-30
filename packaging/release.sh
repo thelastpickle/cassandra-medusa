@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-#set -x
+# Run from packaging folder with `./release.sh`
+
+set -xe
+
+# Install dependency if not installed
+which bump2version || pip3 install bump2version
 
 cd ..
 initial_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -54,8 +59,8 @@ then
     changelog_updated="y"
 fi
 
-version_exists=$(cat debian/changelog | grep "($RELEASE_VERSION)")
-if [ "$?" -eq "1" ]
+version_exists=$(cat debian/changelog | grep "($RELEASE_VERSION)" || echo "")
+if [ -z "$version_exists" ]
 then
     echo "Updating debian changelog..."
     cd packaging/docker-build
@@ -70,7 +75,7 @@ then
 fi
 
 git tag -a v$RELEASE_VERSION -m "Release v$RELEASE_VERSION"
-git push -u origin my-branch --follow-tags
+git push -u origin $release_branch --follow-tags
 git push origin v$RELEASE_VERSION
 
 # post release work
