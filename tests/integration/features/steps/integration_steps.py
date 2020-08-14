@@ -513,6 +513,17 @@ def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup
     context.grpc_client.backup(backup_name, backup_mode)
 
 
+@then(r'I verify over gRPC that the backup "{backup_name}" exists')
+def _i_verify_over_grpc_backup_exists(context, backup_name):
+    found = False
+    backups = context.grpc_client.get_backups()
+    for backup in backups:
+        if backup.backupName == backup_name:
+            found = True
+            break
+    assert found is True
+
+
 @then(r'I delete the backup {backup_name} over gRPC')
 def _i_delete_backup_grpc(context, backup_name):
     context.grpc_client.delete_backup(backup_name)

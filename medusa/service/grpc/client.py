@@ -32,6 +32,12 @@ class Client:
         request = medusa_pb2.DeleteBackupRequest(name=name)
         stub.DeleteBackup(request)
 
+    def get_backups(self):
+        stub = medusa_pb2_grpc.MedusaStub(self.channel)
+        request = medusa_pb2.GetBackupsRequest()
+        response = stub.GetBackups(request)
+        return response.backups
+
     def backup_exists(self, name):
         stub = medusa_pb2_grpc.MedusaStub(self.channel)
         try:
