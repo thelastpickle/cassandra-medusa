@@ -14,6 +14,7 @@ from grpc_health.v1 import health_pb2_grpc
 import medusa.backup
 import medusa.config
 import medusa.purge
+import medusa.listing
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -59,6 +60,25 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
+            return response
+
+    def GetBackups(self, request, context):
+        response = medusa_pb2.GetBackupsResponse()
+        try:
+            backups = medusa.listing.get_backups(self.config, True)
+            for backup in backups:
+                summary = medusa_pb2.BackupSummary()
+                summary.backupName = backup.name
+                summary.startTime = backup.started
+                summary.finishTime = backup.finished
+                summary.totalNodes = len(backup.tokenmap)
+                summary.finishedNodes = len(backup.complete_nodes())
+                response.backups.append(summary)
+
+            return response
+        except Exception as e:
+            context.set_details("failed to get backups: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
             return response
 
     def DeleteBackup(self, request, context):

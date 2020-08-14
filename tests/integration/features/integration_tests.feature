@@ -526,6 +526,7 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
         Then the backup index exists
+        Then I verify over gRPC that the backup "grpc_backup" exists
         Then I can see the backup index entry for "grpc_backup"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
         Then I delete the backup "grpc_backup" over gRPC
