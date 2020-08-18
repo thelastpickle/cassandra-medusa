@@ -69,8 +69,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             for backup in backups:
                 summary = medusa_pb2.BackupSummary()
                 summary.backupName = backup.name
-                summary.startTime = backup.started
-                summary.finishTime = backup.finished
+                if backup.started is None:
+                    summary.starTime = 0
+                else:
+                    summary.startTime = backup.started
+                if backup.finished is None:
+                    summary.finishTime = 0
+                else:
+                    summary.finishTime = backup.finished
                 summary.totalNodes = len(backup.tokenmap)
                 summary.finishedNodes = len(backup.complete_nodes())
                 response.backups.append(summary)
