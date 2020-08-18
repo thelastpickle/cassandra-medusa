@@ -515,6 +515,8 @@ Feature: Integration tests
 
         @gcs
         Examples: Google Cloud Storage
+        | storage           | client encryption |
+        | google_storage      |  without_client_encryption |
 
     @16
     Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC
@@ -531,7 +533,8 @@ Feature: Integration tests
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
         Then I delete the backup "grpc_backup" over gRPC
         Then I verify over gRPC the backup "grpc_backup" does not exist
+
         @local
         Examples: Local storage
         | storage           | client encryption |
-        | google_storage      |  without_client_encryption |
+        | local      |  with_client_encryption |
