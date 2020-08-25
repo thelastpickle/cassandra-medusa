@@ -607,7 +607,8 @@ def is_node_up(config, host):
         cassandra = Cassandra(config.cassandra)
         native_port = cassandra.native_port
         rpc_port = cassandra.rpc_port
-        args = ['nc', '-zv', host]
+        nc_timeout = 10
+        args = ['timeout', str(nc_timeout), 'nc', '-zv', host]
         if health_check == 'thrift':
             return is_cassandra_up(args, rpc_port)
         elif health_check == 'all':
@@ -631,8 +632,9 @@ def is_ccm_up(args, nodetool_command):
 def is_cassandra_up(args, port):
     try:
         args.append(port)
-        output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
-        return output.find('succeeded') >= 0
+        subprocess.check_call(args)
+        # check_call returns if call succeeded (returncode is 0). If not exception is triggered
+        return True
     except subprocess.CalledProcessError:
         logging.debug('The node is not up yet')
         return False

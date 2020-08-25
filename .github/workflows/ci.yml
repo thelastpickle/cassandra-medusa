@@ -28,9 +28,9 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-venv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-venv-${{ matrix.tox-py }}-
+          ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python3 -m venv venv
@@ -54,7 +54,7 @@ jobs:
     strategy:
         matrix:
           python-version: [3.5, 3.6]
-          it-backend: [local, s3]
+          it-backend: [local, s3, gcs]
           include:
             - python-version: 3.5
               tox-py: py35
@@ -75,9 +75,9 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-venv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-venv-${{ matrix.tox-py }}-
+          ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python3 -m venv venv
@@ -90,9 +90,11 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_KEY }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
-        if [[ ( ! -z "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || "${{ matrix.it-backend }}" == "local" ]];
+        if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || ( "${{ matrix.it-backend }}" == "local" ) || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) ]];
         then
           . venv/bin/activate
+          # Write GCS service account credentials to a file
+          echo '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' > ~/medusa_credentials.json
           # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
           ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
           ccm node1 updateconf 'storage_port: 7011'
@@ -108,6 +110,9 @@ jobs:
           if [ "${{ matrix.it-backend }}" == "s3" ]
           then
             ./run_integration_tests.sh -v --s3 --no-local
+          elif [ "${{ matrix.it-backend }}" == "gcs" ]
+          then
+            ./run_integration_tests.sh -v --gcs --no-local
           else
             ./run_integration_tests.sh -v
           fi
