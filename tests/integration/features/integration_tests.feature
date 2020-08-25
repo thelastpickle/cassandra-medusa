@@ -40,7 +40,7 @@ Feature: Integration tests
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I restore the backup named "first_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        
+
         @local
         Examples: Local storage
         | storage           | client encryption |
@@ -66,11 +66,11 @@ Feature: Integration tests
         When I perform a backup in "full" mode of the node named "second_backup"
         Then the backup index exists
         Then I can see the backup index entry for "second_backup"
-        Then I can see the latest backup for "localhost" being called "second_backup"
+        Then I can see the latest backup for "127.0.0.1" being called "second_backup"
         When I perform a backup in "full" mode of the node named "third_backup"
         Then I can see the backup index entry for "second_backup"
         Then I can see the backup index entry for "third_backup"
-        Then I can see the latest backup for "localhost" being called "third_backup"
+        Then I can see the latest backup for "127.0.0.1" being called "third_backup"
         Then I can report latest backups without errors
         @local
         Examples: Local storage
@@ -91,16 +91,16 @@ Feature: Integration tests
     Scenario Outline: Perform a backup and verify the latest backup is updated correctly
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario3"
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
-        Then there is no latest backup for node "localhost"
+        Then there is no latest backup for node "127.0.0.1"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "full" mode of the node named "fourth_backup"
-        Then I can see the latest backup for "localhost" being called "fourth_backup"
+        Then I can see the latest backup for "127.0.0.1" being called "fourth_backup"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "full" mode of the node named "fifth_backup"
-        Then I can see the latest backup for "localhost" being called "fifth_backup"
+        Then I can see the latest backup for "127.0.0.1" being called "fifth_backup"
         @local
         Examples: Local storage
         | storage           | client encryption |
@@ -512,3 +512,8 @@ Feature: Integration tests
         Examples: S3 storage
         | storage           | client encryption |
         | s3_us_west_oregon     |  without_client_encryption |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage           | client encryption |
+        | google_storage      |  without_client_encryption |
