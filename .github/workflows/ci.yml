@@ -28,9 +28,9 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-
+          ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python3 -m venv venv
@@ -75,9 +75,9 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-virtualenv-${{ matrix.tox-py }}-
+          ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python3 -m venv venv

@@ -92,7 +92,6 @@ class CqlSessionProvider(object):
         if retry:
             max_retries = 5
             attempts = 0
-            delay = 5
 
             while attempts < max_retries:
                 try:
@@ -100,6 +99,7 @@ class CqlSessionProvider(object):
                     return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
                 except Exception as e:
                     logging.debug('Failed to create session', exc_info=e)
+                delay = 5 * (2 ** (attempts + 1))
                 time.sleep(delay)
                 attempts = attempts + 1
             raise Exception('Could not establish CQL session after {attempts}'.format(attempts=attempts))
@@ -540,15 +540,18 @@ class Cassandra(object):
                 cassandra_yaml.write('\nauto_bootstrap: false')
 
 
-def wait_for_node_to_come_up(config, host, retries=10, delay=6):
+def wait_for_node_to_come_up(config, host, retries=7, delay=5):
     logging.info('Waiting for Cassandra to come up on %s', host)
-    check_function = is_node_up
+
+    def check_function(config, host):
+        return is_node_up(config, host)
+
     if not _wait_for_node(config, host, check_function, retries, delay):
         raise CassandraNodeNotUpError(host, retries)
     logging.info('Cassandra is up on %s', host)
 
 
-def wait_for_node_to_go_down(config, host, retries=10, delay=6):
+def wait_for_node_to_go_down(config, host, retries=7, delay=5):
     logging.info('Waiting for Cassandra to go down on %s', host)
 
     def check_function(config, host):
@@ -575,8 +578,9 @@ def _wait_for_node(config, host, check_function, retries, delay):
         if check_function(config, host):
             return True
         else:
-            time.sleep(delay)
             attempts = attempts + 1
+            delay = delay * (2 ** attempts)
+            time.sleep(delay)
 
     return False
 
@@ -622,10 +626,17 @@ def is_ccm_up(args, nodetool_command):
     try:
         args.append(nodetool_command)
         output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
-        return output.find('running') >= 0
+        # ccm returns either 'running' or 'not running'.
+        # Testing on finding 'running' is not enough!
+        if output.find('not running') == -1 and output.find('running') >= 0:
+            logging.debug('CCM native transport is now up')
+            return True
+        else:
+            logging.debug('CCM native transport is not up yet')
+            return False
     except subprocess.CalledProcessError as e:
         # logging.debug('The native transport is not up yet %s', logging_suffix)
-        logging.debug('The native transport is not up yet', exc_info=e)
+        logging.debug('CCM native transport is not up yet', exc_info=e)
         return False
 
 
