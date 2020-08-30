@@ -110,6 +110,8 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
+    #
+    # In a Kubernetes 
     if not medusa.utils.evaluate_boolean(config.grpc.enabled):
         if seeds is not None:
             wait_for_seeds(config, seeds)
@@ -125,7 +127,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
             cassandra.start(tokens)
 
     # Clean the restored data from local temporary folder
-    clean_path(download_dir, keep_folder=False)
+    clean_path(download_dir, use_sudo, keep_folder=False)
     return node_backup
 
 
