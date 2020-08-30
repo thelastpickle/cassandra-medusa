@@ -111,7 +111,9 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     # possibly wait for seeds
     #
-    # In a Kubernetes 
+    # In a Kubernetes deployment we can assume that seed nodes will be started first. It will
+    # handled either by the statefulset controller or by the controller of a Cassandra
+    # operator.
     if not medusa.utils.evaluate_boolean(config.grpc.enabled):
         if seeds is not None:
             wait_for_seeds(config, seeds)
