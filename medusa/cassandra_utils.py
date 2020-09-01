@@ -34,7 +34,6 @@ from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
 from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
-from medusa.config import evaluate_boolean
 from medusa.network.hostname_resolver import HostnameResolver
 
 
@@ -136,7 +135,7 @@ class CqlSession(object):
 
     def __init__(self, session, resolve_ip_addresses=True):
         self._session = session
-        self.hostname_resolver = HostnameResolver(evaluate_boolean(resolve_ip_addresses))
+        self.hostname_resolver = HostnameResolver(resolve_ip_addresses)
 
     def __enter__(self):
         return self

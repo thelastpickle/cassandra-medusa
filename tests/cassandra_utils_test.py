@@ -38,7 +38,7 @@ class CassandraUtilsTest(unittest.TestCase):
             'host_file_separator': ','
         }
         config['cassandra'] = {
-            'resolve_ip_addresses': '0'
+            'resolve_ip_addresses': False
         }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
