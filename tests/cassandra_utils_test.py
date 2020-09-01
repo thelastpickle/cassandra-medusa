@@ -38,12 +38,12 @@ class CassandraUtilsTest(unittest.TestCase):
             'host_file_separator': ','
         }
         config['cassandra'] = {
-            'resolve_ip_addresses': False
+            'resolve_ip_addresses': '0'
         }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
-            cassandra=_namedtuple_from_dict(StorageConfig, config['cassandra']),
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
             logging=None
@@ -59,7 +59,7 @@ class CassandraUtilsTest(unittest.TestCase):
         session.cluster.metadata.token_map.token_to_host_owner = {
             Murmur3Token(-9): host
         }
-        s = CqlSession(session, resolve_ip_addresses=False)
+        s = CqlSession(session, resolve_ip_addresses=self.config.cassandra.resolve_ip_addresses)
         token_map = s.tokenmap()
         self.assertEqual(
             {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
