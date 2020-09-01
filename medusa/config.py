@@ -164,8 +164,9 @@ def load_config(args, config_file):
         if value is not None
     }})
 
-    if config['storage']['fqdn'] == socket.getfqdn() \
-            and not evaluate_boolean(config['cassandra']['resolve_ip_addresses']):
+    resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
+    config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
+    if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
         # Use the ip address instead of the fqdn when DNS resolving is turned off
         config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
 
