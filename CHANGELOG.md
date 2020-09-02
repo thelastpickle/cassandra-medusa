@@ -2,6 +2,7 @@
 
 ### 0.7.2 (TBD)
 - Fixed flakey tests (@adejanovski / @arodrime)
+- Avoid double purge (through count + age) of the same backup (@arodrime)
 
 ### 0.7.1 (2020/07/30 11:12 +00:00)
 - Add a timeout for nc checks - node_up? (@arodrime)
