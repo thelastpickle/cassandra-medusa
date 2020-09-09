@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.7.2 (TBD)
+- Fixed flakey tests (@adejanovski / @arodrime)
+
 ### 0.7.1 (2020/07/30 11:12 +00:00)
 - Add a timeout for nc checks - node_up? (@arodrime)
 - Do not rely on nc command output, use returncode instead (@arodrime)
