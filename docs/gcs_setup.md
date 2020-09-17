@@ -5,7 +5,16 @@ Google Cloud Storage setup
 
 In order to perform backups in GCS, Medusa will need to use a service account [with appropriate permissions](permissions-setup.md).
 
-Using the [Google Cloud SDK](https://cloud.google.com/sdk/install), run the following command to create the `MedusaStorageRole` (set the `$GCP_PROJECT` env variable appropriately):  
+You will need the following variables to be set for this setup:
+
+```
+GCP_PROJECT=my-project                 # GCP project the bucket belongs to
+LOCATION=my-location                   # for example: us-west1
+BUCKET_URL=gs://my-bucket
+SERVICE_ACCOUNT_NAME=my-sa-for-medusa  # Without "@my-project.iam.gserviceaccount.com"  
+```
+
+Using the [Google Cloud SDK](https://cloud.google.com/sdk/install), run the following command to create the `MedusaStorageRole`.  
 
 ```
 gcloud iam roles create MedusaStorageRole \
@@ -18,7 +27,7 @@ gcloud iam roles create MedusaStorageRole \
 
 ### Create a GCS bucket
 
-Create a bucket for each Cassandra cluster, using the following command line (set the env variables appropriately):
+Create a bucket for each Cassandra cluster, using the following command line:
 
 ```
 gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
@@ -32,14 +41,17 @@ Create the service account (if it doesn't exist yet):
 
 ```
 gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
-``` 
+```
 
 ### Configure the service account with the role
 
 Once the service account has been created, and considering [jq](https://stedolan.github.io/jq/) is installed, run the following command to add the `MedusaStorageRole` to it, for our backup bucket:
 
 ```
-gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaStorageRole\"}]") ${BUCKET_URL}
+iamGetFile=$(mktemp) && \
+gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaStorageRole\"}]" > "${iamGetFile}" && \
+gsutil iam set ${iamGetFile} ${BUCKET_URL} && \
+rm -rf ${iamGetFile}
 ```
 
 ### Configure Medusa
@@ -54,6 +66,8 @@ Place this file on all Cassandra nodes running medusa under `/etc/medusa` and se
 Set the `key_file` value in the `[storage]` section of `/etc/medusa/medusa.ini` to the credentials file:  
 
 ```
+[storage]
+storage_provider = google_storage
 bucket_name = my_gcs_bucket
 key_file = /etc/medusa/credentials.json
 ```
