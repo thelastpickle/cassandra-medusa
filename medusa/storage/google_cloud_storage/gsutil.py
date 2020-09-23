@@ -96,6 +96,7 @@ class GSUtil(object):
                                                stderr=subprocess.STDOUT,
                                                universal_newlines=True)
                 for src in srcs:
+                    logging.debug("Uploading {}".format(str(src)))
                     process.stdin.write(str(src) + '\n')
                 process.stdin.close()
                 if process.wait() == 0:
