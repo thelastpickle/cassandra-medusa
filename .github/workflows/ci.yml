@@ -12,12 +12,14 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.5, 3.6]
+        python-version: [3.6, 3.7, 3.8]
         include:
-          - python-version: 3.5
-            tox-py: py35
+          - python-version: 3.7
+            tox-py: py37
           - python-version: 3.6
             tox-py: py36
+          - python-version: 3.8
+            tox-py: py38
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
@@ -28,12 +30,12 @@ jobs:
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-build-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-
+          ${{ runner.os }}-build-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
-        python3 -m venv venv
+        python -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r requirements.txt
@@ -51,14 +53,26 @@ jobs:
         tox -e ${{ matrix.tox-py }}
   integration-tests:
     needs: build
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
+        fail-fast: false
         matrix:
-          python-version: [3.5, 3.6]
+          python-version: [3.6, 3.7]
           it-backend: [local, s3, gcs]
+          cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
+          experimental: [false]
+          exclude:
+            - cassandra-version: 'github:apache/trunk'
+              it-backend: local
           include:
-            - python-version: 3.5
-              tox-py: py35
+            - python-version: 3.7
+              tox-py: py37
             - python-version: 3.6
+              tox-py: py36
+            - cassandra-version: 'github:apache/trunk'
+              experimental: true
+              python-version: 3.6
+              it-backend: local
               tox-py: py36
     runs-on: ubuntu-18.04
     steps:
@@ -68,19 +82,19 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
-      uses: actions/setup-java@v1 
+      uses: actions/setup-java@v1
       with:
         java-version: '1.8'
         architecture: x64
     - uses: actions/cache@v1
       with:
         path: ./venv
-        key: ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+        key: ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
         restore-keys: |
-          ${{ runner.os }}-virtualenvclearcache-${{ matrix.tox-py }}-
+          ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
-        python3 -m venv venv
+        python -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r requirements.txt
@@ -90,6 +104,7 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_KEY }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
+        set -e
         if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || ( "${{ matrix.it-backend }}" == "local" ) || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) ]];
         then
           . venv/bin/activate
@@ -103,21 +118,21 @@ jobs:
           ccm node1 updateconf 'concurrent_counter_writes: 4'
           ccm node1 updateconf 'num_tokens: 4'
           sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
-          sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh        
+          sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
           ccm start -v
           ccm showlastlog|tail -100
           ccm stop
           if [ "${{ matrix.it-backend }}" == "s3" ]
           then
-            ./run_integration_tests.sh -v --s3 --no-local
+            ./run_integration_tests.sh -v --s3 --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "gcs" ]
           then
-            ./run_integration_tests.sh -v --gcs --no-local
+            ./run_integration_tests.sh -v --gcs --no-local --cassandra-version=${{ matrix.cassandra-version }}
           else
-            ./run_integration_tests.sh -v
+            ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
           fi
         fi
-        
+
   release:
     # We can only release if the build above succeeded first
     needs: [build, integration-tests]
@@ -134,7 +149,7 @@ jobs:
         sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         sudo chmod +x /usr/local/bin/docker-compose
         sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-        python3 -m venv venv
+        python -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
     - name: Build and publish to pypi
