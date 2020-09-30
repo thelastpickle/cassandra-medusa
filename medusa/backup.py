@@ -35,7 +35,7 @@ from medusa.storage import Storage, format_bytes_str, ManifestObject
 
 
 class NodeBackupCache(object):
-    NEVER_BACKED_UP = ['manifest.json']
+    NEVER_BACKED_UP = ['manifest.json', 'schema.cql']
 
     def __init__(self, *, node_backup, differential_mode, storage_driver, storage_provider, storage_config):
         if node_backup:
