@@ -36,6 +36,7 @@ while test $# -gt 0; do
       echo "--no-local                                  Don't run the tests with the local storage backend"
       echo "--s3                                        Include S3 in the storage backends"
       echo "--gcs                                       Include GCS in the storage backends"
+      echo "--cassandra-version                         Cassandra version to test"
       echo "-v                                          Verbose output (logging won't be captured by behave)"
       exit 0
       ;;
@@ -68,6 +69,10 @@ while test $# -gt 0; do
       ;;
     -v)
       LOGGING="--no-capture --no-capture-stderr --format=plain"
+      shift
+      ;;
+    --cassandra-version*)
+      CASSANDRA_VERSION=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     *)
@@ -106,4 +111,12 @@ then
     fi
 fi
 
-PYTHONPATH=../.. behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING
+if [[ -z "$CASSANDRA_VERSION" ]]; then
+   echo "Cassandra version is not set, using default."
+   CASSANDRA_VERSION_FLAG=""
+else
+   echo "Cassandra version is set to ${CASSANDRA_VERSION}"
+   CASSANDRA_VERSION_FLAG="-D cassandra-version=${CASSANDRA_VERSION}"
+fi
+
+PYTHONPATH=../.. behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG

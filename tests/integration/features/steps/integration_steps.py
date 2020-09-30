@@ -88,7 +88,6 @@ def cleanup_storage(context, storage_provider):
 
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
 def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption):
-    context.cassandra_version = "2.2.14"
     context.session = None
     context.cluster_name = cluster_name
     is_client_encryption_enable = False
@@ -107,7 +106,7 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
             "create",
             context.cluster_name,
             "-v",
-            "binary:" + context.cassandra_version,
+            context.cassandra_version,
             "-n",
             "1",
         ]
@@ -679,6 +678,9 @@ def _backup_named_something_has_nb_files_in_the_manifest(
                     "Was expecting {} files, got {}".format(
                         nb_files, len(section["objects"])
                     )
+                )
+                logging.error(
+                    "Files in the manifest: {}".format(section["objects"])
                 )
                 assert len(section["objects"]) == int(nb_files)
 
