@@ -5,6 +5,7 @@
 - Avoid double purge (through count + age) of the same backup (@arodrime)
 - Remove nc (netcat) dependency, use python socket instead (@arodrime)
 - Add multi-cassandra version integration tests (@adejanovski)
+- Pin ssh2 version to 0.19.0 to avoid broken dependency (@arodrime)
 
 ### 0.7.1 (2020/07/30 11:12 +00:00)
 - Add a timeout for nc checks - node_up? (@arodrime)
