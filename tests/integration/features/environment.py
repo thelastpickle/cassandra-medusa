@@ -24,7 +24,10 @@ def setup_debug_on_error(userdata):
 
 
 def before_all(context):
-    context.cassandra_version = "2.2.14"
+    if "cassandra-version" in context.config.userdata:
+        context.cassandra_version = context.config.userdata["cassandra-version"]
+    else:
+        context.cassandra_version = "2.2.14"
     context.session = None
     if not context.config.log_capture:
         logging.basicConfig(level=logging.DEBUG)
