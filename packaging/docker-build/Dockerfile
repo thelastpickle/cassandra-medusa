@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-FROM ubuntu:18.04
+ARG BUILD_IMAGE=ubuntu:18.04
+FROM ${BUILD_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Paris
@@ -24,10 +24,12 @@ WORKDIR ${WORKDIR}
 ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
-# add a repo that contains a backport of dh-virtualenv 1.1 for Bionic
+# add a repo that contains a backport of dh-virtualenv 1.1 for Bionic & xenial
 RUN apt-get update && \
-    apt-get install -y software-properties-common
-RUN add-apt-repository ppa:kalon33/gamesgiroll -y
+    apt-get install -y software-properties-common && \
+    case $BUILD_IMAGE in ubuntu*) \
+        add-apt-repository ppa:kalon33/gamesgiroll -y ;; \
+    esac
 
 # install dependencies
 RUN apt-get update \
@@ -42,7 +44,9 @@ RUN apt-get update \
         python3-pip \
         python3-setuptools \
         python3-venv \
+        python3-wheel \
         build-essential \
+        cmake \
         devscripts \
         dh-virtualenv \
         equivs \
