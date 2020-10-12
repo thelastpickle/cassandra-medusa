@@ -3,7 +3,7 @@ Section: python
 Priority: extra
 Maintainer: The Last Pickle <oss@thelastpickle.com>
 Build-Depends:
-  debhelper (>= 11),
+  debhelper (>= 9),
   dh-python,
   python3-all,
   python3-all-dev,
@@ -14,6 +14,7 @@ Standards-Version: 3.9.5
 
 Package: cassandra-medusa
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: dpkg (>= 1.16.1), python3, python3-venv, ${misc:Pre-Depends}
+Depends: ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Description: Backup tool for Cassandra databases
  Make immutable backups for Cassandra databases and extract them to an external storage.
