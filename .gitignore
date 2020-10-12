@@ -23,3 +23,4 @@ debhelper-build-stamp
 files
 installed-by-dh_installdocs
 debian/.debhelper
+debian/cassandra-medusa/

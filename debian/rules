@@ -15,16 +15,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+VERSION = $(shell dpkg-parsechangelog --show-field Version)
+DISTRIBUTION = $(shell sed -n "s/^VERSION_CODENAME=//p" /etc/os-release)
+PACKAGEVERSION = $(VERSION)-0~$(DISTRIBUTION)0
+
 export DH_ALWAYS_EXCLUDE = .git
 export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 %:
 	dh $@ --with python-virtualenv
 
 override_dh_virtualenv:
-	dh_virtualenv --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --builtin-venv
+	dh_virtualenv --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==20.2.3 --preinstall=wheel --builtin-venv
 
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym --exclude libssh2
 
 override_dh_shlibdeps:
-	dh_shlibdeps -l$(CURDIR)/debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.6/site-packages/ssh2/.libs/
+	dh_shlibdeps -l$(CURDIR)/$(SSH2_LIBS_SUFFIX)
+
+override_dh_gencontrol:
+	dh_gencontrol -- -v$(PACKAGEVERSION)

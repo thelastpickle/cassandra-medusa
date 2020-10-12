@@ -15,14 +15,54 @@
 version: '2.1'
 
 services:
-  cassandra-medusa-builder:
+  cassandra-medusa-builder-bionic:
     build:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile
+      args:
+        - BUILD_IMAGE=ubuntu:18.04
+    environment:
+      - SSH2_LIBS_SUFFIX=debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.6/site-packages/ssh2_python.libs/
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-builder-xenial:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile
+      args:
+        - BUILD_IMAGE=ubuntu:16.04
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+    environment:
+      - SSH2_LIBS_SUFFIX=debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.5/site-packages/ssh2_python.libs/
+  cassandra-medusa-builder-stretch:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile
+      args:
+        - BUILD_IMAGE=debian:stretch
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+    environment:
+      - SSH2_LIBS_SUFFIX=debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.5/site-packages/ssh2_python.libs/
+  cassandra-medusa-builder-buster:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile
+      args:
+        - BUILD_IMAGE=debian:buster
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+    environment:
+      - SSH2_LIBS_SUFFIX=debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.7/site-packages/ssh2_python.libs/
   release:
     build:
       context: ../..

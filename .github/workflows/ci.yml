@@ -140,6 +140,35 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
+    - name: Build and publish Debian
+      env:
+        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
+        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
+        SUITES: "bionic xenial buster stretch"
+      run: |
+        cd packaging/docker-build
+        $all_suites=($SUITES) # dash supports arrays expansion
+        for suite in $all_suites
+        do
+          docker-compose build "cassandra-medusa-builder-${suite} \
+            && docker-compose run "cassandra-medusa-builder-${suite}"
+        done
+        cd ../..
+        version=$(cat VERSION)
+        for suite in $all_suites
+        do
+          if [ -f "packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb" ]; then
+            echo "uploading packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb from ${suite} to Bintray"
+            curl -T "packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb" \
+              -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
+              -H X-Bintray-Debian-Distribution:${suite} -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
+              https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}-0~${suite}0_amd64.deb
+          else
+            echo "Error: no packages found for ${suite}"
+          fi
+        done
+        echo "Publishing release in Bintray"
+        curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
     - name: Set up Python 3.6
       uses: actions/setup-python@v1
       with:
@@ -161,20 +190,3 @@ jobs:
         pip install setuptools wheel twine
         python setup.py sdist bdist_wheel
         twine upload dist/*
-    - name: Build and publish Debian
-      env:
-        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
-        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
-      run: |
-        cd packaging/docker-build
-        docker-compose build cassandra-medusa-builder && docker-compose run cassandra-medusa-builder
-        cd ../..
-        debPackage=$(ls packages/*.deb)
-        version=$(cat VERSION)
-        echo "uploading ${debPackage} to Bintray"
-        curl -T packages/cassandra-medusa_${version}_amd64.deb \
-          -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
-          -H X-Bintray-Debian-Distribution:wheezy,bionic,jessie,xenial -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
-          https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}_amd64.deb
-        echo "Publishing release in Bintray"
-        curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
