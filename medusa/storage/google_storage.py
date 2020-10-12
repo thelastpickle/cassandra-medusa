@@ -74,7 +74,11 @@ class GoogleStorage(AbstractStorage):
         # so the final upload destination is `dest / parent / object`
         # this is needed to handle things like secondary indices that live in hidden folders within table folders
         new_dest = '{}/{}'.format(old_dest, parent) if parent.startswith('.') else old_dest
-        return gsutil.cp(srcs=src_paths, dst="gs://{}/{}".format(self.bucket.name, new_dest))
+        return gsutil.cp(
+            srcs=src_paths,
+            dst="gs://{}/{}".format(self.bucket.name, new_dest),
+            parallel_process_count=self.config.concurrent_transfers
+        )
 
     def download_blobs(self, srcs, dest):
 
