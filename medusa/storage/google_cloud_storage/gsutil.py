@@ -60,7 +60,7 @@ class GSUtil(object):
         self._env = dict(os.environ)
         return False
 
-    def cp(self, *, srcs, dst, max_retries=5):
+    def cp(self, *, srcs, dst, max_retries=5, parallel_process_count=1):
 
         job_id = str(uuid.uuid4())
         manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
@@ -73,8 +73,12 @@ class GSUtil(object):
         # '-o', 'GSUtil:parallel_process_count={}'.format(parallel_process_count),
         # '-o', 'GSUtil:parallel_thread_count={}'.format(parallel_thread_count),
 
+        # According to the sources (https://git.io/JTISP), the threads count per process. So we just settle with
+        # controlling the process counts
+
         cmd = ['gsutil',
                '-m',
+               '-o', '\"GSUtil:parallel_process_count={}\"'.format(parallel_process_count),
                'cp', '-c',
                '-L', manifest_log, '-I', str(dst)]
 
