@@ -12,3 +12,4 @@ parallel-ssh==1.9.1
 # ssh2-python==0.20.0 is broken, 0.22.0+ should work.
 ssh2-python==0.19.0
 requests==2.22.0
+gevent>=1.1,<=1.4.0
