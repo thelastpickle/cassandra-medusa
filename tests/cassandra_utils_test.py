@@ -307,6 +307,31 @@ class CassandraUtilsTest(unittest.TestCase):
         cassandra = Cassandra(medusa_config.cassandra)
         self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
 
+    def test_parsing_custom_seed_provider(self):
+        # patch a sample yaml to have a custom seed provider
+        with open('tests/resources/yaml/original/cassandra_with_tokens.yaml', 'r') as fi:
+            yaml_dict = yaml.load(fi, Loader=yaml.FullLoader)
+            yaml_dict['seed_provider'] = [
+                {'class_name': 'org.foo.bar.CustomSeedProvider'}
+            ]
+            with open('tests/resources/yaml/work/cassandra_with_custom_seedprovider.yaml', 'w') as fo:
+                yaml.safe_dump(yaml_dict, fo)
+
+        # pass the patched yaml to cassandra config
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/work/cassandra_with_custom_seedprovider.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        cassandra_config = _namedtuple_from_dict(CassandraConfig, config['cassandra'])
+
+        # init cassandra config and check the custom seed provider was ignored
+        cassandra = Cassandra(cassandra_config)
+        self.assertEqual([], sorted(cassandra.seeds))
+
 
 if __name__ == '__main__':
     unittest.main()
