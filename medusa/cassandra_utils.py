@@ -229,7 +229,8 @@ class CassandraConfigReader(object):
         config_file = pathlib.Path(cassandra_config or self.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
-        self._config = yaml.load(config_file.open(), Loader=yaml.BaseLoader)
+        with open(config_file, 'r') as f:
+            self._config = yaml.load(f, Loader=yaml.BaseLoader)
 
     @property
     def root(self):
@@ -288,7 +289,8 @@ class CassandraConfigReader(object):
         seeds = list()
         if 'seed_provider' in self._config:
             if self._config['seed_provider']:
-                return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
+                if self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
+                    return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
         return seeds
 
 
