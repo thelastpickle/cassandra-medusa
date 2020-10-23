@@ -172,6 +172,20 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "base_path": "/tmp",
             "prefix": storage_prefix
         }
+    elif storage_provider == "azure_blobs":
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-integration-tests",
+            "key_file": "~/medusa_azure_credentials.json",
+            "storage_provider": "azure_blobs",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "concurrent_transfers": 4,
+            "multi_part_upload_threshold": 1 * 1024,
+            "prefix": storage_prefix
+        }
     elif storage_provider.startswith("s3"):
         config["storage"] = {
             "host_file_separator": ",",
