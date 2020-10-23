@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import configparser
-import json
 import unittest
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
@@ -51,61 +50,6 @@ class RestoreNodeTest(unittest.TestCase):
         with open("tests/resources/restore_node_tokenmap_vnodes.json", 'r') as f:
             tokens = restore_node.get_node_tokens('node3.mydomain.net', f)
             self.assertEqual(tokens, ['2', '3'])
-
-    def test_get_sections_to_restore(self):
-
-        # nothing skipped, both tables make it to restore
-        keep_keyspaces = {}
-        keep_tables = {}
-        manifest = [
-            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
-        ]
-        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEqual({'k1.t1', 'k2.t2'}, to_restore)
-
-        # skipping one table (must be specified as a fqtn)
-        keep_keyspaces = {}
-        keep_tables = {'k2.t2'}
-        manifest = [
-            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
-        ]
-        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEqual({'k2.t2'}, to_restore)
-
-        # saying only table name doesn't cause a keep
-        keep_keyspaces = {}
-        keep_tables = {'t2'}
-        manifest = [
-            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []}
-        ]
-        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEqual(set(), to_restore)
-
-        # keeping the whole keyspace
-        keep_keyspaces = {'k2'}
-        keep_tables = {}
-        manifest = [
-            {'keyspace': 'k1', 'columnfamily': 't1', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't2', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't3', 'objects': []}
-        ]
-        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEqual({'k2.t2', 'k2.t3'}, to_restore)
-
-    def test_get_sections_to_restore_with_cfids(self):
-
-        # lept tables must work also if the manifest has cfids
-        keep_keyspaces = {}
-        keep_tables = {'k2.t2'}
-        manifest = [
-            {'keyspace': 'k1', 'columnfamily': 't1-bigBadCfId', 'objects': []},
-            {'keyspace': 'k2', 'columnfamily': 't2-81ffe430e50c11e99f91a15641db358f', 'objects': []},
-        ]
-        to_restore = restore_node.get_fqtns_to_restore(keep_keyspaces, keep_tables, json.dumps(manifest))
-        self.assertEqual({'k2.t2-81ffe430e50c11e99f91a15641db358f'}, to_restore)
 
     def test_keyspace_is_allowed_to_restore(self):
 
