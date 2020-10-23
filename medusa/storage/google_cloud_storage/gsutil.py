@@ -80,7 +80,7 @@ class GSUtil(object):
         # '-o', 'GSUtil:parallel_process_count={}'.format(parallel_process_count),
         # '-o', 'GSUtil:parallel_thread_count={}'.format(parallel_thread_count),
 
-        if parallel_process_count == 1:
+        if parallel_process_count == str(1):
             parallel_options = []
         else:
             parallel_options = [
