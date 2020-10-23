@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.8.0 (TBD)
+- Add Azure blob storage support (@ilhanadiyaman)
+
 ### 0.7.2 (TBD)
 - Fixed flakey tests (@adejanovski / @arodrime)
 - Avoid double purge (through count + age) of the same backup (@arodrime)

@@ -179,6 +179,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                                           "github:apache/", "githubCOLONapacheSLASH"),
                                           '-d', hostname_resolver.resolve_fqdn() if cassandra_is_ccm == 0
                                           else '127.0.0.1',
+                                          '--conf-path', config.cassandra.config_file,
                                           '--username', cql_username,
                                           '--password', cql_password,
                                           '--no-progress',

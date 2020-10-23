@@ -43,7 +43,7 @@ class CassandraUtilsTest(unittest.TestCase):
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
-            cassandra=_namedtuple_from_dict(StorageConfig, config['cassandra']),
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
             logging=None
@@ -59,7 +59,7 @@ class CassandraUtilsTest(unittest.TestCase):
         session.cluster.metadata.token_map.token_to_host_owner = {
             Murmur3Token(-9): host
         }
-        s = CqlSession(session, resolve_ip_addresses=False)
+        s = CqlSession(session, resolve_ip_addresses=self.config.cassandra.resolve_ip_addresses)
         token_map = s.tokenmap()
         self.assertEqual(
             {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
@@ -306,6 +306,31 @@ class CassandraUtilsTest(unittest.TestCase):
 
         cassandra = Cassandra(medusa_config.cassandra)
         self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
+
+    def test_parsing_custom_seed_provider(self):
+        # patch a sample yaml to have a custom seed provider
+        with open('tests/resources/yaml/original/cassandra_with_tokens.yaml', 'r') as fi:
+            yaml_dict = yaml.load(fi, Loader=yaml.FullLoader)
+            yaml_dict['seed_provider'] = [
+                {'class_name': 'org.foo.bar.CustomSeedProvider'}
+            ]
+            with open('tests/resources/yaml/work/cassandra_with_custom_seedprovider.yaml', 'w') as fo:
+                yaml.safe_dump(yaml_dict, fo)
+
+        # pass the patched yaml to cassandra config
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/work/cassandra_with_custom_seedprovider.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        cassandra_config = _namedtuple_from_dict(CassandraConfig, config['cassandra'])
+
+        # init cassandra config and check the custom seed provider was ignored
+        cassandra = Cassandra(cassandra_config)
+        self.assertEqual([], sorted(cassandra.seeds))
 
 
 if __name__ == '__main__':

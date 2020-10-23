@@ -79,7 +79,7 @@ def cleanup_storage(context, storage_provider):
         if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
             shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
         os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-    elif storage_provider == "google_storage" or storage_provider.find("s3") == 0:
+    else:
         storage = Storage(config=context.medusa_config.storage)
         objects = storage.storage_driver.list_objects(storage._prefix)
         for obj in objects:
@@ -172,6 +172,20 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "base_path": "/tmp",
             "prefix": storage_prefix
         }
+    elif storage_provider == "azure_blobs":
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-integration-tests",
+            "key_file": "~/medusa_azure_credentials.json",
+            "storage_provider": "azure_blobs",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "concurrent_transfers": 4,
+            "multi_part_upload_threshold": 1 * 1024,
+            "prefix": storage_prefix
+        }
     elif storage_provider.startswith("s3"):
         config["storage"] = {
             "host_file_separator": ",",
@@ -187,6 +201,24 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "concurrent_transfers": 4,
             "prefix": storage_prefix,
             "aws_cli_path": "aws"
+        }
+    elif storage_provider.startswith("ibm"):
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-experiment-2",
+            "key_file": "~/.aws/ibm_credentials",
+            "storage_provider": storage_provider,
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "api_profile": "default",
+            "base_path": "/tmp",
+            "multi_part_upload_threshold": 1 * 1024,
+            "concurrent_transfers": 4,
+            "prefix": storage_prefix,
+            "aws_cli_path": "aws",
+            "region": "eu-smart",
+            "transfer_max_bandwidth": "1MB/s"
         }
 
     config["cassandra"] = {
@@ -500,6 +532,8 @@ def _the_latest_backup_for_fqdn_is_called_backupname(
 def _there_is_no_latest_backup_for_node_fqdn(context, fqdn):
     storage = Storage(config=context.medusa_config.storage)
     node_backup = storage.latest_node_backup(fqdn=fqdn)
+    logging.info("Latest node backup is {}".format(
+        node_backup.name if node_backup is not None else "None"))
     assert node_backup is None
 
 

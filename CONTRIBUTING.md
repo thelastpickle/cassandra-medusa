@@ -94,6 +94,13 @@ Then you'll have to:
 ```        
 * Place the appropriate aws `credentials` file under your home directory : `~/.aws/credentials` (see [the AWS S3 docs](docs/aws_s3_setup.md) for guidance)
 
+#### Testing on Azure
+
+Enabling `azure_blobs` will have the following requirements:
+
+* You already have a storage account and the key file for this storage account is present in your home dir as `~/medusa_azure_credentials.json`
+* You already have a Azure Blob container called `medusa-integration-tests` in your storage account.
+
 # Submitting Pull Requests
 
 We are happily accepting pull requests to improve Medusa.

@@ -33,6 +33,8 @@ from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
+from medusa.storage.azure_storage import AzureStorage
+from medusa.storage.ibm_storage import IBMCloudStorage
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -42,6 +44,11 @@ ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'
 # also retains extension if the name has any
 INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential|incremental)_(.*)$')
 INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]+).timestamp$')
+
+
+def divide_chunks(values, step):
+    for i in range(0, len(values), step):
+        yield values[i:i + step]
 
 
 def format_bytes_str(value):
@@ -64,6 +71,10 @@ class Storage(object):
             google_storage = GoogleStorage(self._config)
             google_storage.check_dependencies()
             return google_storage
+        elif self._config.storage_provider == Provider.AZURE_BLOBS:
+            azure_storage = AzureStorage(self._config)
+            azure_storage.check_dependencies()
+            return azure_storage
         elif self._config.storage_provider == Provider.S3_RGW:
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.startswith(Provider.S3):
@@ -72,6 +83,8 @@ class Storage(object):
             return s3_storage
         elif self._config.storage_provider == Provider.LOCAL:
             return LocalStorage(self._config)
+        elif self._config.storage_provider.lower() == "ibm_storage":
+            return IBMCloudStorage(self._config)
 
         raise NotImplementedError("Unsupported storage provider")
 
