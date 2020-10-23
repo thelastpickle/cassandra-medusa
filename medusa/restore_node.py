@@ -27,6 +27,7 @@ from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_do
 from medusa.download import download_data
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
+from medusa.filtering import filter_fqtns
 from medusa.network.hostname_resolver import HostnameResolver
 import medusa.config
 
@@ -69,7 +70,10 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.error('No such backup')
         sys.exit(1)
 
-    fqtns_to_restore = get_fqtns_to_restore(keyspaces, tables, node_backup.manifest)
+    fqtns_to_restore, ignored_fqtns = filter_fqtns(keyspaces, tables, node_backup.manifest)
+    for fqtns in ignored_fqtns:
+        logging.info('Skipping restore of {}'.format(fqtns))
+
     if len(fqtns_to_restore) == 0:
         logging.error('There is nothing to restore')
         sys.exit(0)
@@ -143,7 +147,10 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
             logging.error('No such backup')
             sys.exit(1)
 
-        fqtns_to_restore = get_fqtns_to_restore(keyspaces, tables, node_backup.manifest)
+        fqtns_to_restore, ignored_fqtns = filter_fqtns(keyspaces, tables, node_backup.manifest)
+
+        for fqtns in ignored_fqtns:
+            logging.info('Skipping restore of {}'.format(fqtns))
 
         if len(fqtns_to_restore) == 0:
             logging.error('There is nothing to restore')
@@ -315,38 +322,3 @@ def wait_for_seeds(config, seeds):
             logging.error('Gave up waiting for seeds, aborting the restore')
             sys.exit(1)
     logging.info('At least one seed is now up')
-
-
-def get_fqtns_to_restore(keep_keyspaces, keep_tables, manifest_str):
-
-    SYSTEM_KEYSPACES = ['system', 'system_schema', 'system_auth', 'system_distributed']
-    fqtns = set()
-    manifest = json.loads(manifest_str)
-
-    for section in manifest:
-        ks = section['keyspace']
-        # in manifest, the table names have cfids, but from CLI we get it without
-        # we need to take care and use both
-        t = section['columnfamily'].split('-')[0]
-
-        fqtn = '{}.{}'.format(ks, t)
-        fqtn_with_id = '{}.{}'.format(section['keyspace'], section['columnfamily'])
-
-        # if not keyspaces / tables were specified, we keep everything
-        if len(keep_keyspaces) == 0 and len(keep_tables) == 0:
-            fqtns.add(fqtn_with_id)
-            continue
-
-        # if the whole keyspace is a keep, or a system keyspace (C* internal)
-        if ks in keep_keyspaces or ks in SYSTEM_KEYSPACES:
-            fqtns.add(fqtn_with_id)
-            continue
-
-        # if just the table is a keep
-        if fqtn in keep_tables:
-            fqtns.add(fqtn_with_id)
-            continue
-
-        logging.info('Skipping restore of {}.{}'.format(ks, t))
-
-    return fqtns

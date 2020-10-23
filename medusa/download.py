@@ -20,6 +20,7 @@ import sys
 
 from medusa.storage import Storage, divide_chunks
 from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.filtering import filter_fqtns
 
 
 def download_data(storageconfig, backup, fqtns_to_restore, destination):
@@ -32,19 +33,21 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
         dst = destination / section['keyspace'] / section['columnfamily']
         srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
                 for obj in section['objects']]
-        dst.mkdir(parents=True)
-
-        # check for hidden sub-folders in the table directory
-        # (e.g. secondary indices which live in table/.table_idx)
-        dst_subfolders = {dst / src.parent.name
-                          for src in map(pathlib.Path, srcs)
-                          if src.parent.name.startswith('.')}
-        # create the sub-folders so the downloads actually work
-        for subfolder in dst_subfolders:
-            subfolder.mkdir(parents=False)
 
         if len(srcs) > 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.debug('Downloading  %s files to %s', len(srcs), dst)
+
+            dst.mkdir(parents=True)
+
+            # check for hidden sub-folders in the table directory
+            # (e.g. secondary indices which live in table/.table_idx)
+            dst_subfolders = {dst / src.parent.name
+                              for src in map(pathlib.Path, srcs)
+                              if src.parent.name.startswith('.')}
+            # create the sub-folders so the downloads actually work
+            for subfolder in dst_subfolders:
+                subfolder.mkdir(parents=False)
+
             for src_batch in divide_chunks(srcs, GSUTIL_MAX_FILES_PER_CHUNK):
                 storage.storage_driver.download_blobs(src_batch, dst)
         elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
@@ -62,7 +65,7 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
     )
 
 
-def download_cmd(config, backup_name, download_destination):
+def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces):
     storage = Storage(config=config.storage)
 
     if not download_destination.is_dir():
@@ -74,4 +77,5 @@ def download_cmd(config, backup_name, download_destination):
         logging.error('No such backup')
         sys.exit(1)
 
-    download_data(config.storage, node_backup, set({}), download_destination)
+    fqtns_to_download, _ = filter_fqtns(keyspaces, tables, node_backup.manifest, ignore_system_keyspaces)
+    download_data(config.storage, node_backup, fqtns_to_download, download_destination)

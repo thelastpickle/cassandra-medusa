@@ -143,12 +143,19 @@ def list_backups(medusaconfig, show_all):
 @cli.command(name='download')
 @click.option('--backup-name', help='Custom name for the backup', required=True)
 @click.option('--download-destination', help='Download destination', required=True)
+@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace, use --keyspace ks1 [--keyspace ks2]",
+              multiple=True, default={})
+@click.option('--table', 'tables', help="Restore only this table, use --table ks.t1 [--table ks.t2]",
+              multiple=True, default={})
+@click.option('--ignore-system-keyspaces', help='Do not download cassandra system keyspaces', required=True,
+              is_flag=True, default=False)
 @pass_MedusaConfig
-def download(medusaconfig, backup_name, download_destination):
+def download(medusaconfig, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces):
     """
     Download backup
     """
-    medusa.download.download_cmd(medusaconfig, backup_name, Path(download_destination))
+    medusa.download.download_cmd(medusaconfig, backup_name, Path(download_destination), keyspaces, tables,
+                                 ignore_system_keyspaces)
 
 
 @cli.command(name='restore-cluster')
