@@ -675,9 +675,12 @@ def _i_can_download_the_backup_all_tables_successfully(context, backup_name):
     )
     fqtn = set({})
     medusa.download.download_data(context.medusa_config.storage, backup, fqtn, Path(download_path))
+    # check all manifest objects that have been backed up have been downloaded
+    keyspaces = {section['keyspace'] for section in json.loads(backup.manifest) if section['objects']}
+    for ks in keyspaces:
+        ks_path = os.path.join(download_path, ks)
+        assert os.path.isdir(ks_path)
 
-    sys_dist = os.path.join(download_path, 'system_distributed')
-    assert os.path.isdir(sys_dist)
     cleanup(download_path)
 
 
@@ -697,10 +700,18 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
         fqdn=config.storage.fqdn,
         name=backup_name,
     )
-    medusa.download.download_data(context.medusa_config.storage, backup, fqtn, Path(download_path))
 
-    sys_dist = os.path.join(download_path, 'system_distributed')
-    assert os.path.isdir(sys_dist)
+    # download_data requires fqtn with table id
+    fqtns_to_download, _ = medusa.filtering.filter_fqtns([], [fqtn], backup.manifest, True)
+    medusa.download.download_data(context.medusa_config.storage, backup, fqtns_to_download, Path(download_path))
+
+    # check the keyspace directory has been created
+    ks, table = fqtn.split('.')
+    ks_path = os.path.join(download_path, ks)
+    assert os.path.isdir(ks_path)
+
+    # check tables have been downloaded
+    assert list(Path(ks_path).glob('{}-*/*.db'.format(table)))
     cleanup(download_path)
 
 
