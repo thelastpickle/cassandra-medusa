@@ -312,6 +312,10 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
         logging.debug("Skipping the actual restore of {}".format(section['columnfamily']))
         return
 
+    if not section['objects']:
+        logging.debug("Skipping the actual restore of {} - table empty".format(section['columnfamily']))
+        return
+
     # restore the table
     logging.debug('Restoring {} -> {}'.format(src, dst))
     if use_sudo:
