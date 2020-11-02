@@ -354,8 +354,19 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-        # init cassandra config and check the custom seed provider was ignored
-        cassandra = Cassandra(config)
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+        )
+        cassandra = Cassandra(medusa_config)
         self.assertEqual([], sorted(cassandra.seeds))
 
 
