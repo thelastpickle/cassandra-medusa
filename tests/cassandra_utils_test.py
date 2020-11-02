@@ -354,8 +354,7 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-        cassandra_config = _namedtuple_from_dict(CassandraConfig, config['cassandra'])
-
+        
         # init cassandra config and check the custom seed provider was ignored
         cassandra = Cassandra(config)
         self.assertEqual([], sorted(cassandra.seeds))
