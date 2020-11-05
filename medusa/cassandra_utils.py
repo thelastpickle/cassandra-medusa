@@ -457,15 +457,15 @@ class Cassandra(object):
                 os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
             else:
                 logging.debug('Executing: {}'.format(' '.join(cmd)))
-            try:
-                output = subprocess.check_output(cmd, universal_newlines=True)
-                logging.debug('nodetool output: {}'.format(output))
-            except subprocess.CalledProcessError as e:
-                logging.debug('nodetool resulted in error: {}'.format(e.output))
-                logging.warning(
-                    'Medusa may have failed at cleaning up snapshot {}. '
-                    'Check if the snapshot exists and clear it manually '
-                    'by running: {}'.format(tag, ' '.join(cmd)))
+                try:
+                    output = subprocess.check_output(cmd, universal_newlines=True)
+                    logging.debug('nodetool output: {}'.format(output))
+                except subprocess.CalledProcessError as e:
+                    logging.debug('nodetool resulted in error: {}'.format(e.output))
+                    logging.warning(
+                        'Medusa may have failed at cleaning up snapshot {}. '
+                        'Check if the snapshot exists and clear it manually '
+                        'by running: {}'.format(tag, ' '.join(cmd)))
 
     def __do_post(self, data):
         json_data = json.dumps(data)
