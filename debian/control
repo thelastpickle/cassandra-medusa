@@ -8,6 +8,7 @@ Build-Depends:
   python3-all,
   python3-all-dev,
   python3-setuptools,
+  python3-venv,
   dh-virtualenv (>= 1.0),
   build-essential
 Standards-Version: 3.9.5
