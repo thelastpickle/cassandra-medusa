@@ -10,6 +10,7 @@ Build-Depends:
   python3-setuptools,
   python3-venv,
   dh-virtualenv (>= 1.0),
+  libevent-dev,
   build-essential
 Standards-Version: 3.9.5
 
