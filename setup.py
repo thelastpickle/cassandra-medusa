@@ -60,6 +60,8 @@ setuptools.setup(
         'grpcio>=1.29.0',
         'grpcio-health-checking>=1.29.0',
         'grpcio-tools>=1.29.0',
+        'gevent',
+        'greenlet'
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
