@@ -18,6 +18,8 @@
 VERSION = $(shell dpkg-parsechangelog --show-field Version)
 DISTRIBUTION = $(shell sed -n "s/^VERSION_CODENAME=//p" /etc/os-release)
 PACKAGEVERSION = $(VERSION)-0~$(DISTRIBUTION)0
+PY3VER = $(shell py3versions -d)
+SSH2_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VER)/site-packages/ssh2_python.libs/
 
 export DH_ALWAYS_EXCLUDE = .git
 export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
