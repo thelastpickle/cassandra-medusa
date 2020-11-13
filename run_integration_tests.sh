@@ -22,6 +22,7 @@ STORAGE_TAGS=""
 LOCAL="yes"
 S3="no"
 GCS="no"
+IBM="no"
 LOGGING_FLAGS=""
 
 while test $# -gt 0; do
@@ -36,6 +37,7 @@ while test $# -gt 0; do
       echo "--no-local                                  Don't run the tests with the local storage backend"
       echo "--s3                                        Include S3 in the storage backends"
       echo "--gcs                                       Include GCS in the storage backends"
+      echo "--ibm                                       Include IBM in the storage backends"
       echo "--cassandra-version                         Cassandra version to test"
       echo "-v                                          Verbose output (logging won't be captured by behave)"
       exit 0
@@ -65,6 +67,10 @@ while test $# -gt 0; do
       ;;
     --gcs)
       GCS="yes"
+      shift
+      ;;
+    --ibm)
+      IBM="yes"
       shift
       ;;
     -v)
@@ -108,6 +114,16 @@ then
         STORAGE_TAGS="@gcs"
     else
         STORAGE_TAGS="${STORAGE_TAGS},@gcs"
+    fi
+fi
+
+if [ "$IBM" == "yes" ]
+then
+    if [ "$STORAGE_TAGS" == "" ]
+    then
+        STORAGE_TAGS="@ibm"
+    else
+        STORAGE_TAGS="${STORAGE_TAGS},@ibm"
     fi
 fi
 
