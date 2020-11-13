@@ -130,6 +130,10 @@ class S3Storage(AbstractStorage):
         driver = cls(
             aws_access_key_id, aws_secret_access_key, token=aws_security_token
         )
+
+        if self.config.transfer_max_bandwidth is not None:
+            self.set_upload_bandwidth()
+
         return driver
 
     def check_dependencies(self):
@@ -241,6 +245,17 @@ class S3Storage(AbstractStorage):
             )
 
         return sizes_match and hashes_match
+
+    def set_upload_bandwidth(self):
+        subprocess.check_call(
+            [
+                "aws",
+                "configure",
+                "set",
+                "default.s3.max_bandwidth",
+                self.config.transfer_max_bandwidth,
+            ]
+        )
 
 
 def _group_by_parent(paths):
