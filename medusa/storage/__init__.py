@@ -33,6 +33,7 @@ from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
+from medusa.storage.ibm_storage import IBMCloudStorage
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -77,6 +78,8 @@ class Storage(object):
             return s3_storage
         elif self._config.storage_provider == Provider.LOCAL:
             return LocalStorage(self._config)
+        elif self._config.storage_provider.lower() == "ibm_storage":
+            return IBMCloudStorage(self._config)
 
         raise NotImplementedError("Unsupported storage provider")
 
