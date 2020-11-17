@@ -14,20 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pssh.clients.miko import ParallelSSHClient
-
 import collections
 import logging
 import sys
 import uuid
 import datetime
 import traceback
-import paramiko
 import socket
 
 import medusa.config
 from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
+from medusa.orchestration import Orchestration
 from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
@@ -35,7 +33,7 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, keyspaces, tables, pssh_pool_size, use_sstableloader=False):
+                verify, keyspaces, tables, parallel_restores, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -43,7 +41,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             # if no target node is provided, nor a host list file, default to the local node as seed target
             hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
             seed_target = hostname_resolver.resolve_fqdn(socket.gethostbyname(socket.getfqdn()))
-            logging.warn("Seed target was not provided, using the local hostname: {}".format(seed_target))
+            logging.warning("Seed target was not provided, using the local hostname: {}".format(seed_target))
 
         if seed_target is not None and host_list is not None:
             err_msg = 'You must either provide a seed target or a list of host, not both'
@@ -65,7 +63,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise Exception(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             pssh_pool_size, keyspaces, tables, bypass_checks, use_sstableloader)
+                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -98,11 +96,12 @@ def expand_repeatable_option(option, values):
 
 class RestoreJob(object):
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 pssh_pool_size, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
+                 parallel_restores, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
         self.session_provider = None
+        self.orchestration = Orchestration(config, parallel_restores)
         self.config = config
         self.host_list = host_list
         self.seed_target = seed_target
@@ -116,7 +115,7 @@ class RestoreJob(object):
         self.tables = tables
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
-        self.pssh_pool_size = pssh_pool_size
+        self.parallel_restores = parallel_restores
         self.cassandra = Cassandra(config.cassandra)
         fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
@@ -142,59 +141,6 @@ class RestoreJob(object):
             logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
         self._restore_data()
-
-    def _pssh_run(self, hosts, command, hosts_variables=None):
-        """
-        Runs a command on hosts list using cstar under the hood
-        There is no return made, to check the result there is a distinct function
-        Return: True (success) or False (error)
-        """
-        logging.debug("Running pssh command on {}".format(hosts))
-        pssh_run_success = False
-        username = self.config.ssh.username if self.config.ssh.username != '' else None
-        port = self.config.ssh.port
-        pkey = None
-        if self.config.ssh.key_file is not None and self.config.ssh.key_file != '':
-            pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
-
-        client = ParallelSSHClient(hosts,
-                                   forward_ssh_agent=True,
-                                   pool_size=self.pssh_pool_size,
-                                   user=username,
-                                   port=port,
-                                   pkey=pkey)
-        logging.info('Executing "{}" on all nodes.'
-                     .format(command))
-        output = client.run_command(command, host_args=hosts_variables, sudo=True)
-        client.join(output)
-
-        success = list(filter(lambda host_output: host_output.exit_code == 0,
-                       list(map(lambda host_output: host_output[1], output.items()))))
-        error = list(filter(lambda host_output: host_output.exit_code != 0,
-                     list(map(lambda host_output: host_output[1], output.items()))))
-
-        # Report on execution status
-        if len(success) == len(hosts):
-            logging.info('Job executing "{}" ran and finished Successfully on all nodes.'
-                         .format(command))
-            pssh_run_success = True
-        elif len(error) > 0:
-            logging.info('Job executing "{}" ran and finished with errors on following nodes: {}'
-                         .format(command, sorted(set(map(lambda host_output: host_output.host, error)))))
-            self.display_output(error)
-        else:
-            err_msg = 'Something unexpected happened while running pssh command'
-            logging.error(err_msg)
-            raise Exception(err_msg)
-
-        return pssh_run_success
-
-    def display_output(self, host_outputs):
-        for host_out in host_outputs:
-            for line in host_out.stdout:
-                logging.info("{}-stdout: {}".format(host_out.host, line))
-            for line in host_out.stderr:
-                logging.info("{}-stderr: {}".format(host_out.host, line))
 
     def _validate_ringmap(self, tokenmap, target_tokenmap):
         for host, ring_item in target_tokenmap.items():
@@ -227,6 +173,8 @@ class RestoreJob(object):
                 groups[i % nb_chunks].append(my_list[i])
             return groups
 
+        target_tokens = {}
+        backup_tokens = {}
         topology_matches = self._validate_ringmap(tokenmap, target_tokenmap)
         self.in_place = self._is_restore_in_place(tokenmap, target_tokenmap)
         if self.in_place:
@@ -341,7 +289,7 @@ class RestoreJob(object):
         target_seeds = [t for t, s in self.host_map.items() if s['seed']]
         logging.info("target seeds : {}".format(target_seeds))
         # work out which nodes are seeds in the target cluster
-        target_hosts = self.host_map.keys()
+        target_hosts = [host for host in self.host_map.keys()]
         logging.info("target hosts : {}".format(target_hosts))
 
         if self.use_sstableloader is False:
@@ -355,7 +303,7 @@ class RestoreJob(object):
             command = self.config.cassandra.stop_cmd
             logging.debug('Command to run is: {}'.format(command))
 
-            self._pssh_run(target_hosts, command, hosts_variables={})
+            self.orchestration.pssh_run(target_hosts, command, hosts_variables={})
 
         else:
             # we're using the sstableloader, which will require to (re)create the schema and empty the tables
@@ -373,11 +321,11 @@ class RestoreJob(object):
             seeds = '' if target in target_seeds or len(target_seeds) == 0 \
                     else '--seeds {}'.format(','.join(target_seeds))
             hosts_variables.append((','.join(source), seeds))
-            command = self._build_restore_cmd(target, source, seeds)
 
-        pssh_run_success = self._pssh_run(target_hosts,
-                                          command,
-                                          hosts_variables=hosts_variables)
+        command = self._build_restore_cmd()
+        pssh_run_success = self.orchestration.pssh_run(target_hosts,
+                                                       command,
+                                                       hosts_variables=hosts_variables)
 
         if not pssh_run_success:
             # we could implement a retry.
@@ -390,7 +338,7 @@ class RestoreJob(object):
         if self.verify:
             verify_restore(target_hosts, self.config)
 
-    def _build_restore_cmd(self, target, source, seeds):
+    def _build_restore_cmd(self):
         in_place_option = '--in-place' if self.in_place else '--remote'
         keep_auth_option = '--keep-auth' if self.keep_auth else ''
         keyspace_options = expand_repeatable_option('keyspace', self.keyspaces)
@@ -400,9 +348,9 @@ class RestoreJob(object):
         verify_option = '--no-verify'
 
         # %s placeholders in the below command will get replaced by pssh using per host command substitution
-        command = 'nohup sh -c "mkdir {work}; cd {work} && medusa-wrapper sudo medusa --fqdn=%s -vvv restore-node ' \
+        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa --fqdn=%s -vvv restore-node ' \
                   '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} ' \
-                  '{use_sstableloader} {keyspaces} {tables}"' \
+                  '{use_sstableloader} {keyspaces} {tables}' \
             .format(work=self.work_dir,
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
@@ -413,7 +361,7 @@ class RestoreJob(object):
                     keyspaces=keyspace_options,
                     tables=table_options)
 
-        logging.debug('Restoring on node {} with the following command {}'.format(target, command))
+        logging.debug('Preparing to restore on all nodes with the following command {}'.format(command))
 
         return command
 

@@ -47,6 +47,12 @@ INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]
 
 
 def divide_chunks(values, step):
+    """
+    Yield successive step-sized chunks from values.
+    :param values: A list of items to split into sub-lists
+    :param step: The size of sub-lists
+    :return: A list of lists of maximum 'step' size.
+    """
     for i in range(0, len(values), step):
         yield values[i:i + step]
 

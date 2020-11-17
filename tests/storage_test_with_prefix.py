@@ -24,7 +24,7 @@ import unittest
 
 import medusa.storage.abstract_storage
 
-from medusa.backup import generate_md5_hash
+from medusa.backup_node import generate_md5_hash
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
 from medusa.storage import Storage

@@ -25,7 +25,6 @@ import shlex
 import socket
 import subprocess
 import time
-import uuid
 import yaml
 
 from subprocess import PIPE
@@ -297,6 +296,7 @@ class CassandraConfigReader(object):
 class Cassandra(object):
 
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
+    SNAPSHOT_PREFIX = 'medusa-'
 
     def __init__(self, cassandra_config, contact_point=None):
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
@@ -406,34 +406,34 @@ class Cassandra(object):
         def __repr__(self):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
-    def create_snapshot(self):
-        tag = 'medusa-{}'.format(uuid.uuid4())
-        cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
-
-        if self._is_ccm == 1:
-            os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
-        else:
-            logging.debug('Executing: {}'.format(' '.join(cmd)))
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+    def create_snapshot(self, backup_name):
+        cmd = self.create_snapshot_command(backup_name)
+        tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
+        if not self.snapshot_exists(tag):
+            if self._is_ccm == 1:
+                os.popen(cmd).read()
+            else:
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
 
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
-        cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
-
-        if self._is_ccm == 1:
-            os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
-        else:
-            logging.debug('Executing: {}'.format(' '.join(cmd)))
-            try:
-                output = subprocess.check_output(cmd, universal_newlines=True)
-                logging.debug('nodetool output: {}'.format(output))
-            except subprocess.CalledProcessError as e:
-                logging.debug('nodetool resulted in error: {}'.format(e.output))
-                logging.warning(
-                    'Medusa may have failed at cleaning up snapshot {}. '
-                    'Check if the snapshot exists and clear it manually '
-                    'by running: {}'.format(tag, ' '.join(cmd)))
+        cmd = self.delete_snapshot_command(tag)
+        if self.snapshot_exists(tag):
+            if self._is_ccm == 1:
+                os.popen(cmd).read()
+            else:
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                try:
+                    output = subprocess.check_output(cmd, universal_newlines=True)
+                    logging.debug('nodetool output: {}'.format(output))
+                except subprocess.CalledProcessError as e:
+                    logging.debug('nodetool resulted in error: {}'.format(e.output))
+                    logging.warning(
+                        'Medusa may have failed at cleaning up snapshot {}. '
+                        'Check if the snapshot exists and clear it manually '
+                        'by running: {}'.format(tag, ' '.join(cmd)))
 
     def list_snapshotnames(self):
         return {
@@ -453,6 +453,29 @@ class Cassandra(object):
             if snapshot.is_dir() and snapshot.name == tag:
                 return True
         return False
+
+    def create_snapshot_command(self, backup_name):
+        """
+        :param backup_name: string name of the medusa backup
+        :return: Array representation of a command to create a snapshot
+        """
+        tag = '{}{}'.format(self.SNAPSHOT_PREFIX, backup_name)
+        if self._is_ccm == 1:
+            cmd = 'ccm node1 nodetool \"snapshot -t {}\"'.format(tag)
+        else:
+            cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
+        return cmd
+
+    def delete_snapshot_command(self, tag):
+        """
+        :param tag: string snapshot name
+        :return: Array repesentation of a command to delete a snapshot
+        """
+        if self._is_ccm == 1:
+            cmd = 'ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)
+        else:
+            cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
+        return cmd
 
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
