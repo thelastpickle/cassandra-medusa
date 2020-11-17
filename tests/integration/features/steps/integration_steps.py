@@ -31,7 +31,7 @@ import signal
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
 
-import medusa.backup
+import medusa.backup_node
 import medusa.index
 import medusa.listing
 import medusa.purge
@@ -314,7 +314,7 @@ def _i_run_a_whatever_command(context, command):
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
-        = medusa.backup.main(context.medusa_config, backup_name, None, backup_mode)
+        = medusa.backup_node.main(context.medusa_config, backup_name, None, backup_mode)
     context.latest_backup_cache = node_backup_cache
 
 
