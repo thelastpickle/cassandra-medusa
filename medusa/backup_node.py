@@ -154,7 +154,6 @@ def stagger(fqdn, storage, tokenmap):
 
 
 def main(config, backup_name_arg, stagger_time, mode):
-
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
     monitoring = Monitoring(config=config.monitoring)
@@ -182,9 +181,7 @@ def main(config, backup_name_arg, stagger_time, mode):
         except Exception:
             logging.warning("Throttling backup impossible. It's probable that ionice is not available.")
 
-        logging.info('Creating snapshot')
         logging.info('Saving tokenmap and schema')
-
         schema, tokenmap = get_schema_and_tokenmap(cassandra)
 
         node_backup.schema = schema
@@ -207,7 +204,7 @@ def main(config, backup_name_arg, stagger_time, mode):
         actual_start = datetime.datetime.now()
 
         num_files, node_backup_cache = do_backup(
-            cassandra, node_backup, storage, differential_mode, config)
+            cassandra, node_backup, storage, differential_mode, config, backup_name)
 
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
@@ -235,7 +232,8 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
-def do_backup(cassandra, node_backup, storage, differential_mode, config):
+def do_backup(cassandra, node_backup, storage, differential_mode,
+              config, backup_name):
 
     # Load last backup as a cache
     node_backup_cache = NodeBackupCache(
@@ -251,7 +249,8 @@ def do_backup(cassandra, node_backup, storage, differential_mode, config):
     # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
     # so even if exception is thrown, a new snapshot will be created on the next run
     # this is not too good and we will use just one snapshot in the future
-    with cassandra.create_snapshot() as snapshot:
+    logging.info('Creating snapshot')
+    with cassandra.create_snapshot(backup_name) as snapshot:
         manifest = []
         num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
 
