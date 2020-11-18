@@ -61,18 +61,10 @@ jobs:
           it-backend: [local, s3, gcs]
           cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
           experimental: [false]
-          exclude:
-            - cassandra-version: 'github:apache/trunk'
-              it-backend: local
           include:
             - python-version: 3.7
               tox-py: py37
             - python-version: 3.6
-              tox-py: py36
-            - cassandra-version: 'github:apache/trunk'
-              experimental: true
-              python-version: 3.6
-              it-backend: local
               tox-py: py36
     runs-on: ubuntu-18.04
     steps:
