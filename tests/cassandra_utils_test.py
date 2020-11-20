@@ -307,6 +307,23 @@ class CassandraUtilsTest(unittest.TestCase):
         cassandra = Cassandra(medusa_config.cassandra)
         self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
 
+    def test_enforce_ip_address_usage(self):
+        host = Mock()
+        host.is_up = True
+        host.address = 'localhost'
+        session = Mock()
+        session.cluster = Mock()
+        session.cluster.contact_points = ["localhost"]
+        session.cluster.metadata.token_map.token_to_host_owner = {
+            Murmur3Token(-9): host
+        }
+        s = CqlSession(session, resolve_ip_addresses=False)
+        token_map = s.tokenmap()
+        self.assertEqual(
+            {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
+            token_map
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

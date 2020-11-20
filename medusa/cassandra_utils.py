@@ -21,6 +21,7 @@ import itertools
 import logging
 import os
 import pathlib
+import re
 import shlex
 import socket
 import subprocess
@@ -135,6 +136,7 @@ class CqlSession(object):
 
     def __init__(self, session, resolve_ip_addresses=True):
         self._session = session
+        self._resolve_ip_addresses = resolve_ip_addresses
         self.hostname_resolver = HostnameResolver(resolve_ip_addresses)
 
     def __enter__(self):
@@ -171,7 +173,8 @@ class CqlSession(object):
         for host in token_map.token_to_host_owner.values():
             socket_host = self.hostname_resolver.resolve_fqdn(listen_address)
             logging.debug('Checking host {} against {}/{}'.format(host.address, listen_address, socket_host))
-            if host.address == listen_address or self.hostname_resolver.resolve_fqdn(host.address) == socket_host:
+            if self.maybe_resolve_hostname_to_ip(host.address) == listen_address \
+               or self.hostname_resolver.resolve_fqdn(host.address) == socket_host:
                 return host.datacenter
 
         raise RuntimeError('Unable to current datacenter')
@@ -196,14 +199,25 @@ class CqlSession(object):
         host_tokens_groups = itertools.groupby(host_token_pairs, key=get_host)
         host_tokens_pairs = [(host, list(map(get_token, tokens))) for host, tokens in host_tokens_groups]
 
-        return {
-            self.hostname_resolver.resolve_fqdn(host.address): {
+        token_map = {
+            self.maybe_resolve_hostname_to_ip(self.hostname_resolver.resolve_fqdn(host.address)): {
                 'tokens': tokens,
                 'is_up': host.is_up
             }
             for host, tokens in host_tokens_pairs
             if host.datacenter == datacenter
         }
+
+        return token_map
+
+    def maybe_resolve_hostname_to_ip(self, host_address):
+        ip_address_pattern = re.compile("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}"
+                                        + "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")
+        if str(self._resolve_ip_addresses) == "False" and not ip_address_pattern.match(host_address):
+            # IP address resolving is disabled but we still get a hostname
+            return socket.gethostbyname(host_address)
+
+        return host_address
 
     def dump_schema(self):
         keyspaces = self.session.cluster.metadata.keyspaces
