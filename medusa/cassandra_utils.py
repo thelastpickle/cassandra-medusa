@@ -208,6 +208,8 @@ class CqlSession(object):
             if host.datacenter == datacenter
         }
 
+        logging.debug("Generated the following tokenmap: {}".format(token_map))
+
         return token_map
 
     def maybe_resolve_hostname_to_ip(self, host_address):
