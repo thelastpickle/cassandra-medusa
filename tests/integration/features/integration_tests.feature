@@ -56,6 +56,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      | without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -92,6 +97,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -126,6 +136,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -303,6 +318,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -358,6 +378,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -390,6 +415,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -429,6 +459,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -470,6 +505,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -502,6 +542,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -536,6 +581,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs      | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |
@@ -568,6 +618,11 @@ Feature: Integration tests
         | storage           | client encryption |
         | google_storage      |  without_client_encryption |
 
+        @azure
+        Examples: Azure Blob Storage
+        | storage           | client encryption |
+        | azure_blobs     | without_client_encryption |
+        
         @ibm
         Examples: IBM Cloud Object Storage
         | storage           | client encryption |

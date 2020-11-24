@@ -33,6 +33,7 @@ from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
+from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.ibm_storage import IBMCloudStorage
 
 
@@ -70,6 +71,10 @@ class Storage(object):
             google_storage = GoogleStorage(self._config)
             google_storage.check_dependencies()
             return google_storage
+        elif self._config.storage_provider == Provider.AZURE_BLOBS:
+            azure_storage = AzureStorage(self._config)
+            azure_storage.check_dependencies()
+            return azure_storage
         elif self._config.storage_provider == Provider.S3_RGW:
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.startswith(Provider.S3):
