@@ -28,9 +28,6 @@ from medusa.storage.azure_blobs_storage.azcli import AzCli
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
-# Azure doesn't provide configuration for threshold
-MULTI_PART_UPLOAD_THRESHOLD = 64 * 1024 * 1024
-
 
 class StorageJob:
     """
