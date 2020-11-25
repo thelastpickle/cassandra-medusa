@@ -15,6 +15,19 @@
 version: '2.1'
 
 services:
+  cassandra-medusa-builder-focal:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile
+      args:
+        - BUILD_IMAGE=ubuntu:20.04
+        - EXTRA_PACKAGES=""
+    environment:
+      - SSH2_LIBS_SUFFIX=debian/cassandra-medusa/usr/share/cassandra-medusa/lib/python3.8/site-packages/ssh2_python.libs/
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-bionic:
     build:
       context: ../..
