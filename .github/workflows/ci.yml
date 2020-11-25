@@ -56,8 +56,10 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [bionic, xenial, stretch]
+        suite: [focal, bionic, xenial, stretch]
         include:
+          - suite: focal
+            os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
           - suite: xenial
@@ -197,7 +199,7 @@ jobs:
       env:
         BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
         BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
-        SUITES: "bionic stretch xenial"
+        SUITES: "focal bionic stretch xenial"
       run: |
         $all_suites=($SUITES) # dash supports arrays expansion
         version=$(cat VERSION)
