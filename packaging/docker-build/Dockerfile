@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG EXTRA_PACKAGES="python-dev python-pip"
 ARG BUILD_IMAGE=ubuntu:18.04
 FROM ${BUILD_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG BUILD_IMAGE
 ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # use a common app path, copied from python-onbuild:latest
@@ -24,12 +26,9 @@ WORKDIR ${WORKDIR}
 ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
-# add a repo that contains a backport of dh-virtualenv 1.1 for Bionic & xenial
+# add a repo that contains a backport of dh-virtualenv 1.1 for focal, bionic, xenial
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
-    case $BUILD_IMAGE in ubuntu*) \
-        add-apt-repository ppa:kalon33/gamesgiroll -y ;; \
-    esac
+    apt-get install -y software-properties-common
 
 # install dependencies
 RUN apt-get update \
@@ -41,8 +40,6 @@ RUN apt-get update \
         python3-all \
         python3-all-dev \
         python3-dev \
-        python-dev \
-        python-pip \
         python3-pip \
         python3-setuptools \
         python3-venv \
@@ -52,12 +49,13 @@ RUN apt-get update \
         devscripts \
         equivs \
         libevent-dev \
-        wget
+        wget $EXTRA_PACKAGES
 
 RUN cd /tmp && \
     wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.0-1_all.deb && \
     gdebi -n dh-virtualenv*.deb && \
     rm dh-virtualenv_*.deb
+        
 
 RUN pip3 install greenlet
 RUN pip3 install gevent

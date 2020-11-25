@@ -3,11 +3,11 @@
 set -e
 
 case $1 in
-  ""|bionic|xenial|buster|stretch)
+  ""|bionic|xenial|buster|stretch|focal)
     suites=("${1:-bionic}")
     ;;
   all)
-    suites=(bionic xenial buster stretch)
+    suites=(focal bionic xenial buster stretch)
     ;;
   *)
     echo "Unknown distribution suite - allowed values: 'all', 'bionic', 'xenial', 'buster', 'stretch'"
