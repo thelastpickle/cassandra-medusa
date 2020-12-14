@@ -72,7 +72,7 @@ GrpcConfig = collections.namedtuple(
 
 KubernetesConfig = collections.namedtuple(
     'KubernetesConfig',
-    ['enabled', 'cassandra_url']
+    ['enabled', 'cassandra_url', 'use_mgmt_api']
 )
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -139,7 +139,8 @@ def load_config(args, config_file):
 
     config['kubernetes'] = {
         'enabled': False,
-        'cassandra_url': 'None'
+        'cassandra_url': 'None',
+        'use_mgmt_api': False
     }
 
     if config_file:
