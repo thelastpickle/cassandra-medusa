@@ -26,7 +26,8 @@ from unittest.mock import Mock
 
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict,\
     KubernetesConfig
-from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool, Cassandra
+from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra
+from medusa.nodetool import Nodetool
 
 
 class CassandraUtilsTest(unittest.TestCase):

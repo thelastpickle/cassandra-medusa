@@ -18,17 +18,14 @@
 
 import fileinput
 import itertools
-import json
 import logging
-import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
 import yaml
-import requests
-from medusa.utils import evaluate_boolean, null_if_empty
+from medusa.utils import null_if_empty
 
 from subprocess import PIPE
 from retrying import retry
@@ -38,6 +35,8 @@ from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
 from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
 from medusa.network.hostname_resolver import HostnameResolver
+from medusa.service.snapshot import SnapshotService
+from medusa.nodetool import Nodetool
 
 
 class SnapshotPath(object):
@@ -110,28 +109,6 @@ class CqlSessionProvider(object):
         else:
             session = cluster.connect()
             return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
-
-
-class Nodetool(object):
-
-    def __init__(self, cassandra_config):
-        self._nodetool = ['nodetool']
-        if cassandra_config.nodetool_ssl == "true":
-            self._nodetool += ['--ssl']
-        if cassandra_config.nodetool_username is not None:
-            self._nodetool += ['-u', cassandra_config.nodetool_username]
-        if cassandra_config.nodetool_password is not None:
-            self._nodetool += ['-pw', cassandra_config.nodetool_password]
-        if cassandra_config.nodetool_password_file_path is not None:
-            self._nodetool += ['-pwf', cassandra_config.nodetool_password_file_path]
-        if cassandra_config.nodetool_host is not None:
-            self._nodetool += ['-h', cassandra_config.nodetool_host]
-        if cassandra_config.nodetool_port is not None:
-            self._nodetool += ['-p', cassandra_config.nodetool_port]
-
-    @property
-    def nodetool(self):
-        return self._nodetool
 
 
 class CqlSession(object):
@@ -329,6 +306,7 @@ class Cassandra(object):
 
         self.grpc_config = config.grpc
         self.kubernetes_config = config.kubernetes
+        self.snapshot_service = SnapshotService(config=config).snapshot_service
 
     def _has_systemd(self):
         try:
@@ -416,67 +394,15 @@ class Cassandra(object):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
     def create_snapshot(self, backup_name):
-        cmd = self.create_snapshot_command(backup_name)
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
-
-            # TODO introduce abstraction layer/interface for invoking Cassandra
-            # Eventually I think we will want to introduce an abstraction layer for Cassandra's
-            # API that Medusa requires. There should be an implementation for using nodetool,
-            # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
-            if evaluate_boolean(self.kubernetes_config.enabled):
-                data = {
-                    "type": "exec",
-                    "mbean": "org.apache.cassandra.db:type=StorageService",
-                    "operation": "takeSnapshot(java.lang.String,java.util.Map,[Ljava.lang.String;)",
-                    "arguments": [tag, {}, []]
-                }
-                response = self.__do_post(data)
-                if response["status"] != 200:
-                    raise Exception("failed to create snapshot: {}".format(response["error"]))
-            else:
-                if self._is_ccm == 1:
-                    os.popen(cmd).read()
-                else:
-                    logging.debug('Executing: {}'.format(' '.join(cmd)))
-                    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+            self.snapshot_service.create_snapshot(tag=tag)
 
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
-        cmd = self.delete_snapshot_command(tag)
         if self.snapshot_exists(tag):
-
-            if evaluate_boolean(self.kubernetes_config.enabled):
-                data = {
-                    "type": "exec",
-                    "mbean": "org.apache.cassandra.db:type=StorageService",
-                    "operation": "clearSnapshot",
-                    "arguments": [tag, []]
-                }
-                response = self.__do_post(data)
-                if response["status"] != 200:
-                    raise Exception("failed to delete snapshot: {}".format(response["error"]))
-            else:
-                if self._is_ccm == 1:
-                    os.popen(cmd).read()
-                else:
-                    logging.debug('Executing: {}'.format(' '.join(cmd)))
-                    try:
-                        output = subprocess.check_output(cmd, universal_newlines=True)
-                        logging.debug('nodetool output: {}'.format(output))
-                    except subprocess.CalledProcessError as e:
-                        logging.debug('nodetool resulted in error: {}'.format(e.output))
-                        logging.warning(
-                            'Medusa may have failed at cleaning up snapshot {}. '
-                            'Check if the snapshot exists and clear it manually '
-                            'by running: {}'.format(tag, ' '.join(cmd)))
-
-    def __do_post(self, data):
-        json_data = json.dumps(data)
-        response = requests.post(self.kubernetes_config.cassandra_url, data=json_data)
-
-        return json.loads(response.text)
+            self.snapshot_service.delete_snapshot(tag=tag)
 
     def list_snapshotnames(self):
         return {

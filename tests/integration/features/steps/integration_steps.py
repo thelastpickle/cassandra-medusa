@@ -19,6 +19,7 @@ import datetime
 import json
 import logging
 import os
+import requests
 import shutil
 import subprocess
 import time
@@ -31,6 +32,7 @@ import signal
 from cassandra import ProtocolVersion
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
+from zipfile import ZipFile
 
 import medusa.backup_node
 import medusa.index
@@ -65,12 +67,12 @@ trustore_path = "{}/resources/local_with_ssl/generic-server-truststore.jks".form
 
 
 def kill_cassandra():
-    p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
+    p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
     out, err = p.communicate()
     for line in out.splitlines():
         if b"org.apache.cassandra.service.CassandraDaemon" in line:
             logging.info(line)
-            pid = int(line.split(None, 1)[0])
+            pid = int(line.split(None, 2)[1])
             os.kill(pid, signal.SIGKILL)
 
 
@@ -121,6 +123,56 @@ class GRPCServer:
             self.config.write(config_file)
             cmd = ["python3", "-m", "medusa.service.grpc.server", "server.py", self.medusa_conf_file]
             subprocess.Popen(cmd, cwd=os.path.abspath("../"))
+
+
+class MgmtApiServer:
+    @staticmethod
+    def init(config, cluster_name):
+        server = MgmtApiServer(config, cluster_name)
+        server.start()
+        return server
+
+    @staticmethod
+    def destroy():
+        p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        for line in out.splitlines():
+            if b"mgmtapi.sock" in line:
+                logging.info(line)
+                pid = int(line.split(None, 2)[1])
+                os.kill(pid, signal.SIGKILL)
+
+    def __init__(self, config, cluster_name):
+        self.cluster_name = cluster_name
+        env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
+        cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
+               "--db-socket=/tmp/db.sock",
+               "--host=unix:///tmp/mgmtapi.sock",
+               "--host=http://localhost:8080",
+               "--db-home={}/.ccm/{}/node1".format(str(Path.home()), self.cluster_name),
+               "--explicit-start",
+               "true",
+               "--no-keep-alive",
+               "true",
+               ]
+        subprocess.Popen(cmd, cwd=os.path.abspath("../"), env=env)
+
+    @staticmethod
+    def start():
+        started = False
+        start_count = 0
+        while not started and start_count < 20:
+            try:
+                start_count += 1
+                requests.post("http://127.0.0.1:8080/api/v0/lifecycle/start")
+                started = True
+            except Exception:
+                # wait for Cassandra to start
+                time.sleep(1)
+
+    @staticmethod
+    def stop():
+        requests.post("http://127.0.0.1:8080/api/v0/lifecycle/stop")
 
 
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
@@ -227,6 +279,65 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
         ).read()
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
     context.session = connect_cassandra(is_client_encryption_enable)
+
+
+@given(r'I have a fresh ccm cluster with mgmt api "{client_encryption}" named "{cluster_name}"')
+def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, client_encryption):
+    context.session = None
+    context.cluster_name = cluster_name
+    is_client_encryption_enable = False
+    subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
+    kill_cassandra()
+    res = subprocess.run(
+        ["ccm", "switch", context.cluster_name], stdout=PIPE, stderr=PIPE
+    )
+    if b"does not appear to be a valid cluster" not in res.stderr:
+        subprocess.check_call(
+            ["ccm", "remove", context.cluster_name], stdout=PIPE, stderr=PIPE
+        )
+    subprocess.check_call(
+        [
+            "ccm",
+            "create",
+            context.cluster_name,
+            "-v",
+            context.cassandra_version,
+            "-n",
+            "1",
+        ]
+    )
+
+    if client_encryption == 'with_client_encryption':
+        is_client_encryption_enable = True
+        update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
+        optional: false,keystore: " + keystore_path + ",keystore_password: testdata1,\
+        require_client_auth: true,truststore: " + trustore_path + ",truststore_password: truststorePass1,\
+        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}'"
+        os.popen(update_client_encrytion_opts).read()
+
+    if os.uname().sysname == "Linux":
+        os.popen(
+            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
+            + context.cluster_name
+            + """/node1/conf/cassandra-env.sh"""
+        ).read()
+        os.popen(
+            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
+            + context.cluster_name
+            + """/node1/conf/cassandra-env.sh"""
+        ).read()
+    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+    context.session = connect_cassandra(is_client_encryption_enable)
+    # stop the node via CCM as it needs to be started by the Management API
+    os.popen("ccm stop").read()
+
+    conf_file = os.path.expanduser("~/.ccm/{}/node1/conf/cassandra-env.sh".format(context.cluster_name))
+    with open(conf_file, "a") as config_file:
+        config_file.write(
+            'JVM_OPTS="$JVM_OPTS -javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar"'
+        )
+    # get the Cassandra Management API jars
+    get_mgmt_api_jars(version=context.cassandra_version)
 
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
@@ -497,6 +608,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     config['kubernetes'] = {
         "enabled": 1,
         "cassandra_url": "http://127.0.0.1:8778/jolokia/",
+        "use_mgmt_api": 0,
     }
 
     GRPCServer.destroy()
@@ -522,6 +634,157 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
     # sleep for a few seconds to give gRPC server a chance to initialize
     time.sleep(3)
+
+
+@given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
+def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
+    logging.info("Starting the tests")
+    if not hasattr(context, "cluster_name"):
+        context.cluster_name = "test"
+    config = configparser.ConfigParser(interpolation=None)
+
+    if storage_provider == "local":
+        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
+            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
+        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
+
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa_it_bucket",
+            "key_file": "",
+            "storage_provider": "local",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "prefix": storage_prefix
+        }
+    elif storage_provider == "google_storage":
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-integration-tests",
+            "key_file": "~/medusa_credentials.json",
+            "storage_provider": "google_storage",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "prefix": storage_prefix
+        }
+    elif storage_provider.startswith("s3"):
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "tlp-medusa-dev",
+            "key_file": "~/.aws/credentials",
+            "storage_provider": storage_provider,
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "api_profile": "default",
+            "base_path": "/tmp",
+            "multi_part_upload_threshold": 1 * 1024,
+            "concurrent_transfers": 4,
+            "prefix": storage_prefix,
+            "aws_cli_path": "aws"
+        }
+
+    config["cassandra"] = {
+        "is_ccm": 1,
+        "stop_cmd": "ccm stop",
+        "start_cmd": "ccm start",
+        "cql_username": "cassandra",
+        "cql_password": "cassandra",
+        "config_file": os.path.expanduser(
+            os.path.join(
+                "~/.ccm", context.cluster_name, "node1", "conf", "cassandra.yaml"
+            )
+        ),
+        "sstableloader_bin": os.path.expanduser(
+            os.path.join(
+                "~/.ccm",
+                "repository",
+                context.cassandra_version,
+                "bin",
+                "sstableloader",
+            )
+        ),
+        "resolve_ip_addresses": False
+    }
+
+    if client_encryption == 'with_client_encryption':
+        config["cassandra"].update(
+            {
+                "certfile": certfile,
+                "usercert": usercert,
+                "userkey": userkey,
+                "sstableloader_ts": trustore_path,
+                "sstableloader_tspw": "truststorePass1",
+                "sstableloader_ks": keystore_path,
+                "sstableloader_kspw": "testdata1"
+            }
+        )
+
+    config["monitoring"] = {"monitoring_provider": "local"}
+
+    config["checks"] = {
+        "health_check": "cql"
+    }
+
+    config["grpc"] = {
+        "enabled": 1,
+    }
+
+    config['kubernetes'] = {
+        "enabled": 1,
+        "cassandra_url": "http://127.0.0.1:8080/api/v0/ops/node/snapshots",
+        "use_mgmt_api": 1,
+    }
+
+    GRPCServer.destroy()
+    context.grpc_server = GRPCServer.init(config)
+
+    context.grpc_client = medusa.service.grpc.client.Client(
+        "127.0.0.1:50051",
+        channel_options=[('grpc.enable_retries', 0)]
+    )
+
+    MgmtApiServer.destroy()
+    context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name)
+
+    context.medusa_config = MedusaConfig(
+        storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
+        cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
+        monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
+        ssh=None,
+        checks=_namedtuple_from_dict(ChecksConfig, config["checks"]),
+        logging=None,
+        grpc=_namedtuple_from_dict(GrpcConfig, config["grpc"]),
+        kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+    )
+
+    cleanup_storage(context, storage_provider)
+
+    is_client_encryption_enable = False
+    if client_encryption == 'with_client_encryption':
+        is_client_encryption_enable = True
+
+    # sleep for a few seconds to give gRPC server a chance to initialize
+    ready_count = 0
+    while ready_count < 20:
+        ready = 0
+        try:
+            ready = requests.get("http://127.0.0.1:8080/api/v0/probes/readiness").status_code
+        except Exception:
+            # wait for the server to be ready
+            time.sleep(1)
+        ready_count += 1
+        if ready == 200:
+            # server is ready, re-establish the session
+            context.session = connect_cassandra(is_client_encryption_enable)
+            break
+        else:
+            # wait for Cassandra to be ready
+            time.sleep(1)
 
 
 @when(r'I create the "{table_name}" table in keyspace "{keyspace_name}"')
@@ -622,6 +885,12 @@ def _check_grpc_server_is_up(context):
 @then(r'I shutdown the gRPC server')
 def _i_shutdown_the_grpc_server(context):
     context.grpc_server.destroy()
+
+
+@then(r'I shutdown the mgmt api server')
+def _i_shutdown_the_mgmt_api_server(context):
+    context.mgmt_api_server.stop()
+    context.mgmt_api_server.destroy()
 
 
 @then(r'I can see the backup named "{backup_name}" when I list the backups')
@@ -1192,3 +1461,62 @@ def write_dummy_file(path, mtime_str, contents=None):
     mtime = (t - datetime.datetime(1970, 1, 1)).total_seconds()
     atime = mtime
     os.utime(path, (atime, mtime))
+
+
+def get_mgmt_api_jars(
+        version,
+        url="https://api.github.com/repos/datastax/management-api-for-apache-cassandra/releases/latest"):
+
+    # clear out any temp resources that might exist
+    remove_temporary_mgmtapi_resources()
+
+    result = requests.get(url=url)
+
+    zip_file = requests.get(json.loads(result.text)["assets"][0]["browser_download_url"], stream=True)
+
+    with open("/tmp/mgmt_api_jars.zip", "wb") as mgmt_api_jars:
+        for chunk in zip_file.iter_content(chunk_size=4096):
+            if chunk:
+                mgmt_api_jars.write(chunk)
+
+    with ZipFile('/tmp/mgmt_api_jars.zip', 'r') as zip_ref:
+        list_of_names = zip_ref.namelist()
+        for file_name in list_of_names:
+            if file_name.endswith('.jar'):
+                if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
+                    zip_ref.extract(file_name, '/tmp')
+
+    # check Cassandra version and make sure we use the right agent
+    # v0.1.17 bundles a single mgmtapi agent. For v0.1.18+, the bundle is specific to the C* version
+    if not Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').is_file():
+        # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
+        # link the C* specific agent to the generic agent file name
+        assert False is Path('/tmp/management-api-agent/target/').exists()
+        Path('/tmp/management-api-agent/target/').mkdir(parents=True, exist_ok=False)
+        if str.startswith(version, '3'):
+            # C* is version 3.x, use 3.x agent
+            assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
+            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').symlink_to(
+                '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
+        elif str.startswith(version, '4') or 'github:apache/trunk' == version:
+            # C* is version 4.x, use 4.x agent
+            assert Path('/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
+            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').symlink_to(
+                '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
+        else:
+            raise NotImplementedError('Cassandra version not supported: {}'.format(version))
+
+
+def rm_tree(pth):
+    pth = Path(pth)
+    for child in pth.glob('*'):
+        if child.is_file():
+            child.unlink()
+        else:
+            rm_tree(child)
+    pth.rmdir()
+
+
+def remove_temporary_mgmtapi_resources():
+    for tempDir in Path('/tmp').glob('management-api-*'):
+        rm_tree(tempDir)

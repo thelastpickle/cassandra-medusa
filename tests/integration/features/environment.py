@@ -40,3 +40,8 @@ def after_step(context, step):
         # NOTE: Use IPython debugger, same for pdb (basic python debugger).
         import ipdb
         ipdb.post_mortem(step.exc_traceback)
+
+
+def before_scenario(context, scenario):
+    if "skip-cassandra-2" in scenario.effective_tags and context.cassandra_version.startswith("2."):
+        scenario.skip("Skipping scenario on Cassandra 2.x")
