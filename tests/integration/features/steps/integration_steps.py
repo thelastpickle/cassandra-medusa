@@ -31,6 +31,7 @@ from subprocess import PIPE
 import signal
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
+from zipfile import ZipFile
 
 import medusa.backup_node
 import medusa.index
@@ -147,7 +148,7 @@ class MgmtApiServer:
         with open(self.medusa_conf_file, "w") as config_file:
             self.config.write(config_file)
             # cmd = ["python3", "-m", "medusa.service.grpc.server", "server.py", self.medusa_conf_file]
-            cmd = ["java", "-jar", "/tmp/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
+            cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
                    "--db-socket=/tmp/db.sock",
                    "--host=unix:///tmp/mgmtapi.sock",
                    "--host=http://localhost:8080",
@@ -327,12 +328,10 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     with open(conf_file, "a") as config_file:
         config_file.write(
             'JVM_OPTS="$JVM_OPTS -Ddb.unix_socket_file=/tmp/cassandra.sock '
-            '-javaagent:/tmp/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar" '
+            '-javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar" '
         )
-    shutil.copyfile("resources/grpc/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar",
-                    "/tmp/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar")
-    shutil.copyfile("resources/grpc/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
-                    "/tmp/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar")
+    # get the Cassandra Management API jars
+    get_mgmt_api_jars()
 
     if os.uname().sysname == "Linux":
         os.popen(
@@ -1411,3 +1410,21 @@ def write_dummy_file(path, mtime_str, contents=None):
     mtime = (t - datetime.datetime(1970, 1, 1)).total_seconds()
     atime = mtime
     os.utime(path, (atime, mtime))
+
+
+def get_mgmt_api_jars(
+        url="https://github.com/datastax/management-api-for-apache-cassandra/releases/download/v0.1.15/jars.zip"):
+
+    zip_file = requests.get(url, stream=True)
+
+    with open("/tmp/mgmt_api_jars.zip", "wb") as mgmt_api_jars:
+        for chunk in zip_file.iter_content(chunk_size=4096):
+            if chunk:
+                mgmt_api_jars.write(chunk)
+
+    with ZipFile('/tmp/mgmt_api_jars.zip', 'r') as zip_ref:
+        list_of_names = zip_ref.namelist()
+        for file_name in list_of_names:
+            if file_name.endswith('.jar'):
+                if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
+                    zip_ref.extract(file_name, '/tmp')
