@@ -110,7 +110,7 @@ class BackupJob(object):
         self.temp_dir = temp_dir
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.hosts = {}
-        self.cassandra = Cassandra(config.cassandra)
+        self.cassandra = Cassandra(config)
         self.snapshot_tag = '{}{}'.format(self.cassandra.SNAPSHOT_PREFIX, self.backup_name)
         fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)

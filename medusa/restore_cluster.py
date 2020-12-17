@@ -23,6 +23,7 @@ import traceback
 import socket
 
 import medusa.config
+import medusa.utils
 from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
 from medusa.orchestration import Orchestration
@@ -39,7 +40,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         restore_start_time = datetime.datetime.now()
         if seed_target is None and host_list is None:
             # if no target node is provided, nor a host list file, default to the local node as seed target
-            hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+            hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses))
             seed_target = hostname_resolver.resolve_fqdn(socket.gethostbyname(socket.getfqdn()))
             logging.warning("Seed target was not provided, using the local hostname: {}".format(seed_target))
 
@@ -115,9 +116,9 @@ class RestoreJob(object):
         self.tables = tables
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
-        self.parallel_restores = parallel_restores
-        self.cassandra = Cassandra(config.cassandra)
-        fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
+        self.pssh_pool_size = parallel_restores
+        self.cassandra = Cassandra(config)
+        fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
 
     def execute(self):
