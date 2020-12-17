@@ -4,6 +4,7 @@ __pycache__/
 .idea
 # C extensions
 *.so
+*.swp
 .tox/
 /.idea/
 /env/

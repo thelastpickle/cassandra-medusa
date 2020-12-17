@@ -20,13 +20,13 @@ import logging
 import os
 import pathlib
 import psutil
-import sys
 import time
 import traceback
 
 from libcloud.storage.providers import Provider
 from retrying import retry
 
+import medusa.utils
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
@@ -160,7 +160,7 @@ def main(config, backup_name_arg, stagger_time, mode):
 
     try:
         storage = Storage(config=config.storage)
-        cassandra = Cassandra(config.cassandra)
+        cassandra = Cassandra(config)
 
         differential_mode = False
         if mode == "differential":
@@ -217,10 +217,11 @@ def main(config, backup_name_arg, stagger_time, mode):
     except Exception as e:
         tags = ['medusa-node-backup', 'backup-error', backup_name]
         monitoring.send(tags, 1)
-        logging.error('This error happened during the backup: {}'.format(str(e)))
-        traceback.print_exc()
-        sys.exit(1)
-
+        medusa.utils.handle_exception(
+            e,
+            "This error happened during the backup: {}".format(str(e)),
+            config
+        )
 
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
 # attempt on which it waited for 60 seconds

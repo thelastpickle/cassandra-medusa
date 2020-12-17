@@ -23,6 +23,7 @@ import sys
 import time
 import uuid
 
+import medusa.utils
 from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_down
 from medusa.download import download_data
 from medusa.storage import Storage
@@ -74,21 +75,23 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.error('There is nothing to restore')
         sys.exit(0)
 
-    cassandra = Cassandra(config.cassandra)
+    cassandra = Cassandra(config)
 
     # Download the backup
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
-    logging.info('Stopping Cassandra')
-    cassandra.shutdown()
-    wait_for_node_to_go_down(config, cassandra.hostname)
+    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled):
+        logging.info('Stopping Cassandra')
+        cassandra.shutdown()
+        wait_for_node_to_go_down(config, cassandra.hostname)
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    clean_path(cassandra.commit_logs_path, keep_folder=True)
-    clean_path(cassandra.saved_caches_path, keep_folder=True)
+    use_sudo = not medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+    clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
+    clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -98,7 +101,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         if fqtn not in fqtns_to_restore:
             logging.debug('Skipping restore for {}'.format(fqtn))
             continue
-        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth)
+        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth, use_sudo)
 
     node_fqdn = storage.config.fqdn
     token_map_file = download_dir / 'tokenmap.json'
@@ -107,26 +110,31 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.debug("Parsed tokens: {}".format(tokens))
 
     # possibly wait for seeds
-    if seeds is not None:
-        wait_for_seeds(config, seeds)
-    else:
-        logging.info('No --seeds specified so we will not wait for any')
+    #
+    # In a Kubernetes deployment we can assume that seed nodes will be started first. It will
+    # handled either by the statefulset controller or by the controller of a Cassandra
+    # operator.
+    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled):
+        if seeds is not None:
+            wait_for_seeds(config, seeds)
+        else:
+            logging.info('No --seeds specified so we will not wait for any')
 
-    # Start up Cassandra
-    logging.info('Starting Cassandra')
-    # restoring in place retains system.local, which has tokens in it. no need to specify extra
-    if in_place:
-        cassandra.start_with_implicit_token()
-    else:
-        cassandra.start(tokens)
+        # Start up Cassandra
+        logging.info('Starting Cassandra')
+        # restoring in place retains system.local, which has tokens in it. no need to specify extra
+        if in_place:
+            cassandra.start_with_implicit_token()
+        else:
+            cassandra.start(tokens)
 
     # Clean the restored data from local temporary folder
-    clean_path(download_dir, keep_folder=False)
+    clean_path(download_dir, use_sudo, keep_folder=False)
     return node_backup
 
 
 def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
-    cassandra = Cassandra(config.cassandra)
+    cassandra = Cassandra(config)
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
     for fqdn in fqdns:
@@ -162,7 +170,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
-    hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+    hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses))
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:
@@ -232,7 +240,7 @@ def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
     return True
 
 
-def clean_path(p, keep_folder=False):
+def clean_path(p, use_sudo=True, keep_folder=False):
     path = str(p)
     if p.exists() and os.path.isdir(path) and len(os.listdir(path)):
         logging.debug('Cleaning ({})'.format(path))
@@ -241,13 +249,19 @@ def clean_path(p, keep_folder=False):
             for f in os.listdir(path):
                 file_path = os.path.join(path, f)
                 logging.debug('Removing file {}'.format(file_path))
-                subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', file_path])
+                if use_sudo:
+                    subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', file_path])
+                else:
+                    subprocess.check_output(['rm', '-rf', file_path])
         else:
             logging.debug('Remove folder {} and content'.format(path))
-            subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
+            if use_sudo:
+                subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', path])
+            else:
+                subprocess.check_output(['rm', '-rf', path])
 
 
-def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth):
+def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth, use_sudo=True):
 
     # decide whether to restore files for this table or not
 
@@ -274,12 +288,18 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
     # prepare the destination folder
     if dst.exists():
         logging.debug('Cleaning directory {}'.format(dst))
-        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
-                                 'rm', '-rf', str(dst)])
+        if use_sudo:
+            subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                     'rm', '-rf', str(dst)])
+        else:
+            subprocess.check_output(['rm', '-rf', str(dst)])
     else:
         logging.debug('Creating directory {}'.format(dst))
-        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
-                                 'mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
+        if use_sudo:
+            subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                     'mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
+        else:
+            subprocess.check_output(['mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
 
     if not restore_section:
         logging.debug("Skipping the actual restore of {}".format(section['columnfamily']))
@@ -287,9 +307,14 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
 
     # restore the table
     logging.debug('Restoring {} -> {}'.format(src, dst))
-    subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
-    file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
-    subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+    if use_sudo:
+        subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
+        file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
+        subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+    else:
+        subprocess.check_output(['mv', str(src), str(dst)])
+        file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
+        subprocess.check_output(['chown', '-R', file_ownership, str(dst)])
 
 
 def get_node_tokens(node_fqdn, token_map_file):

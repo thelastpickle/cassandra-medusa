@@ -18,6 +18,7 @@
 
 import fileinput
 import itertools
+import json
 import logging
 import os
 import pathlib
@@ -26,6 +27,8 @@ import socket
 import subprocess
 import time
 import yaml
+import requests
+import medusa.utils
 
 from subprocess import PIPE
 from retrying import retry
@@ -233,7 +236,7 @@ class CassandraConfigReader(object):
 
     @property
     def root(self):
-        data_file_directories = self._config.get('data_file_directories')
+        data_file_directories = self._config.get('data_file_directories', ['/var/lib/cassandra/data'])
         if not data_file_directories:
             raise RuntimeError('data_file_directories must be properly configured')
         if len(data_file_directories) > 1:
@@ -242,14 +245,14 @@ class CassandraConfigReader(object):
 
     @property
     def commitlog_directory(self):
-        commitlog_directory = self._config.get('commitlog_directory')
+        commitlog_directory = self._config.get('commitlog_directory', '/var/lib/cassandra/commitlog')
         if not commitlog_directory:
             raise RuntimeError('commitlog_directory must be properly configured')
         return pathlib.Path(commitlog_directory)
 
     @property
     def saved_caches_directory(self):
-        saved_caches_directory = self._config.get('saved_caches_directory')
+        saved_caches_directory = self._config.get('saved_caches_directory', '/var/lib/cassandra/saved_caches')
         if not saved_caches_directory:
             raise RuntimeError('saved_caches_directory must be properly configured')
         return pathlib.Path(saved_caches_directory)
@@ -298,7 +301,8 @@ class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
-    def __init__(self, cassandra_config, contact_point=None):
+    def __init__(self, config, contact_point=None):
+        cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
@@ -320,6 +324,9 @@ class Cassandra(object):
         self._native_port = config_reader.native_port
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds
+
+        self.grpc_config = config.grpc
+        self.kubernetes_config = config.kubernetes
 
     def _has_systemd(self):
         try:
@@ -410,30 +417,64 @@ class Cassandra(object):
         cmd = self.create_snapshot_command(backup_name)
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
-            if self._is_ccm == 1:
-                os.popen(cmd).read()
+
+            # TODO introduce abstraction layer/interface for invoking Cassandra
+            # Eventually I think we will want to introduce an abstraction layer for Cassandra's
+            # API that Medusa requires. There should be an implementation for using nodetool,
+            # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
+            if medusa.utils.evaluate_boolean(self.kubernetes_config.enabled):
+                data = {
+                    "type": "exec",
+                    "mbean": "org.apache.cassandra.db:type=StorageService",
+                    "operation": "takeSnapshot(java.lang.String,java.util.Map,[Ljava.lang.String;)",
+                    "arguments": [tag, {}, []]
+                }
+                response = self.__do_post(data)
+                if response["status"] != 200:
+                    raise Exception("failed to create snapshot: {}".format(response["error"]))
             else:
-                logging.debug('Executing: {}'.format(' '.join(cmd)))
-                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+                if self._is_ccm == 1:
+                    os.popen(cmd).read()
+                else:
+                    logging.debug('Executing: {}'.format(' '.join(cmd)))
+                    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
 
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
         cmd = self.delete_snapshot_command(tag)
         if self.snapshot_exists(tag):
-            if self._is_ccm == 1:
-                os.popen(cmd).read()
+
+            if medusa.utils.evaluate_boolean(self.kubernetes_config.enabled):
+                data = {
+                    "type": "exec",
+                    "mbean": "org.apache.cassandra.db:type=StorageService",
+                    "operation": "clearSnapshot",
+                    "arguments": [tag, []]
+                }
+                response = self.__do_post(data)
+                if response["status"] != 200:
+                    raise Exception("failed to delete snapshot: {}".format(response["error"]))
             else:
-                logging.debug('Executing: {}'.format(' '.join(cmd)))
-                try:
-                    output = subprocess.check_output(cmd, universal_newlines=True)
-                    logging.debug('nodetool output: {}'.format(output))
-                except subprocess.CalledProcessError as e:
-                    logging.debug('nodetool resulted in error: {}'.format(e.output))
-                    logging.warning(
-                        'Medusa may have failed at cleaning up snapshot {}. '
-                        'Check if the snapshot exists and clear it manually '
-                        'by running: {}'.format(tag, ' '.join(cmd)))
+                if self._is_ccm == 1:
+                    os.popen(cmd).read()
+                else:
+                    logging.debug('Executing: {}'.format(' '.join(cmd)))
+                    try:
+                        output = subprocess.check_output(cmd, universal_newlines=True)
+                        logging.debug('nodetool output: {}'.format(output))
+                    except subprocess.CalledProcessError as e:
+                        logging.debug('nodetool resulted in error: {}'.format(e.output))
+                        logging.warning(
+                            'Medusa may have failed at cleaning up snapshot {}. '
+                            'Check if the snapshot exists and clear it manually '
+                            'by running: {}'.format(tag, ' '.join(cmd)))
+
+    def __do_post(self, data):
+        json_data = json.dumps(data)
+        response = requests.post(self.kubernetes_config.cassandra_url, data=json_data)
+
+        return json.loads(response.text)
 
     def list_snapshotnames(self):
         return {
@@ -611,7 +652,7 @@ def is_node_up(config, host):
         else:
             return is_ccm_up(args, 'statusbinary')
     else:
-        cassandra = Cassandra(config.cassandra)
+        cassandra = Cassandra(config)
         native_port = cassandra.native_port
         rpc_port = cassandra.rpc_port
         if health_check == 'thrift':

@@ -24,7 +24,8 @@ from cassandra.metadata import Murmur3Token
 from pathlib import Path
 from unittest.mock import Mock
 
-from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
+from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict,\
+    KubernetesConfig
 from medusa.cassandra_utils import CqlSession, SnapshotPath, Nodetool, Cassandra
 
 
@@ -40,13 +41,21 @@ class CassandraUtilsTest(unittest.TestCase):
         config['cassandra'] = {
             'resolve_ip_addresses': False
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
     def test_tokenmap_one_token(self):
@@ -132,13 +141,21 @@ class CassandraUtilsTest(unittest.TestCase):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         self.assertEqual(n, ['nodetool'])
@@ -153,13 +170,21 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_host': '127.0.0.1',
             'nodetool_port': '7199'
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '--ssl', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -176,13 +201,21 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_host': '127.0.0.1',
             'nodetool_port': '7199'
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
         expected = ['nodetool', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
@@ -200,17 +233,24 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -231,17 +271,24 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -263,17 +310,24 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
         cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
 
@@ -294,17 +348,24 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         medusa_config = MedusaConfig(
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
-        cassandra = Cassandra(medusa_config.cassandra)
+        cassandra = Cassandra(medusa_config)
         self.assertEqual(["127.0.0.1", "127.0.0.2"], sorted(cassandra.seeds))
 
     def test_parsing_custom_seed_provider(self):
@@ -326,10 +387,23 @@ class CassandraUtilsTest(unittest.TestCase):
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
-        cassandra_config = _namedtuple_from_dict(CassandraConfig, config['cassandra'])
-
-        # init cassandra config and check the custom seed provider was ignored
-        cassandra = Cassandra(cassandra_config)
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+        )
+        cassandra = Cassandra(medusa_config)
         self.assertEqual([], sorted(cassandra.seeds))
 
 

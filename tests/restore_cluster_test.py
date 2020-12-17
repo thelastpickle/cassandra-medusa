@@ -23,7 +23,8 @@ from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
+from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,\
+    KubernetesConfig
 
 
 class RestoreClusterTest(unittest.TestCase):
@@ -44,13 +45,21 @@ class RestoreClusterTest(unittest.TestCase):
             'is_ccm': '1',
             'resolve_ip_addresses': 'False'
         }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
     # Test that we can properly associate source and target nodes for restore using a host list
