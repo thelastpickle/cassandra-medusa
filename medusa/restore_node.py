@@ -261,7 +261,7 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
 
     if not in_place:
         if section['keyspace'] == 'system':
-            if section['columnfamily'].startswith('local-') or section['columnfamily'].startswith('peers-'):
+            if section['columnfamily'].startswith('local-') or section['columnfamily'].startswith('peers'):
                 restore_section = False
         if section['keyspace'] == 'system_auth' and keep_auth:
             logging.info('Keeping section {}.{} untouched'.format(section['keyspace'], section['columnfamily']))
