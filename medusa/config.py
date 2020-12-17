@@ -23,6 +23,7 @@ import sys
 
 import medusa.storage
 import medusa.cassandra_utils
+from medusa.utils import evaluate_boolean
 
 StorageConfig = collections.namedtuple(
     'StorageConfig',
@@ -56,12 +57,22 @@ MonitoringConfig = collections.namedtuple(
 
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging']
+    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc', 'kubernetes']
 )
 
 LoggingConfig = collections.namedtuple(
     'LoggingConfig',
     ['enabled', 'file', 'format', 'level', 'maxBytes', 'backupCount']
+)
+
+GrpcConfig = collections.namedtuple(
+    'GrpcConfig',
+    ['enabled']
+)
+
+KubernetesConfig = collections.namedtuple(
+    'KubernetesConfig',
+    ['enabled', 'cassandra_url']
 )
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -122,6 +133,15 @@ def load_config(args, config_file):
         'monitoring_provider': 'None'
     }
 
+    config['grpc'] = {
+        'enabled': False,
+    }
+
+    config['kubernetes'] = {
+        'enabled': False,
+        'cassandra_url': 'None'
+    }
+
     if config_file:
         logging.debug('Loading configuration from {}'.format(config_file))
         config.read_file(config_file.open())
@@ -164,6 +184,18 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    config.read_dict({'grpc': {
+        key: value
+        for key, value in _zip_fields_with_arg_values(GrpcConfig._fields, args)
+        if value is not None
+    }})
+
+    config.read_dict({'kubernetes': {
+        key: value
+        for key, value in _zip_fields_with_arg_values(KubernetesConfig._fields, args)
+        if value is not None
+    }})
+
     resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
     config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
     if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
@@ -177,6 +209,8 @@ def load_config(args, config_file):
         checks=_namedtuple_from_dict(ChecksConfig, config['checks']),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
         logging=_namedtuple_from_dict(LoggingConfig, config['logging']),
+        grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+        kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes'])
     )
 
     for field in ['bucket_name', 'storage_provider']:
@@ -199,16 +233,6 @@ def load_config(args, config_file):
 
 def _zip_fields_with_arg_values(fields, args):
     return [(field, args[field]) for field in fields]
-
-
-def evaluate_boolean(value):
-    # same behaviour as python's configparser
-    if str(value).lower() in ('0', 'false', 'no', 'off'):
-        return False
-    elif str(value).lower() in ('1', 'true', 'yes', 'on'):
-        return True
-    else:
-        raise TypeError('{} not a boolean'.format(value))
 
 
 def _namedtuple_from_dict(cls, data):

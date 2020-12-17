@@ -96,6 +96,7 @@ done
 export LOCAL_JMX=yes
 export PYTHONWARNINGS="ignore"
 pip3 install -r requirements.txt
+pip3 install -r requirements-grpc.txt
 pip3 install -r requirements-test.txt
 cd tests/integration
 if [ "$LOCAL" == "yes" ]

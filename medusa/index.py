@@ -45,7 +45,7 @@ def build_indices(config, noop):
         all_backups = []
 
         if is_ccm != 1:
-            cassandra = Cassandra(config.cassandra)
+            cassandra = Cassandra(config)
             with cassandra.new_session() as cql_session:
                 tokenmap = cql_session.tokenmap()
             for fqdn in tokenmap.keys():
