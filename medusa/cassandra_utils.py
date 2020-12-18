@@ -423,7 +423,7 @@ class Cassandra(object):
             # API that Medusa requires. There should be an implementation for using nodetool,
             # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
             if evaluate_boolean(self.kubernetes_config.enabled):
-                self.__do_grpc_take_snapshot(tag)
+                self.__do_post_take_snapshot(tag)
             else:
                 if self._is_ccm == 1:
                     os.popen(cmd).read()
@@ -438,7 +438,7 @@ class Cassandra(object):
         if self.snapshot_exists(tag):
 
             if evaluate_boolean(self.kubernetes_config.enabled):
-                self.__do_grpc_delete_snapshot(tag)
+                self.__do_post_delete_snapshot(tag)
             else:
                 if self._is_ccm == 1:
                     os.popen(cmd).read()
@@ -454,7 +454,7 @@ class Cassandra(object):
                             'Check if the snapshot exists and clear it manually '
                             'by running: {}'.format(tag, ' '.join(cmd)))
 
-    def __do_grpc_take_snapshot(self, tag):
+    def __do_post_take_snapshot(self, tag):
         use_mgmt_api = medusa.utils.evaluate_boolean(self.kubernetes_config.use_mgmt_api)
         post_url = self.kubernetes_config.cassandra_url
 
@@ -479,7 +479,7 @@ class Cassandra(object):
                 err_msg = "failed to create snapshot: {}".format(json.loads(response.text)["error"])
             raise Exception(err_msg)
 
-    def __do_grpc_delete_snapshot(self, tag):
+    def __do_post_delete_snapshot(self, tag):
         use_mgmt_api = medusa.utils.evaluate_boolean(self.kubernetes_config.use_mgmt_api)
         post_url = self.kubernetes_config.cassandra_url
 
