@@ -51,6 +51,50 @@ jobs:
       run: |
         . venv/bin/activate
         tox -e ${{ matrix.tox-py }}
+
+  debian-build:
+    # Build debian packages
+    strategy:
+      matrix:
+        suite: [bionic, stretch]
+        include:
+          - suite: bionic
+            os-version: ubuntu-18.04
+          - suite: stretch
+            os-version: ubuntu-16.04
+    runs-on: ${{ matrix.os-version }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build Debian Package
+      run: |
+        version=$(cat VERSION)
+        version_exists=$(cat debian/changelog | grep "($VERSION)" || echo "")
+        if [ -z "$version_exists" ]
+        then
+            echo "Updating debian changelog..."
+            cd packaging/docker-build
+            docker-compose build release && docker-compose run release
+            cd ../..
+        fi
+        cd packaging/docker-build
+        docker-compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
+            && docker-compose run "cassandra-medusa-builder-${{ matrix.suite }}"
+        
+        cd ../../packages
+        if [ -f "cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" ]; then
+          echo "${suite} debian package was successfully built"
+        else
+          echo "Error: no packages found for ${{ matrix.suite }}"
+          exit 1
+        fi
+    - name: Install Debian Package and run Medusa
+      run: |
+        version=$(cat VERSION)
+        cd packages
+        sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
+        medusa
+        exit $?
+      
   integration-tests:
     needs: build
     continue-on-error: ${{ matrix.experimental }}
@@ -61,7 +105,9 @@ jobs:
           it-backend: [local, s3, gcs]
           # IBM not included by default due to lite plan quota being easily exceeded
           # it-backend: [local, s3, gcs, ibm]
-          cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
+          # Disabling trunk for now due to https://issues.apache.org/jira/browse/CASSANDRA-16362
+          # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
+          cassandra-version: [2.2.14, 3.11.7]
           experimental: [false]
           include:
             - python-version: 3.7
@@ -140,7 +186,7 @@ jobs:
 
   release:
     # We can only release if the build above succeeded first
-    needs: [build, integration-tests]
+    needs: [debian-build, build, integration-tests]
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-18.04
     steps:
@@ -149,16 +195,9 @@ jobs:
       env:
         BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
         BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
-        SUITES: "bionic xenial buster stretch"
+        SUITES: "bionic stretch"
       run: |
-        cd packaging/docker-build
         $all_suites=($SUITES) # dash supports arrays expansion
-        for suite in $all_suites
-        do
-          docker-compose build "cassandra-medusa-builder-${suite} \
-            && docker-compose run "cassandra-medusa-builder-${suite}"
-        done
-        cd ../..
         version=$(cat VERSION)
         for suite in $all_suites
         do
