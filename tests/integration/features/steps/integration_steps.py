@@ -599,6 +599,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     config['kubernetes'] = {
         "enabled": 1,
         "cassandra_url": "http://127.0.0.1:8778/jolokia/",
+        "use_mgmt_api": 0,
     }
 
     GRPCServer.destroy()
@@ -722,12 +723,12 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
 
     config["grpc"] = {
         "enabled": 1,
-        "cassandra_url": "http://127.0.0.1:8080/api/v0/ops/node/snapshots",
-        "use_mgmt_api": 1,
     }
 
     config['kubernetes'] = {
-        "enabled": 0
+        "enabled": 1,
+        "cassandra_url": "http://127.0.0.1:8080/api/v0/ops/node/snapshots",
+        "use_mgmt_api": 1,
     }
 
     GRPCServer.destroy()
