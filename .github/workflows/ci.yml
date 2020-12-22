@@ -61,7 +61,7 @@ jobs:
           it-backend: [local, s3, gcs]
           # IBM not included by default due to lite plan quota being easily exceeded
           # it-backend: [local, s3, gcs, ibm]
-          cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
+          cassandra-version: [2.2.14, 3.11.7, 'github:jonmeredith/C16362']
           experimental: [false]
           include:
             - python-version: 3.7
