@@ -35,6 +35,7 @@ from cassandra.auth import PlainTextAuthProvider
 from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.service.snapshot import SnapshotService
+from medusa.nodetool import Nodetool
 
 
 class SnapshotPath(object):
@@ -106,28 +107,6 @@ class CqlSessionProvider(object):
         else:
             session = cluster.connect()
             return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
-
-
-class Nodetool(object):
-
-    def __init__(self, cassandra_config):
-        self._nodetool = ['nodetool']
-        if cassandra_config.nodetool_ssl == "true":
-            self._nodetool += ['--ssl']
-        if cassandra_config.nodetool_username is not None:
-            self._nodetool += ['-u', cassandra_config.nodetool_username]
-        if cassandra_config.nodetool_password is not None:
-            self._nodetool += ['-pw', cassandra_config.nodetool_password]
-        if cassandra_config.nodetool_password_file_path is not None:
-            self._nodetool += ['-pwf', cassandra_config.nodetool_password_file_path]
-        if cassandra_config.nodetool_host is not None:
-            self._nodetool += ['-h', cassandra_config.nodetool_host]
-        if cassandra_config.nodetool_port is not None:
-            self._nodetool += ['-p', cassandra_config.nodetool_port]
-
-    @property
-    def nodetool(self):
-        return self._nodetool
 
 
 class CqlSession(object):
