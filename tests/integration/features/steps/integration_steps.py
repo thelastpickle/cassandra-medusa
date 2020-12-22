@@ -761,7 +761,6 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     # sleep for a few seconds to give gRPC server a chance to initialize
     ready_count = 0
     while ready_count < 20:
-        logging.info("ERIK: seeing if MgmgApiServer is ready")
         ready = 0
         try:
             ready = requests.get("http://127.0.0.1:8080/api/v0/probes/readiness").status_code
