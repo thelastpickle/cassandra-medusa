@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import medusa.utils
 
+from medusa.service.snapshot.ccm_snapshot_service import CCMSnapshotService
 from medusa.service.snapshot.jolokia_snapshot_service import JolokiaSnapshotService
-from medusa.service.snapshot.managementAPISnapshotService import ManagementAPISnapshotService
+from medusa.service.snapshot.management_api_snapshot_service import ManagementAPISnapshotService
 
 
 class SnapshotService(object):
@@ -30,5 +30,7 @@ class SnapshotService(object):
                 return ManagementAPISnapshotService(self._config.kubernetes)
             else:
                 return JolokiaSnapshotService(self._config.kubernetes)
+        elif medusa.utils.evaluate_boolean(self._config.cassandra.is_ccm):
+            return CCMSnapshotService(None)
         else:
             return None

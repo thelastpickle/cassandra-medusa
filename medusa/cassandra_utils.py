@@ -18,16 +18,13 @@
 
 import fileinput
 import itertools
-import json
 import logging
-import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
 import yaml
-import requests
 from medusa.utils import evaluate_boolean, null_if_empty
 
 from subprocess import PIPE
@@ -420,18 +417,11 @@ class Cassandra(object):
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
 
-            # TODO introduce abstraction layer/interface for invoking Cassandra
-            # Eventually I think we will want to introduce an abstraction layer for Cassandra's
-            # API that Medusa requires. There should be an implementation for using nodetool,
-            # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
-            if evaluate_boolean(self.kubernetes_config.enabled):
+            if evaluate_boolean(self.kubernetes_config.enabled) or self._is_ccm == 1:
                 self.snapshot_service.create_snapshot(tag=tag)
             else:
-                if self._is_ccm == 1:
-                    os.popen(cmd).read()
-                else:
-                    logging.debug('Executing: {}'.format(' '.join(cmd)))
-                    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
 
         return Cassandra.Snapshot(self, tag)
 
@@ -439,22 +429,19 @@ class Cassandra(object):
         cmd = self.delete_snapshot_command(tag)
         if self.snapshot_exists(tag):
 
-            if evaluate_boolean(self.kubernetes_config.enabled):
+            if evaluate_boolean(self.kubernetes_config.enabled) or self._is_ccm == 1:
                 self.snapshot_service.delete_snapshot(tag=tag)
             else:
-                if self._is_ccm == 1:
-                    os.popen(cmd).read()
-                else:
-                    logging.debug('Executing: {}'.format(' '.join(cmd)))
-                    try:
-                        output = subprocess.check_output(cmd, universal_newlines=True)
-                        logging.debug('nodetool output: {}'.format(output))
-                    except subprocess.CalledProcessError as e:
-                        logging.debug('nodetool resulted in error: {}'.format(e.output))
-                        logging.warning(
-                            'Medusa may have failed at cleaning up snapshot {}. '
-                            'Check if the snapshot exists and clear it manually '
-                            'by running: {}'.format(tag, ' '.join(cmd)))
+                logging.debug('Executing: {}'.format(' '.join(cmd)))
+                try:
+                    output = subprocess.check_output(cmd, universal_newlines=True)
+                    logging.debug('nodetool output: {}'.format(output))
+                except subprocess.CalledProcessError as e:
+                    logging.debug('nodetool resulted in error: {}'.format(e.output))
+                    logging.warning(
+                        'Medusa may have failed at cleaning up snapshot {}. '
+                        'Check if the snapshot exists and clear it manually '
+                        'by running: {}'.format(tag, ' '.join(cmd)))
 
     def list_snapshotnames(self):
         return {

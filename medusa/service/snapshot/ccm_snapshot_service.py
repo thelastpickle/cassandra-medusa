@@ -12,17 +12,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
+import os
+
+from medusa.service.snapshot.abstract_snapshot_service import AbstractSnapshotService
 
 
-class AbstractSnapshotService(abc.ABC):
-    def __init__(self, config):
-        self.config = config
+class CCMSnapshotService(AbstractSnapshotService):
 
-    @abc.abstractmethod
     def create_snapshot(self, *, tag):
-        pass
+        # create the CCM command
+        cmd = 'ccm node1 nodetool \"snapshot -t {}\"'.format(tag)
+        os.popen(cmd).read()
 
-    @abc.abstractmethod
     def delete_snapshot(self, *, tag):
-        pass
+        # create the CCM command
+        cmd = 'ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)
+        os.popen(cmd).read()
