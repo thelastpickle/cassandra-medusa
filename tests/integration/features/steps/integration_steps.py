@@ -1413,7 +1413,7 @@ def write_dummy_file(path, mtime_str, contents=None):
 
 
 def get_mgmt_api_jars(
-        url="https://github.com/datastax/management-api-for-apache-cassandra/releases/download/v0.1.15/jars.zip"):
+        url="https://github.com/datastax/management-api-for-apache-cassandra/releases/download/v0.1.17/jars.zip"):
 
     zip_file = requests.get(url, stream=True)
 
