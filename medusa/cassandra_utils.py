@@ -25,7 +25,6 @@ import socket
 import subprocess
 import time
 import yaml
-from medusa.utils import evaluate_boolean, null_if_empty
 
 from subprocess import PIPE
 from retrying import retry
@@ -392,35 +391,15 @@ class Cassandra(object):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
     def create_snapshot(self, backup_name):
-        cmd = self.create_snapshot_command(backup_name)
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
-
-            if evaluate_boolean(self.kubernetes_config.enabled) or self._is_ccm == 1:
-                self.snapshot_service.create_snapshot(tag=tag)
-            else:
-                logging.debug('Executing: {}'.format(' '.join(cmd)))
-                subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+            self.snapshot_service.create_snapshot(tag=tag)
 
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
-        cmd = self.delete_snapshot_command(tag)
         if self.snapshot_exists(tag):
-
-            if evaluate_boolean(self.kubernetes_config.enabled) or self._is_ccm == 1:
-                self.snapshot_service.delete_snapshot(tag=tag)
-            else:
-                logging.debug('Executing: {}'.format(' '.join(cmd)))
-                try:
-                    output = subprocess.check_output(cmd, universal_newlines=True)
-                    logging.debug('nodetool output: {}'.format(output))
-                except subprocess.CalledProcessError as e:
-                    logging.debug('nodetool resulted in error: {}'.format(e.output))
-                    logging.warning(
-                        'Medusa may have failed at cleaning up snapshot {}. '
-                        'Check if the snapshot exists and clear it manually '
-                        'by running: {}'.format(tag, ' '.join(cmd)))
+            self.snapshot_service.delete_snapshot(tag=tag)
 
     def list_snapshotnames(self):
         return {

@@ -16,6 +16,7 @@ import medusa.utils
 
 from medusa.service.snapshot.ccm_snapshot_service import CCMSnapshotService
 from medusa.service.snapshot.jolokia_snapshot_service import JolokiaSnapshotService
+from medusa.service.snapshot.nodetool_snapshot_service import NodetoolSnapshotService
 from medusa.service.snapshot.management_api_snapshot_service import ManagementAPISnapshotService
 
 
@@ -33,4 +34,4 @@ class SnapshotService(object):
         elif medusa.utils.evaluate_boolean(self._config.cassandra.is_ccm):
             return CCMSnapshotService(None)
         else:
-            return None
+            return NodetoolSnapshotService(self._config.cassandra)
