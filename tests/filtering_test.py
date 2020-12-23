@@ -37,7 +37,9 @@ class FilteringTest(unittest.TestCase):
             cassandra=None,
             ssh=None,
             checks=None,
-            logging=None
+            logging=None,
+            grpc=None,
+            kubernetes=None
         )
 
     def test_get_sections_to_restore(self):
