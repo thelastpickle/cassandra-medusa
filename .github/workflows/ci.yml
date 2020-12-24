@@ -106,7 +106,7 @@ jobs:
         fail-fast: false
         matrix:
           python-version: [3.6, 3.7]
-          it-backend: [local, s3, gcs]
+          it-backend: [local, s3, gcs, azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           # it-backend: [local, s3, gcs, ibm]
           # Disabling trunk for now due to https://issues.apache.org/jira/browse/CASSANDRA-16362
@@ -149,7 +149,7 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
         set -e
-        if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || ( "${{ matrix.it-backend }}" == "local" ) || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) ]];
+        if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || ( "${{ matrix.it-backend }}" == "local" ) || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) ]];
         then
           . venv/bin/activate
           if [[ "${{ matrix.it-backend }}" == "ibm" ]];
@@ -159,9 +159,8 @@ jobs:
             unset AWS_SECRET_ACCESS_KEY
           fi
           # Write GCS service account credentials to a file
-          echo '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' > ~/medusa_credentials.json
           mkdir ~/.aws
-          printf "%s" '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' > ~/.aws/ibm_credentials
+
           # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
           ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
           ccm node1 updateconf 'storage_port: 7011'
@@ -179,10 +178,16 @@ jobs:
             ./run_integration_tests.sh -v --s3 --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "gcs" ]
           then
+            echo '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' > ~/medusa_credentials.json
             ./run_integration_tests.sh -v --gcs --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "ibm" ]
           then
+            printf "%s" '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' > ~/.aws/ibm_credentials
             ./run_integration_tests.sh -v --ibm --no-local --cassandra-version=${{ matrix.cassandra-version }}
+          elif [ "${{ matrix.it-backend }}" == "azure" ]
+          then
+            printf "%s" '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' > ~/medusa_azure_credentials.json
+            ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }}
           else
             ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
           fi
