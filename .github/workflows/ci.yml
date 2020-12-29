@@ -22,7 +22,7 @@ jobs:
             tox-py: py38
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
@@ -68,7 +68,7 @@ jobs:
             os-version: ubuntu-16.04
     runs-on: ${{ matrix.os-version }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Build Debian Package
       run: |
         version=$(cat VERSION)
@@ -120,7 +120,7 @@ jobs:
               tox-py: py36
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
@@ -193,44 +193,70 @@ jobs:
           fi
         fi
 
-  release:
+  release-debian:
     # We can only release if the build above succeeded first
     needs: [debian-build, build, integration-tests]
     if: github.event_name == 'release' && github.event.action == 'published'
+    strategy:
+      matrix:
+        suite: [focal, bionic, xenial, stretch]
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
-    - name: Build and publish Debian
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    - name: Build and Upload Debian
       env:
         BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
         BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
-        SUITES: "focal bionic stretch xenial"
       run: |
-        $all_suites=($SUITES) # dash supports arrays expansion
         version=$(cat VERSION)
-        for suite in $all_suites
-        do
-          if [ -f "packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb" ]; then
-            echo "uploading packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb from ${suite} to Bintray"
-            curl -T "packages/cassandra-medusa_${version}-0~${suite}0_amd64.deb" \
-              -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
-              -H X-Bintray-Debian-Distribution:${suite} -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
-              https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}-0~${suite}0_amd64.deb
-          else
-            echo "Error: no packages found for ${suite}"
-          fi
-        done
-        echo "Publishing release in Bintray"
+        cd packaging/docker-build
+        docker-compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
+            && docker-compose run "cassandra-medusa-builder-${{ matrix.suite }}"
+        
+        cd ../..
+        if [ -f "packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" ]; then
+          echo "uploading packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb from ${{ matrix.suite }} to Bintray"
+          curl -T "packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" \
+            -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
+            -H X-Bintray-Debian-Distribution:${{ matrix.suite }} -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
+            https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
+        else
+          echo "Error: no packages found for ${{ matrix.suite }}"
+        fi
+  
+  publish-debian:
+    needs: [release-debian]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Publish Debian version
+      env:
+        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
+        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
+      run: |
+        version=$(cat VERSION)
+        echo "Publishing release ${version} in Bintray"
         curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
+
+  publish-pypi:
+    # We can only release if the build above succeeded first
+    needs: [publish-debian]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
     - name: Set up Python 3.6
       uses: actions/setup-python@v1
       with:
         python-version: 3.6
     - name: Install dependencies
       run: |
-        sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
         python -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
