@@ -82,6 +82,8 @@ class AwsCli(object):
                 self._aws_cli_path,
                 "--endpoint-url",
                 self.endpoint_url,
+                "--region",
+                self._config.region,
                 "s3", "cp", str(src),
                 "s3://{}/{}".format(bucket_name, dest)
             ]

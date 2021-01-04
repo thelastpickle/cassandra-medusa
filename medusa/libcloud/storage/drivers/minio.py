@@ -46,7 +46,7 @@ class MinIOStorageDriver(BaseS3StorageDriver):
     name = 'MinIO Storage Driver'
     website = 'http://cloud.google.com/storage'
     connectionCls = MinIOConnectionAWS4
-    region_name = ""
+    region_name = "us-east-1"
 
     def __init__(self, key, secret=None, secure=True, host=None, port=None):
         if host is None:
