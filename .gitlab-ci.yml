@@ -1,0 +1,7 @@
+include:
+    - project: 'prs-sdp/devops/gitlab-tpl' 
+      ref: 'develop'
+      file: 'docker.gitlab-ci.yml'
+variables:
+    SKIP_DEPLOYMENT: "true"
+
