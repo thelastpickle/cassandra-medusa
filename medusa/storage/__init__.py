@@ -35,7 +35,7 @@ from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
 from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.ibm_storage import IBMCloudStorage
-
+from medusa.storage.minio_storage import MinIOStorage
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -91,7 +91,8 @@ class Storage(object):
             return LocalStorage(self._config)
         elif self._config.storage_provider.lower() == "ibm_storage":
             return IBMCloudStorage(self._config)
-
+        elif self._config.storage.provider.lower() == "minio":
+            return MinIOStorage(self._config)
         raise NotImplementedError("Unsupported storage provider")
 
     @property
