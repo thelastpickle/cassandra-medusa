@@ -52,7 +52,7 @@ class MinIOStorage(S3Storage):
         driver = MinIOStorageDriver(
             host=self.config.host,
             port=self.config.port,
-            secure=False, #self.config.secure,
+            secure=False,
             key=aws_access_key_id,
             secret=aws_secret_access_key
         )
