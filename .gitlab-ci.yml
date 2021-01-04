@@ -37,6 +37,7 @@ image: busybox:latest
 
 stages:
   - check
+  - build
   - dockerize
 license-check:
   stage: check
