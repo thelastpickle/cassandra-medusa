@@ -78,8 +78,13 @@ class AwsCli(object):
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         for src in srcs:
-            cmd = [self._aws_cli_path, "--endpoint-url", self.endpoint_url, "s3", "cp", str(src), \
-                    "s3://{}/{}".format(bucket_name, dest)]
+            cmd = [
+                self._aws_cli_path,
+                "--endpoint-url",
+                self.endpoint_url,
+                "s3", "cp", str(src),
+                "s3://{}/{}".format(bucket_name, dest)
+            ]
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
