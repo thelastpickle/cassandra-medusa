@@ -91,7 +91,7 @@ class Storage(object):
             return LocalStorage(self._config)
         elif self._config.storage_provider.lower() == "ibm_storage":
             return IBMCloudStorage(self._config)
-        elif self._config.storage.provider.lower() == "minio":
+        elif self._config.storage_provider.lower() == "minio":
             return MinIOStorage(self._config)
         raise NotImplementedError("Unsupported storage provider")
 
