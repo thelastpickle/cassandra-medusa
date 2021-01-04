@@ -54,6 +54,8 @@ license-check:
 build:
   stage: build
   extends: .default-job-config
+  artifacts:
+    untracked: true
   image: python
   script:
     - python setup.py build
