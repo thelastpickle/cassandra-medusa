@@ -56,7 +56,7 @@ build:
   extends: .default-job-config
   image: python
   script:
-    - python build setup.py
+    - python setup.py build
 # Build Docker images using Kaniko (does not need access to runner's Docker)
 dev-docker-image-kaniko:
   extends: .default-job-config
