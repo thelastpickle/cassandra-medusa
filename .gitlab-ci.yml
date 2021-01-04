@@ -61,10 +61,13 @@ build:
 dev-docker-image-kaniko:
   extends: .default-job-config
   stage: dockerize
+  dependencies:
+    - build
   image:
     name: gcr.io/kaniko-project/executor:$KANIKO_EXECUTOR_VERSION
     entrypoint: [""]
   script:
+    - ls build/lib/medusa
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_JOB_TOKEN\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor --context $KANIKO_WORK_DIR --dockerfile $KANIKO_WORK_DIR/Dockerfile --destination $TARGET_REGISTRY_IMAGE:$DEV_IMAGE_TAG --build-arg CI_COMMIT_SHA=$CI_COMMIT_SHA --build-arg CI_COMMIT_TAG=$DEV_IMAGE_TAG $DOCKER_BUILD_OPTS
 
