@@ -49,7 +49,7 @@ setuptools.setup(
         'cassandra-driver>=3.14.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
-        'apache-libcloud>=2.8.0',
+        'apache-libcloud<=3.3.0,>=2.8.0',
         'lockfile>=0.12.2',
         'pycrypto>=2.6.1',
         'retrying>=1.3.3',
@@ -61,7 +61,8 @@ setuptools.setup(
         'grpcio-health-checking>=1.29.0',
         'grpcio-tools>=1.29.0',
         'gevent',
-        'greenlet'
+        'greenlet',
+        'fasteners==0.16'
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
