@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.8.1 (2021/01/07 14:50 +00:00)
+- Add missing dependencies for Libcloud 3.3.0 and pin Libcloud dependency to specific versions (@adejanovski)
+
 ### 0.8.0 (2020/12/28 06:38 +00:00)
 - Add Azure blob storage support (@ilhanadiyaman)
 - Ignore all peer tables, even the v2 ones (@rzvoncek)
