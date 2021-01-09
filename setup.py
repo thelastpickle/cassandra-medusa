@@ -60,6 +60,7 @@ setuptools.setup(
         'grpcio>=1.29.0',
         'grpcio-health-checking>=1.29.0',
         'grpcio-tools>=1.29.0',
+        'fasteners==0.16',
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
