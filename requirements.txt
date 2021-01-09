@@ -14,3 +14,4 @@ ssh2-python==0.19.0
 parallel-ssh==1.9.1
 requests==2.22.0
 wheel>=0.32.0
+fasteners==0.16
