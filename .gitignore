@@ -12,6 +12,7 @@ __pycache__/
 /dist/
 /packages/
 /venv/
+/scripts/venv/
 medusa.iml
 /*.egg-info/
 .vscode/settings.json
