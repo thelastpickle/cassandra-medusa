@@ -12,7 +12,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.6, 3.7, 3.8, 3.9]
         include:
           - python-version: 3.7
             tox-py: py37
@@ -20,6 +20,8 @@ jobs:
             tox-py: py36
           - python-version: 3.8
             tox-py: py38
+          - python-version: 3.9
+            tox-py: py39
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
