@@ -51,22 +51,25 @@ grpc() {
     python3 -m medusa.service.grpc.server server.py
 }
 # Add username/password to the medusa-config
+CONF_SRC=/etc/medusa/medusa.ini.old
+CONF=/etc/medusa/medusa.ini
+cp $CONF_SRC $CONF
 if [ ! -z $CASSANDRA_USERNAME ]; then
-    if ! grep "^\[cassandra\]" /etc/medusa/medusa.ini > /dev/null ; then
-        echo "[cassandra]" >> /etc/medusa/medusa.ini
+    if ! grep "^\[cassandra\]" $CONF > /dev/null ; then
+        echo -e "\n[cassandra]" >> $CONF
     fi
-    if grep "^cql_username" /etc/medusa/medusa.ini > /dev/null; then
-        sed -i "s/^cql_username.*/cql_username = $CASSANDRA_USERNAME/g" /etc/medusa/medusa.ini
+    if grep "^cql_username" $CONF > /dev/null; then
+        sed -i "s/^cql_username.*/cql_username = $CASSANDRA_USERNAME/g" $CONF
     else
-        sed -i "s/^\[cassandra\]/[cassandra]\ncql_username = $CASSANDRA_USERNAME/g" /etc/medusa/medusa.ini
+        sed -i "s/^\[cassandra\]/[cassandra]\ncql_username = $CASSANDRA_USERNAME/g" $CONF
     fi
     if [ -z $CASSANDRA_PASSWORD ]; then
         CASSANDRA_PASSWORD=""
     fi
-    if grep "^cql_password" /etc/medusa/medusa.ini > /dev/null; then
-        sed -i "s/^cql_password.*/cql_password = $CASSANDRA_PASSWORD/g" /etc/medusa/medusa.ini
+    if grep "^cql_password" $CONF > /dev/null; then
+        sed -i "s/^cql_password.*/cql_password = $CASSANDRA_PASSWORD/g" $CONF
     else
-        sed -i "s/^\[cassandra\]/[cassandra]\ncql_password = $CASSANDRA_PASSWORD/g" /etc/medusa/medusa.ini
+        sed -i "s/^\[cassandra\]/[cassandra]\ncql_password = $CASSANDRA_PASSWORD/g" $CONF
     fi
 fi
 echo "sleeping for $DEBUG_SLEEP sec"
