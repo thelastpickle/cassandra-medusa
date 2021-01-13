@@ -50,7 +50,25 @@ grpc() {
     echo "Starting Medusa gRPC service"
     python3 -m medusa.service.grpc.server server.py
 }
-
+# Add username/password to the medusa-config
+if [ ! -z $CASSANDRA_USERNAME ]; then
+    if ! grep "^\[cassandra\]" /etc/medusa/medusa.ini > /dev/null ; then
+        echo "[cassandra]" >> /etc/medusa/medusa.ini
+    fi
+    if grep "^cql_username" /etc/medusa/medusa.ini > /dev/null; then
+        sed -i "s/^cql_username.*/cql_username = $CASSANDRA_USERNAME/g" /etc/medusa/medusa.ini
+    else
+        sed -i "s/^\[cassandra\]/[cassandra]\ncql_username = $CASSANDRA_USERNAME/g" /etc/medusa/medusa.ini
+    fi
+    if [ -z $CASSANDRA_PASSWORD ]; then
+        CASSANDRA_PASSWORD=""
+    fi
+    if grep "^cql_password" /etc/medusa/medusa.ini > /dev/null; then
+        sed -i "s/^cql_password.*/cql_password = $CASSANDRA_PASSWORD/g" /etc/medusa/medusa.ini
+    else
+        sed -i "s/^\[cassandra\]/[cassandra]\ncql_password = $CASSANDRA_PASSWORD/g" /etc/medusa/medusa.ini
+    fi
+fi
 echo "sleeping for $DEBUG_SLEEP sec"
 sleep $DEBUG_SLEEP
 
