@@ -1,4 +1,4 @@
-FROM  ubuntu:18.04 as base
+FROM ubuntu:18.04 as base
 
 RUN mkdir /install
 WORKDIR /install
@@ -8,7 +8,9 @@ RUN apt-get update && \
 
 RUN add-apt-repository ppa:kalon33/gamesgiroll -y
 
-RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
+COPY requirements.txt /requirements.txt
+COPY requirements-grpc-runtime.txt /requirements-grpc-runtime.txt
+COPY requirements-s3.txt /requirements-s3.txt 
 
 RUN apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
@@ -29,31 +31,31 @@ RUN apt-get update \
         wget \
         apt-transport-https \
         ca-certificates \
-        awscli \
-        && mkdir -p /usr/local/gcloud \
-        && tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz \
-        && /usr/local/gcloud/google-cloud-sdk/install.sh --quiet
+        awscli
 
-COPY requirements.txt /requirements.txt
-COPY requirements-grpc.txt /requirements-grpc.txt
+RUN pip3 install --ignore-installed --user -r /requirements.txt \
+    && pip3 install --ignore-installed --user -r /requirements-grpc-runtime.txt \
+    && pip3 install --ignore-installed --user -r /requirements-s3.txt
 
-RUN pip3 install -r /requirements.txt && \
-    pip3 install -r /requirements-grpc.txt
+# Could be python:slim, but we have a .sh entrypoint
+FROM ubuntu:18.04
 
-FROM base
-
-ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
 ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
+ENV PATH=/root/.local/bin:$PATH
 
+COPY --from=base /root/.local /root/.local
 COPY --from=base /install /usr/local
+
+# wget could happen in the build-phase
+RUN apt-get update && apt-get install -y python3 wget
 
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe && \
     groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 cassandra
 
-COPY build/lib/medusa /app/medusa
+COPY medusa /app/medusa
 COPY k8s/docker-entrypoint.sh /app
 
 WORKDIR /app
