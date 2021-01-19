@@ -243,3 +243,7 @@ class AbstractStorage(abc.ABC):
         :return: boolean informing if the blob matches or not
         """
         pass
+
+    def prepare_download(self):
+        # Override for each child class
+        pass
