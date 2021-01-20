@@ -36,26 +36,6 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-xenial:
-    build:
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
-      args:
-        - BUILD_IMAGE=ubuntu:16.04
-    volumes:
-      - ../..:/usr/src/app/cassandra-medusa
-      - ../../packages:/usr/src/app/packages
-      - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-stretch:
-    build:
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
-      args:
-        - BUILD_IMAGE=debian:stretch
-    volumes:
-      - ../..:/usr/src/app/cassandra-medusa
-      - ../../packages:/usr/src/app/packages
-      - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-buster:
     build:
       context: ../..
