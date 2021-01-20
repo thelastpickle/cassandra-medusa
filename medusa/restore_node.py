@@ -190,8 +190,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
                     cql_username = 'foo' if config.cassandra.cql_username is None else config.cassandra.cql_username
                     cql_password = 'foo' if config.cassandra.cql_password is None else config.cassandra.cql_password
-                    sstableloader_args = [config.cassandra.sstableloader_bin.replace(
-                                          "github:jonmeredith/", "githubCOLONjonmeredithSLASH"),
+                    sstableloader_args = [config.cassandra.sstableloader_bin,
                                           '-d', hostname_resolver.resolve_fqdn() if cassandra_is_ccm == 0
                                           else '127.0.0.1',
                                           '--conf-path', config.cassandra.config_file,

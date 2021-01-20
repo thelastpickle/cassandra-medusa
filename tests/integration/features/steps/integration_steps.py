@@ -331,7 +331,8 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             os.path.join(
                 "~/.ccm",
                 "repository",
-                context.cassandra_version,
+                context.cassandra_version.replace(
+                    "github:", "githubCOLON").replace("/", "SLASH"),
                 "bin",
                 "sstableloader",
             )
