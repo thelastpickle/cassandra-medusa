@@ -170,7 +170,6 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
             + """/node1/conf/cassandra-env.sh"""
         ).read()
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
-
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -714,6 +713,7 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
     # check tables have been downloaded
     assert list(Path(ks_path).glob('{}-*/*.db'.format(table)))
     cleanup(download_path)
+
 
 @then(r'Test TLS version connections if "{client_encryption}" is turned on')
 def _i_can_connect_using_all_tls_versions(context, client_encryption):
