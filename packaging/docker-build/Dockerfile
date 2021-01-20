@@ -26,7 +26,7 @@ WORKDIR ${WORKDIR}
 ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
-# add a repo that contains a backport of dh-virtualenv 1.1 for focal, bionic, xenial
+# add a repo that contains a backport of dh-virtualenv 1.1 for focal, bionic
 RUN apt-get update && \
     apt-get install -y software-properties-common
 
