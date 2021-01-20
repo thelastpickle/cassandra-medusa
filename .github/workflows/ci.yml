@@ -50,16 +50,12 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bionic, xenial, stretch]
+        suite: [focal, bionic]
         include:
           - suite: focal
             os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
-          - suite: xenial
-            os-version: ubuntu-16.04
-          - suite: stretch
-            os-version: ubuntu-16.04
     runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v2
@@ -186,7 +182,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal, bionic, xenial, stretch]
+        suite: [focal, bionic]
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
