@@ -21,11 +21,19 @@ class AzCli(object):
     def __enter__(self):
         with io.open(os.path.expanduser(self._config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
-        self._env = dict(
-            os.environ,
-            AZURE_STORAGE_ACCOUNT=credentials['storage_account'],
-            AZURE_STORAGE_KEY=credentials['key']
-        )
+
+        connection_string_param = credentials['connection_string']
+        if not connection_string_param:
+            self._env = dict(
+                os.environ,
+                AZURE_STORAGE_ACCOUNT=credentials['storage_account'],
+                AZURE_STORAGE_KEY=credentials['key']
+            )
+        else:
+            self._env = dict(
+                os.environ,
+                AZURE_STORAGE_CONNECTION_STRING=connection_string_param
+            )
         self._az_cli_path = self.find_az_cli()
         return self
 
