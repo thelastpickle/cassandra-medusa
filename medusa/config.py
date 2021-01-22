@@ -202,6 +202,11 @@ def load_config(args, config_file):
         # Use the ip address instead of the fqdn when DNS resolving is turned off
         config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
 
+    if "CQL_USERNAME" in os.environ:
+        config['cassandra']['cql_username'] = os.environ["CQL_USERNAME"]
+    if "CQL_PASSWORD" in os.environ:
+        config['cassandra']['cql_password'] = os.environ["CQL_PASSWORD"]
+
     medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -232,7 +237,7 @@ def load_config(args, config_file):
 
 
 def _zip_fields_with_arg_values(fields, args):
-    return [(field, args[field]) for field in fields]
+    return [(field, args[field] if (field in args) else None) for field in fields]
 
 
 def _namedtuple_from_dict(cls, data):

@@ -37,3 +37,11 @@ def handle_exception(exception, msg, config):
         logging.error(msg)
         traceback.print_exc()
         sys.exit(1)
+
+
+def null_if_empty(value):
+    if (value is None):
+        return None
+    if (str(value) == ''):
+        return None
+    return value
