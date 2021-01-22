@@ -28,7 +28,7 @@ import subprocess
 import time
 import yaml
 import requests
-import medusa.utils
+from medusa.utils import evaluate_boolean, null_if_empty
 
 from subprocess import PIPE
 from retrying import retry
@@ -59,7 +59,7 @@ class CqlSessionProvider(object):
         self._ssl_context = None
         self._cassandra_config = cassandra_config
 
-        if cassandra_config.cql_username is not None and cassandra_config.cql_password is not None:
+        if null_if_empty(cassandra_config.cql_username) and null_if_empty(cassandra_config.cql_password):
             auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
                                                   password=cassandra_config.cql_password)
             self._auth_provider = auth_provider
@@ -422,7 +422,7 @@ class Cassandra(object):
             # Eventually I think we will want to introduce an abstraction layer for Cassandra's
             # API that Medusa requires. There should be an implementation for using nodetool,
             # one for Jolokia, and a 3rd for the management sidecard used by Cass Operator.
-            if medusa.utils.evaluate_boolean(self.kubernetes_config.enabled):
+            if evaluate_boolean(self.kubernetes_config.enabled):
                 data = {
                     "type": "exec",
                     "mbean": "org.apache.cassandra.db:type=StorageService",
@@ -445,7 +445,7 @@ class Cassandra(object):
         cmd = self.delete_snapshot_command(tag)
         if self.snapshot_exists(tag):
 
-            if medusa.utils.evaluate_boolean(self.kubernetes_config.enabled):
+            if evaluate_boolean(self.kubernetes_config.enabled):
                 data = {
                     "type": "exec",
                     "mbean": "org.apache.cassandra.db:type=StorageService",
