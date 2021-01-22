@@ -11,6 +11,14 @@ Create a new storage account or use an existing one which will be used to store 
     "key": "YOUR_KEY"
 }
 ```
+If you need to set a different host for Azure (for example the host for Azure Gov is `<storageAccount>.blob.core.usgovcloudapi.net`), please ADDITIONALLY set these two fields in the JSON file (the connection string can be found with the key):
+
+```
+"host": "YOUR_HOST"
+"connection_string": "YOUR_CONNECTION_STRING"
+
+```
+
 Place this file on all Cassandra nodes running medusa under `/etc/medusa/`and set the rigths appropriately so that onyl users running Medusa can read/modify it.
 
 ### Create a container
