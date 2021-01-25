@@ -111,9 +111,9 @@ jobs:
           # Azure brought a lot of flakeyness to the integration tests - it must be investigated before we can bring it back in
           # it-backend: [local, s3, gcs, ibm, azure]
           # Disabling trunk for now due to https://issues.apache.org/jira/browse/CASSANDRA-16362
-          # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
+          # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
           # it-backend: [local, s3, gcs, ibm]
-          cassandra-version: [2.2.14, 3.11.7, 'github:jonmeredith/C16362']
+          cassandra-version: [2.2.19, 3.11.9, 'github:jonmeredith/C16362-switch-to-default-options']
           experimental: [false]
           include:
             - python-version: 3.7
