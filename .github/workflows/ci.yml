@@ -63,9 +63,9 @@ jobs:
           - suite: bionic
             os-version: ubuntu-18.04
           - suite: xenial
-            os-version: ubuntu-18.04
+            os-version: ubuntu-16.04
           - suite: stretch
-            os-version: ubuntu-18.04
+            os-version: ubuntu-16.04
     runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v2

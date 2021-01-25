@@ -41,7 +41,7 @@ services:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile
       args:
-        - BUILD_IMAGE=ubuntu:18.04
+        - BUILD_IMAGE=ubuntu:16.04
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
