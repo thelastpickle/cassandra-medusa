@@ -204,7 +204,7 @@ class S3Storage(AbstractStorage):
 
         threshold = int(threshold) if threshold else -1
 
-        # single or multi part md5 hash. Used by S3 uploads.
+        # single or multi part md5 hash. Used by S3 and Azure uploads.
         if src.stat().st_size >= threshold > 0:
             md5_hash = AbstractStorage.md5_multipart(src)
         else:

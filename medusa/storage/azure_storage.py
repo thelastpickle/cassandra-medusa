@@ -92,24 +92,56 @@ class AzureStorage(AbstractStorage):
 
     @staticmethod
     def file_matches_cache(src, cached_item, threshold=None):
+        threshold = int(threshold) if threshold else -1
+
+        # single or multi part md5 hash. Used by Azure and S3 uploads.
+        if src.stat().st_size >= threshold > 0:
+            md5_hash = AbstractStorage.md5_multipart(src)
+        else:
+            md5_hash = AbstractStorage.generate_md5_hash(src)
+
         return AzureStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
             size_in_manifest=cached_item['size'],
-            actual_hash=AbstractStorage.generate_md5_hash(src),
-            hash_in_manifest=cached_item['MD5']
+            actual_hash=md5_hash,
+            hash_in_manifest=cached_item['MD5'],
+            threshold=threshold
         )
 
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        if not threshold:
+            threshold = -1
+        else:
+            threshold = int(threshold)
+
+        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
+            multipart = True
+        else:
+            multipart = False
+
         sizes_match = actual_size == size_in_manifest
 
-        hashes_match = (
-            # this case comes from comparing blob hashes to manifest entries (in context of Azure)
-            actual_hash == base64.b64decode(hash_in_manifest).hex()
-            # this comes from comparing files to a cache
-            or hash_in_manifest == base64.b64decode(actual_hash).hex()
-            # and perhaps we need the to check for match even without base64 encoding
-            or actual_hash == hash_in_manifest
-        )
+        if multipart:
+            hashes_match = (
+                    actual_hash == hash_in_manifest
+            )
+        else:
+            hashes_match = (
+                # this case comes from comparing blob hashes to manifest entries (in context of Azure)
+                actual_hash == base64.b64decode(hash_in_manifest).hex()
+                # this comes from comparing files to a cache
+                or hash_in_manifest == base64.b64decode(actual_hash).hex()
+                # and perhaps we need the to check for match even without base64 encoding
+                or actual_hash == hash_in_manifest
+            )
 
         return sizes_match and hashes_match
+
+
+def is_azure(storage_name):
+    storage_name = storage_name.lower()
+    if storage_name == 'azure_blobs':
+        return True
+    else:
+        return False
