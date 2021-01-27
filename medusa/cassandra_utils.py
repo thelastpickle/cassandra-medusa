@@ -25,6 +25,7 @@ import socket
 import subprocess
 import time
 import yaml
+from medusa.utils import null_if_empty
 
 from subprocess import PIPE
 from retrying import retry
