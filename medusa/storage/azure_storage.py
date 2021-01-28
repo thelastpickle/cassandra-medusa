@@ -30,6 +30,7 @@ class AzureStorage(AbstractStorage):
             )
         else:
             # Hack for Azure connections with a host. Libcloud has a bug in this scenario.
+            # Link to bug submitted against libcloud: https://github.com/apache/libcloud/issues/1551
             driver = AzureBlobsStorageDriver(
                 key=None,
                 secret=credentials['key'],
