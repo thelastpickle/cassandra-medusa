@@ -127,12 +127,12 @@ jobs:
       with:
         java-version: '1.8'
         architecture: x64
-    - uses: actions/cache@v1
-      with:
-        path: ./venv
-        key: ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-
+    #- uses: actions/cache@v1
+    #  with:
+    #    path: ./venv
+    #    key: ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
+    #    restore-keys: |
+    #      ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python -m venv venv
