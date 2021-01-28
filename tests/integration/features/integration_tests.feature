@@ -20,6 +20,7 @@ Feature: Integration tests
     @1
     Scenario Outline: Perform a backup, verify it, and restore it.
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario1"
+        Then Test TLS version connections if "<client encryption>" is turned on
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table

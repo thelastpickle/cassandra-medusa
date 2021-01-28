@@ -41,7 +41,7 @@ services:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile
       args:
-        - BUILD_IMAGE=ubuntu:16.04
+        - BUILD_IMAGE=python:3.6.12-stretch
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
@@ -51,7 +51,7 @@ services:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile
       args:
-        - BUILD_IMAGE=debian:stretch
+        - BUILD_IMAGE=python:3.6.12-stretch
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
