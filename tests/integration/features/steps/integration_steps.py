@@ -331,7 +331,7 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
             '-javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar" '
         )
     # get the Cassandra Management API jars
-    get_mgmt_api_jars()
+    get_mgmt_api_jars(version=context.cassandra_version)
 
     if os.uname().sysname == "Linux":
         os.popen(
@@ -1413,6 +1413,7 @@ def write_dummy_file(path, mtime_str, contents=None):
 
 
 def get_mgmt_api_jars(
+        version,
         url="https://github.com/datastax/management-api-for-apache-cassandra/releases/download/v0.1.17/jars.zip"):
 
     zip_file = requests.get(url, stream=True)
@@ -1428,3 +1429,21 @@ def get_mgmt_api_jars(
             if file_name.endswith('.jar'):
                 if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
                     zip_ref.extract(file_name, '/tmp')
+
+    # check Cassandra version and make sure we use the right agent
+    # v0.1.17 currently bundles a single mgmtapi agent. This will change for v0.1.18+
+    if not Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').is_file:
+        # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
+        # link the C* specific agent to the generic agent file name
+        assert False is Path('/tmp/management-api-agent/target/').exists()
+        Path('/tmp/management-api-agent/target/').mkdir(parents=True, exist_ok=False)
+        if str.startswith(version, '3'):
+            # C* is version 3.x, use 3.x agent
+            assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
+            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').link_to(
+                '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
+        elif str.startswith(version, '4'):
+            # C* is version 4.x, use 4.x agent
+            assert Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
+            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').link_to(
+                '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
