@@ -27,12 +27,6 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/cache@v1
-      with:
-        path: ./venv
-        key: ${{ runner.os }}-build-virtualenv-${{ matrix.tox-py }}-${{ hashFiles('**/requirements.txt') }}-${{ hashFiles('**/requirements-test.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-build-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
         python -m venv venv
@@ -113,7 +107,8 @@ jobs:
           # Disabling trunk for now due to https://issues.apache.org/jira/browse/CASSANDRA-16362
           # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
           # it-backend: [local, s3, gcs, ibm]
-          cassandra-version: [2.2.19, 3.11.9, 'github:jonmeredith/C16362-switch-to-default-options']
+          #cassandra-version: [2.2.19, 3.11.9, 'github:jonmeredith/C16362-switch-to-default-options']
+          cassandra-version: ['github:jonmeredith/C16362-switch-to-default-options']
           experimental: [false]
           include:
             - python-version: 3.7
