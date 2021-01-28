@@ -39,9 +39,9 @@ services:
   cassandra-medusa-builder-xenial:
     build:
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-py36
       args:
-        - BUILD_IMAGE=python:3.6.12-stretch
+        - BUILD_IMAGE=ubuntu:16.04
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
