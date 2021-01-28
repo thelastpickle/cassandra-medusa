@@ -555,6 +555,14 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
 def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup_name):
     context.grpc_client.backup(backup_name, backup_mode)
 
+@when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}" and it fails')
+def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, backup_name):
+    try:
+        context.grpc_client.backup(backup_name, backup_mode)
+        raise AssertionError("Backup process should have failed but didn't.")
+    except Exception:
+        # This exception is required to be raised to validate the step
+        pass
 
 @then(r'I verify over gRPC that the backup "{backup_name}" exists')
 def _i_verify_over_grpc_backup_exists(context, backup_name):
@@ -571,6 +579,14 @@ def _i_verify_over_grpc_backup_exists(context, backup_name):
 def _i_delete_backup_grpc(context, backup_name):
     context.grpc_client.delete_backup(backup_name)
 
+@then(r'I delete the backup "{backup_name}" over gRPC and it fails')
+def _i_delete_backup_grpc_fail(context, backup_name):
+    try:
+        context.grpc_client.delete_backup(backup_name)
+        raise AssertionError("Backup deletion should have failed but didn't.")
+    except Exception:
+        # This exception is required to be raised to validate the step
+        pass
 
 @then(r'I verify over gRPC the backup "{backup_name}" does not exist')
 def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
