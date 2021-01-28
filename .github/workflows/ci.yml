@@ -95,7 +95,6 @@ jobs:
       
   integration-tests:
     needs: build
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
         fail-fast: false
         matrix:
