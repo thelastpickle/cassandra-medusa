@@ -107,7 +107,7 @@ jobs:
           # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
           # it-backend: [local, s3, gcs, ibm]
           #cassandra-version: [2.2.19, 3.11.9, 'github:jonmeredith/C16362-switch-to-default-options']
-          cassandra-version: ['4.0~beta2', '4.0~beta3', '4.0~beta4', 'github:apache/trunk', 'github:jonmeredith/C16362-switch-to-default-options']
+          cassandra-version: ['4.0-beta2', '4.0-beta3', '4.0-beta4', 'github:apache/trunk', 'github:jonmeredith/C16362-switch-to-default-options']
           experimental: [false]
           include:
             - python-version: 3.7
