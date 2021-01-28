@@ -99,7 +99,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.6, 3.7]
+          python-version: [3.6]
           it-backend: [local, s3, gcs]
           # IBM not included by default due to lite plan quota being easily exceeded
           # Azure brought a lot of flakeyness to the integration tests - it must be investigated before we can bring it back in
@@ -108,7 +108,7 @@ jobs:
           # cassandra-version: [2.2.14, 3.11.7, 'github:apache/trunk']
           # it-backend: [local, s3, gcs, ibm]
           #cassandra-version: [2.2.19, 3.11.9, 'github:jonmeredith/C16362-switch-to-default-options']
-          cassandra-version: ['github:jonmeredith/C16362-switch-to-default-options']
+          cassandra-version: ['4.0~beta2', '4.0~beta3', '4.0~beta4', 'github:apache/trunk', 'github:jonmeredith/C16362-switch-to-default-options']
           experimental: [false]
           include:
             - python-version: 3.7
