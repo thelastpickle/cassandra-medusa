@@ -58,6 +58,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
 
 def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
+    storage.storage_driver.prepare_download()
     differential_blob = storage.storage_driver.get_blob(
         os.path.join(config.storage.fqdn, backup_name, 'meta', 'differential'))
 
