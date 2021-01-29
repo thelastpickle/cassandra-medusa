@@ -257,6 +257,18 @@ class S3Storage(AbstractStorage):
             ]
         )
 
+    def prepare_download(self):
+        # Unthrottle downloads to speed up restores
+        subprocess.check_call(
+            [
+                "aws",
+                "configure",
+                "set",
+                "default.s3.max_bandwidth",
+                "512MB/s",
+            ]
+        )
+
 
 def _group_by_parent(paths):
     by_parent = itertools.groupby(paths, lambda p: Path(p).parent.name)
@@ -270,16 +282,3 @@ def is_aws_s3(storage_name):
         return True
     else:
         return False
-
-
-def prepare_download(self):
-    # Unthrottle downloads to speed up restores
-    subprocess.check_call(
-        [
-            "aws",
-            "configure",
-            "set",
-            "default.s3.max_bandwidth",
-            "512MB/s",
-        ]
-    )

@@ -118,16 +118,3 @@ class IBMCloudStorage(S3Storage):
 
 def is_aws_s3(storage_name):
     return True
-
-
-def prepare_download(self):
-    # Unthrottle downloads to speed up restores
-    subprocess.check_call(
-        [
-            "aws",
-            "configure",
-            "set",
-            "default.s3.max_bandwidth",
-            "512MB/s",
-        ]
-    )
