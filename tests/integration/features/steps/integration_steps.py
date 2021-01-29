@@ -148,8 +148,6 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
         ]
     )
 
-    os.popen("ccm node1 updateconf 'storage_port: 7011'").read()
-
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
         update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
@@ -199,8 +197,6 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
             "1",
         ]
     )
-
-    os.popen("ccm node1 updateconf 'storage_port: 7011'").read()
 
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
@@ -331,7 +327,8 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             os.path.join(
                 "~/.ccm",
                 "repository",
-                context.cassandra_version,
+                context.cassandra_version.replace(
+                    "github:", "githubCOLON").replace("/", "SLASH"),
                 "bin",
                 "sstableloader",
             )
