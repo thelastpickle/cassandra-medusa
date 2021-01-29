@@ -134,6 +134,7 @@ jobs:
     #      ${{ runner.os }}-integration-tests-virtualenv-${{ matrix.tox-py }}-
     - name: Install dependencies
       run: |
+        java -version
         python -m venv venv
         . venv/bin/activate
         python -m pip install --upgrade pip
