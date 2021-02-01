@@ -35,7 +35,7 @@ from retrying import retry
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
-from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
+from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
 from medusa.network.hostname_resolver import HostnameResolver
 
 
@@ -64,14 +64,14 @@ class CqlSessionProvider(object):
                                                   password=cassandra_config.cql_password)
             self._auth_provider = auth_provider
 
-        if cassandra_config.certfile is not None and cassandra_config.usercert is not None and \
-           cassandra_config.userkey is not None:
-            ssl_context = SSLContext(PROTOCOL_TLSv1)
+        if cassandra_config.certfile is not None:
+            ssl_context = SSLContext(PROTOCOL_TLS)
             ssl_context.load_verify_locations(cassandra_config.certfile)
             ssl_context.verify_mode = CERT_REQUIRED
-            ssl_context.load_cert_chain(
-                certfile=cassandra_config.usercert,
-                keyfile=cassandra_config.userkey)
+            if cassandra_config.usercert is not None and cassandra_config.userkey is not None:
+                ssl_context.load_cert_chain(
+                    certfile=cassandra_config.usercert,
+                    keyfile=cassandra_config.userkey)
             self._ssl_context = ssl_context
 
         load_balancing_policy = WhiteListRoundRobinPolicy(ip_addresses)

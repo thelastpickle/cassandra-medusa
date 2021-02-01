@@ -29,7 +29,7 @@ from pathlib import Path
 from subprocess import PIPE
 import signal
 from cassandra.cluster import Cluster
-from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
+from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
 
 import medusa.backup_node
 import medusa.index
@@ -715,6 +715,13 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
     cleanup(download_path)
 
 
+@then(r'Test TLS version connections if "{client_encryption}" is turned on')
+def _i_can_connect_using_all_tls_versions(context, client_encryption):
+    if client_encryption == 'with_client_encryption':
+        for tls_version in [PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2]:
+            connect_cassandra(True, tls_version)
+
+
 @when(r'I restore the backup named "{backup_name}"')
 def _i_restore_the_backup_named(context, backup_name):
     medusa.restore_node.restore_node(
@@ -1073,7 +1080,7 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
                                backup_name=backup_name, all_nodes=all_nodes)
 
 
-def connect_cassandra(is_client_encryption_enable):
+def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
     session = None
@@ -1081,7 +1088,7 @@ def connect_cassandra(is_client_encryption_enable):
 
     if is_client_encryption_enable:
 
-        ssl_context = SSLContext(PROTOCOL_TLSv1)
+        ssl_context = SSLContext(tls_version)
         ssl_context.load_verify_locations(certfile)
         ssl_context.verify_mode = CERT_REQUIRED
         ssl_context.load_cert_chain(
@@ -1097,6 +1104,9 @@ def connect_cassandra(is_client_encryption_enable):
         except cassandra.cluster.NoHostAvailable:
             attempt += 1
             time.sleep(10)
+
+    if tls_version is not PROTOCOL_TLS:  # other TLS versions used for testing, close the session
+        session.shutdown()
 
     return session
 
