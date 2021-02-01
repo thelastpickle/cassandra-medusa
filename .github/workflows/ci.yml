@@ -100,7 +100,7 @@ jobs:
         fail-fast: false
         matrix:
           python-version: [3.6, 3.7]
-          it-backend: [local, s3, gcs]
+          it-backend: [azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           # Azure brought a lot of flakeyness to the integration tests - it must be investigated before we can bring it back in
           # it-backend: [local, s3, gcs, ibm, azure]
