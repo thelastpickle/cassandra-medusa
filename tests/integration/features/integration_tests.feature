@@ -20,6 +20,7 @@ Feature: Integration tests
     @1
     Scenario Outline: Perform a backup, verify it, and restore it.
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario1"
+        Then Test TLS version connections if "<client encryption>" is turned on
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -642,6 +643,28 @@ Feature: Integration tests
         Then I can see the backup index entry for "grpc_backup"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
         Then I delete the backup "grpc_backup" over gRPC
+        Then I verify over gRPC the backup "grpc_backup" does not exist
+        Then I shutdown the gRPC server
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
+
+    @17
+    Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with failures
+        Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario17"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
+        Then the backup index exists
+        Then I verify over gRPC that the backup "grpc_backup" exists
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup" and it fails
+        Then I delete the backup "grpc_backup" over gRPC
+        Then I delete the backup "grpc_backup" over gRPC and it fails
         Then I verify over gRPC the backup "grpc_backup" does not exist
         Then I shutdown the gRPC server
 

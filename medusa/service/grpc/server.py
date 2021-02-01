@@ -46,14 +46,16 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
     def Backup(self, request, context):
         logging.info("Performing backup {}".format(request.name))
+        resp = medusa_pb2.BackupResponse()
         # TODO pass the staggered and mode args
         try:
             medusa.backup_node.main(self.config, request.name, None, "differential")
-            return medusa_pb2.BackupResponse()
-        except Exception:
-            resp = medusa_pb2.BackupResponse()
+        except Exception as e:
+            context.set_details("failed to create backups: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("backup failed")
-            return resp
+
+        return resp
 
     def BackupStatus(self, request, context):
         response = medusa_pb2.BackupStatusResponse()
@@ -107,10 +109,12 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         resp = medusa_pb2.DeleteBackupResponse()
         try:
             medusa.purge.delete_backup(self.config, request.name, True)
-            return resp
-        except Exception:
+        except Exception as e:
+            context.set_details("deleting backups failed: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Deleting backup {} failed".format(request.name))
-            return resp
+
+        return resp
 
 
 def create_config(config_file_path):

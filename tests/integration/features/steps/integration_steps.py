@@ -29,7 +29,7 @@ from pathlib import Path
 from subprocess import PIPE
 import signal
 from cassandra.cluster import Cluster
-from ssl import SSLContext, PROTOCOL_TLSv1, CERT_REQUIRED
+from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
 
 import medusa.backup_node
 import medusa.index
@@ -555,6 +555,14 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
 def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup_name):
     context.grpc_client.backup(backup_name, backup_mode)
 
+@when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}" and it fails')
+def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, backup_name):
+    try:
+        context.grpc_client.backup(backup_name, backup_mode)
+        raise AssertionError("Backup process should have failed but didn't.")
+    except Exception:
+        # This exception is required to be raised to validate the step
+        pass
 
 @then(r'I verify over gRPC that the backup "{backup_name}" exists')
 def _i_verify_over_grpc_backup_exists(context, backup_name):
@@ -571,6 +579,14 @@ def _i_verify_over_grpc_backup_exists(context, backup_name):
 def _i_delete_backup_grpc(context, backup_name):
     context.grpc_client.delete_backup(backup_name)
 
+@then(r'I delete the backup "{backup_name}" over gRPC and it fails')
+def _i_delete_backup_grpc_fail(context, backup_name):
+    try:
+        context.grpc_client.delete_backup(backup_name)
+        raise AssertionError("Backup deletion should have failed but didn't.")
+    except Exception:
+        # This exception is required to be raised to validate the step
+        pass
 
 @then(r'I verify over gRPC the backup "{backup_name}" does not exist')
 def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
@@ -713,6 +729,13 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
     # check tables have been downloaded
     assert list(Path(ks_path).glob('{}-*/*.db'.format(table)))
     cleanup(download_path)
+
+
+@then(r'Test TLS version connections if "{client_encryption}" is turned on')
+def _i_can_connect_using_all_tls_versions(context, client_encryption):
+    if client_encryption == 'with_client_encryption':
+        for tls_version in [PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2]:
+            connect_cassandra(True, tls_version)
 
 
 @when(r'I restore the backup named "{backup_name}"')
@@ -1073,7 +1096,7 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
                                backup_name=backup_name, all_nodes=all_nodes)
 
 
-def connect_cassandra(is_client_encryption_enable):
+def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
     session = None
@@ -1081,7 +1104,7 @@ def connect_cassandra(is_client_encryption_enable):
 
     if is_client_encryption_enable:
 
-        ssl_context = SSLContext(PROTOCOL_TLSv1)
+        ssl_context = SSLContext(tls_version)
         ssl_context.load_verify_locations(certfile)
         ssl_context.verify_mode = CERT_REQUIRED
         ssl_context.load_cert_chain(
@@ -1097,6 +1120,9 @@ def connect_cassandra(is_client_encryption_enable):
         except cassandra.cluster.NoHostAvailable:
             attempt += 1
             time.sleep(10)
+
+    if tls_version is not PROTOCOL_TLS:  # other TLS versions used for testing, close the session
+        session.shutdown()
 
     return session
 
