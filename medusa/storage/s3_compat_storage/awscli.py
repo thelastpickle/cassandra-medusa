@@ -27,9 +27,6 @@ class AwsCli(object):
     def __init__(self, storage):
         self._config = storage.config
         self.storage = storage
-        # Needs more parsing here - could allow IBM but doesn't need to
-        # self.endpoint_url = storage.config.host if storage.config.host is not None \
-        #     else IBM_CLOUD_HOSTS_BY_REGION[storage.config.region]
 
     @property
     def bucket_name(self):
@@ -45,6 +42,10 @@ class AwsCli(object):
             self._aws_cli_path = self.find_aws_cli()
         else:
             self._aws_cli_path = self._config.aws_cli_path
+
+        if self._config.endpoint_url is None and self._config.host is not None:
+            self._config.endpoint_url = '{}:{}'.format(self._config.host, self._config.port) if self._config.port is not None else \
+                self._config.host
 
         return self
 
@@ -76,13 +77,8 @@ class AwsCli(object):
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         for src in srcs:
-            # TODO self.endpoint_url should be optional, used if available - otherwise use the s3 format
-            #      even s3 needs region support of course
-            # cmd = [self._aws_cli_path, "--endpoint-url", "https://{}".format(self.endpoint_url),
-            #        "--region", self._config.region, "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
-
-
-            cmd = [self._aws_cli_path, "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
+            cmd = self._create_s3_cmd()
+            cmd.extend(["s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)])
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
@@ -91,15 +87,22 @@ class AwsCli(object):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
-        # TODO self.endpoint_url should be optional, used if available - otherwise use the s3 format
-        #      even s3 needs region support of course
-        # cmd = [self._aws_cli_path, "--endpoint-url", "https://{}".format(self.endpoint_url), "--region",
-        #        self._config.region, "s3", "cp", "s3://{}/{}".format(bucket_name, src), dest]
-
-        cmd = [self._aws_cli_path, "s3", "cp", "s3://{}/{}".format(bucket_name, src), dest]
+        cmd = self._create_s3_cmd()
+        cmd.extend(["s3", "cp", "s3://{}/{}".format(bucket_name, src), dest])
         self.download_file(cmd, dest, awscli_output)
 
         return objects
+
+    def _create_s3_cmd(self):
+        cmd = [self._aws_cli_path]
+
+        if self._config.endpoint_url:
+            cmd.extend(["--endpoint-url", "https://{}".format(endpoint_url)])
+
+        if self._config.region is not None:
+            cmd.extend(["--region", self._config.region])
+
+        return cmd
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def upload_file(self, cmd, dest, awscli_output):

@@ -25,7 +25,7 @@ from subprocess import PIPE
 from dateutil import parser
 from pathlib import Path
 
-from libcloud.storage.drivers.rgw import S3RGWStorageDriver
+from libcloud.storage.drivers.minio import MinIOStorageDriver
 
 from medusa.storage.abstract_storage import AbstractStorage
 import medusa.storage.s3_compat.concurrent
@@ -38,11 +38,8 @@ import medusa
     S3BaseStorage supports all the S3 compatible storages. Certain providers might override this method
     to implement their own specialities (such as environment variables when running in certain clouds)
 
-    This implementation uses awscli instead of libcloud's s3 compatible driver (rgw), if you wish to use
-    that one, choose s3_rgw.
-
-    s3_rgw/minio are the same driver in reality
-
+    This implementation uses awscli instead of libcloud's s3's driver for uploads/downloads. If you wish
+    to use the libcloud's internal driver instead of awscli dependency, select s3_rgw.
 """
 class S3BaseStorage(AbstractStorage):
 
@@ -50,15 +47,17 @@ class S3BaseStorage(AbstractStorage):
         with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
 
-        driver = S3RGWStorageDriver(
+        # MinIOStorageDriver is the only clean implementation of BaseS3StorageDriver in libcloud
+        driver = MinIOStorageDriver(
             host=self.config.host,
             port=self.config.port,
-            region=self.config.region,
-            signature_version="4",
             key=credentials['access_key_id'],
             secret=credentials['secret_access_key'],
             secure=False if self.config.secure.lower() in ('0', 'false') else True,
         )
+        
+        if self.config.host is not None:
+            self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) if self.config.port is not None else 'https://{}'.format(self.config.host)
 
         return driver
 

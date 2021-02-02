@@ -28,12 +28,8 @@ from pathlib import Path
 from libcloud.storage.providers import get_driver
 
 from medusa.storage.s3_compat import S3BaseStorage
-import medusa.storage.aws_s3_storage.concurrent
-from medusa.storage.aws_s3_storage.awscli import AwsCli
 
 import medusa
-
-# TODO Extend from S3BaseStorage (and override only connect_storage + get_aws_instance_profile etc)
 
 class S3Storage(S3BaseStorage):
     """
@@ -84,14 +80,11 @@ class S3Storage(S3BaseStorage):
         """
         aws_security_token = ''
         aws_access_key_id = None
-        region = None # TODO Add the region information to awscli also
         # or authentication via AWS credentials file
         if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
             logging.debug("Reading AWS credentials from {}".format(
                 self.config.key_file
             ))
-
-            region = self.config.region
 
             aws_config = configparser.ConfigParser(interpolation=None)
             with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as aws_file:
@@ -104,7 +97,6 @@ class S3Storage(S3BaseStorage):
         elif 'AWS_ACCESS_KEY_ID' in os.environ and \
                 'AWS_SECRET_ACCESS_KEY' in os.environ:
             logging.debug("Reading AWS credentials from Environment Variables:")
-            # TODO Should we have a region here?
             aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
             aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
 
@@ -115,7 +107,6 @@ class S3Storage(S3BaseStorage):
         # or authentication via IAM Role credentials
         else:
             aws_instance_profile = self.get_aws_instance_profile()
-            # TODO Does instance profile have AWS region?
             if aws_instance_profile:
                 logging.debug('Reading AWS credentials from IAM Role: %s', aws_instance_profile.text)
                 url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" + aws_instance_profile.text
@@ -134,38 +125,10 @@ class S3Storage(S3BaseStorage):
 
         cls = get_driver(self.config.storage_provider)
         driver = cls(
-            aws_access_key_id, aws_secret_access_key, token=aws_security_token, region=region
+            aws_access_key_id, aws_secret_access_key, token=aws_security_token, region=self.config.region
         )
 
         if self.config.transfer_max_bandwidth is not None:
             self.set_upload_bandwidth()
 
         return driver
-
-    def upload_blobs(self, srcs, dest):
-        return medusa.storage.aws_s3_storage.concurrent.upload_blobs(
-            self,
-            srcs,
-            dest,
-            self.bucket,
-            max_workers=self.config.concurrent_transfers,
-            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
-        )
-
-    def download_blobs(self, srcs, dest):
-        """
-        Downloads a list of files from the remote storage system to the local storage
-
-        :param src: a list of files to download from the remote storage system
-        :param dest: the path where to download the objects locally
-        :return:
-        """
-        return medusa.storage.aws_s3_storage.concurrent.download_blobs(
-            self,
-            srcs,
-            dest,
-            self.bucket,
-            max_workers=self.config.concurrent_transfers,
-            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
-        )
-
