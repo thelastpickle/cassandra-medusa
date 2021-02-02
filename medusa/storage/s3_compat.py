@@ -13,14 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
-import sys
-import requests
-import configparser
 import logging
 import os
 import io
 import itertools
 import subprocess
+import json
 from subprocess import PIPE
 from dateutil import parser
 from pathlib import Path
@@ -41,6 +39,8 @@ import medusa
     This implementation uses awscli instead of libcloud's s3's driver for uploads/downloads. If you wish
     to use the libcloud's internal driver instead of awscli dependency, select s3_rgw.
 """
+
+
 class S3BaseStorage(AbstractStorage):
 
     def connect_storage(self):
@@ -55,9 +55,10 @@ class S3BaseStorage(AbstractStorage):
             secret=credentials['secret_access_key'],
             secure=False if self.config.secure.lower() in ('0', 'false') else True,
         )
-        
+
         if self.config.host is not None:
-            self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) if self.config.port is not None else 'https://{}'.format(self.config.host)
+            self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) \
+                if self.config.port is not None else 'https://{}'.format(self.config.host)
 
         return driver
 
@@ -117,7 +118,7 @@ class S3BaseStorage(AbstractStorage):
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest):
-        return S3Storage.compare_with_manifest(
+        return S3BaseStorage.compare_with_manifest(
             actual_size=blob.size,
             size_in_manifest=object_in_manifest['size'],
             actual_hash=str(blob.hash),
@@ -135,7 +136,7 @@ class S3BaseStorage(AbstractStorage):
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
 
-        return S3Storage.compare_with_manifest(
+        return S3BaseStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
             size_in_manifest=cached_item['size'],
             actual_hash=md5_hash,

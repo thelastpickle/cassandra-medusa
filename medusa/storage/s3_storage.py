@@ -12,24 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import base64
 import sys
 import requests
 import configparser
 import logging
 import os
 import io
-import itertools
-import subprocess
-from subprocess import PIPE
-from dateutil import parser
-from pathlib import Path
 
 from libcloud.storage.providers import get_driver
 
 from medusa.storage.s3_compat import S3BaseStorage
 
-import medusa
 
 class S3Storage(S3BaseStorage):
     """

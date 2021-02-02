@@ -44,8 +44,8 @@ class AwsCli(object):
             self._aws_cli_path = self._config.aws_cli_path
 
         if self._config.endpoint_url is None and self._config.host is not None:
-            self._config.endpoint_url = '{}:{}'.format(self._config.host, self._config.port) if self._config.port is not None else \
-                self._config.host
+            self._config.endpoint_url = '{}:{}'.format(self._config.host, self._config.port) \
+                if self._config.port is not None else self._config.host
 
         return self
 
@@ -97,7 +97,7 @@ class AwsCli(object):
         cmd = [self._aws_cli_path]
 
         if self._config.endpoint_url:
-            cmd.extend(["--endpoint-url", "https://{}".format(endpoint_url)])
+            cmd.extend(["--endpoint-url", "https://{}".format(self._config.endpoint_url)])
 
         if self._config.region is not None:
             cmd.extend(["--region", self._config.region])
