@@ -30,6 +30,7 @@ from subprocess import PIPE
 import signal
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
+from libcloud.storage.providers import get_driver
 
 import medusa.backup_node
 import medusa.index
@@ -278,11 +279,14 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "prefix": storage_prefix
         }
     elif storage_provider.startswith("s3"):
+        # Backwards compatibility for the test features
+        region = get_driver(storage_provider).region_name
         config["storage"] = {
             "host_file_separator": ",",
             "bucket_name": "tlp-medusa-dev",
             "key_file": "~/.aws/credentials",
-            "storage_provider": storage_provider,
+            "storage_provider": "s3",
+            "region": region,
             "fqdn": "127.0.0.1",
             "api_key_or_username": "",
             "api_secret_or_password": "",
@@ -308,6 +312,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "concurrent_transfers": 4,
             "prefix": storage_prefix,
             "aws_cli_path": "aws",
+            "host": "s3.eu.cloud-object-storage.appdomain.cloud",
             "region": "eu-smart",
             "transfer_max_bandwidth": "1MB/s"
         }

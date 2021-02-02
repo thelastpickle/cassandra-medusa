@@ -24,7 +24,7 @@ from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
 
 import medusa
-from medusa.storage.aws_s3_storage.awscli import AwsCli
+from medusa.storage.s3_compat_storage.awscli import AwsCli
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
