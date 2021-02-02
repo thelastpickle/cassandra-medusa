@@ -136,11 +136,3 @@ class AzureStorage(AbstractStorage):
             )
 
         return sizes_match and hashes_match
-
-
-def is_azure(storage_name):
-    storage_name = storage_name.lower()
-    if storage_name == 'azure_blobs':
-        return True
-    else:
-        return False
