@@ -27,14 +27,15 @@ from pathlib import Path
 
 from libcloud.storage.providers import get_driver
 
-from medusa.storage.abstract_storage import AbstractStorage
+from medusa.storage.s3_compat import S3BaseStorage
 import medusa.storage.aws_s3_storage.concurrent
 from medusa.storage.aws_s3_storage.awscli import AwsCli
 
 import medusa
 
+# TODO Extend from S3BaseStorage (and override only connect_storage + get_aws_instance_profile etc)
 
-class S3Storage(AbstractStorage):
+class S3Storage(S3BaseStorage):
     """
     Available storage providers for S3:
     S3_AP_NORTHEAST = 's3_ap_northeast'
@@ -83,11 +84,14 @@ class S3Storage(AbstractStorage):
         """
         aws_security_token = ''
         aws_access_key_id = None
+        region = None # TODO Add the region information to awscli also
         # or authentication via AWS credentials file
         if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
             logging.debug("Reading AWS credentials from {}".format(
                 self.config.key_file
             ))
+
+            region = self.config.region
 
             aws_config = configparser.ConfigParser(interpolation=None)
             with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as aws_file:
@@ -100,6 +104,7 @@ class S3Storage(AbstractStorage):
         elif 'AWS_ACCESS_KEY_ID' in os.environ and \
                 'AWS_SECRET_ACCESS_KEY' in os.environ:
             logging.debug("Reading AWS credentials from Environment Variables:")
+            # TODO Should we have a region here?
             aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
             aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
 
@@ -110,6 +115,7 @@ class S3Storage(AbstractStorage):
         # or authentication via IAM Role credentials
         else:
             aws_instance_profile = self.get_aws_instance_profile()
+            # TODO Does instance profile have AWS region?
             if aws_instance_profile:
                 logging.debug('Reading AWS credentials from IAM Role: %s', aws_instance_profile.text)
                 url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" + aws_instance_profile.text
@@ -128,28 +134,13 @@ class S3Storage(AbstractStorage):
 
         cls = get_driver(self.config.storage_provider)
         driver = cls(
-            aws_access_key_id, aws_secret_access_key, token=aws_security_token
+            aws_access_key_id, aws_secret_access_key, token=aws_security_token, region=region
         )
 
         if self.config.transfer_max_bandwidth is not None:
             self.set_upload_bandwidth()
 
         return driver
-
-    def check_dependencies(self):
-        if self.config.aws_cli_path == 'dynamic':
-            aws_cli_path = AwsCli.find_aws_cli()
-        else:
-            aws_cli_path = self.config.aws_cli_path
-
-        try:
-            subprocess.check_call([aws_cli_path, "help"], stdout=PIPE, stderr=PIPE)
-        except Exception:
-            raise RuntimeError(
-                "AWS cli doesn't seem to be installed on this system and is a "
-                + "required dependency for the S3 backend. Please install it by running 'pip install awscli' "
-                + "or 'sudo apt-get install awscli' and try again."
-            )
 
     def upload_blobs(self, srcs, dest):
         return medusa.storage.aws_s3_storage.concurrent.upload_blobs(
@@ -178,107 +169,3 @@ class S3Storage(AbstractStorage):
             multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
         )
 
-    def get_object_datetime(self, blob):
-        logging.debug(
-            "Blob {} last modification time is {}".format(
-                blob.name, blob.extra["last_modified"]
-            )
-        )
-        return parser.parse(blob.extra["last_modified"])
-
-    def get_cache_path(self, path):
-        # Full path for files that will be taken from previous backups
-        return path
-
-    @staticmethod
-    def blob_matches_manifest(blob, object_in_manifest):
-        return S3Storage.compare_with_manifest(
-            actual_size=blob.size,
-            size_in_manifest=object_in_manifest['size'],
-            actual_hash=str(blob.hash),
-            hash_in_manifest=object_in_manifest['MD5']
-        )
-
-    @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None):
-
-        threshold = int(threshold) if threshold else -1
-
-        # single or multi part md5 hash. Used by S3 uploads.
-        if src.stat().st_size >= threshold > 0:
-            md5_hash = AbstractStorage.md5_multipart(src)
-        else:
-            md5_hash = AbstractStorage.generate_md5_hash(src)
-
-        return S3Storage.compare_with_manifest(
-            actual_size=src.stat().st_size,
-            size_in_manifest=cached_item['size'],
-            actual_hash=md5_hash,
-            hash_in_manifest=cached_item['MD5'],
-            threshold=threshold
-        )
-
-    @staticmethod
-    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
-
-        if not threshold:
-            threshold = -1
-        else:
-            threshold = int(threshold)
-
-        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
-            multipart = True
-        else:
-            multipart = False
-
-        sizes_match = actual_size == size_in_manifest
-
-        if multipart:
-            hashes_match = (
-                actual_hash == hash_in_manifest
-            )
-        else:
-            hashes_match = (
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                or actual_hash == hash_in_manifest
-            )
-
-        return sizes_match and hashes_match
-
-    def set_upload_bandwidth(self):
-        subprocess.check_call(
-            [
-                "aws",
-                "configure",
-                "set",
-                "default.s3.max_bandwidth",
-                self.config.transfer_max_bandwidth,
-            ]
-        )
-
-    def prepare_download(self):
-        # Unthrottle downloads to speed up restores
-        subprocess.check_call(
-            [
-                "aws",
-                "configure",
-                "set",
-                "default.s3.max_bandwidth",
-                "512MB/s",
-            ]
-        )
-
-
-def _group_by_parent(paths):
-    by_parent = itertools.groupby(paths, lambda p: Path(p).parent.name)
-    for parent, files in by_parent:
-        yield parent, list(files)
-
-
-def is_aws_s3(storage_name):
-    storage_name = storage_name.lower()
-    if storage_name.startswith('s3') and storage_name not in ('s3_rgw', 's3_rgw_outscale'):
-        return True
-    else:
-        return False

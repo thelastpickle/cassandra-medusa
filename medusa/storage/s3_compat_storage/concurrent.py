@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2020 DataStax Inc.
+# Copyright 2019 The Last Pickle
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
 
 import medusa
-from medusa.storage.ibm_cloud_storage.awscli import AwsCli
+from medusa.storage.s3_compat.awscli import AwsCli
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 

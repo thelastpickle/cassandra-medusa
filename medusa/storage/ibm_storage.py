@@ -23,12 +23,9 @@ from subprocess import PIPE
 from dateutil import parser
 from medusa.libcloud.storage.drivers.ibm import IBMCloudStorageDriver
 
-from medusa.storage.s3_storage import S3Storage
-import medusa.storage.ibm_cloud_storage.concurrent
-from medusa.storage.ibm_cloud_storage.awscli import AwsCli
+from medusa.storage.s3_compat import S3BaseStorage
 
-
-class IBMCloudStorage(S3Storage):
+class IBMCloudStorage(S3BaseStorage):
 
     def connect_storage(self):
         if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
@@ -60,61 +57,3 @@ class IBMCloudStorage(S3Storage):
             self.set_upload_bandwidth()
 
         return driver
-
-    def get_object_datetime(self, blob):
-        logging.debug(
-            "Blob {} last modification time is {}".format(
-                blob.name, blob.extra["last_modified"]
-            )
-        )
-        return parser.parse(blob.extra["last_modified"])
-
-    def get_cache_path(self, path):
-        # Full path for files that will be taken from previous backups
-        return path
-
-    def check_dependencies(self):
-        if self.config.aws_cli_path == 'dynamic':
-            aws_cli_path = AwsCli.find_aws_cli()
-        else:
-            aws_cli_path = self.config.aws_cli_path
-
-        try:
-            subprocess.check_call([aws_cli_path, "help"], stdout=PIPE, stderr=PIPE)
-        except Exception:
-            raise RuntimeError(
-                "AWS cli doesn't seem to be installed on this system and is a "
-                + "required dependency for the S3 backend. Please install it by running 'pip install awscli' "
-                + "or 'sudo apt-get install awscli' and try again."
-            )
-
-    def upload_blobs(self, srcs, dest):
-        return medusa.storage.ibm_cloud_storage.concurrent.upload_blobs(
-            self,
-            srcs,
-            dest,
-            self.bucket,
-            max_workers=self.config.concurrent_transfers,
-            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold)
-        )
-
-    def download_blobs(self, srcs, dest):
-        """
-        Downloads a list of files from the remote storage system to the local storage
-
-        :param src: a list of files to download from the remote storage system
-        :param dest: the path where to download the objects locally
-        :return:
-        """
-        return medusa.storage.ibm_cloud_storage.concurrent.download_blobs(
-            self,
-            srcs,
-            dest,
-            self.bucket,
-            max_workers=self.config.concurrent_transfers,
-            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold)
-        )
-
-
-def is_aws_s3(storage_name):
-    return True
