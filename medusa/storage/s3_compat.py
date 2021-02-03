@@ -18,7 +18,7 @@ import os
 import io
 import itertools
 import subprocess
-import json
+import configparser
 from subprocess import PIPE
 from dateutil import parser
 from pathlib import Path
@@ -26,8 +26,8 @@ from pathlib import Path
 from libcloud.storage.drivers.minio import MinIOStorageDriver
 
 from medusa.storage.abstract_storage import AbstractStorage
-import medusa.storage.s3_compat.concurrent
-from medusa.storage.s3_compat.awscli import AwsCli
+import medusa.storage.s3_compat_storage.concurrent
+from medusa.storage.s3_compat_storage.awscli import AwsCli
 
 import medusa
 
@@ -44,21 +44,37 @@ import medusa
 class S3BaseStorage(AbstractStorage):
 
     def connect_storage(self):
-        with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
-            credentials = json.load(json_fi)
+        aws_access_key_id = None
+        aws_secret_access_key = None
+
+        if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
+            logging.debug("Reading credentials from {}".format(
+                self.config.key_file
+            ))
+
+            aws_config = configparser.ConfigParser(interpolation=None)
+            with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as aws_file:
+                aws_config.read_file(aws_file)
+                aws_profile = self.config.api_profile
+                profile = aws_config[aws_profile]
+                aws_access_key_id = profile['aws_access_key_id']
+                aws_secret_access_key = profile['aws_secret_access_key']
+
+        if aws_access_key_id is None:
+            raise NotImplementedError("No valid access key defined.")
 
         # MinIOStorageDriver is the only clean implementation of BaseS3StorageDriver in libcloud
         driver = MinIOStorageDriver(
             host=self.config.host,
             port=self.config.port,
-            key=credentials['access_key_id'],
-            secret=credentials['secret_access_key'],
-            secure=False if self.config.secure.lower() in ('0', 'false') else True,
+            key=aws_access_key_id,
+            secret=aws_secret_access_key,
+            secure=False
         )
 
-        if self.config.host is not None:
-            self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) \
-                if self.config.port is not None else 'https://{}'.format(self.config.host)
+        # if self.config.host is not None:
+        #     self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) \
+        #         if self.config.port is not None else 'https://{}'.format(self.config.host)
 
         return driver
 
@@ -69,7 +85,7 @@ class S3BaseStorage(AbstractStorage):
             aws_cli_path = self.config.aws_cli_path
 
         try:
-            subprocess.check_call([aws_cli_path, "help"], stdout=PIPE, stderr=PIPE)
+            subprocess.check_call([aws_cli_path, '--version'], stdout=PIPE, stderr=PIPE)
         except Exception:
             raise RuntimeError(
                 "AWS cli doesn't seem to be installed on this system and is a "
@@ -78,7 +94,7 @@ class S3BaseStorage(AbstractStorage):
             )
 
     def upload_blobs(self, srcs, dest):
-        return medusa.storage.s3_compact.concurrent.upload_blobs(
+        return medusa.storage.s3_compat_storage.concurrent.upload_blobs(
             self,
             srcs,
             dest,
@@ -95,7 +111,7 @@ class S3BaseStorage(AbstractStorage):
         :param dest: the path where to download the objects locally
         :return:
         """
-        return medusa.storage.s3_compat.concurrent.download_blobs(
+        return medusa.storage.s3_compat_storage.concurrent.download_blobs(
             self,
             srcs,
             dest,

@@ -74,6 +74,7 @@ class Storage(object):
         self.storage_provider = self._config.storage_provider
 
     def _connect_storage(self):
+        logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
             google_storage = GoogleStorage(self._config)
             google_storage.check_dependencies()
