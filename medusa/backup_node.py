@@ -85,8 +85,7 @@ class NodeBackupCache(object):
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
 
-                threshold = self._storage_config.multi_part_upload_threshold \
-                    if is_aws_s3(self._storage_provider) else None
+                threshold = self._storage_config.multi_part_upload_threshold
                 if cached_item is None or not self._storage_driver.file_matches_cache(src, cached_item, threshold):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
