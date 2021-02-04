@@ -20,7 +20,7 @@ import os
 
 from medusa.libcloud.storage.drivers.ibm import IBMCloudStorageDriver
 from medusa.libcloud.storage.drivers.ibm import IBM_CLOUD_HOSTS_BY_REGION
-from medusa.storage.s3_compat import S3BaseStorage
+from medusa.storage.s3_base_storage import S3BaseStorage
 
 
 class IBMCloudStorage(S3BaseStorage):
@@ -54,7 +54,7 @@ class IBMCloudStorage(S3BaseStorage):
         if self.config.transfer_max_bandwidth is not None:
             self.set_upload_bandwidth()
 
-        self.config.endpoint_url = self.config.host if self.config.host is not None \
-            else IBM_CLOUD_HOSTS_BY_REGION[self.config.region]
+        if self.config.host is None and self.config.region is not None:
+            self.config.host = IBM_CLOUD_HOSTS_BY_REGION[self.config.region]
 
         return driver

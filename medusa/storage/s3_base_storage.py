@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright 2019 Spotify AB
+# Copyright 2021 DataStax, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,17 +65,14 @@ class S3BaseStorage(AbstractStorage):
             raise NotImplementedError("No valid access key defined.")
 
         # MinIOStorageDriver is the only clean implementation of BaseS3StorageDriver in libcloud
+        secure = False if self.config.secure is None or self.config.secure.lower() in ('0', 'false') else True
         driver = MinIOStorageDriver(
             host=self.config.host,
             port=self.config.port,
             key=aws_access_key_id,
             secret=aws_secret_access_key,
-            secure=False
+            secure=secure
         )
-
-        # if self.config.host is not None:
-        #     self.config.endpoint_url = 'https://{}:{}'.format(self.config.host, self.config.port) \
-        #         if self.config.port is not None else 'https://{}'.format(self.config.host)
 
         return driver
 

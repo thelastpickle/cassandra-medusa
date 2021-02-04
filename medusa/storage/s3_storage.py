@@ -21,7 +21,7 @@ import io
 
 from libcloud.storage.providers import get_driver
 
-from medusa.storage.s3_compat import S3BaseStorage
+from medusa.storage.s3_base_storage import S3BaseStorage
 
 
 class S3Storage(S3BaseStorage):
