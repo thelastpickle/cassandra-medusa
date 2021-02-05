@@ -21,22 +21,20 @@ class AzureStorage(AbstractStorage):
         with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
 
-        host_param = credentials['host']
-
-        if not host_param:
-            driver = AzureBlobsStorageDriver(
-                key=credentials['storage_account'],
-                secret=credentials['key']
-            )
-        else:
+        if 'host' in credentials:
             # Hack for Azure connections with a host. Libcloud has a bug in this scenario.
             # Link to bug submitted against libcloud: https://github.com/apache/libcloud/issues/1551
             driver = AzureBlobsStorageDriver(
                 key=None,
                 secret=credentials['key'],
-                host=host_param
+                host=credentials['host']
             )
             driver.connection.user_id = credentials['storage_account']
+        else:
+            driver = AzureBlobsStorageDriver(
+                key=credentials['storage_account'],
+                secret=credentials['key']
+            )
 
         return driver
 

@@ -8,6 +8,8 @@ import uuid
 
 from retrying import retry
 
+from medusa.storage.abstract_storage import AbstractStorage
+
 
 class AzCli(object):
     def __init__(self, storage):
@@ -22,17 +24,16 @@ class AzCli(object):
         with io.open(os.path.expanduser(self._config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
 
-        connection_string_param = credentials['connection_string']
-        if not connection_string_param:
+        if 'connection_string' in credentials:
             self._env = dict(
                 os.environ,
-                AZURE_STORAGE_ACCOUNT=credentials['storage_account'],
-                AZURE_STORAGE_KEY=credentials['key']
+                AZURE_STORAGE_CONNECTION_STRING=credentials['connection_string']
             )
         else:
             self._env = dict(
                 os.environ,
-                AZURE_STORAGE_CONNECTION_STRING=connection_string_param
+                AZURE_STORAGE_ACCOUNT=credentials['storage_account'],
+                AZURE_STORAGE_KEY=credentials['key']
             )
         self._az_cli_path = self.find_az_cli()
         return self
@@ -64,8 +65,9 @@ class AzCli(object):
         job_id = str(uuid.uuid4())
         azcli_output = "/tmp/azcli_{0}.output".format(job_id)
         objects = []
+        # Az cli expects the client to provide the MD5 hash of the upload
         for src in srcs:
-            cmd = [self._az_cli_path, "storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest]
+            cmd = [self._az_cli_path, "storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest, "--content-md5", AbstractStorage.generate_md5_hash(src)]
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
