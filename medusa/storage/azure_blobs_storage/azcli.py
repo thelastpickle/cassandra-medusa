@@ -67,7 +67,8 @@ class AzCli(object):
         objects = []
         # Az cli expects the client to provide the MD5 hash of the upload
         for src in srcs:
-            cmd = [self._az_cli_path, "storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest, "--content-md5", AbstractStorage.generate_md5_hash(src)]
+            cmd = [self._az_cli_path, "storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
+                   "--content-md5", AbstractStorage.generate_md5_hash(src)]
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
