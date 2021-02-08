@@ -148,7 +148,7 @@ def cleanup_obsolete_files(storage, fqdn):
 
 
 def get_file_paths_from_storage(storage, fqdn):
-    data_directory = "{}/data".format(fqdn)
+    data_directory = "{}{}/data".format(storage.prefix_path, fqdn)
     data_files = {
         blob.name: blob
         for blob in storage.storage_driver.list_objects(str(data_directory))
