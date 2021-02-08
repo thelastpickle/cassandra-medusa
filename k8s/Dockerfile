@@ -11,6 +11,7 @@ RUN add-apt-repository ppa:kalon33/gamesgiroll -y
 COPY requirements.txt /requirements.txt
 COPY requirements-grpc-runtime.txt /requirements-grpc-runtime.txt
 COPY requirements-s3.txt /requirements-s3.txt 
+ENV PATH=/root/.local/bin:$PATH
 
 RUN apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
@@ -30,21 +31,24 @@ RUN apt-get update \
         equivs \
         wget \
         apt-transport-https \
-        ca-certificates \
-        awscli
+        ca-certificates
 
-RUN pip3 install --ignore-installed --user -r /requirements.txt \
+# Swap to non-root user for the rest of the build
+#RUN addgroup --system medusa && adduser --system --group medusa
+#USER medusa
+#WORKDIR /home/medusa
+
+RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /requirements.txt \
     && pip3 install --ignore-installed --user -r /requirements-grpc-runtime.txt \
     && pip3 install --ignore-installed --user -r /requirements-s3.txt
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM ubuntu:18.04
 
-ENV DEBUG_VERSION 1
-ENV DEBUG_SLEEP 0
-ENV PATH=/root/.local/bin:$PATH
+## add user
+RUN addgroup --system medusa && adduser --system --group medusa
+# RUN chown -R medusa:medusa /app && chmod -R 755 /app
 
-COPY --from=base /root/.local /root/.local
 COPY --from=base /install /usr/local
 
 # wget could happen in the build-phase
@@ -55,9 +59,18 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     chmod +x /bin/grpc_health_probe && \
     groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 cassandra
 
-COPY medusa /app/medusa
-COPY k8s/docker-entrypoint.sh /app
+USER medusa
+WORKDIR /home/medusa
 
-WORKDIR /app
+ENV DEBUG_VERSION 1
+ENV DEBUG_SLEEP 0
+ENV PATH=/home/medusa/.local/bin:$PATH
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+COPY --from=base --chown=medusa:medusa /root/.local /home/medusa/.local
+
+COPY medusa /home/medusa/app/medusa
+COPY k8s/docker-entrypoint.sh /home/medusa/app
+
+WORKDIR /home/medusa/app
+
+ENTRYPOINT ["/home/medusa/app/docker-entrypoint.sh"]
