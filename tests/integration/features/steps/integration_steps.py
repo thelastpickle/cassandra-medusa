@@ -643,6 +643,36 @@ def _i_cannot_see_the_backup_named_backupname_when_i_list_the_backups(
     assert found is False
 
 
+@then('I cannot see purged backup files for the "{table_name}" table in keyspace "{keyspace}"')
+def _i_cannot_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacename(
+    context, table_name, keyspace
+):
+    storage = Storage(config=context.medusa_config.storage)
+    path = os.path.join(
+        storage.prefix_path + context.medusa_config.storage.fqdn, "data", keyspace, table_name
+    )
+    sb_files = len(storage.storage_driver.list_objects(path))
+
+    node_backups = storage.list_node_backups()
+    # Parse its manifest
+    nb_list = list(node_backups)
+    nb_files = {}
+    for nb in nb_list:
+        manifest = json.loads(nb.manifest)
+        for section in manifest:
+            if (
+                section["keyspace"] == keyspace
+                and section["columnfamily"][: len(table_name)] == table_name
+            ):
+                for objects in section["objects"]:
+                    nb_files[objects["path"]] = 0
+
+    if sb_files != len(nb_files):
+        logging.error("{} objects found on remote storage and {} objects found on backups manifest".format(
+            sb_files, len(nb_files)))
+        assert sb_files == len(nb_files)
+
+
 @then('I can see the backup status for "{backup_name}" when I run the status command')
 def _i_can_see_backup_status_when_i_run_the_status_command(context, backup_name):
     medusa.status.status(config=context.medusa_config, backup_name=backup_name)
