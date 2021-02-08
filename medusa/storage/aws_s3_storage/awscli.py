@@ -27,6 +27,7 @@ class AwsCli(object):
     def __init__(self, storage):
         self._config = storage.config
         self.storage = storage
+        self.canned_acl = storage.config.canned_acl
 
     @property
     def bucket_name(self):
@@ -73,7 +74,8 @@ class AwsCli(object):
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         for src in srcs:
-            cmd = [self._aws_cli_path, "s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)]
+            cmd = [self._aws_cli_path, "s3", "cp", "--acl", self.canned_acl,
+                   str(src), "s3://{}/{}".format(bucket_name, dest)]
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
