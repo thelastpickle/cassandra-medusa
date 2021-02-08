@@ -359,6 +359,7 @@ Feature: Integration tests
         Then I cannot see the backup named "first_backup" when I list the backups
         Then I cannot see the backup named "second_backup" when I list the backups
         Then I cannot see the backup named "third_backup" when I list the backups
+        Then I cannot see purged backup files for the "test" table in keyspace "medusa"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "fifth_backup" when I list the backups
         Then I can verify the backup named "fourth_backup" successfully
