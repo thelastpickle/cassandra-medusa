@@ -51,6 +51,7 @@ Create an IAM Policy called `MedusaStorageStrategy`, with the following definiti
                 "s3:GetReplicationConfiguration",
                 "s3:ListMultipartUploadParts",
                 "s3:PutObject",
+                "s3:PutObjectAcl",
                 "s3:GetObject",
                 "s3:GetObjectTorrent",
                 "s3:PutObjectRetention",

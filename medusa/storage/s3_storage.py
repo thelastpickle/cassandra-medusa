@@ -157,6 +157,7 @@ class S3Storage(AbstractStorage):
             srcs,
             dest,
             self.bucket,
+            canned_acl=self.config.canned_acl,
             max_workers=self.config.concurrent_transfers,
             multi_part_upload_threshold=int(self.config.multi_part_upload_threshold),
         )

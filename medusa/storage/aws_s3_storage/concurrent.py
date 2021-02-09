@@ -64,7 +64,7 @@ class StorageJob:
 
 
 def upload_blobs(
-    storage, src, dest, bucket, max_workers=None, multi_part_upload_threshold=0
+    storage, src, dest, bucket, canned_acl, max_workers=None, multi_part_upload_threshold=0
 ):
     """
     Uploads a list of files from local storage concurrently to the remote storage.
@@ -80,14 +80,14 @@ def upload_blobs(
     job = StorageJob(
         storage,
         lambda storage, connection, src_file: __upload_file(
-            storage, connection, src_file, dest, bucket, multi_part_upload_threshold
+            storage, connection, src_file, dest, bucket, canned_acl, multi_part_upload_threshold
         ),
         max_workers,
     )
     return job.execute(list(src))
 
 
-def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_threshold):
+def __upload_file(storage, connection, src, dest, bucket, canned_acl, multi_part_upload_threshold):
     """
     This function is called by StorageJob. It may be called concurrently by multiple threads.
 
@@ -116,15 +116,16 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
         obj = _upload_multi_part(storage, connection, src, bucket, full_object_name)
     else:
         logging.debug("Uploading {} as single part".format(full_object_name))
-        obj = _upload_single_part(connection, src, bucket, full_object_name)
+        obj = _upload_single_part(connection, src, bucket, full_object_name, canned_acl)
 
     return medusa.storage.ManifestObject(obj.name, int(obj.size), obj.hash)
 
 
 @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
-def _upload_single_part(connection, src, bucket, object_name):
+def _upload_single_part(connection, src, bucket, object_name, canned_acl):
+    extra = {'content_type': 'application/octet-stream', 'acl': canned_acl}
     obj = connection.upload_object(
-        str(src), container=bucket, object_name=object_name
+        str(src), container=bucket, object_name=object_name, extra=extra
     )
 
     return obj

@@ -426,7 +426,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
             "multi_part_upload_threshold": 1 * 1024,
             "concurrent_transfers": 4,
             "prefix": storage_prefix,
-            "aws_cli_path": "aws"
+            "aws_cli_path": "aws",
+            "canned_acl": "private"
         }
 
     config["cassandra"] = {
