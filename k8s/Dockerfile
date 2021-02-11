@@ -46,8 +46,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /
 FROM ubuntu:18.04
 
 ## add user
-RUN addgroup --system medusa && adduser --system --group medusa
-# RUN chown -R medusa:medusa /app && chmod -R 755 /app
+RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=1001 medusa
 
 COPY --from=base /install /usr/local
 
@@ -56,8 +55,7 @@ RUN apt-get update && apt-get install -y python3 wget
 
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe && \
-    groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 cassandra
+    chmod +x /bin/grpc_health_probe
 
 USER medusa
 WORKDIR /home/medusa
@@ -66,10 +64,10 @@ ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
 ENV PATH=/home/medusa/.local/bin:$PATH
 
-COPY --from=base --chown=medusa:medusa /root/.local /home/medusa/.local
+COPY --from=base --chown=medusa:cassandra /root/.local /home/medusa/.local
 
-COPY medusa /home/medusa/app/medusa
-COPY k8s/docker-entrypoint.sh /home/medusa/app
+COPY --chown=medusa:cassandra medusa /home/medusa/app/medusa
+COPY --chown=medusa:cassandra k8s/docker-entrypoint.sh /home/medusa/app
 
 WORKDIR /home/medusa/app
 
