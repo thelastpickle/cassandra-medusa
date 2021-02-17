@@ -1,4 +1,4 @@
-FROM  ubuntu:18.04 as base
+FROM ubuntu:18.04 as base
 
 RUN mkdir /install
 WORKDIR /install
@@ -8,7 +8,10 @@ RUN apt-get update && \
 
 RUN add-apt-repository ppa:kalon33/gamesgiroll -y
 
-RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
+COPY requirements.txt /requirements.txt
+COPY requirements-grpc-runtime.txt /requirements-grpc-runtime.txt
+COPY requirements-s3.txt /requirements-s3.txt 
+ENV PATH=/root/.local/bin:$PATH
 
 RUN apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
@@ -28,34 +31,44 @@ RUN apt-get update \
         equivs \
         wget \
         apt-transport-https \
-        ca-certificates \
-        awscli \
-        && mkdir -p /usr/local/gcloud \
-        && tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz \
-        && /usr/local/gcloud/google-cloud-sdk/install.sh --quiet
+        ca-certificates
 
-COPY requirements.txt /requirements.txt
-COPY requirements-grpc.txt /requirements-grpc.txt
+# Swap to non-root user for the rest of the build
+#RUN addgroup --system medusa && adduser --system --group medusa
+#USER medusa
+#WORKDIR /home/medusa
 
-RUN pip3 install -r /requirements.txt && \
-    pip3 install -r /requirements-grpc.txt
+RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /requirements.txt \
+    && pip3 install --ignore-installed --user -r /requirements-grpc-runtime.txt \
+    && pip3 install --ignore-installed --user -r /requirements-s3.txt
 
-FROM base
+# Could be python:slim, but we have a .sh entrypoint
+FROM ubuntu:18.04
 
-ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
-ENV DEBUG_VERSION 1
-ENV DEBUG_SLEEP 0
+## add user
+RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=1001 medusa
 
 COPY --from=base /install /usr/local
 
+# wget could happen in the build-phase
+RUN apt-get update && apt-get install -y python3 wget
+
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe && \
-    groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 cassandra
+    chmod +x /bin/grpc_health_probe
 
-COPY build/lib/medusa /app/medusa
-COPY k8s/docker-entrypoint.sh /app
+USER medusa
+WORKDIR /home/medusa
 
-WORKDIR /app
+ENV DEBUG_VERSION 1
+ENV DEBUG_SLEEP 0
+ENV PATH=/home/medusa/.local/bin:$PATH
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+COPY --from=base --chown=medusa:cassandra /root/.local /home/medusa/.local
+
+COPY --chown=medusa:cassandra medusa /home/medusa/app/medusa
+COPY --chown=medusa:cassandra k8s/docker-entrypoint.sh /home/medusa/app
+
+WORKDIR /home/medusa/app
+
+ENTRYPOINT ["/home/medusa/app/docker-entrypoint.sh"]
