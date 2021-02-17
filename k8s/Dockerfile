@@ -46,7 +46,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /
 FROM ubuntu:18.04
 
 ## add user
-RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=1001 medusa
+RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=1001 --create-home medusa
 
 COPY --from=base /install /usr/local
 
@@ -66,9 +66,9 @@ ENV PATH=/home/medusa/.local/bin:$PATH
 
 COPY --from=base --chown=medusa:cassandra /root/.local /home/medusa/.local
 
-COPY --chown=medusa:cassandra medusa /home/medusa/app/medusa
-COPY --chown=medusa:cassandra k8s/docker-entrypoint.sh /home/medusa/app
+COPY --chown=medusa:cassandra medusa /home/medusa/medusa
+COPY --chown=medusa:cassandra k8s/docker-entrypoint.sh /home/medusa
 
-WORKDIR /home/medusa/app
+WORKDIR /home/medusa
 
-ENTRYPOINT ["/home/medusa/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/home/medusa/docker-entrypoint.sh"]
