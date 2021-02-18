@@ -33,11 +33,6 @@ RUN apt-get update \
         apt-transport-https \
         ca-certificates
 
-# Swap to non-root user for the rest of the build
-#RUN addgroup --system medusa && adduser --system --group medusa
-#USER medusa
-#WORKDIR /home/medusa
-
 RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /requirements.txt \
     && pip3 install --ignore-installed --user -r /requirements-grpc-runtime.txt \
     && pip3 install --ignore-installed --user -r /requirements-s3.txt
@@ -46,7 +41,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user -r /
 FROM ubuntu:18.04
 
 ## add user
-RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=1001 --create-home medusa
+RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
 
 COPY --from=base /install /usr/local
 
@@ -57,18 +52,24 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /bin/grpc_health_probe
 
-USER medusa
-WORKDIR /home/medusa
+USER cassandra
+WORKDIR /home/cassandra
+
+COPY --chown=cassandra:cassandra k8s/clean-cloud-sdk.sh /home/cassandra/clean-cloud-sdk.sh
+RUN wget -q https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz \
+    && tar -zxvf google-cloud-sdk.tar.gz \
+    && google-cloud-sdk/install.sh --quiet \
+    && chmod +x clean-cloud-sdk.sh && ./clean-cloud-sdk.sh
 
 ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
-ENV PATH=/home/medusa/.local/bin:$PATH
+ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:$PATH
 
-COPY --from=base --chown=medusa:cassandra /root/.local /home/medusa/.local
+COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
-COPY --chown=medusa:cassandra medusa /home/medusa/medusa
-COPY --chown=medusa:cassandra k8s/docker-entrypoint.sh /home/medusa
+COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
+COPY --chown=cassandra:cassandra k8s/docker-entrypoint.sh /home/cassandra
 
-WORKDIR /home/medusa
+WORKDIR /home/cassandra
 
-ENTRYPOINT ["/home/medusa/docker-entrypoint.sh"]
+ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
