@@ -51,7 +51,8 @@ setuptools.setup(
         'ffwd>=0.0.2',
         'apache-libcloud<=3.3.0,>=2.8.0',
         'lockfile>=0.12.2',
-        'pycrypto>=2.6.1',
+        'cryptography<=3.3.2,>=2.5',
+        'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
         'parallel-ssh==1.9.1',
         'ssh2-python==0.19.0',  # <-- ssh2-python==0.20.0 is broken, 0.22.0+ should work.
