@@ -21,7 +21,7 @@ import operator
 import pathlib
 import re
 
-from libcloud.storage.providers import Provider, get_driver
+from libcloud.storage.providers import Provider
 from libcloud.common.types import InvalidCredsError
 from retrying import retry
 
@@ -89,9 +89,6 @@ class Storage(object):
             s3_storage.check_dependencies()
             return s3_storage
         elif self._config.storage_provider.startswith(Provider.S3):
-            if self._config.storage_provider != Provider.S3:
-                self._config['region'] = get_driver(self._config.storage_provider).region_name
-
             s3_storage = S3Storage(self._config)
             s3_storage.check_dependencies()
             return s3_storage
