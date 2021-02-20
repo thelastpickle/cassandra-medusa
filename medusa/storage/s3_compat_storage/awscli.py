@@ -22,6 +22,8 @@ import sys
 
 from retrying import retry
 
+from libcloud.storage.providers import get_driver, Provider
+
 
 class AwsCli(object):
     def __init__(self, storage):
@@ -104,8 +106,11 @@ class AwsCli(object):
         if self.endpoint_url is not None:
             cmd.extend(["--endpoint-url", self.endpoint_url])
 
-        if self._config.region is not None:
+        if self._config.region is not None and self._config.region != "default":
             cmd.extend(["--region", self._config.region])
+        elif self._config.storage_provider != Provider.S3 and self._config.region == "default":
+            # Legacy libcloud S3 providers that were tied to a specific region such as s3_us_west_oregon
+            cmd.extend(["--region", get_driver(self._config.storage_provider).region_name])
 
         return cmd
 
