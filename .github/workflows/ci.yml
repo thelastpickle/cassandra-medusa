@@ -227,9 +227,27 @@ jobs:
         echo "Publishing release ${version} in Bintray"
         curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
 
+  publish-docker:
+    needs: [publish-debian]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Publish Debian version
+      env:
+        DOCKER_USERNAME: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
+        DOCKER_TOKEN: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+      run: |
+        version=$(cat VERSION)
+        docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
+        echo "Publishing release ${version} in Docker Hub"
+        python setup.py build
+        docker build -t k8ssandra/medusa:${version} -f k8s/Dockerfile .
+        docker push k8ssandra/medusa:${version}
+
   publish-pypi:
     # We can only release if the build above succeeded first
-    needs: [publish-debian]
+    needs: [publish-docker]
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-18.04
     steps:
