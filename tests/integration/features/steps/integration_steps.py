@@ -28,6 +28,7 @@ from behave import given, when, then
 from pathlib import Path
 from subprocess import PIPE
 import signal
+from cassandra import ProtocolVersion
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
 
@@ -1146,7 +1147,9 @@ def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
 
     while not connected and attempt < 10:
         try:
-            cluster = Cluster(contact_points=["127.0.0.1"], ssl_context=_ssl_context)
+            cluster = Cluster(contact_points=["127.0.0.1"],
+                              ssl_context=_ssl_context,
+                              protocol_version=ProtocolVersion.V4)
             session = cluster.connect()
             connected = True
         except cassandra.cluster.NoHostAvailable:
