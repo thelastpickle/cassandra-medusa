@@ -1,5 +1,25 @@
 ## Change Log
 
+### 0.9.0 (2021/02/24 10:12 +00:00)
+- Build and publish Docker image during releases (@adejanovski)
+- Force using protocol v4 to maintain compatibility with 4.0 (@adejanovski)
+- Fix region replacement in the S3 storage backend (@adejanovski)
+- Include storage prefix during file purge process (@ivanmp91)
+- Swap to cassandra user to avoid chown issues (@burmanm)
+- Pin cryptography to 3.3.2 to avoid install failing on missing Rust req (@adejanovski)
+- Fix home/medusa directory with correct rights (@burmanm)
+- Use multi-stage building in the Dockerfile to reduce image size (@burmanm)
+- Use cassandra 999 as gid for the medusa user, and change medusa user to id 1001 (@burmanm)
+- Run as non-root (@burmanm)
+- Add s3_compatible storage option for all S3 compatible storage targets (@burmanm)
+- Azure fixes - add configurable host, add MD5 for large files, support multi-part in differential backups
+- Update TLS version
+- Remove custom storage port for integration tests (@adejanovski)
+- Unthrottle downloads for S3 and IBM storage backends to speed up restores (@adejanovski)
+- Backup and DeleteBackup did not return the correct error code in case of Exception (@burmanm)
+- Allow to set the CQL user/pass through env variables (@adejanovski)
+- Replace the pycrypto dependency with pycryptodome (@deniszh)
+
 ### 0.8.1 (2021/01/07 14:50 +00:00)
 - Add missing dependencies for Libcloud 3.3.0 and pin Libcloud dependency to specific versions (@adejanovski)
 
