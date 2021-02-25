@@ -26,7 +26,7 @@ from retrying import retry
 import medusa
 from medusa.storage.s3_compat_storage.awscli import AwsCli
 
-MAX_UP_DOWN_LOAD_RETRIES = 5
+MAX_UP_DOWN_LOAD_RETRIES = 10
 
 
 class StorageJob:
