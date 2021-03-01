@@ -96,7 +96,7 @@ jobs:
         fail-fast: false
         matrix:
           python-version: [3.6, 3.8]
-          it-backend: [local, s3, gcs]
+          it-backend: [local, s3, gcs, minio]
           # IBM not included by default due to lite plan quota being easily exceeded
           # Azure brought a lot of flakeyness to the integration tests - it must be investigated before we can bring it back in
           # it-backend: [local, s3, gcs, ibm, azure]
@@ -108,6 +108,17 @@ jobs:
             - python-version: 3.6
               tox-py: py36
     runs-on: ubuntu-18.04
+    services:
+      minio:
+        image: lazybit/minio
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: minio_key
+          MINIO_SECRET_KEY: minio_secret
+        volumes:
+          - ${{ github.workspace }}/../data:/data
+        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -132,7 +143,12 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
         set -e
-        if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) || ( "${{ matrix.it-backend }}" == "local" ) || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) ]];
+        if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) \
+          || ( "${{ matrix.it-backend }}" == "local" ) \
+          || ( "${{ matrix.it-backend }}" == "minio" ) \
+          || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) \
+          || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) \
+          || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) ]];
         then
           . venv/bin/activate
           if [[ "${{ matrix.it-backend }}" == "ibm" ]];
@@ -143,7 +159,6 @@ jobs:
           fi
           # Write GCS service account credentials to a file
           mkdir ~/.aws
-
           # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
           ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
           ccm node1 updateconf 'storage_port: 7011'
@@ -158,20 +173,36 @@ jobs:
           ccm stop
           if [ "${{ matrix.it-backend }}" == "s3" ]
           then
+            # AWS S3 Storage tests
             ./run_integration_tests.sh -v --s3 --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "gcs" ]
           then
+            # Google Cloud Storage tests
             echo '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' > ~/medusa_credentials.json
             ./run_integration_tests.sh -v --gcs --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "ibm" ]
           then
+            # IBM Cloud Object Storage tests
             printf "%s" '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' > ~/.aws/ibm_credentials
             ./run_integration_tests.sh -v --ibm --no-local --cassandra-version=${{ matrix.cassandra-version }}
+          elif [ "${{ matrix.it-backend }}" == "minio" ]
+          then
+            # MinIO Object Storage tests
+            unset AWS_ACCESS_KEY_ID
+            unset AWS_SECRET_ACCESS_KEY
+            wget https://dl.min.io/client/mc/release/linux-amd64/mc
+            chmod +x mc
+            ./mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
+            ./mc mb minio/medusa-dev
+            cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
+            ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }}
           elif [ "${{ matrix.it-backend }}" == "azure" ]
           then
+            # Azure Blob Storage tests
             printf "%s" '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' > ~/medusa_azure_credentials.json
             ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }}
           else
+          # Local storage tests
             ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
           fi
         fi
