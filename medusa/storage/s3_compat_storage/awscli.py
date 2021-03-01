@@ -23,6 +23,7 @@ import sys
 from retrying import retry
 
 from libcloud.storage.providers import get_driver, Provider
+from medusa import utils
 
 
 class AwsCli(object):
@@ -49,7 +50,7 @@ class AwsCli(object):
         if self._config.host is not None:
             self.endpoint_url = '{}:{}'.format(self._config.host, self._config.port) \
                 if self._config.port is not None else self._config.host
-            if self._config.secure:
+            if utils.evaluate_boolean(self._config.secure):
                 self.endpoint_url = 'https://{}'.format(self.endpoint_url)
             else:
                 self.endpoint_url = 'http://{}'.format(self.endpoint_url)
