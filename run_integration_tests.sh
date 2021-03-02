@@ -24,6 +24,7 @@ S3="no"
 GCS="no"
 AZURE="no"
 IBM="no"
+MINIO="no"
 LOGGING_FLAGS=""
 
 while test $# -gt 0; do
@@ -40,6 +41,7 @@ while test $# -gt 0; do
       echo "--gcs                                       Include GCS in the storage backends"
       echo "--azure                                     Include Azure in the storage backends"
       echo "--ibm                                       Include IBM in the storage backends"
+      echo "--minio                                     Include MinIO in the storage backends"
       echo "--cassandra-version                         Cassandra version to test"
       echo "-v                                          Verbose output (logging won't be captured by behave)"
       exit 0
@@ -77,6 +79,10 @@ while test $# -gt 0; do
       ;;
     --ibm)
       IBM="yes"
+      shift
+      ;;
+    --minio)
+      MINIO="yes"
       shift
       ;;
     -v)
@@ -141,6 +147,16 @@ then
         STORAGE_TAGS="@ibm"
     else
         STORAGE_TAGS="${STORAGE_TAGS},@ibm"
+    fi
+fi
+
+if [ "$MINIO" == "yes" ]
+then
+    if [ "$STORAGE_TAGS" == "" ]
+    then
+        STORAGE_TAGS="@minio"
+    else
+        STORAGE_TAGS="${STORAGE_TAGS},@minio"
     fi
 fi
 

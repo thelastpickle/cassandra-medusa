@@ -278,7 +278,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "multi_part_upload_threshold": 1 * 1024,
             "prefix": storage_prefix
         }
-    elif storage_provider.startswith("s3"):
+    elif storage_provider == "s3_us_west_oregon":
         config["storage"] = {
             "host_file_separator": ",",
             "bucket_name": "tlp-medusa-dev",
@@ -293,6 +293,23 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "concurrent_transfers": 4,
             "prefix": storage_prefix,
             "aws_cli_path": "aws"
+        }
+    elif storage_provider == "minio":
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-dev",
+            "key_file": "~/.aws/minio_credentials",
+            "storage_provider": "s3_compatible",
+            "fqdn": "127.0.0.1",
+            "api_profile": "default",
+            "base_path": "/tmp",
+            "multi_part_upload_threshold": 1 * 1024,
+            "concurrent_transfers": 1,
+            "prefix": storage_prefix,
+            "aws_cli_path": "aws",
+            "host": "localhost",
+            "port": 9000,
+            "secure": False
         }
     elif storage_provider.startswith("ibm"):
         config["storage"] = {
