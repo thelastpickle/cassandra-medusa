@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.9.1 (2021/03/09 14:15 +00:00)
+- Add BaseS3StorageDriver that allows defining the region and pass the information to that driver. Also, remove unused ibm driver (@burmanm)
+- Fix MinIO support with unsecured access and add integration tests (@adejanovski)
+
 ### 0.9.0 (2021/02/24 10:12 +00:00)
 - Build and publish Docker image during releases (@adejanovski)
 - Force using protocol v4 to maintain compatibility with 4.0 (@adejanovski)
