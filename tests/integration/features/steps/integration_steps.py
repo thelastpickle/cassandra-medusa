@@ -432,7 +432,7 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
 
     storage_args = {"prefix": storage_prefix}
     cassandra_args = {
-        "is_ccm": 1,
+        "is_ccm": "1",
         "stop_cmd": CCM_STOP,
         "start_cmd": CCM_START,
         "cql_username": "cassandra",
@@ -452,7 +452,8 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
                 "sstableloader",
             )
         ),
-        "resolve_ip_addresses": False
+        "resolve_ip_addresses": "False",
+        "use_sudo": "True",
     }
 
     if client_encryption == 'with_client_encryption':

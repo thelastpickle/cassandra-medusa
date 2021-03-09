@@ -176,9 +176,10 @@ class BackupJob(object):
         enable_md5_checks_option = '--enable-md5-checks' if self.enable_md5_checks else ''
 
         # Use %s placeholders in the below command to have them replaced by pssh using per host command substitution
-        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa {config} -vvv backup-node ' \
+        command = 'mkdir -p {work}; cd {work} && medusa-wrapper {sudo} medusa {config} -vvv backup-node ' \
                   '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode}' \
             .format(work=self.work_dir,
+                    sudo='sudo' if medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo) else '',
                     config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
                     backup_name=self.backup_name,
                     stagger=stagger_option,
