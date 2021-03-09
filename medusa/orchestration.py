@@ -14,7 +14,10 @@
 # limitations under the License.
 
 import logging
+
 from pssh.clients.ssh import ParallelSSHClient
+
+import medusa.utils
 from medusa.storage import divide_chunks
 
 
@@ -27,40 +30,43 @@ def display_output(host_outputs):
 
 
 class Orchestration(object):
-    def __init__(self, cassandra_config, pool_size=10):
+    def __init__(self, config, pool_size=10):
         self.pool_size = pool_size
-        self.cassandra_config = cassandra_config
+        self.config = config
 
-    def pssh_run(self, hosts, command, hosts_variables=None):
+    def pssh_run(self, hosts, command, hosts_variables=None, ssh_client=None):
         """
         Runs a command on hosts list using pssh under the hood
         Return: True (success) or False (error)
         """
+        if ssh_client is None:
+            ssh_client = ParallelSSHClient
         pssh_run_success = False
         success = []
         error = []
         i = 1
 
-        username = self.cassandra_config.ssh.username if self.cassandra_config.ssh.username != '' else None
-        port = int(self.cassandra_config.ssh.port)
-        pkey = self.cassandra_config.ssh.key_file if self.cassandra_config.ssh.key_file != '' else None
-        cert_file = self.cassandra_config.ssh.cert_file if self.cassandra_config.ssh.cert_file != '' else None
+        username = self.config.ssh.username if self.config.ssh.username != '' else None
+        port = int(self.config.ssh.port)
+        pkey = self.config.ssh.key_file if self.config.ssh.key_file != '' else None
+        cert_file = self.config.ssh.cert_file if self.config.ssh.cert_file != '' else None
 
         logging.info('Executing "{command}" on following nodes {hosts} with a parallelism/pool size of {pool_size}'
                      .format(command=command, hosts=hosts, pool_size=self.pool_size))
 
         for parallel_hosts in divide_chunks(hosts, self.pool_size):
 
-            client = ParallelSSHClient(parallel_hosts,
-                                       forward_ssh_agent=True,
-                                       pool_size=len(parallel_hosts),
-                                       user=username,
-                                       port=port,
-                                       pkey=pkey,
-                                       cert_file=cert_file)
+            client = ssh_client(parallel_hosts,
+                                forward_ssh_agent=True,
+                                pool_size=len(parallel_hosts),
+                                user=username,
+                                port=port,
+                                pkey=pkey,
+                                cert_file=cert_file)
             logging.debug('Batch #{i}: Running "{command}" on nodes {hosts} parallelism of {pool_size}'
                           .format(i=i, command=command, hosts=parallel_hosts, pool_size=len(parallel_hosts)))
-            output = client.run_command(command, host_args=hosts_variables, sudo=True)
+            output = client.run_command(command, host_args=hosts_variables,
+                                        sudo=medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo))
             client.join(output)
 
             success = success + list(filter(lambda host_output: host_output.exit_code == 0, output))

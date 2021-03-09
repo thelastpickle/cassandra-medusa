@@ -22,6 +22,7 @@ import socket
 import sys
 
 import medusa.cassandra_utils
+import medusa.storage
 from medusa.utils import evaluate_boolean
 
 StorageConfig = collections.namedtuple(
@@ -37,7 +38,7 @@ CassandraConfig = collections.namedtuple(
     ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts', 'sstableloader_tspw',
-     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses']
+     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'use_sudo']
 )
 
 SSHConfig = collections.namedtuple(
@@ -92,10 +93,12 @@ CONFIG_SECTIONS = {
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
 
-def parse_config(args, config_file):
-    config = configparser.ConfigParser(interpolation=None)
+def _build_default_config():
+    """Build a INI config parser with default values
 
-    # Set defaults
+    :return ConfigParser: default configuration
+    """
+    config = configparser.ConfigParser(interpolation=None)
 
     config['storage'] = {
         'host_file_separator': ',',
@@ -128,13 +131,14 @@ def parse_config(args, config_file):
         'check_running': 'nodetool version',
         'is_ccm': '0',
         'sstableloader_bin': 'sstableloader',
-        'resolve_ip_addresses': 'True'
+        'resolve_ip_addresses': 'True',
+        'use_sudo': 'True',
     }
 
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
         'key_file': '',
-        'port': 22,
+        'port': '22',
         'cert_file': ''
     }
 
@@ -159,6 +163,17 @@ def parse_config(args, config_file):
         'cassandra_url': 'None',
         'use_mgmt_api': 'False'
     }
+    return config
+
+
+def parse_config(args, config_file):
+    """Parse a medusa.ini file and allow to override settings from command line
+
+    :param dict args: settings override. Higher priority than settings defined in medusa.ini
+    :param pathlib.Path config_file: path to medusa.ini file
+    :return: None
+    """
+    config = _build_default_config()
 
     if config_file is None and not DEFAULT_CONFIGURATION_PATH.exists():
         logging.error(
@@ -168,7 +183,8 @@ def parse_config(args, config_file):
 
     actual_config_file = DEFAULT_CONFIGURATION_PATH if config_file is None else config_file
     logging.debug('Loading configuration from {}'.format(actual_config_file))
-    config.read_file(actual_config_file.open())
+    with actual_config_file.open() as f:
+        config.read_file(f)
 
     # Override config file settings with command line options
     for config_section in config.keys():
@@ -181,6 +197,11 @@ def parse_config(args, config_file):
             for key, value in _zip_fields_with_arg_values(settings, args)
             if value is not None
         }})
+
+    if evaluate_boolean(config['kubernetes']['enabled']):
+        if evaluate_boolean(config['cassandra']['use_sudo']):
+            logging.warning('Forcing use_sudo to False because Kubernetes mode is enabled')
+        config['cassandra']['use_sudo'] = 'False'
 
     resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
     config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
@@ -199,9 +220,9 @@ def parse_config(args, config_file):
 def load_config(args, config_file):
     """Load configuration from a medusa.ini file
 
-    :param args: settings override. Higher priority than settings defined in medusa.ini
-    :param config_file: path to a medusa.ini file or None if default path should be used
-    :return: Medusa configuration
+    :param dict args: settings override. Higher priority than settings defined in medusa.ini
+    :param pathlib.Path config_file: path to a medusa.ini file or None if default path should be used
+    :return MedusaConfig: Medusa configuration
     """
     config = parse_config(args, config_file)
 

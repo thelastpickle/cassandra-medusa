@@ -227,6 +227,7 @@ def main(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
             config
         )
 
+
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
 # attempt on which it waited for 60 seconds
 @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
