@@ -155,7 +155,7 @@ class CqlSession(object):
             if host.address == listen_address or self.hostname_resolver.resolve_fqdn(host.address) == socket_host:
                 return host.datacenter
 
-        raise RuntimeError('Unable to current datacenter')
+        raise RuntimeError('Unable to get current datacenter')
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
