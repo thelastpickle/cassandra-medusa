@@ -1,12 +1,12 @@
 # Overview
 There are a several things involved for Kubernetes integration, some of which live in other repos. The purpose of this README is to provide an overview of the various components as well as to explain how to build things.
 
-I want to point out that this k8s integration is independent of any k8s operators for Cassandra. There are several such operators, but not everyone is using an operator. This lower level of integration will make it easier for anyone to use Medusa in k8s. It will also facilitate integration with some of the Cassandra operators.
+I want to point out that this k8s integration is independent of any k8s operators for Apache Cassandra™. There are several such operators, but not everyone is using an operator. This lower level of integration will make it easier for anyone to use Medusa in k8s. It will also facilitate integration with some of the Cassandra operators.
 
 # Backups
-There is a gRPC service for performing backups. It lives under the `medusa/service/grpc` directory. The service runs as a sidecar container in the Cassandra pod. There is a k8s operator for Medusa, [medusa-operator](https://github.com/jsanda/medusa-operator), that is the primary client of the gRPC service.
+There is a gRPC service for performing backups. It lives under the `medusa/service/grpc` directory. The service runs as a sidecar container in the Cassandra pod. There is a k8s operator for Medusa, [medusa-operator](https://github.com/k8ssandra/k8ssandra/tree/main/charts/medusa-operator), that is the primary client of the gRPC service.
 
-See [medusa-operator](https://github.com/jsanda/medusa-operator) for details on setting it up to perform restores.
+See [medusa-operator](https://github.com/k8ssandra/k8ssandra/tree/main/charts/medusa-operator) for details on setting it up to perform restores.
 
 # Restores
 For k8s, we do not utilize `medusa/restore_cluster.py`. The `restore_cluster` module provides an orchestration layer that is handled differently in k8s. In k8s, we only use `medusa/restore_node.py`.
@@ -66,7 +66,7 @@ cassandra_url = http://127.0.0.1:8080/api/v0/ops/node/snapshots
 use_mgmt_api = 1
 ```
 
-The `cassandra_url` value needs to be the URL to the Management API [snapshot REST endpoint](https://redocly.github.io/redoc/?url=https://raw.githubusercontent.com/datastax/management-api-for-apache-cassandra/master/management-api-server/doc/openapi.json&nocors#operation/takeSnapshot) enabled in your Cassandra image. With configuration similar to the above,Medusa will make POST and DELETE REST calls to the API to perform backup and restore operation.s  
+The `cassandra_url` value needs to be the URL to the Management API [snapshot REST endpoint](https://redocly.github.io/redoc/?url=https://raw.githubusercontent.com/datastax/management-api-for-apache-cassandra/master/management-api-server/doc/openapi.json&nocors#operation/takeSnapshot) enabled in your Cassandra image. With configuration similar to the above, Medusa will make POST and DELETE REST calls to the API to perform backup and restore operations.
 
 
 # Kubernetes Image

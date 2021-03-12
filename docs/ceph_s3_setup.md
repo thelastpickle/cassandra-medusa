@@ -7,7 +7,7 @@ Create a new bucket that will be used to store the backups.
 
 ### Configure Medusa
 
-Create an user for the backups and generate access keys for that user and save them in a file called `ceph-credentials` in the following format:
+Create a user for the backups and generate access keys for that user and save them in a file called `ceph-credentials` in the following format:
 
 ```
 {
@@ -17,7 +17,7 @@ Create an user for the backups and generate access keys for that user and save t
 
 ```
 
-Place this file on all Cassandra nodes running medusa under `/etc/medusa` and set the rights appropriately so that only users running Medusa can read/modify it.
+Place this file on all Apache Cassandra™ nodes running medusa under `/etc/medusa` and set the rights appropriately so that only users running Medusa can read/modify it.
 Set the `key_file` value and `host` and `port` and `region` of your RGW in the `[storage]` section of `/etc/medusa/medusa.ini` to the credentials file:
 
 ```

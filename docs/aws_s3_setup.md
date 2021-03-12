@@ -95,7 +95,7 @@ aws_access_key_id = <access key id>
 aws_secret_access_key = <access key secret>
 ```
 
-Place this file on all Cassandra nodes running medusa under `/etc/medusa` and set the rights appropriately so that only users running Medusa can read/modify it.
+Place this file on all Apache Cassandra™ nodes running medusa under `/etc/medusa` and set the rights appropriately so that only users running Medusa can read/modify it.
 Set the `key_file` value in the `[storage]` section of `/etc/medusa/medusa.ini` to the credentials file:  
 
 ```

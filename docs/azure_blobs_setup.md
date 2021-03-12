@@ -19,7 +19,7 @@ If you need to set a different host for Azure (for example the host for Azure Go
 
 ```
 
-Place this file on all Cassandra nodes running medusa under `/etc/medusa/`and set the rigths appropriately so that onyl users running Medusa can read/modify it.
+Place this file on all Apache Cassandra™ nodes running medusa under `/etc/medusa/`and set the rigths appropriately so that onyl users running Medusa can read/modify it.
 
 ### Create a container
 
