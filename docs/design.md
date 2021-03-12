@@ -5,12 +5,12 @@ restores happen locally on each node without any centralized coordination, but t
 structures are designed to aid making decisions about the backup state of the entire cluster.
 
 ### Backup
-Backups are performed by making a Cassandra snapshot and copying it along with
+Backups are performed by making an Apache Cassandra™ snapshot and copying it along with
 the schema and topology to a storage system.
 
 Backups can be performed in 2 different fashions:
 
-- **Full backups**: the entire data set is transferred and stored every time. The GCS implementation of the storage layer will opportunistically transfer previously backed up files from the bucket itself to avoid unecessary network transfers.
+- **Full backups**: the entire data set is transferred and stored every time. The GCS implementation of the storage layer will opportunistically transfer previously backed up files from the bucket itself to avoid unnecessary network transfers.
 - **Differential backups**: only newly created SSTables will be transferred and the manifest file will link to previously backed up files that are still being used by Cassandra. **This feature is not related to nor using the incremental backup feature from Cassandra.**
 
 
