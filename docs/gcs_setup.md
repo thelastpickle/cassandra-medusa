@@ -27,7 +27,7 @@ gcloud iam roles create MedusaStorageRole \
 
 ### Create a GCS bucket
 
-Create a bucket for each Cassandra cluster, using the following command line:
+Create a bucket for each Apache Cassandra™ cluster, using the following command line:
 
 ```
 gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
@@ -35,7 +35,7 @@ gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
 
 ### Create a service account and download its keys
 
-Medusa will require a `credentials.json` file with the informations and keys for a service account with the appropriate role in order to interact with the bucket.
+Medusa will require a `credentials.json` file with the information and keys for a service account with the appropriate role in order to interact with the bucket.
 
 Create the service account (if it doesn't exist yet):
 

@@ -16,7 +16,7 @@
 
 # Developer Setup
 
-This document describes how to setup medusa straight from Github.
+This document describes how to setup Medusa straight from Github.
 
 ## Requirements
 
