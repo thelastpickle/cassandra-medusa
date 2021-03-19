@@ -56,6 +56,7 @@ config = create_config(config_file_path)
 configure_console_logging(config.logging)
 
 backup_name = os.environ["BACKUP_NAME"]
+override_fqdn = os.environ["BACKUP_FQDN"]
 tmp_dir = Path("/tmp")
 in_place = True
 keep_auth = False
@@ -65,9 +66,12 @@ keyspaces = {}
 tables = {}
 use_sstableloader = False
 
+if override_fqdn is not None and len(override_fqdn) == 0:
+    override_fqdn = None
+
 logging.info("Starting restore of backup {}".format(backup_name))
 
 medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                                 use_sstableloader)
+                                 use_sstableloader, override_fqdn)
 
 logging.info("Finished restore of backup {}".format(backup_name))
