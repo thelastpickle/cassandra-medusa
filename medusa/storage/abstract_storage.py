@@ -215,7 +215,7 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def file_matches_cache(src, cached_item, threshold=None):
+    def file_matches_cache(src, cached_item, threshold=None, disable_md5=False):
         """
         Compares a local file with its entry in the cache of backed up items. This happens when doing an actual backup.
 
@@ -225,6 +225,8 @@ class AbstractStorage(abc.ABC):
         :param src: typically, local file that comes as a string/path
         :param cached_item: usually a reference to a item in the storage, mostly a dict. Likely a manifest object
         :param threshold: files bigger than this are digested by chunks
+        :param disable_md5: boolean flag to disable md5 file generation and comparison to the md5 found in the manifest
+                            (only applicable to some cloud storage implementations that compare md5 hashes)
         :return: boolean informing if the files match or not
         """
         pass

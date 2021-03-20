@@ -58,7 +58,7 @@ class LocalStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None):
+    def file_matches_cache(src, cached_item, threshold=None, disable_md5=False):
         return LocalStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
             size_in_manifest=cached_item['size']
