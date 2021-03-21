@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 import time
+import signal
 from collections import defaultdict
 from concurrent import futures
 from datetime import datetime
@@ -141,6 +142,10 @@ def configure_console_logging(config):
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
+def shutdown(signum, frame):
+    logging.info("shutting down")
+    server.stop(0)
+
 if len(sys.argv) > 2:
     config_file_path = sys.argv[2]
 else:
@@ -162,10 +167,14 @@ logging.info('Starting server. Listening on port 50051.')
 server.add_insecure_port('[::]:50051')
 server.start()
 
+signal.signal(signal.SIGTERM, shutdown)
+
+server.wait_for_termination()
+
 # since server.start() will not block,
 # a sleep-loop is added to keep alive
-try:
-    while True:
-        time.sleep(86400)
-except KeyboardInterrupt:
-    server.stop(0)
+# try:
+#     while True:
+#         time.sleep(86400)
+# except KeyboardInterrupt:
+#     server.stop(0)

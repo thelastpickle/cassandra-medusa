@@ -48,7 +48,7 @@ restore() {
 
 grpc() {
     echo "Starting Medusa gRPC service"
-    python3 -m medusa.service.grpc.server server.py
+    exec python3 -m medusa.service.grpc.server server.py
 }
 
 echo "sleeping for $DEBUG_SLEEP sec"
@@ -57,7 +57,8 @@ sleep $DEBUG_SLEEP
 if [ "$MEDUSA_MODE" == "RESTORE" ]; then
     restore
 elif [ "$MEDUSA_MODE" == "GRPC" ]; then
-    grpc
+    echo "Starting Medusa gRPC service"
+    exec python3 -m medusa.service.grpc.server server.py
 else
     echo "MEDUSA_MODE env var must be set to either RESTORE or GRPC"
     exit 1
