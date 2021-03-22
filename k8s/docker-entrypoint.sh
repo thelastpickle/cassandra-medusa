@@ -41,7 +41,7 @@ restore() {
         echo "Skipping restore operation"    
     else
         echo "Restoring backup $BACKUP_NAME"
-        python3 -m medusa.service.grpc.restore
+        exec python3 -m medusa.service.grpc.restore
         echo $RESTORE_KEY > $last_restore_file
     fi
 }
@@ -57,8 +57,7 @@ sleep $DEBUG_SLEEP
 if [ "$MEDUSA_MODE" == "RESTORE" ]; then
     restore
 elif [ "$MEDUSA_MODE" == "GRPC" ]; then
-    echo "Starting Medusa gRPC service"
-    exec python3 -m medusa.service.grpc.server server.py
+    grpc
 else
     echo "MEDUSA_MODE env var must be set to either RESTORE or GRPC"
     exit 1

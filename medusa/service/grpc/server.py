@@ -154,10 +154,6 @@ else:
 config = create_config(config_file_path)
 configure_console_logging(config.logging)
 
-sleep_time = int(os.getenv("DEBUG_SLEEP", "0"))
-logging.debug("sleeping for {} sec".format(sleep_time))
-time.sleep(sleep_time)
-
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
 medusa_pb2_grpc.add_MedusaServicer_to_server(MedusaService(config), server)
@@ -170,11 +166,3 @@ server.start()
 signal.signal(signal.SIGTERM, shutdown)
 
 server.wait_for_termination()
-
-# since server.start() will not block,
-# a sleep-loop is added to keep alive
-# try:
-#     while True:
-#         time.sleep(86400)
-# except KeyboardInterrupt:
-#     server.stop(0)
