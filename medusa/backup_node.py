@@ -63,7 +63,7 @@ class NodeBackupCache(object):
         self._storage_driver = storage_driver
         self._storage_provider = storage_provider
         self._storage_config = storage_config
-        self.__skip_md5_comparison = skip_md5_comparison
+        self._skip_md5_comparison = skip_md5_comparison
 
     @property
     def replaced(self):
@@ -90,7 +90,7 @@ class NodeBackupCache(object):
                 if cached_item is None or not self._storage_driver.file_matches_cache(src,
                                                                                       cached_item,
                                                                                       threshold,
-                                                                                      self.__skip_md5_comparison):
+                                                                                      self._skip_md5_comparison):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
                 else:

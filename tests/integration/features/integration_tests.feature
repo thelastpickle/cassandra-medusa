@@ -88,6 +88,8 @@ Feature: Integration tests
         Then I can see the backup index entry for "third_backup"
         Then I can see the latest backup for "127.0.0.1" being called "third_backup"
         Then I can report latest backups without errors
+        When I perform a backup in "full" mode of the node named "fourth_backup" without md5 checks
+        Then I can report latest backups without errors
         @local
         Examples: Local storage
         | storage           | client encryption |
@@ -297,7 +299,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I perform a backup in "differential" mode of the node named "third_backup" with md5 disabled
+        When I perform a backup in "differential" mode of the node named "third_backup" without md5 checks
         Then some files from the previous backup were not reuploaded
         Then I can see the backup named "third_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
