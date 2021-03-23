@@ -141,12 +141,12 @@ class S3BaseStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, disable_md5=False):
+    def file_matches_cache(src, cached_item, threshold=None, skip_md5_comparison=False):
 
         threshold = int(threshold) if threshold else -1
 
         # single or multi part md5 hash. Used by Azure and S3 uploads.
-        if disable_md5:
+        if skip_md5_comparison:
             md5_hash = None
         elif src.stat().st_size >= threshold > 0:
             md5_hash = AbstractStorage.md5_multipart(src)

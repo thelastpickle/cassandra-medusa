@@ -115,16 +115,17 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @cli.command(aliases=['backup', 'backup-node'])
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
-@click.option('--disable-md5', help='For differential backups, bypass md5 comparison for files already in the manifest',
+@click.option('--skip-md5-comparison',
+              help='For backups, bypass md5 comparison for files already in the manifest',
               is_flag=True, default=False)
 @click.option('--mode', default="differential", type=click.Choice(['full', 'differential']))
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger, disable_md5, mode):
+def backup(medusaconfig, backup_name, stagger, skip_md5_comparison, mode):
     """
     Backup single Cassandra node
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup_node.main(medusaconfig, backup_name, stagger_time, disable_md5, mode)
+    medusa.backup_node.main(medusaconfig, backup_name, stagger_time, skip_md5_comparison, mode)
 
 
 @cli.command(name='backup-cluster')

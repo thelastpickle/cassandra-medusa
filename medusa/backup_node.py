@@ -37,7 +37,7 @@ from medusa.storage import Storage, format_bytes_str, ManifestObject, divide_chu
 class NodeBackupCache(object):
     NEVER_BACKED_UP = ['manifest.json', 'schema.cql']
 
-    def __init__(self, *, node_backup, differential_mode, disable_md5,
+    def __init__(self, *, node_backup, differential_mode, skip_md5_comparison,
                  storage_driver, storage_provider, storage_config):
         if node_backup:
             self._node_backup_cache_is_differential = node_backup.is_differential
@@ -63,7 +63,7 @@ class NodeBackupCache(object):
         self._storage_driver = storage_driver
         self._storage_provider = storage_provider
         self._storage_config = storage_config
-        self._disable_md5 = disable_md5
+        self.__skip_md5_comparison = skip_md5_comparison
 
     @property
     def replaced(self):
@@ -90,7 +90,7 @@ class NodeBackupCache(object):
                 if cached_item is None or not self._storage_driver.file_matches_cache(src,
                                                                                       cached_item,
                                                                                       threshold,
-                                                                                      self._disable_md5):
+                                                                                      self.__skip_md5_comparison):
                     # We have no matching object in the cache matching the file
                     retained.append(src)
                 else:
@@ -156,7 +156,7 @@ def stagger(fqdn, storage, tokenmap):
     return has_backup
 
 
-def main(config, backup_name_arg, stagger_time, disable_md5, mode):
+def main(config, backup_name_arg, stagger_time, skip_md5_comparison, mode):
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
     monitoring = Monitoring(config=config.monitoring)
@@ -207,7 +207,7 @@ def main(config, backup_name_arg, stagger_time, disable_md5, mode):
         actual_start = datetime.datetime.now()
 
         num_files, node_backup_cache = do_backup(
-            cassandra, node_backup, storage, differential_mode, disable_md5, config, backup_name)
+            cassandra, node_backup, storage, differential_mode, skip_md5_comparison, config, backup_name)
 
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
@@ -236,14 +236,14 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
-def do_backup(cassandra, node_backup, storage, differential_mode, disable_md5,
+def do_backup(cassandra, node_backup, storage, differential_mode, skip_md5_comparison,
               config, backup_name):
 
     # Load last backup as a cache
     node_backup_cache = NodeBackupCache(
         node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn),
         differential_mode=differential_mode,
-        disable_md5=disable_md5,
+        skip_md5_comparison=skip_md5_comparison,
         storage_driver=storage.storage_driver,
         storage_provider=storage.storage_provider,
         storage_config=config.storage

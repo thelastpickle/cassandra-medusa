@@ -90,14 +90,9 @@ class AzureStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, disable_md5=False):
-        threshold = int(threshold) if threshold else -1
-
-        # single or multi part md5 hash. Used by Azure and S3 uploads.
-        if disable_md5:
+    def file_matches_cache(src, cached_item, threshold=None, skip_md5_comparison=False):
+        if skip_md5_comparison:
             md5_hash = None
-        elif src.stat().st_size >= threshold > 0:
-            md5_hash = AbstractStorage.md5_multipart(src)
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
 
@@ -106,7 +101,6 @@ class AzureStorage(AbstractStorage):
             size_in_manifest=cached_item['size'],
             actual_hash=md5_hash,
             hash_in_manifest=cached_item['MD5'],
-            threshold=threshold
         )
 
     @staticmethod
@@ -115,29 +109,13 @@ class AzureStorage(AbstractStorage):
         if not actual_hash:
             return sizes_match
 
-        # md5 hash comparison
-        if not threshold:
-            threshold = -1
-        else:
-            threshold = int(threshold)
-
-        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
-            multipart = True
-        else:
-            multipart = False
-
-        if multipart:
-            hashes_match = (
-                actual_hash == hash_in_manifest
-            )
-        else:
-            hashes_match = (
-                # this case comes from comparing blob hashes to manifest entries (in context of Azure)
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                # this comes from comparing files to a cache
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                # and perhaps we need the to check for match even without base64 encoding
-                or actual_hash == hash_in_manifest
-            )
+        hashes_match = (
+            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
+            actual_hash == base64.b64decode(hash_in_manifest).hex()
+            # this comes from comparing files to a cache
+            or hash_in_manifest == base64.b64decode(actual_hash).hex()
+            # and perhaps we need the to check for match even without base64 encoding
+            or actual_hash == hash_in_manifest
+        )
 
         return sizes_match and hashes_match

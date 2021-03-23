@@ -134,8 +134,8 @@ class GoogleStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, disable_md5=False):
-        if disable_md5:
+    def file_matches_cache(src, cached_item, threshold=None, skip_md5_comparison=False):
+        if skip_md5_comparison:
             md5_hash = None
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
