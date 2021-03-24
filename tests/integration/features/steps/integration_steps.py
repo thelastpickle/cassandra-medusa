@@ -822,6 +822,7 @@ def _i_load_rows_in_the_whatever_table(context, nb_rows, table_name):
 def _i_run_a_whatever_command(context, command):
     os.popen(command).read()
 
+
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
@@ -830,7 +831,7 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
 
 
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}" without md5 checks')
-def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name):
+def _i_perform_a_backup_of_the_node_named_backupname_without_md5(context, backup_mode, backup_name):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
         = medusa.backup_node.main(context.medusa_config, backup_name, None, True, backup_mode)
     context.latest_backup_cache = node_backup_cache
