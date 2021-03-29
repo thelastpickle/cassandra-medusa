@@ -121,7 +121,7 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
     return medusa.storage.ManifestObject(obj.name, int(obj.size), obj.hash)
 
 
-@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
 def _upload_single_part(connection, src, bucket, object_name):
     obj = connection.upload_object(
         str(src), container=bucket, object_name=object_name
@@ -158,6 +158,7 @@ def download_blobs(storage, src, dest, bucket, max_workers=None, multi_part_uplo
     job.execute(list(src))
 
 
+@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
 def __download_blob(storage, connection, src, dest, bucket, multi_part_upload_threshold):
     """
     This function is called by StorageJob. It may be called concurrently by multiple threads.
@@ -193,7 +194,7 @@ def __download_blob(storage, connection, src, dest, bucket, multi_part_upload_th
         return None
 
 
-@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+@retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
 def _download_single_part(connection, blob, blob_dest):
     index = blob.name.rfind("/")
     if index > 0:
