@@ -263,7 +263,6 @@ class CassandraConfigReader(object):
     def native_port(self):
 
         client_encryption = self._config['client_encryption_options']['enabled']
-        print('****client encryption: ', client_encryption)
         if client_encryption in self._config and client_encryption and client_encryption is True:
             native_transport_port_ssl = self._config['native_transport_port_ssl']
             if native_transport_port_ssl in self._config and native_transport_port_ssl:
