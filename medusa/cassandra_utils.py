@@ -19,24 +19,29 @@
 import fileinput
 import itertools
 import logging
+import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
-from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
+
+from medusa.utils import null_if_empty
+
 from subprocess import PIPE
-from retrying import retry
+
+import yaml
+
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.auth import PlainTextAuthProvider
+from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
+from medusa.network.hostname_resolver import HostnameResolver
+from medusa.service.snapshot import SnapshotService
+from medusa.nodetool import Nodetool
 from cassandra.util import Version
 from retrying import retry
-
 from medusa.host_man import HostMan
-from medusa.network.hostname_resolver import HostnameResolver
-from medusa.nodetool import Nodetool
-from medusa.service.snapshot import SnapshotService
-from medusa.utils import null_if_empty
 
 
 class SnapshotPath(object):
@@ -79,9 +84,9 @@ class CqlSessionProvider(object):
             'local': ExecutionProfile(load_balancing_policy=load_balancing_policy)
         }
 
-    def new_session(self, retry=False):
+    def new_session(self, is_retry=False):
         """
-        Creates a new CQL session. If retry is True then attempt to create a CQL session with retry logic. The max
+        Creates a new CQL session. If is_retry is True then attempt to create a CQL session with retry logic. The max
         number of retries is currently hard coded at 5 and the delay between attempts is also hard coded at 5 sec. If
         no session can be created after the max retries is reached, an exception is raised.
          """
@@ -91,7 +96,7 @@ class CqlSessionProvider(object):
                           execution_profiles=self._execution_profiles,
                           ssl_context=self._ssl_context)
 
-        if retry:
+        if is_retry:
             max_retries = 5
             attempts = 0
 
@@ -318,6 +323,7 @@ class CassandraConfigReader(object):
 
 
 class Cassandra(object):
+
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
@@ -350,7 +356,8 @@ class Cassandra(object):
         self.snapshot_service = SnapshotService(config=config).snapshot_service
         self.release_version = release_version
 
-    def _has_systemd(self):
+    @staticmethod
+    def _has_systemd():
         try:
             result = subprocess.run(['systemctl', '--version'], stdout=PIPE, stderr=PIPE)
             logging.debug('This server has systemd: {}'.format(result.returncode == 0))
@@ -702,7 +709,11 @@ def is_open(host, port):
     except socket.error as e:
         logging.debug('Port {} closed on host {}'.format(port, host), exc_info=e)
     finally:
-        s.close()
+        try:
+            s.close()
+        except os.error as ose:
+            logging.error('Port {} close on host {}'.format(port, host), exc_info=ose)
+
     return is_accessible
 
 
