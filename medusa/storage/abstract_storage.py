@@ -87,6 +87,7 @@ class AbstractStorage(abc.ABC):
         return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket,
                                                       max_workers=self.config.concurrent_transfers)
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, path):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
