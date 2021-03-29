@@ -19,24 +19,26 @@
 import fileinput
 import itertools
 import logging
+import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
-import yaml
-from medusa.utils import null_if_empty
-
+from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
 from subprocess import PIPE
-from retrying import retry
+
+import yaml
 from cassandra import ProtocolVersion
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.auth import PlainTextAuthProvider
-from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
+from retrying import retry
+
 from medusa.network.hostname_resolver import HostnameResolver
-from medusa.service.snapshot import SnapshotService
 from medusa.nodetool import Nodetool
+from medusa.service.snapshot import SnapshotService
+from medusa.utils import null_if_empty
 
 
 class SnapshotPath(object):
@@ -203,7 +205,6 @@ class CqlSession(object):
 
 
 class CassandraConfigReader(object):
-
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
     def __init__(self, cassandra_config=None):
@@ -238,45 +239,58 @@ class CassandraConfigReader(object):
 
     @property
     def listen_address(self):
-        if 'listen_address' in self._config:
-            if self._config['listen_address']:
-                return self._config['listen_address']
+        if 'listen_address' in self._config and self._config['listen_address']:
+            return self._config['listen_address']
 
         return socket.gethostbyname(socket.getfqdn())
 
     @property
     def storage_port(self):
-        if 'storage_port' in self._config:
-            if self._config['storage_port']:
-                return self._config['storage_port']
-        return "7000"
+
+        internode_encrypt = self._config['server_encryption_options']['internode_encryption']
+        if internode_encrypt in self._config and internode_encrypt and internode_encrypt != "none":
+            ssl_storage_port = self._config['ssl_storage_port']
+            if ssl_storage_port in self._config and ssl_storage_port:
+                return ssl_storage_port
+            return "7001"
+        else:
+            storage_port = self._config['storage_port']
+            if storage_port in self._config and storage_port:
+                return storage_port
+            return "7000"
 
     @property
     def native_port(self):
-        if 'native_transport_port' in self._config:
-            if self._config['native_transport_port']:
-                return self._config['native_transport_port']
+
+        client_encryption = self._config['client_encryption_options']['enabled']
+        print('****client encryption: ', client_encryption)
+        if client_encryption in self._config and client_encryption and client_encryption is True:
+            native_transport_port_ssl = self._config['native_transport_port_ssl']
+            if native_transport_port_ssl in self._config and native_transport_port_ssl:
+                return native_transport_port_ssl
+            return "9142"
+
+        native_transport_port = self._config['native_transport_port']
+        if native_transport_port in self._config and native_transport_port:
+            return native_transport_port
         return "9042"
 
     @property
     def rpc_port(self):
-        if 'rpc_port' in self._config:
-            if self._config['rpc_port']:
-                return self._config['rpc_port']
+        if 'rpc_port' in self._config and self._config['rpc_port']:
+            return self._config['rpc_port']
         return "9160"
 
     @property
     def seeds(self):
         seeds = list()
-        if 'seed_provider' in self._config:
-            if self._config['seed_provider']:
-                if self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
-                    return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
+        if 'seed_provider' in self._config and self._config['seed_provider'] and \
+                self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
+            return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
         return seeds
 
 
 class Cassandra(object):
-
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
@@ -619,11 +633,14 @@ def is_open(host, port):
         s.shutdown(socket.SHUT_RDWR)
         is_accessible = True
     except socket.error as e:
-        logging.debug('Port {} close on host {}'.format(port, host), exc_info=e)
-        is_accessible = False
+        logging.error('Port {} close on host {}'.format(port, host), exc_info=e)
     finally:
-        s.close()
-        return is_accessible
+        try:
+            s.close()
+        except os.error as ose:
+            logging.error('Port {} close on host {}'.format(port, host), exc_info=ose)
+
+    return is_accessible
 
 
 @retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000, wait_exponential_max=120000)
@@ -654,6 +671,7 @@ class CassandraNodeNotDownError(Exception):
     Raised when we give up waiting on a node to go down, meaning nodetool statusbinary and/or statusthrift keep
     reporting open ports.
     """
+
     def __init(self, host):
         msg = 'Cassandra node {} is still up...'.format(host)
         super(CassandraNodeNotDownError, self).__init__(msg)
