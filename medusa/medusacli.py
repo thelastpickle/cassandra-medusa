@@ -115,17 +115,18 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @cli.command(aliases=['backup', 'backup-node'])
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
-@click.option('--skip-md5-comparison',
-              help='For backups, bypass md5 comparison for files already in the manifest',
+@click.option('--enable-md5-checks',
+              help='During backups and verify, use md5 calculations to determine file integrity '
+                   '(in addition to size, which is used by default)',
               is_flag=True, default=False)
 @click.option('--mode', default="differential", type=click.Choice(['full', 'differential']))
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger, skip_md5_comparison, mode):
+def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
     """
     Backup single Cassandra node
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup_node.main(medusaconfig, backup_name, stagger_time, skip_md5_comparison, mode)
+    medusa.backup_node.main(medusaconfig, backup_name, stagger_time, enable_md5_checks, mode)
 
 
 @cli.command(name='backup-cluster')
@@ -266,12 +267,15 @@ def status(medusaconfig, backup_name):
 
 @cli.command(name='verify')
 @click.option('--backup-name', help='Backup name', required=True)
+@click.option('--enable-md5-checks', help='During backups and verify, use md5 calculations to determine file integrity '
+                                          '(in addition to size, which is used by default)',
+              is_flag=True, default=False)
 @pass_MedusaConfig
-def verify(medusaconfig, backup_name):
+def verify(medusaconfig, backup_name, enable_md5_checks):
     """
     Verify the integrity of a backup
     """
-    medusa.verify.verify(medusaconfig, backup_name)
+    medusa.verify.verify(medusaconfig, backup_name, enable_md5_checks)
 
 
 @cli.command(name='report-last-backup')

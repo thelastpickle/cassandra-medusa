@@ -482,7 +482,8 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
     config["monitoring"] = {"monitoring_provider": "local"}
 
     config["checks"] = {
-        "health_check": "cql"
+        "health_check": "cql",
+        "enable_md5_checks": "false"
     }
 
     config["grpc"] = {
@@ -598,7 +599,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     config["monitoring"] = {"monitoring_provider": "local"}
 
     config["checks"] = {
-        "health_check": "cql"
+        "health_check": "cql",
+        "enable_md5_checks": "false"
     }
 
     config["grpc"] = {
@@ -727,7 +729,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     config["monitoring"] = {"monitoring_provider": "local"}
 
     config["checks"] = {
-        "health_check": "cql"
+        "health_check": "cql",
+        "enable_md5_checks": "false"
     }
 
     config["grpc"] = {
@@ -830,8 +833,8 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
     context.latest_backup_cache = node_backup_cache
 
 
-@when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}" without md5 checks')
-def _i_perform_a_backup_of_the_node_named_backupname_without_md5(context, backup_mode, backup_name):
+@when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}" with md5 checks')
+def _i_perform_a_backup_of_the_node_named_backupname_with_md5(context, backup_mode, backup_name):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
         = medusa.backup_node.main(context.medusa_config, backup_name, None, True, backup_mode)
     context.latest_backup_cache = node_backup_cache
@@ -996,7 +999,12 @@ def _the_backup_named_backupname_has_nb_sstables_for_the_whatever_table(
 
 @then(r'I can verify the backup named "{backup_name}" successfully')
 def _i_can_verify_the_backup_named_successfully(context, backup_name):
-    medusa.verify.verify(context.medusa_config, backup_name)
+    medusa.verify.verify(context.medusa_config, backup_name, False)
+
+
+@then(r'I can verify the backup named "{backup_name}" successfully with md5 checks')
+def _i_can_verify_the_backup_named_successfully_with_md5_checks(context, backup_name):
+    medusa.verify.verify(context.medusa_config, backup_name, True)
 
 
 @then(r'I can download the backup named "{backup_name}" for all tables')
@@ -1366,7 +1374,7 @@ def _i_can_see_secondary_index_files_in_backup(context, backup_name):
 @then(r'verify fails on the backup named "{backup_name}"')
 def _verify_fails_on_the_backup_named(context, backup_name):
     try:
-        medusa.verify.verify(context.medusa_config, backup_name)
+        medusa.verify.verify(context.medusa_config, backup_name, True) # enable hash comparison
         raise AssertionError("Backup verification should have failed but didn't.")
     except RuntimeError:
         # This exception is required to be raised to validate the step
