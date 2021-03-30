@@ -1374,7 +1374,7 @@ def _i_can_see_secondary_index_files_in_backup(context, backup_name):
 @then(r'verify fails on the backup named "{backup_name}"')
 def _verify_fails_on_the_backup_named(context, backup_name):
     try:
-        medusa.verify.verify(context.medusa_config, backup_name, True) # enable hash comparison
+        medusa.verify.verify(context.medusa_config, backup_name, True)  # enable hash comparison
         raise AssertionError("Backup verification should have failed but didn't.")
     except RuntimeError:
         # This exception is required to be raised to validate the step
