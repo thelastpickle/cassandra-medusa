@@ -19,13 +19,12 @@
 import fileinput
 import itertools
 import logging
-import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
-
+import os
 from medusa.utils import null_if_empty
 
 from subprocess import PIPE
@@ -298,14 +297,17 @@ class CassandraConfigReader(object):
                     self._config['native_transport_port'] is not None:
                 return self._config['native_transport_port']
 
-            # default encrypted
+        client_encryption = self._config['client_encryption_options']['enabled']
+        if client_encryption in self._config and client_encryption and client_encryption is True:
+            native_transport_port_ssl = self._config['native_transport_port_ssl']
+            if native_transport_port_ssl in self._config and native_transport_port_ssl:
+                return native_transport_port_ssl
             return "9142"
-        else:
-            # Condition for client encryption not enabled, default non-encrypted port.
-            if 'native_transport_port' in self._config and self._config['native_transport_port'] is not None:
-                return self._config['native_transport_port']
-            # default non-encrypted
-            return "9042"
+
+        native_transport_port = self._config['native_transport_port']
+        if native_transport_port in self._config and native_transport_port:
+            return native_transport_port
+        return "9042"
 
     @property
     def rpc_port(self):
@@ -323,7 +325,6 @@ class CassandraConfigReader(object):
 
 
 class Cassandra(object):
-
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
