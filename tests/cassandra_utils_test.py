@@ -18,6 +18,8 @@ import os
 import shutil
 import tempfile
 import unittest
+
+
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, MagicMock
@@ -128,8 +130,8 @@ class CassandraUtilsTest(unittest.TestCase):
             sstable_path = snapshot_path / 'xx-20-Data.lb'
             index_sstable_path = index_path / 'xx-21-Data.lb'
             index_path.mkdir(parents=True)  # create the directory structure
-            sstable_path.touch()  # create a fake SSTable file
-            index_sstable_path.touch()  # create a fake index SSTable file
+            sstable_path.touch()            # create a fake SSTable file
+            index_sstable_path.touch()      # create a fake index SSTable file
 
             # create a new SnapshotPath and see if it returns both normal and index SSTables
             sp = SnapshotPath(Path(snapshot_path), 'ks', 't')

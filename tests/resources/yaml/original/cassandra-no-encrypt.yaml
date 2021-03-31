@@ -640,13 +640,13 @@ trickle_fsync_interval_in_kb: 10240
 
 # TCP port, for commands and data
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-storage_port: 15000
+storage_port: 7000
 
 # SSL port, for legacy encrypted communication. This property is unused unless enabled in
 # server_encryption_options (see below). As of cassandra 4.0, this property is deprecated
 # as a single port can be used for either/both secure and insecure connections.
 # For security reasons, you should not expose this port to the internet. Firewall it if needed.
-ssl_storage_port: 15001
+ssl_storage_port: 7001
 
 # Address or interface to bind to and tell other Cassandra nodes to connect to.
 # You _must_ change this if you want multiple nodes to be able to communicate!
@@ -694,7 +694,7 @@ listen_address: localhost
 start_native_transport: true
 # port for the CQL native transport to listen for clients on
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-native_transport_port: 9777
+native_transport_port: 9042
 # Enabling native transport encryption in client_encryption_options allows you to either use
 # encryption for the standard port or to use a dedicated, additional port along with the unencrypted
 # standard native_transport_port.
