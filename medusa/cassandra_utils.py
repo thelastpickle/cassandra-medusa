@@ -20,7 +20,6 @@ import logging
 import time
 
 import fileinput
-import os
 import pathlib
 import shlex
 import socket
@@ -104,7 +103,8 @@ class CqlSessionProvider(object):
                 delay = 5 * (2 ** (attempts + 1))
                 time.sleep(delay)
                 attempts = attempts + 1
-            raise Exception('Could not establish CQL session after {attempts}'.format(attempts=attempts))
+            raise CassandraCqlSessionException('Could not establish CQL session '
+                                               'after {attempts}'.format(attempts=attempts))
         else:
             session = cluster.connect()
             return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
@@ -243,33 +243,37 @@ class CassandraConfigReader(object):
 
     @property
     def storage_port(self):
+        if 'server_encryption_options' in self._config and \
+                self._config['server_encryption_options']['internode_encryption'] != "none" and \
+                'ssl_storage_port' in self._config and self._config['ssl_storage_port']:
+            return self._config['ssl_storage_port']
 
-        internode_encrypt = self._config['server_encryption_options']['internode_encryption']
-        if internode_encrypt in self._config and internode_encrypt and internode_encrypt != "none":
-            ssl_storage_port = self._config['ssl_storage_port']
-            if ssl_storage_port in self._config and ssl_storage_port:
-                return ssl_storage_port
-            return "7001"
-        else:
-            storage_port = self._config['storage_port']
-            if storage_port in self._config and storage_port:
-                return storage_port
-            return "7000"
+        if 'storage_port' in self._config and self._config['storage_port']:
+            return self._config['storage_port']
+
+        raise CassandraConfigInvalidError('Unable to locate storage port setting.')
 
     @property
     def native_port(self):
 
-        client_encryption = self._config['client_encryption_options']['enabled']
-        if client_encryption in self._config and client_encryption and client_encryption is True:
-            native_transport_port_ssl = self._config['native_transport_port_ssl']
-            if native_transport_port_ssl in self._config and native_transport_port_ssl:
-                return native_transport_port_ssl
-            return "9142"
+        # Condition for client encryption enabled.
+        # When setting native_transport_port_ssl, expecting that non-encrypted will still be over existing
+        # native_transport_port. The encrypted will be over the native_transport_port_ssl.
+        # When not setting an alternate native_transport_port_ssl , the encrypted will be over
+        # the existing native_transport_port
 
-        native_transport_port = self._config['native_transport_port']
-        if native_transport_port in self._config and native_transport_port:
-            return native_transport_port
-        return "9042"
+        if 'client_encryption_options' in self._config and \
+                self._config['client_encryption_options']['enabled'] == "true" \
+                and 'native_transport_port_ssl' in self._config \
+                and self._config['native_transport_port_ssl']:
+            return self._config['native_transport_port_ssl']
+
+        # Condition for client encryption not enabled or when enabled and the native_transport_port_ssl
+        # is not defined.
+        if 'native_transport_port' in self._config and self._config['native_transport_port']:
+            return self._config['native_transport_port']
+
+        raise CassandraConfigInvalidError('Unable to locate native port setting.')
 
     @property
     def rpc_port(self):
@@ -524,22 +528,22 @@ class Cassandra(object):
         initial_token_line_found = False
         auto_bootstrap_line_found = False
         for line in fileinput.input(self._cassandra_config_file, inplace=True):
-            if (line.startswith("initial_token:")):
+            if line.startswith("initial_token:"):
                 initial_token_line_found = True
                 print('initial_token: {}'.format(','.join(token_list)), end='\n')
-            elif (line.startswith("num_tokens:")):
+            elif line.startswith("num_tokens:"):
                 print('num_tokens: {}'.format(len(token_list)), end='\n')
-            elif (line.startswith("auto_bootstrap:")):
+            elif line.startswith("auto_bootstrap:"):
                 auto_bootstrap_line_found = True
                 print('auto_bootstrap: false', end='\n')
             else:
                 print('{}'.format(line), end='')
 
-        if (not initial_token_line_found):
+        if not initial_token_line_found:
             with open(self._cassandra_config_file, "a") as cassandra_yaml:
                 cassandra_yaml.write('\ninitial_token: {}'.format(','.join(token_list)))
 
-        if (not auto_bootstrap_line_found):
+        if not auto_bootstrap_line_found:
             with open(self._cassandra_config_file, "a") as cassandra_yaml:
                 cassandra_yaml.write('\nauto_bootstrap: false')
 
@@ -569,37 +573,65 @@ def wait_for_node_to_go_down(config, host):
 
 def is_node_up(config, host):
     """
+    If not configured with ccm, proceed with direct health check for Cassandra.
+    """
+    check_type = config.checks.health_check
+    logging.info('Verifying node state for host {} using check type {}'.format(host, check_type))
+    if int(config.cassandra.is_ccm) == 1:
+        logging.debug('Checking ccm health')
+        return is_ccm_healthy(check_type)
+
+    logging.debug('Checking cassandra health')
+    return is_cassandra_healthy(check_type, Cassandra(config), host)
+
+
+def is_ccm_healthy(check_type):
+    """
     Calls nodetool statusbinary, nodetool statusthrift or both. This function checks the output returned from nodetool
     and not the return code. There could be a normal return code of zero when the node is an unhealthy state and not
     accepting requests.
-
-    :param health_check: Supported values are cql, thrift, and all. The latter will perform both checks. Defaults to
+    :param check_type: Supported values are cql, thrift, and all. The latter will perform both checks. Defaults to
     cql.
-    :param host: The target host on which to perform the check
     :return: True if the node is accepting requests, False otherwise. If both cql and thrift are checked, then the node
     must be ready to accept requests for both in order for the health check to be successful.
     """
 
-    health_check = config.checks.health_check
-    if int(config.cassandra.is_ccm) == 1:
-        args = ['ccm', 'node1', 'nodetool']
-        if health_check == 'thrift':
-            return is_ccm_up(args, 'statusthrift')
-        elif health_check == 'all':
-            return is_ccm_up(list(args), 'statusbinary') and is_ccm_up(list(args), 'statusthrift')
-        else:
-            return is_ccm_up(args, 'statusbinary')
+    args = ['ccm', 'node1', 'nodetool']
+
+    if check_type == 'thrift':
+        return is_ccm_up(args, 'statusthrift')
+    elif check_type == 'all':
+        return is_ccm_up(list(args), 'statusbinary') and is_ccm_up(list(args), 'statusthrift')
     else:
-        cassandra = Cassandra(config)
+        return is_ccm_up(args, 'statusbinary')
+
+
+def is_cassandra_healthy(check_type, cassandra, host):
+    """
+    Utilizes knowledge of an enabled encrypt conn. or not-enabled encrypt conn. to use ports from Cassandra config.
+    Both native and storage(gossip) ports can vary based on the encrypt conn. enablement.
+    The specific port knowledge is assigned at the CassandraConfigReader object level.
+    """
+
+    try:
         native_port = cassandra.native_port
+        storage_port = cassandra.storage_port
         rpc_port = cassandra.rpc_port
-        if health_check == 'thrift':
+
+        if check_type == 'thrift':
             return is_cassandra_up(host, rpc_port)
-        elif health_check == 'all':
-            return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port)
+        elif check_type == 'all':
+            # Port checks to include all of: rpc, native, and storage(gossip) health.
+            return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) and \
+                is_cassandra_up(host, storage_port)
         else:
-            # cql only
-            return is_cassandra_up(host, native_port)
+            # Default port checks for native OR storage(gossip).
+            return is_cassandra_up(host, native_port) or is_cassandra_up(host, storage_port)
+
+    except Exception as e:
+        logging.debug('Cassandra not found to be healthy during check', exc_info=e)
+
+    return False
 
 
 def is_ccm_up(args, nodetool_command):
@@ -629,12 +661,9 @@ def is_open(host, port):
         s.shutdown(socket.SHUT_RDWR)
         is_accessible = True
     except socket.error as e:
-        logging.error('Port {} close on host {}'.format(port, host), exc_info=e)
+        logging.debug('Port {} close on host {}'.format(port, host), exc_info=e)
     finally:
-        try:
-            s.close()
-        except os.error as ose:
-            logging.error('Port {} close on host {}'.format(port, host), exc_info=ose)
+        s.close()
 
     return is_accessible
 
@@ -671,3 +700,23 @@ class CassandraNodeNotDownError(Exception):
     def __init(self, host):
         msg = 'Cassandra node {} is still up...'.format(host)
         super(CassandraNodeNotDownError, self).__init__(msg)
+
+
+class CassandraConfigInvalidError(Exception):
+    """
+    Raised when we detect an invalid Cassandra configuration
+    """
+
+    def __init(self, host):
+        msg = 'Cassandra config is detected with invalid settings'
+        super(Exception, self).__init__(msg)
+
+
+class CassandraCqlSessionException(Exception):
+    """
+    Raised when we detect an issue establishing a cql session.
+    """
+
+    def __init(self, host):
+        msg = 'Cassandra cql session issue'
+        super(Exception, self).__init__(msg)

@@ -14,19 +14,19 @@
 # limitations under the License.
 
 import configparser
+import os
 import shutil
 import tempfile
 import unittest
-import yaml
-import os
-
-from cassandra.metadata import Murmur3Token
 from pathlib import Path
 from unittest.mock import Mock
 
-from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict,\
+import yaml
+from cassandra.metadata import Murmur3Token
+
+from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra, CassandraConfigInvalidError
+from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict, \
     KubernetesConfig
-from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra
 from medusa.nodetool import Nodetool
 
 
@@ -125,8 +125,8 @@ class CassandraUtilsTest(unittest.TestCase):
             sstable_path = snapshot_path / 'xx-20-Data.lb'
             index_sstable_path = index_path / 'xx-21-Data.lb'
             index_path.mkdir(parents=True)  # create the directory structure
-            sstable_path.touch()            # create a fake SSTable file
-            index_sstable_path.touch()      # create a fake index SSTable file
+            sstable_path.touch()  # create a fake SSTable file
+            index_sstable_path.touch()  # create a fake index SSTable file
 
             # create a new SnapshotPath and see if it returns both normal and index SSTables
             sp = SnapshotPath(Path(snapshot_path), 'ks', 't')
@@ -266,6 +266,7 @@ class CassandraUtilsTest(unittest.TestCase):
             shutil.copyfile('tests/resources/yaml/original/cassandra_with_tokens.yaml',
                             'tests/resources/yaml/work/cassandra_with_tokens.yaml')
         config = configparser.ConfigParser(interpolation=None)
+
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_with_tokens.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
@@ -406,6 +407,166 @@ class CassandraUtilsTest(unittest.TestCase):
         )
         cassandra = Cassandra(medusa_config)
         self.assertEqual([], sorted(cassandra.seeds))
+
+    def test_cassandra_non_encrypt_comm_ports(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/original/cassandra-no-encrypt.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+            ssh=None,
+            checks=None,
+            logging=None,
+        )
+
+        c = Cassandra(medusa_config)
+
+        self.assertEqual(c.storage_port, 7000)
+        self.assertEqual(c.native_port, 9042)
+        self.assertEqual(c.rpc_port, 9160)
+
+    def test_cassandra_internode_encryption_ports(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/original/cassandra-internode-encrypt.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+            ssh=None,
+            checks=None,
+            logging=None,
+        )
+
+        c = Cassandra(medusa_config)
+
+        # Uses ssl_storage_port value
+        self.assertEqual(c.storage_port, 7001)
+        self.assertEqual(c.native_port, 9042)
+        self.assertEqual(c.rpc_port, 9160)
+
+    def test_cassandra_client_encryption_enabled_reuse_port(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/original/cassandra-client-encrypt.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+            ssh=None,
+            checks=None,
+            logging=None,
+        )
+
+        c = Cassandra(medusa_config)
+
+        self.assertEqual(c.storage_port, 7000)
+        # Note: When not setting native_transport_port_ssl, still expecting that encrypted over existing
+        # native_transport_port.
+        self.assertEqual(c.native_port, 9042)
+        self.assertEqual(c.rpc_port, 9160)
+
+    def test_cassandra_client_encryption_enabled_ssl_port(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/original/cassandra-client-encrypt-sslport.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+            ssh=None,
+            checks=None,
+            logging=None,
+        )
+
+        c = Cassandra(medusa_config)
+
+        self.assertEqual(c.storage_port, 7001)
+        # Note: When setting native_transport_port_ssl, expecting that non-encrypted over existing
+        # native_transport_port and encrypted over the native_transport_port_ssl
+        self.assertEqual(c.native_port, 9142)
+        self.assertEqual(c.rpc_port, 9160)
+
+    def test_cassandra_missing_native_port(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'config_file': os.path.join(os.path.dirname(__file__),
+                                        'resources/yaml/original/cassandra-missing-native-port.yaml'),
+            'start_cmd': '/etc/init.d/cassandra start',
+            'stop_cmd': '/etc/init.d/cassandra stop',
+            'is_ccm': '1'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+            ssh=None,
+            checks=None,
+            logging=None,
+        )
+
+        self.assertRaises(CassandraConfigInvalidError, Cassandra, medusa_config)
 
 
 if __name__ == '__main__':
