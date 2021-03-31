@@ -14,10 +14,8 @@
 # limitations under the License.
 
 import logging
-import os
-import sys
-import time
 import signal
+import sys
 from collections import defaultdict
 from concurrent import futures
 from datetime import datetime
@@ -29,8 +27,8 @@ from grpc_health.v1 import health_pb2_grpc
 
 import medusa.backup_node
 import medusa.config
-import medusa.purge
 import medusa.listing
+import medusa.purge
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -145,6 +143,7 @@ def configure_console_logging(config):
 def shutdown(signum, frame):
     logging.info("shutting down")
     server.stop(0)
+
 
 if len(sys.argv) > 2:
     config_file_path = sys.argv[2]
