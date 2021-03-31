@@ -30,13 +30,13 @@ num_tokens: 16
 
 # TCP port, for commands and data
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-storage_port: 7000
+####storage_port: 7000
 
 # SSL port, for legacy encrypted communication. This property is unused unless enabled in
 # server_encryption_options (see below). As of cassandra 4.0, this property is deprecated
 # as a single port can be used for either/both secure and insecure connections.
 # For security reasons, you should not expose this port to the internet. Firewall it if needed.
-ssl_storage_port: 7001
+####ssl_storage_port: 7001
 
 # Address or interface to bind to and tell other Cassandra nodes to connect to.
 # You _must_ change this if you want multiple nodes to be able to communicate!
@@ -84,7 +84,7 @@ listen_address: localhost
 start_native_transport: true
 # port for the CQL native transport to listen for clients on
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-native_transport_port: 9123
+native_transport_port: 9042
 # Enabling native transport encryption in client_encryption_options allows you to either use
 # encryption for the standard port or to use a dedicated, additional port along with the unencrypted
 # standard native_transport_port.
@@ -92,8 +92,6 @@ native_transport_port: 9123
 # for native_transport_port. Setting native_transport_port_ssl to a different value
 # from native_transport_port will use encryption for native_transport_port_ssl while
 # keeping native_transport_port unencrypted.
-
-# TEST NOTE: MAKE SURE TO DISABLE FOR THIS TEST WHERE REUSING 9042 FROM native_transport_port
 # native_transport_port_ssl: 9142
 # The maximum threads for handling requests (note that idle threads are stopped
 # after 30 seconds so there is not corresponding minimum setting).
@@ -496,7 +494,7 @@ server_encryption_options:
     #     dc   : Encrypt connections to peers in other datacenters but not within datacenters
     #     rack : Encrypt connections to peers in other racks but not within racks
     #     all  : Always use encrypted connections
-    internode_encryption: none
+    internode_encryption: all
     # When set to true, encrypted and unencrypted connections are allowed on the storage_port
     # This should _only be true_ while in unencrypted or transitional operation
     # optional defaults to true if internode_encryption is none
@@ -538,7 +536,7 @@ server_encryption_options:
 # auth set require_client_auth=true. Restart all nodes
 client_encryption_options:
     # Enable client-to-server encryption
-    enabled: true
+    enabled: false
     # When set to true, encrypted and unencrypted connections are allowed on the native_transport_port
     # This should _only be true_ while in unencrypted or transitional operation
     # optional defaults to true when enabled is false, and false when enabled is true.

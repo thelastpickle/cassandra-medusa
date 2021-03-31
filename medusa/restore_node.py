@@ -202,9 +202,9 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                                           '--password', cql_password,
                                           '--no-progress',
                                           os.path.join(ks_path, table)]
-                    if storage_port != "7000":
+                    if storage_port != 7000:
                         sstableloader_args.append("--storage-port")
-                        sstableloader_args.append(storage_port)
+                        sstableloader_args.append(str(storage_port))
                     if config.cassandra.sstableloader_ts is not None and \
                        config.cassandra.sstableloader_tspw is not None and \
                        config.cassandra.sstableloader_ks is not None and \

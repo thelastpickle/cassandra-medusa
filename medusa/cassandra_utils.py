@@ -246,7 +246,13 @@ class CassandraConfigReader(object):
 
     @property
     def storage_port(self):
+        """
+        SSL port, for legacy encrypted communication. The ssl_storage_port is unused unless enabled in
+        server_encryption_options. As of cassandra 4.0, this property is deprecated
+        as a single port can be used for either/both secure and insecure connections.
+        """
         if 'server_encryption_options' in self._config and \
+                self._config['server_encryption_options']['internode_encryption'] is not None and \
                 self._config['server_encryption_options']['internode_encryption'] != "none" and \
                 'ssl_storage_port' in self._config and self._config['ssl_storage_port']:
             return self._config['ssl_storage_port']
@@ -254,29 +260,36 @@ class CassandraConfigReader(object):
         if 'storage_port' in self._config and self._config['storage_port']:
             return self._config['storage_port']
 
-        raise CassandraConfigInvalidError('Unable to locate storage port setting.')
+        return "7000"
 
     @property
     def native_port(self):
-
-        # Condition for client encryption enabled.
-        # When setting native_transport_port_ssl, expecting that non-encrypted will still be over existing
-        # native_transport_port. The encrypted will be over the native_transport_port_ssl.
-        # When not setting an alternate native_transport_port_ssl , the encrypted will be over
-        # the existing native_transport_port
-
+        """
+        Condition for client encryption enabled.
+         When setting native_transport_port_ssl, expecting that non-encrypted will still be over existing
+         native_transport_port. The encrypted will be over the native_transport_port_ssl.
+         When not setting an alternate native_transport_port_ssl , the encrypted will be over
+         the existing native_transport_port
+        """
+        # Conditions for client encryption enabled, default encrypted port.
         if 'client_encryption_options' in self._config and \
-                self._config['client_encryption_options']['enabled'] == "true" \
-                and 'native_transport_port_ssl' in self._config \
-                and self._config['native_transport_port_ssl']:
-            return self._config['native_transport_port_ssl']
+                self._config['client_encryption_options']['enabled'] is not None and \
+                self._config['client_encryption_options']['enabled'] == "true":
+            if 'native_transport_port_ssl' in self._config and \
+                    self._config['native_transport_port_ssl'] is not None:
+                return self._config['native_transport_port_ssl']
+            elif 'native_transport_port' in self._config and \
+                    self._config['native_transport_port'] is not None:
+                return self._config['native_transport_port']
 
-        # Condition for client encryption not enabled or when enabled and the native_transport_port_ssl
-        # is not defined.
-        if 'native_transport_port' in self._config and self._config['native_transport_port']:
-            return self._config['native_transport_port']
-
-        raise CassandraConfigInvalidError('Unable to locate native port setting.')
+            # default encrypted
+            return "9142"
+        else:
+            # Condition for client encryption not enabled, default non-encrypted port.
+            if 'native_transport_port' in self._config and self._config['native_transport_port'] is not None:
+                return self._config['native_transport_port']
+            # default non-encrypted
+            return "9042"
 
     @property
     def rpc_port(self):
@@ -598,15 +611,20 @@ def is_ccm_healthy(check_type):
     :return: True if the node is accepting requests, False otherwise. If both cql and thrift are checked, then the node
     must be ready to accept requests for both in order for the health check to be successful.
     """
+    try:
+        args = ['ccm', 'node1', 'nodetool']
 
-    args = ['ccm', 'node1', 'nodetool']
+        if check_type == 'thrift':
+            return is_ccm_up(args, 'statusthrift')
+        elif check_type == 'all':
+            return is_ccm_up(list(args), 'statusbinary') and is_ccm_up(list(args), 'statusthrift')
+        else:
+            return is_ccm_up(args, 'statusbinary')
 
-    if check_type == 'thrift':
-        return is_ccm_up(args, 'statusthrift')
-    elif check_type == 'all':
-        return is_ccm_up(list(args), 'statusbinary') and is_ccm_up(list(args), 'statusthrift')
-    else:
-        return is_ccm_up(args, 'statusbinary')
+    except Exception as e:
+        logging.debug('CCM not found to be healthy during check', exc_info=e)
+
+    return False
 
 
 def is_cassandra_healthy(check_type, cassandra, host):
@@ -614,6 +632,8 @@ def is_cassandra_healthy(check_type, cassandra, host):
     Utilizes knowledge of an enabled encrypt conn. or not-enabled encrypt conn. to use ports from Cassandra config.
     Both native and storage(gossip) ports can vary based on the encrypt conn. enablement.
     The specific port knowledge is assigned at the CassandraConfigReader object level.
+
+    The underlying is_cassandra_up has built-in retry logic.
     """
 
     try:
@@ -703,16 +723,6 @@ class CassandraNodeNotDownError(Exception):
     def __init(self, host):
         msg = 'Cassandra node {} is still up...'.format(host)
         super(CassandraNodeNotDownError, self).__init__(msg)
-
-
-class CassandraConfigInvalidError(Exception):
-    """
-    Raised when we detect an invalid Cassandra configuration
-    """
-
-    def __init(self, host):
-        msg = 'Cassandra config is detected with invalid settings'
-        super(Exception, self).__init__(msg)
 
 
 class CassandraCqlSessionException(Exception):
