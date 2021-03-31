@@ -828,15 +828,17 @@ def _i_run_a_whatever_command(context, command):
 
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name):
-    (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
-        = medusa.backup_node.main(context.medusa_config, backup_name, None, False, backup_mode)
-    context.latest_backup_cache = node_backup_cache
+    full_backup_helper(context, backup_mode, backup_name, False)
 
 
 @when(r'I perform a backup in "{backup_mode}" mode of the node named "{backup_name}" with md5 checks')
 def _i_perform_a_backup_of_the_node_named_backupname_with_md5(context, backup_mode, backup_name):
+    full_backup_helper(context, backup_mode, backup_name, True)
+
+
+def full_backup_helper(context, backup_mode, backup_name, md5_checks):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
-        = medusa.backup_node.main(context.medusa_config, backup_name, None, True, backup_mode)
+        = medusa.backup_node.main(context.medusa_config, backup_name, None, md5_checks, backup_mode)
     context.latest_backup_cache = node_backup_cache
 
 
