@@ -340,15 +340,15 @@ class Cassandra(object):
 
     @property
     def storage_port(self):
-        return self._storage_port
+        return int(self._storage_port)
 
     @property
     def native_port(self):
-        return self._native_port
+        return int(self._native_port)
 
     @property
     def rpc_port(self):
-        return self._rpc_port
+        return int(self._rpc_port)
 
     class Snapshot(object):
         def __init__(self, parent, tag):
