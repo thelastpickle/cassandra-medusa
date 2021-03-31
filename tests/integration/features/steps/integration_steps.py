@@ -64,6 +64,7 @@ usercert = "{}/resources/local_with_ssl/client.pem".format(os.getcwd())
 userkey = "{}/resources/local_with_ssl/client.key.pem".format(os.getcwd())
 keystore_path = "{}/resources/local_with_ssl/127.0.0.1.jks".format(os.getcwd())
 trustore_path = "{}/resources/local_with_ssl/generic-server-truststore.jks".format(os.getcwd())
+config_checks = {"health_check": "cql", "enable_md5_checks": "false"}
 
 
 def kill_cassandra():
@@ -481,10 +482,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
     config["monitoring"] = {"monitoring_provider": "local"}
 
-    config["checks"] = {
-        "health_check": "cql",
-        "enable_md5_checks": "false"
-    }
+    config["checks"] = config_checks
 
     config["grpc"] = {
         "enabled": "0"
@@ -598,10 +596,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
     config["monitoring"] = {"monitoring_provider": "local"}
 
-    config["checks"] = {
-        "health_check": "cql",
-        "enable_md5_checks": "false"
-    }
+    config["checks"] = config_checks
 
     config["grpc"] = {
         "enabled": 1,
@@ -728,10 +723,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
 
     config["monitoring"] = {"monitoring_provider": "local"}
 
-    config["checks"] = {
-        "health_check": "cql",
-        "enable_md5_checks": "false"
-    }
+    config["checks"] = config_checks
 
     config["grpc"] = {
         "enabled": 1,
@@ -827,10 +819,11 @@ def _i_run_a_whatever_command(context, command):
 
 
 @when(r'I perform a backup in "{backup_mode}" mode of the node named'
-      r' "{backup_name}" with md5 enabled = "{md5_enabled}"')
-def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name, md5_enabled):
+      r' "{backup_name}" with md5 checks "{md5_enabled_str}"')
+def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name, md5_enabled_str):
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
-        = medusa.backup_node.main(context.medusa_config, backup_name, None, md5_enabled, backup_mode)
+        = medusa.backup_node.main(context.medusa_config, backup_name, None,
+                                  str(md5_enabled_str).lower() == "enabled", backup_mode)
     context.latest_backup_cache = node_backup_cache
 
 
@@ -991,10 +984,9 @@ def _the_backup_named_backupname_has_nb_sstables_for_the_whatever_table(
         assert len(sstables) == int(nb_sstables)
 
 
-@then(r'I can verify the backup named "{backup_name}" with md5 enabled = "{md5_enabled}" successfully')
-def _i_can_verify_the_backup_named_successfully(context, backup_name, md5_enabled):
-    enable_md5_checks = medusa.utils.evaluate_boolean(md5_enabled)
-    medusa.verify.verify(context.medusa_config, backup_name, enable_md5_checks)
+@then(r'I can verify the backup named "{backup_name}" with md5 checks "{md5_enabled_str}" successfully')
+def _i_can_verify_the_backup_named_successfully(context, backup_name, md5_enabled_str):
+    medusa.verify.verify(context.medusa_config, backup_name, str(md5_enabled_str).lower() == "enabled")
 
 
 @then(r'I can download the backup named "{backup_name}" for all tables')

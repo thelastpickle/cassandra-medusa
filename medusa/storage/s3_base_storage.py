@@ -133,15 +133,10 @@ class S3BaseStorage(AbstractStorage):
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
-        if enable_md5_checks:
-            md5_hash = str(blob.hash)
-        else:
-            md5_hash = None
-
         return S3BaseStorage.compare_with_manifest(
             actual_size=blob.size,
             size_in_manifest=object_in_manifest['size'],
-            actual_hash=md5_hash,
+            actual_hash=str(blob.hash) if enable_md5_checks else None,
             hash_in_manifest=object_in_manifest['MD5']
         )
 
