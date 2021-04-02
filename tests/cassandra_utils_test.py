@@ -253,7 +253,7 @@ class CassandraUtilsTest(unittest.TestCase):
 
         cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
-        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+        cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
 
         with open('tests/resources/yaml/work/cassandra_no_tokens.yaml', 'r') as f:
             modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
@@ -292,7 +292,7 @@ class CassandraUtilsTest(unittest.TestCase):
 
         cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
-        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+        cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
 
         with open('tests/resources/yaml/work/cassandra_with_tokens.yaml', 'r') as f:
             modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
@@ -331,7 +331,7 @@ class CassandraUtilsTest(unittest.TestCase):
 
         cassandra = Cassandra(medusa_config)
         tokens = ['1', '2', '3']
-        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+        cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
 
         with open('tests/resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml', 'r') as f:
             modified_yaml = yaml.load(f, Loader=yaml.BaseLoader)
