@@ -132,21 +132,23 @@ class S3BaseStorage(AbstractStorage):
         return path
 
     @staticmethod
-    def blob_matches_manifest(blob, object_in_manifest):
+    def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
         return S3BaseStorage.compare_with_manifest(
             actual_size=blob.size,
             size_in_manifest=object_in_manifest['size'],
-            actual_hash=str(blob.hash),
+            actual_hash=str(blob.hash) if enable_md5_checks else None,
             hash_in_manifest=object_in_manifest['MD5']
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None):
+    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
 
         threshold = int(threshold) if threshold else -1
 
-        # single or multi part md5 hash. Used by S3 uploads.
-        if src.stat().st_size >= threshold > 0:
+        # single or multi part md5 hash. Used by Azure and S3 uploads.
+        if not enable_md5_checks:
+            md5_hash = None
+        elif src.stat().st_size >= threshold > 0:
             md5_hash = AbstractStorage.md5_multipart(src)
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
@@ -161,7 +163,11 @@ class S3BaseStorage(AbstractStorage):
 
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        sizes_match = actual_size == size_in_manifest
+        if not actual_hash:
+            return sizes_match
 
+        # md5 hash comparison
         if not threshold:
             threshold = -1
         else:
@@ -171,8 +177,6 @@ class S3BaseStorage(AbstractStorage):
             multipart = True
         else:
             multipart = False
-
-        sizes_match = actual_size == size_in_manifest
 
         if multipart:
             hashes_match = (

@@ -15,12 +15,14 @@
 
 import json
 import logging
+import medusa.utils
 
 from medusa.storage import Storage
 
 
-def verify(config, backup_name):
+def verify(config, backup_name, enable_md5_checks_flag):
     storage = Storage(config=config.storage)
+    enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
 
     try:
         cluster_backup = storage.get_cluster_backup(backup_name)
@@ -42,7 +44,7 @@ def verify(config, backup_name):
     consistency_errors = [
         consistency_error
         for node_backup in cluster_backup.node_backups.values()
-        for consistency_error in validate_manifest(storage, node_backup)
+        for consistency_error in validate_manifest(storage, node_backup, enable_md5)
     ]
 
     if consistency_errors:
@@ -54,7 +56,7 @@ def verify(config, backup_name):
         print("- Manifest validated: OK!!")
 
 
-def validate_manifest(storage, node_backup):
+def validate_manifest(storage, node_backup, enable_md5_checks):
     """
     Goes through all files in the manifest for given backup.
 
@@ -88,7 +90,7 @@ def validate_manifest(storage, node_backup):
             yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
             continue
 
-        if not storage.storage_driver.blob_matches_manifest(blob, object_in_manifest):
+        if not storage.storage_driver.blob_matches_manifest(blob, object_in_manifest, enable_md5_checks):
             logging.error("Expected {} but got {}".format(object_in_manifest, blob))
             yield("  - [{}] Blob different".format(object_in_manifest['path']))
 

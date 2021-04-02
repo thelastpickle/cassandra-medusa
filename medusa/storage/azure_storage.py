@@ -78,61 +78,39 @@ class AzureStorage(AbstractStorage):
         )
 
     @staticmethod
-    def blob_matches_manifest(blob, object_in_manifest):
+    def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
         # Azure use hashed timespan in eTag header. It changes everytime
         # when the file is overwrote. "content-md5" is the right hash to
         # validate the file.
         return AzureStorage.compare_with_manifest(
             actual_size=blob.size,
             size_in_manifest=object_in_manifest['size'],
-            actual_hash=blob.extra['md5_hash'],
+            actual_hash=blob.extra['md5_hash'] if enable_md5_checks else None,
             hash_in_manifest=object_in_manifest['MD5']
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None):
-        threshold = int(threshold) if threshold else -1
-
-        # single or multi part md5 hash. Used by Azure and S3 uploads.
-        if src.stat().st_size >= threshold > 0:
-            md5_hash = AbstractStorage.md5_multipart(src)
-        else:
-            md5_hash = AbstractStorage.generate_md5_hash(src)
-
+    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
         return AzureStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
             size_in_manifest=cached_item['size'],
-            actual_hash=md5_hash,
+            actual_hash=AbstractStorage.generate_md5_hash(src) if enable_md5_checks else None,
             hash_in_manifest=cached_item['MD5'],
-            threshold=threshold
         )
 
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
-        if not threshold:
-            threshold = -1
-        else:
-            threshold = int(threshold)
-
-        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
-            multipart = True
-        else:
-            multipart = False
-
         sizes_match = actual_size == size_in_manifest
+        if not actual_hash:
+            return sizes_match
 
-        if multipart:
-            hashes_match = (
-                actual_hash == hash_in_manifest
-            )
-        else:
-            hashes_match = (
-                # this case comes from comparing blob hashes to manifest entries (in context of Azure)
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                # this comes from comparing files to a cache
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                # and perhaps we need the to check for match even without base64 encoding
-                or actual_hash == hash_in_manifest
-            )
+        hashes_match = (
+            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
+            actual_hash == base64.b64decode(hash_in_manifest).hex()
+            # this comes from comparing files to a cache
+            or hash_in_manifest == base64.b64decode(actual_hash).hex()
+            # and perhaps we need the to check for match even without base64 encoding
+            or actual_hash == hash_in_manifest
+        )
 
         return sizes_match and hashes_match
