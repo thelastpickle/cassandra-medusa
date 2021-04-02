@@ -256,7 +256,6 @@ class CassandraConfigReader(object):
 
         # TODO - test refactor and check for version
         # Prior to 4.0 return 7001 as the default.
-
         if 'storage_port' in self._config and self._config['storage_port']:
             return self._config['storage_port']
 
@@ -646,7 +645,7 @@ def is_cassandra_healthy(check_type, cassandra, host):
         elif check_type == 'all':
             # Port checks to include all of: rpc, native, and storage(gossip) health.
             return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) and \
-                is_cassandra_up(host, storage_port)
+                   is_cassandra_up(host, storage_port)
         else:
             # Default port checks for native OR storage(gossip).
             return is_cassandra_up(host, native_port) or is_cassandra_up(host, storage_port)

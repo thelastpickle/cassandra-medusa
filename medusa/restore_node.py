@@ -134,7 +134,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
             cassandra.start(tokens)
     elif not in_place:
         # Kubernetes will manage the lifecycle, but we still need to modify the tokens
-        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+        cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
 
     # Clean the restored data from local temporary folder
     clean_path(download_dir, use_sudo, keep_folder=False)
