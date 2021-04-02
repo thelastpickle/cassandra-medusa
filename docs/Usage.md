@@ -97,8 +97,13 @@ Usage: medusa verify [OPTIONS]
   Verify the integrity of a backup
 
 Options:
-  --backup-name TEXT  Backup name  [required]
-  --help              Show this message and exit.
+  --backup-name TEXT   Backup name  [required]
+  --enable-md5-checks  During backups and verify, use md5 calculations to
+                       determine file integrity (in addition to size, which is
+                       used by default)
+
+  --help               Show this message and exit.
+
 ```
 
 Run a health check on a backup, which will verify that:

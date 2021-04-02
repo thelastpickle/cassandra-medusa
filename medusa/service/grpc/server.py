@@ -49,7 +49,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         resp = medusa_pb2.BackupResponse()
         # TODO pass the staggered and mode args
         try:
-            medusa.backup_node.main(self.config, request.name, None, "differential")
+            medusa.backup_node.main(self.config, request.name, None, False, "differential")
         except Exception as e:
             context.set_details("failed to create backups: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)

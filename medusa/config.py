@@ -47,7 +47,7 @@ SSHConfig = collections.namedtuple(
 
 ChecksConfig = collections.namedtuple(
     'ChecksConfig',
-    ['health_check', 'query', 'expected_rows', 'expected_result']
+    ['health_check', 'query', 'expected_rows', 'expected_result', 'enable_md5_checks']
 )
 
 MonitoringConfig = collections.namedtuple(
@@ -126,7 +126,8 @@ def load_config(args, config_file):
         'health_check': 'cql',
         'query': '',
         'expected_rows': '0',
-        'expected_result': ''
+        'expected_result': '',
+        'enable_md5_checks': 'false'
     }
 
     config['monitoring'] = {

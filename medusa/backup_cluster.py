@@ -20,6 +20,7 @@ import datetime
 import traceback
 
 import medusa.config
+import medusa.utils
 from medusa.orchestration import Orchestration
 from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
@@ -27,7 +28,8 @@ from medusa.storage import Storage
 from medusa.network.hostname_resolver import HostnameResolver
 
 
-def orchestrate(config, backup_name, stagger, mode, temp_dir, parallel_snapshots, parallel_uploads):
+def orchestrate(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+                parallel_snapshots, parallel_uploads):
     backup = None
     monitoring = Monitoring(config=config.monitoring)
     try:
@@ -54,7 +56,8 @@ def orchestrate(config, backup_name, stagger, mode, temp_dir, parallel_snapshots
             info_msg = 'Starting backup {}'.format(backup_name)
             logging.info(info_msg)
 
-        backup = BackupJob(config, backup_name, stagger, mode, temp_dir, parallel_snapshots, parallel_uploads)
+        backup = BackupJob(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+                           parallel_snapshots, parallel_uploads)
         backup.execute()
 
         backup_end_time = datetime.datetime.now()
@@ -98,7 +101,8 @@ def orchestrate(config, backup_name, stagger, mode, temp_dir, parallel_snapshots
 
 
 class BackupJob(object):
-    def __init__(self, config, backup_name, stagger, mode, temp_dir, parallel_snapshots, parallel_uploads):
+    def __init__(self, config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+                 parallel_snapshots, parallel_uploads):
         self.id = uuid.uuid4()
         # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
         self.orchestration_snapshots = Orchestration(config, parallel_snapshots)
@@ -106,6 +110,7 @@ class BackupJob(object):
         self.config = config
         self.backup_name = backup_name
         self.stagger = stagger
+        self.enable_md5_checks = enable_md5_checks
         self.mode = mode
         self.temp_dir = temp_dir
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
@@ -165,13 +170,15 @@ class BackupJob(object):
 
     def _build_backup_cmd(self):
         stagger_option = '--in-stagger {}'.format(self.stagger) if self.stagger else ''
+        enable_md5_checks_option = '--enable-md5-checks' if self.enable_md5_checks else ''
 
         # Use %s placeholders in the below command to have them replaced by pssh using per host command substitution
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa -vvv backup-node ' \
-                  '--backup-name {backup_name} {stagger} --mode {mode}' \
+                  '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode}' \
             .format(work=self.work_dir,
                     backup_name=self.backup_name,
                     stagger=stagger_option,
+                    enable_md5_checks=enable_md5_checks_option,
                     mode=self.mode)
 
         logging.debug('Running backup on all nodes with the following command {}'.format(command))

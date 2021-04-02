@@ -15,14 +15,21 @@ Options:
   --backup-name TEXT              Backup name  [required]
   --stagger INTEGER               Drop initial backups if longer than a
                                   duration in seconds
+
+  --enable-md5-checks             During backups and verify, use md5
+                                  calculations to determine file integrity (in
+                                  addition to size, which is used by default)
+
   --mode [full|differential]
   --temp-dir TEXT                 Directory for temporary storage
   -ps, --parallel-snapshots INTEGER
                                   Number of concurrent synchronous (blocking)
                                   ssh sessions started by pssh
+
   -pu, --parallel-uploads INTEGER
                                   Number of concurrent synchronous (blocking)
                                   ssh sessions started by pssh
+
   --help                          Show this message and exit.
 ```
 
@@ -57,11 +64,16 @@ Usage: medusa backup [OPTIONS]
   Backup Cassandra
 
 Options:
-  --backup-name TEXT           Custom name for the backup
-  --stagger INTEGER            Check for staggering initial backups for
-                               duration seconds
+  --backup-name TEXT          Custom name for the backup
+  --stagger INTEGER           Drop initial backups if longer than a duration
+                              in seconds
+
+  --enable-md5-checks         During backups and verify, use md5 calculations
+                              to determine file integrity (in addition to
+                              size, which is used by default)
+
   --mode [full|differential]
-  --help                       Show this message and exit.
+  --help                      Show this message and exit.
 ```
 
 Once Medusa is setup, you can create a **differential** backup with the following command:

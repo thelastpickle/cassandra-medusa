@@ -27,7 +27,7 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can download the backup named "first_backup" for all tables
         Then I can download the backup named "first_backup" for "medusa.test"
@@ -35,7 +35,8 @@ Feature: Integration tests
         Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
         Then the backup index exists
         Then the backup named "first_backup" has 2 SSTables for the "test" table in keyspace "medusa"
-        Then I can verify the backup named "first_backup" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
@@ -79,14 +80,16 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "second_backup"
+        When I perform a backup in "full" mode of the node named "second_backup" with md5 checks "disabled"
         Then the backup index exists
         Then I can see the backup index entry for "second_backup"
         Then I can see the latest backup for "127.0.0.1" being called "second_backup"
-        When I perform a backup in "full" mode of the node named "third_backup"
+        When I perform a backup in "full" mode of the node named "third_backup" with md5 checks "disabled"
         Then I can see the backup index entry for "second_backup"
         Then I can see the backup index entry for "third_backup"
         Then I can see the latest backup for "127.0.0.1" being called "third_backup"
+        Then I can report latest backups without errors
+        When I perform a backup in "full" mode of the node named "fourth_backup" with md5 checks "enabled"
         Then I can report latest backups without errors
         @local
         Examples: Local storage
@@ -126,11 +129,11 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "fourth_backup"
+        When I perform a backup in "full" mode of the node named "fourth_backup" with md5 checks "disabled"
         Then I can see the latest backup for "127.0.0.1" being called "fourth_backup"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "fifth_backup"
+        When I perform a backup in "full" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the latest backup for "127.0.0.1" being called "fifth_backup"
         @local
         Examples: Local storage
@@ -215,8 +218,8 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "second_backup"
-        When I perform a backup in "full" mode of the node named "third_backup"
+        When I perform a backup in "full" mode of the node named "second_backup" with md5 checks "disabled"
+        When I perform a backup in "full" mode of the node named "third_backup" with md5 checks "disabled"
         When I truncate the backup index
         Then the backup index does not exist
         Then there is no latest complete backup
@@ -240,7 +243,7 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         When I truncate the backup folder
         Then the backup index exists
         Then I can see no backups when I list the backups
@@ -258,7 +261,7 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then the backup index exists
         When I truncate the backup index
         Then the backup index does not exist
@@ -278,36 +281,37 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
-        Then I can verify the backup named "first_backup" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         Then backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
         Then I can see 1 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "second_backup"
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         Then some files from the previous backup were not reuploaded
         Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup status for "second_backup" when I run the status command
-        Then I can verify the backup named "second_backup" successfully
+        Then I can verify the backup named "second_backup" with md5 checks "disabled" successfully
         Then backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
         Then backup named "second_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I perform a backup in "differential" mode of the node named "third_backup"
+        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "enabled"
+        Then some files from the previous backup were not reuploaded
         Then I can see the backup named "third_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
-        Then I can verify the backup named "third_backup" successfully
+        Then I can verify the backup named "third_backup" with md5 checks "disabled" successfully
         When I restore the backup named "second_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I perform a backup in "differential" mode of the node named "fourth_backup"
+        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -356,25 +360,25 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "first_backup"
-        When I perform a backup in "differential" mode of the node named "second_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I run a "ccm node1 nodetool compact medusa" command
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "third_backup"
+        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "fourth_backup"
+        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
         When I run a "ccm node1 nodetool compact medusa" command
-        When I perform a backup in "differential" mode of the node named "fifth_backup"
+        When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup named "third_backup" when I list the backups
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "fifth_backup" when I list the backups
-        Then I can verify the backup named "fifth_backup" successfully
+        Then I can verify the backup named "fifth_backup" with md5 checks "disabled" successfully
         When I purge the backup history to retain only 2 backups
         Then I cannot see the backup named "first_backup" when I list the backups
         Then I cannot see the backup named "second_backup" when I list the backups
@@ -382,8 +386,8 @@ Feature: Integration tests
         Then I cannot see purged backup files for the "test" table in keyspace "medusa"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "fifth_backup" when I list the backups
-        Then I can verify the backup named "fourth_backup" successfully
-        Then I can verify the backup named "fifth_backup" successfully
+        Then I can verify the backup named "fourth_backup" with md5 checks "disabled" successfully
+        Then I can verify the backup named "fifth_backup" with md5 checks "disabled" successfully
 
         @local
         Examples: Local storage
@@ -422,7 +426,7 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "first_backup"
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I see 3 metrics emitted
         Then I can report latest backups without errors
         Then I see 10 metrics emitted
@@ -466,9 +470,9 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
-        Then I can verify the backup named "first_backup" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
@@ -517,10 +521,10 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool flush" command
         Then I have 100 rows in the "medusa.test1" table in ccm cluster "<client encryption>"
         Then I have 100 rows in the "medusa.test2" table in ccm cluster "<client encryption>"
-        When I perform a backup in "full" mode of the node named "first_backup"
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup status for "first_backup" when I run the status command
-        Then I can verify the backup named "first_backup" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         When I truncate the "medusa.test1" table in ccm cluster "<client encryption>"
         When I truncate the "medusa.test2" table in ccm cluster "<client encryption>"
         When I restore the backup named "first_backup" for "medusa.test2" table
@@ -564,8 +568,8 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
-        Then I can verify the backup named "first_backup" successfully
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         When I restore the backup named "first_backup"
         Then I can verify the restore verify query "SELECT * FROM medusa.test" returned 100 rows
 
@@ -606,8 +610,8 @@ Feature: Integration tests
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "differential" mode of the node named "first_backup"
-        Then I can verify the backup named "first_backup" successfully
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         Then I can see secondary index files in the "first_backup" files
         When I restore the backup named "first_backup"
         Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
@@ -650,10 +654,10 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup in "full" mode of the node named "first_backup"
-        When I perform a backup in "differential" mode of the node named "second_backup"
-        Then I can verify the backup named "first_backup" successfully
-        Then I can verify the backup named "second_backup" successfully
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
+        Then I can verify the backup named "second_backup" with md5 checks "disabled" successfully
 
         @local
         Examples: Local storage
