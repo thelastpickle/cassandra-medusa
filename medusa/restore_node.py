@@ -37,7 +37,7 @@ MAX_ATTEMPTS = 60
 
 
 def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                 use_sstableloader=False):
+                 use_sstableloader=False, backup_fqdn=None):
 
     if in_place and keep_auth:
         logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
@@ -47,7 +47,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
     if not use_sstableloader:
         restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
-                             keyspaces, tables)
+                             keyspaces, tables, backup_fqdn)
     else:
         restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
                                    keyspaces, tables)
@@ -57,13 +57,17 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
         verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
-def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
+def get_node_backup(config, storage, backup_name, backup_fqdn):
     storage.storage_driver.prepare_download()
     differential_blob = storage.storage_driver.get_blob(
         os.path.join(config.storage.fqdn, backup_name, 'meta', 'differential'))
 
+    fqdn = config.storage.fqdn
+    if backup_fqdn is not None:
+        fqdn = backup_fqdn
+
     node_backup = storage.get_node_backup(
-        fqdn=config.storage.fqdn,
+        fqdn=fqdn,
         name=backup_name,
         differential_mode=True if differential_blob is not None else False
     )
@@ -71,6 +75,13 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
+
+    return node_backup
+
+
+def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables,
+                         backup_fqdn=None):
+    node_backup = get_node_backup(config, storage, backup_name, backup_fqdn)
 
     fqtns_to_restore, ignored_fqtns = filter_fqtns(keyspaces, tables, node_backup.manifest)
     for fqtns in ignored_fqtns:
@@ -80,12 +91,12 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
         logging.error('There is nothing to restore')
         sys.exit(0)
 
-    cassandra = Cassandra(config)
-
     # Download the backup
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
+
+    cassandra = Cassandra(config)
 
     if not medusa.utils.evaluate_boolean(config.kubernetes.enabled):
         logging.info('Stopping Cassandra')
