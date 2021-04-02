@@ -257,6 +257,9 @@ class CassandraConfigReader(object):
                 'ssl_storage_port' in self._config and self._config['ssl_storage_port']:
             return self._config['ssl_storage_port']
 
+        # TODO - test refactor and check for version
+        # Prior to 4.0 return 7001 as the default.
+
         if 'storage_port' in self._config and self._config['storage_port']:
             return self._config['storage_port']
 
@@ -531,7 +534,7 @@ class Cassandra(object):
 
     def start(self, token_list):
         if self._is_ccm == 0:
-            self.replaceTokensInCassandraYamlAndDisableBootstrap(token_list)
+            self.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(token_list)
             cmd = '{}'.format(' '.join(shlex.quote(x) for x in self._start_cmd))
             logging.debug('Starting Cassandra with {}'.format(cmd))
             # run the command using 'shell=True' option
@@ -540,7 +543,7 @@ class Cassandra(object):
         else:
             subprocess.check_output(self._start_cmd, shell=True)
 
-    def replaceTokensInCassandraYamlAndDisableBootstrap(self, token_list):
+    def replace_tokens_in_cassandra_yaml_and_disable_bootstrap(self, token_list):
         initial_token_line_found = False
         auto_bootstrap_line_found = False
         for line in fileinput.input(self._cassandra_config_file, inplace=True):
@@ -684,7 +687,7 @@ def is_open(host, port):
         s.shutdown(socket.SHUT_RDWR)
         is_accessible = True
     except socket.error as e:
-        logging.debug('Port {} close on host {}'.format(port, host), exc_info=e)
+        logging.debug('Port {} closed on host {}'.format(port, host), exc_info=e)
     finally:
         s.close()
 
@@ -709,7 +712,7 @@ class CassandraNodeNotUpError(Exception):
         attempts -- the number of times the check was performed
     """
 
-    def __init(self, host):
+    def __init__(self, host):
         msg = 'Cassandra node {} is still down...'.format(host)
         super(CassandraNodeNotUpError, self).__init__(msg)
 
@@ -720,7 +723,7 @@ class CassandraNodeNotDownError(Exception):
     reporting open ports.
     """
 
-    def __init(self, host):
+    def __init__(self, host):
         msg = 'Cassandra node {} is still up...'.format(host)
         super(CassandraNodeNotDownError, self).__init__(msg)
 
@@ -730,6 +733,6 @@ class CassandraCqlSessionException(Exception):
     Raised when we detect an issue establishing a cql session.
     """
 
-    def __init(self, host):
-        msg = 'Cassandra cql session issue'
+    def __init__(self, host):
+        msg = 'Cassandra node {} cql session issue...'.format(host)
         super(Exception, self).__init__(msg)
