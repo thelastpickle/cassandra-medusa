@@ -28,6 +28,7 @@ import yaml
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.util import Version
 from retrying import retry
 from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from subprocess import PIPE
@@ -203,13 +204,17 @@ class CqlSession(object):
 
 class CassandraConfigReader(object):
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
+    _release_version = None
 
-    def __init__(self, cassandra_config=None):
+    def __init__(self, cassandra_config=None, release_version=None):
         config_file = pathlib.Path(cassandra_config or self.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
         with open(config_file, 'r') as f:
             self._config = yaml.load(f, Loader=yaml.BaseLoader)
+
+        # Used for port designation based on request for secured connection and target version of c*
+        self._release_version = release_version
 
     @property
     def root(self):
@@ -250,15 +255,22 @@ class CassandraConfigReader(object):
         """
         if 'server_encryption_options' in self._config and \
                 self._config['server_encryption_options']['internode_encryption'] is not None and \
-                self._config['server_encryption_options']['internode_encryption'] != "none" and \
-                'ssl_storage_port' in self._config and self._config['ssl_storage_port']:
-            return self._config['ssl_storage_port']
+                self._config['server_encryption_options']['internode_encryption'] != "none":
 
-        # TODO - test refactor and check for version
-        # Prior to 4.0 return 7001 as the default.
-        if 'storage_port' in self._config and self._config['storage_port']:
+            # Secure connections, ssl_storage_port is specified.
+            if 'ssl_storage_port' in self._config and self._config['ssl_storage_port'] is not None:
+                logging.warning("ssl_storage_port is deprecated as of Apache Cassandra 4.x")
+                return self._config['ssl_storage_port']
+            else:
+                # ssl_storage_port not specified, and found a version of c* 4+
+                if self._release_version is not None and Version(self._release_version) >= Version('4-a') and \
+                        'storage_port' in self._config and self._config['storage_port'] is not None:
+                    return self._config['storage_port']
+                return "7001"
+
+        # Insecure connection handling of storage_port for any version of c*
+        if 'storage_port' in self._config and self._config['storage_port'] is not None:
             return self._config['storage_port']
-
         return "7000"
 
     @property
@@ -309,7 +321,7 @@ class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
-    def __init__(self, config, contact_point=None):
+    def __init__(self, config, contact_point=None, release_version=None):
         cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
@@ -318,7 +330,7 @@ class Cassandra(object):
         self._nodetool = Nodetool(cassandra_config)
         logging.warning('is ccm : {}'.format(self._is_ccm))
 
-        config_reader = CassandraConfigReader(cassandra_config.config_file)
+        config_reader = CassandraConfigReader(cassandra_config.config_file, release_version)
         self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
@@ -596,8 +608,9 @@ def is_node_up(config, host):
         logging.debug('Checking ccm health')
         return is_ccm_healthy(check_type)
 
-    logging.debug('Checking cassandra health')
-    return is_cassandra_healthy(check_type, Cassandra(config), host)
+    cassandra_version = host.release_version if host is not None else None
+    logging.debug('Checking cassandra health for version {}'.format(cassandra_version))
+    return is_cassandra_healthy(check_type, Cassandra(config, release_version=cassandra_version), host)
 
 
 def is_ccm_healthy(check_type):
@@ -645,7 +658,7 @@ def is_cassandra_healthy(check_type, cassandra, host):
         elif check_type == 'all':
             # Port checks to include all of: rpc, native, and storage(gossip) health.
             return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) and \
-                   is_cassandra_up(host, storage_port)
+                is_cassandra_up(host, storage_port)
         else:
             # Default port checks for native OR storage(gossip).
             return is_cassandra_up(host, native_port) or is_cassandra_up(host, storage_port)
