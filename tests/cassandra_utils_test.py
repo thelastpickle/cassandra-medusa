@@ -94,22 +94,22 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual([-9, -6, 0], sorted(token_map["127.0.0.1"]["tokens"]))
 
     def test_tokenmap_two_dc(self):
-        hostA = Mock()
-        hostA.is_up = True
-        hostA.address = '127.0.0.1'
-        hostA.datacenter = "dcA"
+        host_a = Mock()
+        host_a.is_up = True
+        host_a.address = '127.0.0.1'
+        host_a.datacenter = "dcA"
 
-        hostB = Mock()
-        hostB.is_up = True
-        hostB.address = '127.0.0.2'
-        hostB.datacenter = "dcB"
+        host_b = Mock()
+        host_b.is_up = True
+        host_b.address = '127.0.0.2'
+        host_b.datacenter = "dcB"
 
         session = Mock()
         session.cluster = Mock()
         session.cluster.contact_points = ["127.0.0.1"]
         session.cluster.metadata.token_map.token_to_host_owner = {
-            Murmur3Token(-6): hostA,
-            Murmur3Token(6): hostB
+            Murmur3Token(-6): host_a,
+            Murmur3Token(6): host_b
         }
         s = CqlSession(session, resolve_ip_addresses=False)
         token_map = s.tokenmap()
@@ -409,31 +409,8 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual([], sorted(cassandra.seeds))
 
     def test_cassandra_non_encrypt_comm_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/original/cassandra-no-encrypt.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config)
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/cassandra-no-encrypt.yaml'),
+                      release_version="4")
 
         # no encryption, use provided from storage_port even though having ssl_storage_port as well.
         self.assertEqual(c.storage_port, 15000)
@@ -442,278 +419,79 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encryption_v3_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="3")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt.yaml'), release_version="3")
 
         # Uses ssl_storage_port value
         self.assertEqual(c.storage_port, 10001)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encryption_v4_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="4")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt.yaml'), release_version="4")
 
         # Uses ssl_storage_port value
         self.assertEqual(c.storage_port, 10001)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encrypt_v3_default_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt-default.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="3")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt-default.yaml'), release_version="3")
 
         # Secure connection desired.
         # Both ssl_storage_port and storage_port are not defined.
         # Based v3 release version, should default to 7001.
         self.assertEqual(c.storage_port, 7001)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encrypt_v4_default_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt-default.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="4")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt-default.yaml'), release_version="4")
 
         # Secure connection desired.
         # Both ssl_storage_port and storage_port are not defined.
         # Based on v4 release version, should default to 7001.
         self.assertEqual(c.storage_port, 7001)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encrypt_nossl_v3_default_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt-nossl-default.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="3")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt-nossl-default.yaml'),
+                      release_version="3")
 
         # Secure connection desired.
         # The ssl_storage_port is not defined.
         # Based on not being c* v4, this will use default port for encryption.
         self.assertEqual(c.storage_port, 7001)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_internode_encrypt_nossl_v4_default_ports(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-internode-encrypt-nossl-default.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config, release_version="4")
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/'
+                                                    'cassandra-internode-encrypt-nossl-default.yaml'),
+                      release_version="4")
 
         # Secure connection desired.
         # The ssl_storage_port is not defined.
         # Based on being c* v4, this will use the value of the specified storage_port
         self.assertEqual(c.storage_port, 8675)
-
         self.assertEqual(c.native_port, 9042)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_client_encryption_enabled_default_port(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-client-encrypt-default.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config)
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/cassandra-client-encrypt-default.yaml'))
 
         # Both ports are not assigned, using default
         self.assertEqual(c.native_port, 9142)
         self.assertEqual(c.rpc_port, 9160)
-
         self.assertEqual(c.storage_port, 7000)
 
     def test_cassandra_client_encryption_enabled_reuse_port(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-client-encrypt.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config)
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/cassandra-client-encrypt.yaml'))
 
         # Expecting with client_encryption_options enabled, and not defining value for native_transport_port_ssl
         # use native_transport_port value as defined.
@@ -722,46 +500,27 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual(c.storage_port, 7000)
 
     def test_cassandra_client_encryption_enabled_ssl_port(self):
-        config = configparser.ConfigParser(interpolation=None)
-        config['cassandra'] = {
-            'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-client-encrypt-sslport.yaml'),
-            'start_cmd': '/etc/init.d/cassandra start',
-            'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
-        }
-        config["grpc"] = {
-            "enabled": "0"
-        }
-        config['kubernetes'] = {
-            "enabled": "0"
-        }
-        medusa_config = MedusaConfig(
-            storage=None,
-            monitoring=None,
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-            ssh=None,
-            checks=None,
-            logging=None,
-        )
-
-        c = Cassandra(medusa_config)
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/cassandra-client-encrypt-sslport.yaml'))
 
         # server_encryption_options /internode set to'all', with both
         # ports native_transport_port_ssl AND native_transport_port
         # defined.  Expected to use native_transport_port_ssl
         self.assertEqual(c.storage_port, 7001)
-
         self.assertEqual(c.native_port, 18675)
         self.assertEqual(c.rpc_port, 9160)
 
     def test_cassandra_missing_native_port(self):
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/cassandra-missing-native-port.yaml'))
+
+        # Case where cient_encryption_options enabled, but no native ports defined.
+        self.assertEqual(c.native_port, 9142)
+
+    @staticmethod
+    def get_simple_medusa_config(yaml_file=None):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__),
-                                        'resources/yaml/original/cassandra-missing-native-port.yaml'),
+                                        yaml_file),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
@@ -782,10 +541,7 @@ class CassandraUtilsTest(unittest.TestCase):
             checks=None,
             logging=None,
         )
-        c = Cassandra(medusa_config)
-
-        # Case where cient_encryption_options enabled, but no native ports defined.
-        self.assertEqual(c.native_port, 9142)
+        return medusa_config
 
 
 if __name__ == '__main__':
