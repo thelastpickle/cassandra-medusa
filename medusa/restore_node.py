@@ -336,7 +336,7 @@ def get_node_tokens(node_fqdn, token_map_file):
     token = token_map[node_fqdn]['tokens']
 
     # if vnodes, then the tokens come as an iterable
-    if isinstance(token, collections.Iterable):
+    if isinstance(token, collections.abc.Iterable):
         return list(map(str, token))
     # if there is only a single token, the token might show up as one integer
     else:
