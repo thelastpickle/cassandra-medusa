@@ -155,7 +155,7 @@ class RestoreNodeTest(unittest.TestCase):
             # compute checksum of the whole file at once
             tf.seek(0)
             checksum_full = hashlib.md5(tf.read()).digest()
-            digest_full = base64.encodestring(checksum_full).decode('UTF-8').strip()
+            digest_full = base64.encodebytes(checksum_full).decode('UTF-8').strip()
 
             # compute checksum using default-size chunks
             tf.seek(0)
