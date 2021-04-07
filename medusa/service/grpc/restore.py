@@ -21,6 +21,7 @@ from pathlib import Path
 
 import medusa.config
 import medusa.restore_node
+import medusa.listing
 
 
 def create_config(config_file_path):
@@ -65,9 +66,18 @@ keyspaces = {}
 tables = {}
 use_sstableloader = False
 
-logging.info("Starting restore of backup {}".format(backup_name))
+cluster_backups = medusa.listing.get_backups(config, False)
+backup_found = False
+# Checking if the backup exists for the node we're restoring.
+# Skipping restore if it doesn't exist.
+for cluster_backup in cluster_backups:
+    if cluster_backup.name == backup_name:
+        backup_found = True
+        logging.info("Starting restore of backup {}".format(backup_name))
+        medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth,
+                                         seeds, verify, keyspaces, tables, use_sstableloader)
+        logging.info("Finished restore of backup {}".format(backup_name))
+        break
 
-medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                                 use_sstableloader)
-
-logging.info("Finished restore of backup {}".format(backup_name))
+if not backup_found:
+    logging.info("Skipped restore of missing backup {}".format(backup_name))
