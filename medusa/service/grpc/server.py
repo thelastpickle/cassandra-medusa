@@ -14,9 +14,8 @@
 # limitations under the License.
 
 import logging
-import os
+import signal
 import sys
-import time
 from collections import defaultdict
 from concurrent import futures
 from datetime import datetime
@@ -28,8 +27,8 @@ from grpc_health.v1 import health_pb2_grpc
 
 import medusa.backup_node
 import medusa.config
-import medusa.purge
 import medusa.listing
+import medusa.purge
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -141,6 +140,11 @@ def configure_console_logging(config):
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
+def shutdown(signum, frame):
+    logging.info("shutting down")
+    server.stop(0)
+
+
 if len(sys.argv) > 2:
     config_file_path = sys.argv[2]
 else:
@@ -148,10 +152,6 @@ else:
 
 config = create_config(config_file_path)
 configure_console_logging(config.logging)
-
-sleep_time = int(os.getenv("DEBUG_SLEEP", "0"))
-logging.debug("sleeping for {} sec".format(sleep_time))
-time.sleep(sleep_time)
 
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
@@ -162,10 +162,6 @@ logging.info('Starting server. Listening on port 50051.')
 server.add_insecure_port('[::]:50051')
 server.start()
 
-# since server.start() will not block,
-# a sleep-loop is added to keep alive
-try:
-    while True:
-        time.sleep(86400)
-except KeyboardInterrupt:
-    server.stop(0)
+signal.signal(signal.SIGTERM, shutdown)
+
+server.wait_for_termination()
