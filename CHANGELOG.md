@@ -1,5 +1,14 @@
 ## Change Log
 
+### 0.10.0 (2021/04/08 09:22 +00:00)
+- Force int type for ports to the C* object (@ivanmp91)
+- add handler for sigterm and use exec to run server.py script (@jsanda)
+- Bypass the restore in GRPC/k8s mode if the backup doesn't exist (@adejanovski)
+- Fix deprecation warnings (@rhardouin)
+- Disable md5 comparisons during backups by default (@mkcello96)
+- Improve backup success rate by adding retries on single file downloads/uploads (@ivanmp91)
+- If running in Kubernetes, replace tokens in not in_place case and disable boostrap (@burmanm)
+
 ### 0.9.1 (2021/03/09 14:15 +00:00)
 - Add BaseS3StorageDriver that allows defining the region and pass the information to that driver. Also, remove unused ibm driver (@burmanm)
 - Fix MinIO support with unsecured access and add integration tests (@adejanovski)
