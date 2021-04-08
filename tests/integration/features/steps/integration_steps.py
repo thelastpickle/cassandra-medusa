@@ -30,18 +30,22 @@ from pathlib import Path
 from subprocess import PIPE
 import signal
 from cassandra import ProtocolVersion
+import cassandra.cluster
 from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from zipfile import ZipFile
 
 import medusa.backup_node
+import medusa.download
 import medusa.index
+import medusa.filtering
 import medusa.listing
 import medusa.purge
 import medusa.report_latest
 import medusa.restore_node
 import medusa.status
 import medusa.verify
+import medusa.verify_restore
 import medusa.service.grpc.client
 
 from medusa.config import (
@@ -65,6 +69,15 @@ userkey = "{}/resources/local_with_ssl/client.key.pem".format(os.getcwd())
 keystore_path = "{}/resources/local_with_ssl/127.0.0.1.jks".format(os.getcwd())
 trustore_path = "{}/resources/local_with_ssl/generic-server-truststore.jks".format(os.getcwd())
 config_checks = {"health_check": "cql", "enable_md5_checks": "false"}
+NOT_A_VALID_CLUSTER_MSG = b"does not appear to be a valid cluster"
+STARTING_TESTS_MSG = "Starting the tests"
+CCM_STOP = "ccm stop"
+CCM_START = "ccm start"
+CCM_DIR = "~/.ccm"
+BUCKET_ROOT = "/tmp/medusa_it_bucket"
+CASSANDRA_YAML = "cassandra.yaml"
+AWS_CREDENTIALS = "~/.aws/credentials"
+GCS_CREDENTIALS = "~/medusa_credentials.json"
 
 
 def kill_cassandra():
@@ -91,6 +104,28 @@ def cleanup_storage(context, storage_provider):
         objects = storage.storage_driver.list_objects(storage._prefix)
         for obj in objects:
             storage.storage_driver.delete_object(obj)
+
+
+def get_client_encryption_opts(keystore_path, trustore_path):
+    return f"""ccm node1 updateconf -y 'client_encryption_options: {{ enabled: true,
+        optional: false,keystore: {keystore_path}, keystore_password: testdata1,
+        require_client_auth: true,truststore: {trustore_path},  truststore_password: truststorePass1,
+        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}}'"""
+
+
+def tune_ccm_settings(cluster_name):
+    if os.uname().sysname == "Linux":
+        os.popen(
+            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
+            + cluster_name
+            + """/node1/conf/cassandra-env.sh"""
+        ).read()
+        os.popen(
+            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
+            + cluster_name
+            + """/node1/conf/cassandra-env.sh"""
+        ).read()
+    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
 
 
 class GRPCServer:
@@ -186,7 +221,7 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
     res = subprocess.run(
         ["ccm", "switch", context.cluster_name], stdout=PIPE, stderr=PIPE
     )
-    if b"does not appear to be a valid cluster" not in res.stderr:
+    if NOT_A_VALID_CLUSTER_MSG not in res.stderr:
         subprocess.check_call(
             ["ccm", "remove", context.cluster_name], stdout=PIPE, stderr=PIPE
         )
@@ -204,24 +239,10 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
 
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
-        update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
-        optional: false,keystore: " + keystore_path + ",keystore_password: testdata1,\
-        require_client_auth: true,truststore: " + trustore_path + ",truststore_password: truststorePass1,\
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}'"
+        update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    if os.uname().sysname == "Linux":
-        os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-        os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+    tune_ccm_settings(context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -236,7 +257,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
     res = subprocess.run(
         ["ccm", "switch", context.cluster_name], stdout=PIPE, stderr=PIPE
     )
-    if b"does not appear to be a valid cluster" not in res.stderr:
+    if NOT_A_VALID_CLUSTER_MSG not in res.stderr:
         subprocess.check_call(
             ["ccm", "remove", context.cluster_name], stdout=PIPE, stderr=PIPE
         )
@@ -254,10 +275,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
 
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
-        update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
-        optional: false,keystore: " + keystore_path + ",keystore_password: testdata1,\
-        require_client_auth: true,truststore: " + trustore_path + ",truststore_password: truststorePass1,\
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}'"
+        update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
     conf_file = os.path.expanduser("~/.ccm/{}/node1/conf/cassandra-env.sh".format(context.cluster_name))
@@ -267,18 +285,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
         )
     shutil.copyfile("resources/grpc/jolokia-jvm-1.6.2-agent.jar", "/tmp/jolokia-jvm-1.6.2-agent.jar")
 
-    if os.uname().sysname == "Linux":
-        os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-        os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+    tune_ccm_settings(context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -292,7 +299,7 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     res = subprocess.run(
         ["ccm", "switch", context.cluster_name], stdout=PIPE, stderr=PIPE
     )
-    if b"does not appear to be a valid cluster" not in res.stderr:
+    if NOT_A_VALID_CLUSTER_MSG not in res.stderr:
         subprocess.check_call(
             ["ccm", "remove", context.cluster_name], stdout=PIPE, stderr=PIPE
         )
@@ -310,27 +317,13 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
 
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
-        update_client_encrytion_opts = "ccm node1 updateconf -y 'client_encryption_options: { enabled: true,\
-        optional: false,keystore: " + keystore_path + ",keystore_password: testdata1,\
-        require_client_auth: true,truststore: " + trustore_path + ",truststore_password: truststorePass1,\
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}'"
+        update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    if os.uname().sysname == "Linux":
-        os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-        os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
-            + context.cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+    tune_ccm_settings(context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
     # stop the node via CCM as it needs to be started by the Management API
-    os.popen("ccm stop").read()
+    os.popen(CCM_STOP).read()
 
     conf_file = os.path.expanduser("~/.ccm/{}/node1/conf/cassandra-env.sh".format(context.cluster_name))
     with open(conf_file, "a") as config_file:
@@ -343,7 +336,7 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
-    logging.info("Starting the tests")
+    logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
     config = configparser.ConfigParser(interpolation=None)
@@ -368,7 +361,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         config["storage"] = {
             "host_file_separator": ",",
             "bucket_name": "medusa-integration-tests",
-            "key_file": "~/medusa_credentials.json",
+            "key_file": GCS_CREDENTIALS,
             "storage_provider": "google_storage",
             "fqdn": "127.0.0.1",
             "api_key_or_username": "",
@@ -394,7 +387,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
         config["storage"] = {
             "host_file_separator": ",",
             "bucket_name": "tlp-medusa-dev",
-            "key_file": "~/.aws/credentials",
+            "key_file": AWS_CREDENTIALS,
             "storage_provider": storage_provider,
             "fqdn": "127.0.0.1",
             "api_key_or_username": "",
@@ -445,18 +438,18 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
     config["cassandra"] = {
         "is_ccm": 1,
-        "stop_cmd": "ccm stop",
-        "start_cmd": "ccm start",
+        "stop_cmd": CCM_STOP,
+        "start_cmd": CCM_START,
         "cql_username": "cassandra",
         "cql_password": "cassandra",
         "config_file": os.path.expanduser(
             os.path.join(
-                "~/.ccm", context.cluster_name, "node1", "conf", "cassandra.yaml"
+                CCM_DIR, context.cluster_name, "node1", "conf", CASSANDRA_YAML
             )
         ),
         "sstableloader_bin": os.path.expanduser(
             os.path.join(
-                "~/.ccm",
+                CCM_DIR,
                 "repository",
                 context.cassandra_version.replace(
                     "github:", "githubCOLON").replace("/", "SLASH"),
@@ -508,105 +501,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
-    logging.info("Starting the tests")
-    if not hasattr(context, "cluster_name"):
-        context.cluster_name = "test"
-    config = configparser.ConfigParser(interpolation=None)
-
-    if storage_provider == "local":
-        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
-            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
-        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa_it_bucket",
-            "key_file": "",
-            "storage_provider": "local",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "google_storage":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-integration-tests",
-            "key_file": "~/medusa_credentials.json",
-            "storage_provider": "google_storage",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider.startswith("s3"):
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "tlp-medusa-dev",
-            "key_file": "~/.aws/credentials",
-            "storage_provider": storage_provider,
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws"
-        }
-
-    config["cassandra"] = {
-        "is_ccm": 1,
-        "stop_cmd": "ccm stop",
-        "start_cmd": "ccm start",
-        "cql_username": "cassandra",
-        "cql_password": "cassandra",
-        "config_file": os.path.expanduser(
-            os.path.join(
-                "~/.ccm", context.cluster_name, "node1", "conf", "cassandra.yaml"
-            )
-        ),
-        "sstableloader_bin": os.path.expanduser(
-            os.path.join(
-                "~/.ccm",
-                "repository",
-                context.cassandra_version,
-                "bin",
-                "sstableloader",
-            )
-        ),
-        "resolve_ip_addresses": False
-    }
-
-    if client_encryption == 'with_client_encryption':
-        config["cassandra"].update(
-            {
-                "certfile": certfile,
-                "usercert": usercert,
-                "userkey": userkey,
-                "sstableloader_ts": trustore_path,
-                "sstableloader_tspw": "truststorePass1",
-                "sstableloader_ks": keystore_path,
-                "sstableloader_kspw": "testdata1"
-            }
-        )
-
-    config["monitoring"] = {"monitoring_provider": "local"}
-
-    config["checks"] = config_checks
-
-    config["grpc"] = {
-        "enabled": 1,
-    }
-
-    config['kubernetes'] = {
-        "enabled": 1,
-        "cassandra_url": "http://127.0.0.1:8778/jolokia/",
-        "use_mgmt_api": 0,
-    }
+    config = get_medusa_config(context, storage_provider, client_encryption, "http://127.0.0.1:8778/jolokia/")
 
     GRPCServer.destroy()
     context.grpc_server = GRPCServer.init(config)
@@ -635,105 +530,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
 def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
-    logging.info("Starting the tests")
-    if not hasattr(context, "cluster_name"):
-        context.cluster_name = "test"
-    config = configparser.ConfigParser(interpolation=None)
-
-    if storage_provider == "local":
-        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
-            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
-        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa_it_bucket",
-            "key_file": "",
-            "storage_provider": "local",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "google_storage":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-integration-tests",
-            "key_file": "~/medusa_credentials.json",
-            "storage_provider": "google_storage",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider.startswith("s3"):
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "tlp-medusa-dev",
-            "key_file": "~/.aws/credentials",
-            "storage_provider": storage_provider,
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws"
-        }
-
-    config["cassandra"] = {
-        "is_ccm": 1,
-        "stop_cmd": "ccm stop",
-        "start_cmd": "ccm start",
-        "cql_username": "cassandra",
-        "cql_password": "cassandra",
-        "config_file": os.path.expanduser(
-            os.path.join(
-                "~/.ccm", context.cluster_name, "node1", "conf", "cassandra.yaml"
-            )
-        ),
-        "sstableloader_bin": os.path.expanduser(
-            os.path.join(
-                "~/.ccm",
-                "repository",
-                context.cassandra_version,
-                "bin",
-                "sstableloader",
-            )
-        ),
-        "resolve_ip_addresses": False
-    }
-
-    if client_encryption == 'with_client_encryption':
-        config["cassandra"].update(
-            {
-                "certfile": certfile,
-                "usercert": usercert,
-                "userkey": userkey,
-                "sstableloader_ts": trustore_path,
-                "sstableloader_tspw": "truststorePass1",
-                "sstableloader_ks": keystore_path,
-                "sstableloader_kspw": "testdata1"
-            }
-        )
-
-    config["monitoring"] = {"monitoring_provider": "local"}
-
-    config["checks"] = config_checks
-
-    config["grpc"] = {
-        "enabled": 1,
-    }
-
-    config['kubernetes'] = {
-        "enabled": 1,
-        "cassandra_url": "http://127.0.0.1:8080/api/v0/ops/node/snapshots",
-        "use_mgmt_api": 1,
-    }
+    config = get_medusa_config(context, storage_provider, client_encryption,
+                               "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1)
 
     GRPCServer.destroy()
     context.grpc_server = GRPCServer.init(config)
@@ -780,6 +578,101 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         else:
             # wait for Cassandra to be ready
             time.sleep(1)
+
+
+def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0):
+    logging.info(STARTING_TESTS_MSG)
+    if not hasattr(context, "cluster_name"):
+        context.cluster_name = "test"
+    config = configparser.ConfigParser(interpolation=None)
+    if storage_provider == "local":
+        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
+            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
+        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa_it_bucket",
+            "key_file": "",
+            "storage_provider": "local",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "prefix": storage_prefix
+        }
+    elif storage_provider == "google_storage":
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "medusa-integration-tests",
+            "key_file": GCS_CREDENTIALS,
+            "storage_provider": "google_storage",
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "base_path": "/tmp",
+            "prefix": storage_prefix
+        }
+    elif storage_provider.startswith("s3"):
+        config["storage"] = {
+            "host_file_separator": ",",
+            "bucket_name": "tlp-medusa-dev",
+            "key_file": AWS_CREDENTIALS,
+            "storage_provider": storage_provider,
+            "fqdn": "127.0.0.1",
+            "api_key_or_username": "",
+            "api_secret_or_password": "",
+            "api_profile": "default",
+            "base_path": "/tmp",
+            "multi_part_upload_threshold": 1 * 1024,
+            "concurrent_transfers": 4,
+            "prefix": storage_prefix,
+            "aws_cli_path": "aws"
+        }
+    config["cassandra"] = {
+        "is_ccm": 1,
+        "stop_cmd": CCM_STOP,
+        "start_cmd": CCM_START,
+        "cql_username": "cassandra",
+        "cql_password": "cassandra",
+        "config_file": os.path.expanduser(
+            os.path.join(
+                CCM_DIR, context.cluster_name, "node1", "conf", CASSANDRA_YAML
+            )
+        ),
+        "sstableloader_bin": os.path.expanduser(
+            os.path.join(
+                CCM_DIR,
+                "repository",
+                context.cassandra_version,
+                "bin",
+                "sstableloader",
+            )
+        ),
+        "resolve_ip_addresses": False
+    }
+    if client_encryption == 'with_client_encryption':
+        config["cassandra"].update(
+            {
+                "certfile": certfile,
+                "usercert": usercert,
+                "userkey": userkey,
+                "sstableloader_ts": trustore_path,
+                "sstableloader_tspw": "truststorePass1",
+                "sstableloader_ks": keystore_path,
+                "sstableloader_kspw": "testdata1"
+            }
+        )
+    config["monitoring"] = {"monitoring_provider": "local"}
+    config["checks"] = config_checks
+    config["grpc"] = {
+        "enabled": "1",
+    }
+    config['kubernetes'] = {
+        "enabled": 1,
+        "cassandra_url": cassandra_url,
+        "use_mgmt_api": use_mgmt_api,
+    }
+    return config
 
 
 @when(r'I create the "{table_name}" table in keyspace "{keyspace_name}"')
@@ -1109,7 +1002,7 @@ def _i_have_rows_in_the_table(context, nb_rows, table_name, client_encryption):
         is_client_encryption_enable = True
     context.session = connect_cassandra(is_client_encryption_enable)
     rows = context.session.execute("select count(*) as nb from {}".format(table_name))
-    assert rows[0].nb == int(nb_rows)
+    assert rows[0][0] == int(nb_rows)
 
 
 @then(r'I can see the backup index entry for "{backup_name}"')
@@ -1162,7 +1055,7 @@ def _there_is_no_latest_backup_for_node_fqdn(context, fqdn):
 )
 def _node_fakes_a_complete_backup(context, fqdn, backup_name, backup_datetime):
     storage = Storage(config=context.medusa_config.storage)
-    path_root = "/tmp/medusa_it_bucket"
+    path_root = BUCKET_ROOT
 
     fake_tokenmap = json.dumps(
         {
@@ -1254,7 +1147,7 @@ def _the_latest_complete_cluster_backup_is(context, expected_backup_name):
 @when(r"I truncate the backup index")
 def _truncate_the_index(context):
     storage = Storage(config=context.medusa_config.storage)
-    path_root = "/tmp/medusa_it_bucket"
+    path_root = BUCKET_ROOT
     index_path = "{}/{}index".format(path_root, storage.prefix_path)
     shutil.rmtree(index_path)
 
@@ -1262,7 +1155,7 @@ def _truncate_the_index(context):
 @when(r"I truncate the backup folder")
 def _truncate_the_backup_folder(context):
     storage = Storage(config=context.medusa_config.storage)
-    path_root = "/tmp/medusa_it_bucket"
+    path_root = BUCKET_ROOT
     backup_path = "{}/{}127.0.0.1".format(path_root, storage.prefix_path)
     shutil.rmtree(backup_path)
 
@@ -1483,9 +1376,12 @@ def get_mgmt_api_jars(
                 if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
                     zip_ref.extract(file_name, '/tmp')
 
-    # check Cassandra version and make sure we use the right agent
-    # v0.1.17 bundles a single mgmtapi agent. For v0.1.18+, the bundle is specific to the C* version
-    if not Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').is_file():
+    symlink_mgmt_api_jar(version)
+
+
+def symlink_mgmt_api_jar(version):
+    management_api_jar_path = '/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar'
+    if not Path(management_api_jar_path).is_file():
         # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
         # link the C* specific agent to the generic agent file name
         assert False is Path('/tmp/management-api-agent/target/').exists()
@@ -1493,12 +1389,12 @@ def get_mgmt_api_jars(
         if str.startswith(version, '3'):
             # C* is version 3.x, use 3.x agent
             assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
-            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').symlink_to(
+            Path(management_api_jar_path).symlink_to(
                 '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
         elif str.startswith(version, '4') or 'github:apache/trunk' == version:
             # C* is version 4.x, use 4.x agent
             assert Path('/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
-            Path('/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar').symlink_to(
+            Path(management_api_jar_path).symlink_to(
                 '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
         else:
             raise NotImplementedError('Cassandra version not supported: {}'.format(version))
