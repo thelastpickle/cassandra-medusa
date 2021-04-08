@@ -623,7 +623,7 @@ def is_open(host, port):
         is_accessible = False
     finally:
         s.close()
-        return is_accessible
+    return is_accessible
 
 
 @retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000, wait_exponential_max=120000)
