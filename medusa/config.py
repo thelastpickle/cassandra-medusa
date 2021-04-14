@@ -21,7 +21,6 @@ import pathlib
 import socket
 import sys
 
-import medusa.storage
 import medusa.cassandra_utils
 from medusa.utils import evaluate_boolean
 
@@ -75,23 +74,40 @@ KubernetesConfig = collections.namedtuple(
     ['enabled', 'cassandra_url', 'use_mgmt_api']
 )
 
+CONFIG_SECTIONS = {
+    'storage': StorageConfig,
+    'cassandra': CassandraConfig,
+    'ssh': SSHConfig,
+    'checks': ChecksConfig,
+    'monitoring': MonitoringConfig,
+    'logging': LoggingConfig,
+    'grpc': GrpcConfig,
+    'kubernetes': KubernetesConfig
+}
+
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
 
 def load_config(args, config_file):
+    """Load configuration from a medusa.ini file
+
+    :param args: settings override. Higher priority than settings defined in medusa.ini
+    :param config_file: path to a medusa.ini file
+    :return: Medusa configuration
+    """
     config = configparser.ConfigParser(interpolation=None)
 
     # Set defaults
 
     config['storage'] = {
         'host_file_separator': ',',
-        'max_backup_age': 0,
-        'max_backup_count': 0,
+        'max_backup_age': '0',
+        'max_backup_count': '0',
         'api_profile': 'default',
         'transfer_max_bandwidth': '50MB/s',
-        'concurrent_transfers': 1,
-        'multi_part_upload_threshold': 100 * 1024 * 1024,
-        'secure': True,
+        'concurrent_transfers': '1',
+        'multi_part_upload_threshold': str(100 * 1024 * 1024),
+        'secure': 'True',
         'aws_cli_path': 'aws',
         'fqdn': socket.getfqdn(),
         'region': 'default',
@@ -102,8 +118,8 @@ def load_config(args, config_file):
         'file': 'medusa.log',
         'level': 'INFO',
         'format': '[%(asctime)s] %(levelname)s: %(message)s',
-        'maxBytes': 20000000,
-        'backupCount': 50,
+        'maxBytes': '20000000',
+        'backupCount': '50',
     }
 
     config['cassandra'] = {
@@ -111,15 +127,15 @@ def load_config(args, config_file):
         'start_cmd': 'sudo service cassandra start',
         'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
-        'is_ccm': 0,
+        'is_ccm': '0',
         'sstableloader_bin': 'sstableloader',
-        'resolve_ip_addresses': True
+        'resolve_ip_addresses': 'True'
     }
 
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
         'key_file': '',
-        'port': 22
+        'port': '22'
     }
 
     config['checks'] = {
@@ -135,13 +151,13 @@ def load_config(args, config_file):
     }
 
     config['grpc'] = {
-        'enabled': False,
+        'enabled': 'False',
     }
 
     config['kubernetes'] = {
-        'enabled': False,
+        'enabled': 'False',
         'cassandra_url': 'None',
-        'use_mgmt_api': False
+        'use_mgmt_api': 'False'
     }
 
     if config_file:
@@ -156,47 +172,17 @@ def load_config(args, config_file):
         )
         sys.exit(1)
 
-    config.read_dict({'storage': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(StorageConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'logging': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(LoggingConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'ssh': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(SSHConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'checks': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(ChecksConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'monitoring': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(MonitoringConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'grpc': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(GrpcConfig._fields, args)
-        if value is not None
-    }})
-
-    config.read_dict({'kubernetes': {
-        key: value
-        for key, value in _zip_fields_with_arg_values(KubernetesConfig._fields, args)
-        if value is not None
-    }})
+    # Override config file settings with command line options
+    for config_section in config.keys():
+        # Default section is not used in medusa.ini
+        if config_section == 'DEFAULT':
+            continue
+        settings = CONFIG_SECTIONS[config_section]._fields
+        config.read_dict({config_section: {
+            key: value
+            for key, value in _zip_fields_with_arg_values(settings, args)
+            if value is not None
+        }})
 
     resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
     config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
