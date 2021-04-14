@@ -8,6 +8,7 @@ Choose and initialize the storage system:
 * [Ceph Object Gateway S3 API](/docs/ceph_s3_setup.md)
 * [Azure Blob Storage setup](/docs/azure_blobs_setup.md)
 * [IBM Cloud Object Storage setup](/docs/ibm_cloud_setup.md)
+* [MinIO/S3 compatible Storage setup](/docs/minio_setup.md)
 
 Install Medusa on each Cassandra node using one of the following methods.
 
@@ -15,7 +16,7 @@ Install Medusa on each Cassandra node using one of the following methods.
 ### Online installation
 
 * if the storage backend is a locally accessible shared storage, run `sudo pip3 install cassandra-medusa`
-* if your backups are to be stored in AWS S3, IBM Cloud Object Storage or CEPH, run `sudo pip3 install cassandra-medusa[S3]`
+* if your backups are to be stored in AWS S3 or S3 compatible backends (IBM, OVHCloud, MinIO, ...), run `sudo pip3 install cassandra-medusa[S3]`
 * if your backups are to be stored in Google Cloud Storage, run `sudo pip3 install cassandra-medusa[GCS]`
 * if your backups are to be stored in Azure Blob Storage, run `sudo pip3 install cassandra-medusa[AZURE]`
 
@@ -45,27 +46,19 @@ If your Cassandra servers do not have internet access:
 
 ## Debian packages
 ### Using apt-get
-1/ Using the command line, add the following to your /etc/apt/sources.list system config file:
+1/ Using the command line, run the following:
 
 ```
-echo "deb https://dl.bintray.com/thelastpickle/medusa-deb bionic main" | sudo tee -a /etc/apt/sources.list
+curl -1sLf \
+  'https://dl.cloudsmith.io/public/thelastpickle/medusa/setup.deb.sh' \
+  | sudo -E bash
 ```
 
-Note: since Medusa 0.8 we publish releases for `xenial`, `stretch`, `bionic` and `focal`.
+In case of problem, read the full instructions on the [cloudsmith.io documentation](https://cloudsmith.io/~thelastpickle/repos/medusa/setup/#formats-deb)
 
-Or, add the repository URLs using the “Software Sources” admin UI:
+*Note: since Medusa 0.9 we publish releases for Ubuntu `bionic` and `focal` only.*
 
-```
-deb https://dl.bintray.com/thelastpickle/medusa-deb bionic main
-```
-
-2/ Install the public key:
-
-```
-sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 2895100917357435
-```
-
-3/ Install Medusa :
+2/ Install Medusa :
 
 ```
 sudo apt-get update
@@ -74,6 +67,6 @@ sudo apt-get install cassandra-medusa
 
 4/ (optional) Install the storage dependencies
 
-* if your backups are to be stored in AWS S3, IBM Cloud Object Storage or CEPH, run `sudo apt-get install awscli`
+* if your backups are to be stored in AWS S3 and all S3 compatible backends, run `sudo apt-get install awscli`
 * if your backups are to be stored in Azure Blob Storage, run `sudo apt-get install azure-cli`
 * if your backups are to be stored in Google Cloud Storage, [follow this quickstart guide from Google](https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu).
