@@ -433,7 +433,8 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "aws_cli_path": "aws",
             "host": "s3.eu.cloud-object-storage.appdomain.cloud",
             "region": "eu-smart",
-            "transfer_max_bandwidth": "1MB/s"
+            "transfer_max_bandwidth": "1MB/s",
+            "secure": True
         }
 
     config["cassandra"] = {

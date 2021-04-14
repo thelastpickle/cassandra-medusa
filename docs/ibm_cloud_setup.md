@@ -9,7 +9,7 @@ Create a new object storage bucket that will be used to store the backups using 
 aws --profile default --endpoint-url https://s3.us.cloud-object-storage.appdomain.cloud s3api create-bucket --bucket <bucket name> --create-bucket-configuration LocationConstraint=us-smart
 ```
 
-The endpoint URLs and their corresponding location constraints can be found [here](https://github.com/thelastpickle/cassandra-medusa/blob/master/medusa/libcloud/storage/drivers/ibm.py#L27-L123). Medusa was tested against `smart` storage geo replicated buckets only.
+The endpoint URLs and their corresponding location constraints can be found [here](https://github.com/thelastpickle/cassandra-medusa/blob/v0.8.1/medusa/libcloud/storage/drivers/ibm.py#L28-L123). Medusa was tested against `smart` storage geo replicated buckets only.
 
 ### Create a service credential
 
@@ -48,11 +48,16 @@ Place this file on all Apache Cassandra™ nodes running medusa under `/etc/medu
 Set the `key_file` value in the `[storage]` section of `/etc/medusa/medusa.ini` to the credentials file:  
 
 ```
+[storage]
+storage_provider = s3_compatible
 bucket_name = <bucket name>
 key_file = /etc/medusa/medusa-ibm-credentials
-region = us-smart
+; replace the following with your bucket's region and host
+region = eu-smart
+host = s3.eu.cloud-object-storage.appdomain.cloud
+secure = True
 ```
 
-Note: adjust the region in the `medusa.ini` file to match your bucket's location constraint.
+Note: adjust bucket_name and the host/region settings in the `medusa.ini` file to match your bucket's location constraint.
 
 Medusa should now be able to access the bucket and perform all required operations.
