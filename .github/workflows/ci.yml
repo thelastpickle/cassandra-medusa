@@ -207,7 +207,7 @@ jobs:
           fi
         fi
 
-  release-debian:
+  publish-debian:
     # We can only release if the build above succeeded first
     needs: [debian-build, build, integration-tests]
     if: github.event_name == 'release' && github.event.action == 'published'
@@ -222,41 +222,27 @@ jobs:
         sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         sudo chmod +x /usr/local/bin/docker-compose
         sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-    - name: Build and Upload Debian
-      env:
-        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
-        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
+    - name: Build Debian
       run: |
         version=$(cat VERSION)
+        echo "VERSION=$version" >> $GITHUB_ENV
         cd packaging/docker-build
         docker-compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
             && docker-compose run "cassandra-medusa-builder-${{ matrix.suite }}"
         
-        cd ../..
-        if [ -f "packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" ]; then
-          echo "uploading packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb from ${{ matrix.suite }} to Bintray"
-          curl -T "packages/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" \
-            -u${BINTRAY_USERNAME}:${BINTRAY_KEY} \
-            -H X-Bintray-Debian-Distribution:${{ matrix.suite }} -H X-Bintray-Debian-Component:main -H X-Bintray-Debian-Architecture:amd64 -H X-Bintray-Version:${version} \
-            https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
-        else
-          echo "Error: no packages found for ${{ matrix.suite }}"
-        fi
-  
-  publish-debian:
-    needs: [release-debian]
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@v2
-    - name: Publish Debian version
-      env:
-        BINTRAY_USERNAME: ${{ secrets.BINTRAY_USERNAME }}
-        BINTRAY_KEY: ${{ secrets.BINTRAY_KEY }}
-      run: |
-        version=$(cat VERSION)
-        echo "Publishing release ${version} in Bintray"
-        curl -X POST -u${BINTRAY_USERNAME}:${BINTRAY_KEY} https://api.bintray.com/content/thelastpickle/medusa-deb/cassandra-medusa/${version}/publish
+    - name: Push Debian to Cloudsmith
+      id: push-deb
+      uses: cloudsmith-io/action@master
+      with:
+        api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
+        command: 'push'
+        format: 'deb'
+        owner: 'thelastpickle'
+        repo: 'medusa'
+        distro: 'ubuntu'
+        release: ${{ matrix.suite }}
+        republish: 'true'
+        file: "packages/cassandra-medusa_${{ env.VERSION }}-0~${{ matrix.suite }}0_amd64.deb"
 
   publish-docker:
     needs: [publish-debian]
