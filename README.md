@@ -15,7 +15,7 @@
 # limitations under the License.
 -->
 
-[![Build Status](https://github.com/thelastpickle/cassandra-medusa/actions/workflows/ci.yaml/badge.svg?branch=master)](https://github.com/thelastpickle/cassandra-medusa/actions?query=branch%3Amaster)
+![Build Status](https://github.com/thelastpickle/cassandra-medusa/actions/workflows/ci.yml/badge.svg?branch=master)
 
 [![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.io/~thelastpickle/repos/medusa/packages/)
 
