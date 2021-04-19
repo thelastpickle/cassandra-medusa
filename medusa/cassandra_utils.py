@@ -29,7 +29,6 @@ from medusa.utils import null_if_empty
 
 from subprocess import PIPE
 from retrying import retry
-from cassandra import ProtocolVersion
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
@@ -89,8 +88,7 @@ class CqlSessionProvider(object):
         cluster = Cluster(contact_points=self._ip_addresses,
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles,
-                          ssl_context=self._ssl_context,
-                          protocol_version=ProtocolVersion.V4)
+                          ssl_context=self._ssl_context)
 
         if retry:
             max_retries = 5
