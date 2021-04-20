@@ -33,6 +33,7 @@ from retrying import retry
 from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from subprocess import PIPE
 
+from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.nodetool import Nodetool
 from medusa.service.snapshot import SnapshotService
@@ -348,6 +349,7 @@ class Cassandra(object):
         self.grpc_config = config.grpc
         self.kubernetes_config = config.kubernetes
         self.snapshot_service = SnapshotService(config=config).snapshot_service
+        self.release_version = release_version
 
     def _has_systemd(self):
         try:
@@ -608,9 +610,7 @@ def is_node_up(config, host):
         logging.debug('Checking ccm health')
         return is_ccm_healthy(check_type)
 
-    cassandra_version = host.release_version if host is not None else None
-    logging.debug('Checking cassandra health for version {}'.format(cassandra_version))
-    return is_cassandra_healthy(check_type, Cassandra(config, release_version=cassandra_version), host)
+    return is_cassandra_healthy(check_type, Cassandra(config, release_version=HostMan.get_release_version(host)), host)
 
 
 def is_ccm_healthy(check_type):
@@ -644,14 +644,19 @@ def is_cassandra_healthy(check_type, cassandra, host):
     Utilizes knowledge of an enabled encrypt conn. or not-enabled encrypt conn. to use ports from Cassandra config.
     Both native and storage(gossip) ports can vary based on the encrypt conn. enablement.
     The specific port knowledge is assigned at the CassandraConfigReader object level.
-
-    The underlying is_cassandra_up has built-in retry logic.
+    The invoked is_cassandra_up includes retry logic.
     """
 
     try:
+        if not cassandra or not host or not host.host_id:
+            return False
+
         native_port = cassandra.native_port
         storage_port = cassandra.storage_port
         rpc_port = cassandra.rpc_port
+        logging.debug('Checking Cassandra health type: {} for host id: {} '
+                      'release_ver: {} native_port: {} storage_port: {}, rpc_port: {} '
+                      .format(type, host.host_id, cassandra.release_version, native_port, storage_port, rpc_port))
 
         if check_type == 'thrift':
             return is_cassandra_up(host, rpc_port)
@@ -709,6 +714,7 @@ def is_cassandra_up(host, port):
         return True
     else:
         logging.debug('The node {} is not up yet...'.format(host))
+    return False
 
 
 class CassandraNodeNotUpError(Exception):
