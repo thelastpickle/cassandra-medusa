@@ -109,7 +109,7 @@ class AwsCli(object):
 
         if self._config.region is not None and self._config.region != "default":
             cmd.extend(["--region", self._config.region])
-        elif self._config.storage_provider != Provider.S3 and self._config.region == "default":
+        elif not (self._config.storage_provider in [Provider.S3, "s3_compatible"]) and self._config.region == "default":
             # Legacy libcloud S3 providers that were tied to a specific region such as s3_us_west_oregon
             cmd.extend(["--region", get_driver(self._config.storage_provider).region_name])
 

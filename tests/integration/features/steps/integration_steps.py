@@ -414,7 +414,8 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
             "aws_cli_path": "aws",
             "host": "localhost",
             "port": 9000,
-            "secure": False
+            "secure": False,
+            "region": "default"
         }
     elif storage_provider.startswith("ibm"):
         config["storage"] = {
