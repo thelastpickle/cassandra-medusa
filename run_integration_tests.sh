@@ -168,4 +168,4 @@ else
    CASSANDRA_VERSION_FLAG="-D cassandra-version=${CASSANDRA_VERSION}"
 fi
 
-PYTHONPATH=../.. behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+PYTHONPATH=../.. coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
