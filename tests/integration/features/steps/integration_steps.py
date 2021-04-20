@@ -32,7 +32,7 @@ import signal
 from cassandra import ProtocolVersion
 import cassandra.cluster
 from cassandra.cluster import Cluster
-from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2, CERT_REQUIRED
+from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from zipfile import ZipFile
 
 import medusa.backup_node
@@ -945,7 +945,7 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
 @then(r'Test TLS version connections if "{client_encryption}" is turned on')
 def _i_can_connect_using_all_tls_versions(context, client_encryption):
     if client_encryption == 'with_client_encryption':
-        for tls_version in [PROTOCOL_TLSv1, PROTOCOL_TLSv1_1, PROTOCOL_TLSv1_2]:
+        for tls_version in [PROTOCOL_TLS, PROTOCOL_TLSv1_2]:
             connect_cassandra(True, tls_version)
 
 
