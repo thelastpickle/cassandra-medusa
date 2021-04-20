@@ -19,12 +19,15 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest import mock
+from unittest.mock import Mock, MagicMock
 
 import yaml
 from cassandra.metadata import Murmur3Token
+from cassandra.pool import Host
 
-from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra
+import medusa.cassandra_utils
+from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra, is_cassandra_healthy
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict, \
     KubernetesConfig
 from medusa.nodetool import Nodetool
@@ -516,14 +519,14 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual(c.native_port, 9142)
 
     @staticmethod
-    def get_simple_medusa_config(yaml_file=None):
+    def get_simple_medusa_config(yaml_file='resources/yaml/original/default-c4.yaml', is_ccm_active='1'):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__),
                                         yaml_file),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'is_ccm': '1'
+            'is_ccm': is_ccm_active
         }
         config["grpc"] = {
             "enabled": "0"
@@ -542,6 +545,125 @@ class CassandraUtilsTest(unittest.TestCase):
             logging=None,
         )
         return medusa_config
+
+    @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
+    def test_is_cassandra_v2_healthy(self, fm):
+        fm.return_value = True
+
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_0-id")
+        host.release_version = "2"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v2 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c2.yaml')
+
+        cassandra_v2 = Cassandra(medusa_config_v2, release_version="2")
+
+        # When c* version 2 is used, check for the port values.
+        self.assertTrue(is_cassandra_healthy("all", cassandra_v2, host))
+        assert fm.call_count == 3
+
+    @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
+    def test_is_cassandra_v3_healthy(self, fm):
+        fm.return_value = True
+
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
+        host.release_version = "3"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v3 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c3.yaml')
+
+        cassandra_v3 = Cassandra(medusa_config_v3, release_version="3")
+
+        # When c* version 3 is used, check for the port values.
+        self.assertTrue(is_cassandra_healthy("all", cassandra_v3, host))
+        assert fm.call_count == 3
+
+    @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
+    def test_is_cassandra_v4_healthy(self, fm):
+        fm.return_value = True
+
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
+        host.release_version = "4"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+
+        # When c* version 4 is used, check for the port values.
+        self.assertTrue(is_cassandra_healthy("all", cassandra_v4, host))
+        assert fm.call_count == 3
+
+    @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
+    def test_is_cassandra_healthy_check_type_unknown2(self, is_cassandra_up_mock):
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
+        host.release_version = "4"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+
+        is_cassandra_up_mock.return_value = True
+        self.assertTrue(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
+        assert is_cassandra_up_mock.call_count == 1
+
+        is_cassandra_up_mock.call_count = 0
+        is_cassandra_up_mock.return_value = False
+        self.assertFalse(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
+        assert is_cassandra_up_mock.call_count == 2
+
+    @mock.patch.object(medusa.cassandra_utils, "is_open")
+    def test_is_cassandra_healthy_check_type_unknown(self, is_open):
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
+        host.release_version = "4"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+
+        is_open.return_value = True
+        self.assertTrue(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
+        print("is_open.call_count:", is_open.call_count)
+        assert is_open.call_count == 1
+
+        is_open.call_count = 0
+        is_open.return_value = False
+        self.assertFalse(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
+
+        assert is_open.call_count == 2
+
+    def test_is_cass_default_ports_valid(self):
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v2 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c2.yaml')
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v3 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c3.yaml')
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+
+        cassandra_v2 = Cassandra(medusa_config_v2, release_version="2")
+        cassandra_v3 = Cassandra(medusa_config_v3, release_version="3")
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+
+        assert cassandra_v2.rpc_port == 9160
+        assert cassandra_v2.native_port == 9042
+        assert cassandra_v2.storage_port == 7000
+
+        assert cassandra_v3.rpc_port == 9160
+        assert cassandra_v3.native_port == 9042
+        assert cassandra_v3.storage_port == 7000
+
+        assert cassandra_v4.rpc_port == 9160
+        assert cassandra_v4.native_port == 9042
+        assert cassandra_v4.storage_port == 7000
 
 
 if __name__ == '__main__':
