@@ -16,13 +16,12 @@
 
 import setuptools
 
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name='cassandra-medusa',
-    version='0.10.0-dev',
+    version='0.11.0-dev',
     author='The Last Pickle',
     author_email='medusa@thelastpickle.com',
     url='https://github.com/thelastpickle/cassandra-medusa',
@@ -46,7 +45,7 @@ setuptools.setup(
         'Click>=6.7',
         'click-aliases>=1.0.1',
         'PyYAML>=5.1',
-        'cassandra-driver>=3.14.0',
+        'cassandra-driver>=3.25.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
         'apache-libcloud<3.4.0,>=3.3.0',
@@ -54,8 +53,9 @@ setuptools.setup(
         'cryptography<=3.3.2,>=2.5',
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
-        'parallel-ssh==1.9.1',
+        'parallel-ssh==1.13.0',
         'ssh2-python==0.19.0',  # <-- ssh2-python==0.20.0 is broken, 0.22.0+ should work.
+        'ssh-python>=0.6.0',
         'requests==2.22.0',
         'protobuf>=3.12.0',
         'grpcio>=1.29.0',

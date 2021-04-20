@@ -18,7 +18,9 @@ Options:
   --help                   Show this message and exit.
 
 Commands:
-  backup                          Backup Cassandra
+  backup-cluster                  Backup Cassandra on the whole cluster
+  backup                          Backup Cassandra on the current node
+  backup-node                     Backup Cassandra on the current node
   build-index                     Builds indices for all present backups
                                   and...
   download                        Download backup

@@ -26,11 +26,7 @@ import subprocess
 import time
 from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
 from subprocess import PIPE
-
-
-import yaml
-from cassandra import ProtocolVersion
-from cassandra.auth import PlainTextAuthProvider
+from retrying import retry
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.util import Version
@@ -93,8 +89,7 @@ class CqlSessionProvider(object):
         cluster = Cluster(contact_points=self._ip_addresses,
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles,
-                          ssl_context=self._ssl_context,
-                          protocol_version=ProtocolVersion.V4)
+                          ssl_context=self._ssl_context)
 
         if retry:
             max_retries = 5
@@ -708,7 +703,6 @@ def is_open(host, port):
         logging.debug('Port {} closed on host {}'.format(port, host), exc_info=e)
     finally:
         s.close()
-
     return is_accessible
 
 

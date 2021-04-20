@@ -2,7 +2,7 @@ python-dateutil<2.8.1,>=2.1
 Click>=6.7
 click-aliases>=1.0.1
 PyYAML>=5.1
-cassandra-driver>=3.14.0
+cassandra-driver>=3.25.0
 psutil>=5.4.7
 ffwd>=0.0.2
 apache-libcloud<3.4.0,>=3.3.0
@@ -12,7 +12,8 @@ pycryptodome>=3.9.9
 retrying>=1.3.3
 # ssh2-python==0.20.0 is broken, 0.22.0+ should work.
 ssh2-python==0.19.0
-parallel-ssh==1.9.1
+ssh-python>=0.6.0
+parallel-ssh==1.13.0
 requests==2.22.0
 wheel>=0.32.0
 gevent
