@@ -82,9 +82,9 @@ class CqlSessionProvider(object):
             'local': ExecutionProfile(load_balancing_policy=load_balancing_policy)
         }
 
-    def new_session(self, is_retry=False):
+    def new_session(self, retry=False):
         """
-        Creates a new CQL session. If is_retry is True then attempt to create a CQL session with retry logic. The max
+        Creates a new CQL session. If retry is True then attempt to create a CQL session with retry logic. The max
         number of retries is currently hard coded at 5 and the delay between attempts is also hard coded at 5 sec. If
         no session can be created after the max retries is reached, an exception is raised.
          """
@@ -94,7 +94,7 @@ class CqlSessionProvider(object):
                           execution_profiles=self._execution_profiles,
                           ssl_context=self._ssl_context)
 
-        if is_retry:
+        if retry:
             max_retries = 5
             attempts = 0
 
