@@ -41,7 +41,7 @@ def verify_restore(hosts, config):
         logging.info('Executing restore verify query: {}'.format(restore_verify_query))
 
         session_provider = _get_cql_session_provider(config, hosts)
-        with session_provider.new_session(retry=True) as cql_session:
+        with session_provider.new_session(is_retry=True) as cql_session:
             results = cql_session.session.execute(restore_verify_query)
             rows, actual_row_count = _consume_results(results)
             logging.info('Restore verify query completed successfully')
