@@ -19,28 +19,27 @@
 import fileinput
 import itertools
 import logging
+import os
 import pathlib
 import shlex
 import socket
 import subprocess
 import time
-import os
-from medusa.utils import null_if_empty
-
+from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
 from subprocess import PIPE
 
 import yaml
-
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.auth import PlainTextAuthProvider
-from ssl import SSLContext, PROTOCOL_TLS, CERT_REQUIRED
-from medusa.network.hostname_resolver import HostnameResolver
-from medusa.service.snapshot import SnapshotService
-from medusa.nodetool import Nodetool
 from cassandra.util import Version
 from retrying import retry
+
 from medusa.host_man import HostMan
+from medusa.network.hostname_resolver import HostnameResolver
+from medusa.nodetool import Nodetool
+from medusa.service.snapshot import SnapshotService
+from medusa.utils import null_if_empty
 
 
 class SnapshotPath(object):
@@ -296,17 +295,10 @@ class CassandraConfigReader(object):
             elif 'native_transport_port' in self._config and \
                     self._config['native_transport_port'] is not None:
                 return self._config['native_transport_port']
-
-        client_encryption = self._config['client_encryption_options']['enabled']
-        if client_encryption in self._config and client_encryption and client_encryption is True:
-            native_transport_port_ssl = self._config['native_transport_port_ssl']
-            if native_transport_port_ssl in self._config and native_transport_port_ssl:
-                return native_transport_port_ssl
             return "9142"
 
-        native_transport_port = self._config['native_transport_port']
-        if native_transport_port in self._config and native_transport_port:
-            return native_transport_port
+        if 'native_transport_port' in self._config and self._config['native_transport_port']:
+            return self._config['native_transport_port']
         return "9042"
 
     @property
