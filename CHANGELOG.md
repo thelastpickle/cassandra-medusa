@@ -1,5 +1,13 @@
 ## Change Log
 
+### 0.10.1 (2021/04/27 12:37 +00:00)
+- Add retries for Azure to remove test flakiness (@adejanovski)
+- Publish debian packages to Cloudsmith (@adejanovski)
+- Updated to support python 3.9 (@dmitry-saprykin)
+- Use python 3.9 in CI (@adejanovski)
+- Upgrade cassandra driver and remove protocol V4 enforcement (@adejanovski)
+- Fix S3 compatible backend uploads when no region is specified (@adejanovski)
+
 ### 0.10.0 (2021/04/08 09:22 +00:00)
 - Force int type for ports to the C* object (@ivanmp91)
 - add handler for sigterm and use exec to run server.py script (@jsanda)
