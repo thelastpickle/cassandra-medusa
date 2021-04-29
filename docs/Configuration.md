@@ -65,6 +65,7 @@ multi_part_upload_threshold = 104857600
 [ssh]
 ;username = <SSH username to use for restoring clusters>
 ;key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
+;cert_file = <Path of public key signed certificate file to use for authentication. The corresponding private key must also be provided via key_file parameter>
 
 [checks]
 ;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>

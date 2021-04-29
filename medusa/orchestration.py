@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import paramiko
 import logging
-from pssh.clients.miko import ParallelSSHClient
+from pssh.clients.ssh import ParallelSSHClient
 from medusa.storage import divide_chunks
 
 
@@ -43,10 +42,9 @@ class Orchestration(object):
         i = 1
 
         username = self.cassandra_config.ssh.username if self.cassandra_config.ssh.username != '' else None
-        port = self.cassandra_config.ssh.port
-        pkey = None
-        if self.cassandra_config.ssh.key_file is not None and self.cassandra_config.ssh.key_file != '':
-            pkey = paramiko.RSAKey.from_private_key_file(self.cassandra_config.ssh.key_file)
+        port = int(self.cassandra_config.ssh.port)
+        pkey = self.cassandra_config.ssh.key_file if self.cassandra_config.ssh.key_file != '' else None
+        cert_file = self.cassandra_config.ssh.cert_file if self.cassandra_config.ssh.cert_file != '' else None
 
         logging.info('Executing "{command}" on following nodes {hosts} with a parallelism/pool size of {pool_size}'
                      .format(command=command, hosts=hosts, pool_size=self.pool_size))
@@ -58,16 +56,15 @@ class Orchestration(object):
                                        pool_size=len(parallel_hosts),
                                        user=username,
                                        port=port,
-                                       pkey=pkey)
+                                       pkey=pkey,
+                                       cert_file=cert_file)
             logging.debug('Batch #{i}: Running "{command}" on nodes {hosts} parallelism of {pool_size}'
                           .format(i=i, command=command, hosts=parallel_hosts, pool_size=len(parallel_hosts)))
             output = client.run_command(command, host_args=hosts_variables, sudo=True)
             client.join(output)
 
-            success = success + list(filter(lambda host_output: host_output.exit_code == 0,
-                                            list(map(lambda host_output: host_output[1], output.items()))))
-            error = error + list(filter(lambda host_output: host_output.exit_code != 0,
-                                        list(map(lambda host_output: host_output[1], output.items()))))
+            success = success + list(filter(lambda host_output: host_output.exit_code == 0, output))
+            error = error + list(filter(lambda host_output: host_output.exit_code != 0, output))
 
         # Report on execution status
         if len(success) == len(hosts):
