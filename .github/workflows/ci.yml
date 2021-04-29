@@ -36,7 +36,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install tox
-        pip install coveralls
+
     - name: Lint with flake8
       run: |
         pip install flake8
@@ -46,17 +46,13 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
     - name: Run tox
       env:
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         . venv/bin/activate
         tox -e ${{ matrix.tox-py }}
 
-        # Report partial code coverage
-        if [[ -n ${{ secrets.COVERALLS_REPO_TOKEN }} ]];
-        then
-          coveralls
-        fi
+    - uses: codecov/codecov-action@v1
+      name: Report code coverage  
 
   debian-build:
     # Build debian packages
@@ -177,12 +173,11 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-test.txt
         pip install ccm
-        pip install coveralls
-    - name: Check if integration tests and coveralls can run
+
+    - name: Check if integration tests can run
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_KEY }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
       run: |
         if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) \
           || ( "${{ matrix.it-backend }}" == "local" ) \
@@ -196,20 +191,11 @@ jobs:
           echo "IT_CAN_RUN=no" >> $GITHUB_ENV
         fi 
 
-        # Check if code coverage can be reported
-        if [[ -n ${{ env.COVERALLS_REPO_TOKEN }} ]];
-        then
-          echo "COVERALLS_CAN_RUN=yes" >> $GITHUB_ENV
-        else
-          echo "COVERALLS_CAN_RUN=no" >> $GITHUB_ENV
-        fi
-
     - name: Run integration tests
       if: ${{ env.IT_CAN_RUN == 'yes' }}
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_KEY }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
-        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
       run: |
         set -e
         . venv/bin/activate
@@ -268,23 +254,13 @@ jobs:
           ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
         fi
 
-        # Report partial code coverage
-        if [[ "${{ env.COVERALLS_CAN_RUN }}" == "yes" ]];
-        then
-          mv tests/integration/.coverage .
-          coveralls
-        fi
+        # Move and convert the coverage analysis file to XML
+        mv tests/integration/.coverage .
+        coverage xml
+
+    - uses: codecov/codecov-action@v1
+      name: Report code coverage
   
-  finish-coveralls:
-    needs: integration-tests
-    runs-on: ubuntu-latest
-    steps:
-    - name: Coveralls Finished
-      if: ${{ env.COVERALLS_CAN_RUN }} == 'yes'
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        parallel-finished: true
     
   publish-debian:
     # We can only release if the build above succeeded first
