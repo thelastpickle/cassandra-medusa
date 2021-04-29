@@ -53,8 +53,8 @@ setuptools.setup(
         'cryptography<=3.3.2,>=2.5',
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
-        'parallel-ssh==1.13.0',
-        'ssh2-python==0.19.0',  # <-- ssh2-python==0.20.0 is broken, 0.22.0+ should work.
+        'parallel-ssh==2.2.0',
+        'ssh2-python==0.22.0',
         'ssh-python>=0.6.0',
         'requests==2.22.0',
         'protobuf>=3.12.0',
