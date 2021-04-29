@@ -27,3 +27,4 @@ installed-by-dh_installdocs
 debian/.debhelper
 debian/cassandra-medusa/
 .coverage
+coverage.xml
