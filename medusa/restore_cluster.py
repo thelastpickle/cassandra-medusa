@@ -25,6 +25,7 @@ import uuid
 import medusa.config
 import medusa.utils
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
+from medusa.host_man import HostMan
 from medusa.monitoring import Monitoring
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.orchestration import Orchestration
@@ -34,7 +35,7 @@ from medusa.verify_restore import verify_restore
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, keyspaces, tables, parallel_restores, use_sstableloader=False):
+                verify, keyspaces, tables, parallel_restores, use_sstableloader=False, version_target=None):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -47,12 +48,12 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         if seed_target is not None and host_list is not None:
             err_msg = 'You must either provide a seed target or a list of host, not both'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         if not temp_dir.is_dir():
             err_msg = '{} is not a directory'.format(temp_dir)
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         storage = Storage(config=config.storage)
 
@@ -61,10 +62,10 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         except KeyError:
             err_msg = 'No such backup --> {}'.format(backup_name)
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader)
+                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -96,8 +97,11 @@ def expand_repeatable_option(option, values):
 
 
 class RestoreJob(object):
+
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 parallel_restores, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
+                 parallel_restores, keyspaces=None, tables=None, bypass_checks=False, use_sstableloader=False,
+                 version_target=None):
+
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -112,41 +116,44 @@ class RestoreJob(object):
         self.temp_dir = temp_dir  # temporary files
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
-        self.keyspaces = keyspaces
-        self.tables = tables
+        self.keyspaces = keyspaces if keyspaces else {}
+        self.tables = tables if tables else {}
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
         self.pssh_pool_size = parallel_restores
         self.cassandra = Cassandra(config)
         fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
+        self._version_target = version_target
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
         if not self.cluster_backup.is_complete():
-            raise Exception('Backup is not complete')
+            raise RuntimeError('Backup is not complete')
 
         # CASE 1 : We're restoring using a seed target. Source/target mapping will be built based on tokenmap.
         if self.seed_target is not None:
             self.session_provider = CqlSessionProvider([self.seed_target],
                                                        self.config.cassandra)
-
             with self.session_provider.new_session() as session:
                 self._populate_ringmap(self.cluster_backup.tokenmap, session.tokenmap())
+                self._capture_release_version(session)
 
         # CASE 2 : We're restoring a backup on a different cluster
         if self.host_list is not None:
             logging.info('Restore will happen on new hardware')
             self.in_place = False
             self._populate_hostmap()
+            self._capture_release_version(session=None)
             logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
         self._restore_data()
 
-    def _validate_ringmap(self, tokenmap, target_tokenmap):
+    @staticmethod
+    def _validate_ringmap(tokenmap, target_tokenmap):
         for host, ring_item in target_tokenmap.items():
             if not ring_item.get('is_up'):
-                raise Exception('Target {host} is not up!'.format(host=host))
+                raise RuntimeError('Target {host} is not up!'.format(host=host))
         if len(target_tokenmap) != len(tokenmap):
             return False
         return True
@@ -228,8 +235,8 @@ class RestoreJob(object):
             for token, hosts in backup_ringmap.items():
                 # take the node that has the same token list or pick the one with the same position in the map.
                 restore_host = target_ringmap.get(token, list(target_ringmap.values())[i])[0]
-                isSeed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
-                self.host_map[restore_host] = {'source': [hosts[0]], 'seed': isSeed}
+                is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
+                self.host_map[restore_host] = {'source': [hosts[0]], 'seed': is_seed}
                 i += 1
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
@@ -244,7 +251,8 @@ class RestoreJob(object):
                 # associate one restore host with several backups as we don't have the same number of nodes.
                 self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
 
-    def _is_restore_in_place(self, backup_tokenmap, target_tokenmap):
+    @staticmethod
+    def _is_restore_in_place(backup_tokenmap, target_tokenmap):
         # If at least one node is part of both tokenmaps, then we're restoring in place
         # Otherwise we're restoring a remote cluster
         return len(set(backup_tokenmap.keys()) & set(target_tokenmap.keys())) > 0
@@ -284,7 +292,7 @@ class RestoreJob(object):
         if proceed == 'n':
             err_msg = 'Restore manually cancelled'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         # work out which nodes are seeds in the target cluster
         target_seeds = [t for t, s in self.host_map.items() if s['seed']]
@@ -320,7 +328,7 @@ class RestoreJob(object):
         for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
             logging.info('Restoring data on {}...'.format(target))
             seeds = '' if target in target_seeds or len(target_seeds) == 0 \
-                    else '--seeds {}'.format(','.join(target_seeds))
+                else '--seeds {}'.format(','.join(target_seeds))
             hosts_variables.append((','.join(source), seeds))
 
         command = self._build_restore_cmd()
@@ -332,7 +340,7 @@ class RestoreJob(object):
             # we could implement a retry.
             err_msg = 'Some nodes failed to restore. Exiting'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         logging.info('Restore process is complete. The cluster should be up shortly.')
 
@@ -348,6 +356,7 @@ class RestoreJob(object):
         # from the control node
         verify_option = '--no-verify'
 
+        # %s placeholders in the below command will get replaced by pssh using per host command substitution
         # %s placeholders in the below command will get replaced by pssh using per host command substitution
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa {config} ' \
                   '--fqdn=%s -vvv restore-node ' \
@@ -379,7 +388,7 @@ class RestoreJob(object):
 
     def _create_or_recreate_schema_objects(self, session, keyspace, keyspace_schema):
         logging.info("(Re)creating schema for keyspace {}".format(keyspace))
-        if (keyspace not in session.cluster.metadata.keyspaces):
+        if keyspace not in session.cluster.metadata.keyspaces:
             # Keyspace doesn't exist on the target cluster. Got to create it and all the tables as well.
             session.execute(keyspace_schema['create_statement'])
         for mv in keyspace_schema['materialized_views']:
@@ -406,3 +415,26 @@ class RestoreJob(object):
             # Base tables are created now, we can create the MVs
             logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
             session.execute(mv[1])
+
+    # Capture release version as specified, from driver, or use default.
+    # This is necessary for logic that requires knowledge of differences between 2, 3, and 4.
+    def _capture_release_version(self, session):
+        # If no version specified via CLI, but have a session, get version from driver.
+        if not self._version_target and session:
+            driver_app_version = session.cluster.application_version
+            if driver_app_version:
+                logging.debug('Driver version provided as: {}'.format(driver_app_version))
+                HostMan.set_release_version(driver_app_version)
+            else:
+                logging.debug('Unable to obtain app_version via driver or command line, '
+                              'using default: {}'.format(HostMan.DEFAULT_RELEASE_VERSION))
+                # Using default as target wasn't found by driver or provided to RestoreJob
+                HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)
+        # If no session available or specified version from CLI, use default.
+        elif not self._version_target:
+            # Use default
+            HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)
+        else:
+            # Use what is specified from CLI as version.
+            logging.debug('Target version provided as: {}'.format(self._version_target))
+            HostMan.set_release_version(self._version_target)
