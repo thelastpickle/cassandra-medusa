@@ -19,7 +19,7 @@
 
 [![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.io/~thelastpickle/repos/medusa/packages/)
 
-[![Coverage Status](https://coveralls.io/repos/github/thelastpickle/cassandra-medusa/badge.svg?branch=master)](https://coveralls.io/github/thelastpickle/cassandra-medusa?branch=master)
+[![codecov](https://codecov.io/gh/thelastpickle/cassandra-medusa/branch/master/graph/badge.svg?token=KTDCRD82NU)](https://codecov.io/gh/thelastpickle/cassandra-medusa)
 
 Medusa for Apache Cassandra&trade;
 ==================================
