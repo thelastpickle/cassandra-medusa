@@ -41,6 +41,11 @@ class HostManTest(unittest.TestCase):
         assert HostMan.get_release_version(None) is None
 
     @staticmethod
+    def test_get_release_version_invalid_host():
+        invalid_host = "not-a-host"
+        assert HostMan.get_release_version(invalid_host) is None
+
+    @staticmethod
     def test_get_release_version_missing_host_id():
         host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id=None)
         host.release_version = "test-rel-ver"

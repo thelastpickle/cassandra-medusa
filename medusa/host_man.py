@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from cassandra.pool import Host
 
 
 class HostMan:
@@ -19,7 +20,8 @@ class HostMan:
 
     @staticmethod
     def get_release_version(host):
-        if not host or not host.host_id or not host.release_version:
+
+        if not host or not isinstance(host, Host) or not host.host_id or not host.release_version:
             return None
 
         if host.host_id not in HostMan.__host_releases:
