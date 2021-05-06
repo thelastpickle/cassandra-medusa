@@ -27,6 +27,7 @@ from medusa import utils
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
+
 class AwsCli(object):
     def __init__(self, storage):
         self._config = storage.config
@@ -116,7 +117,9 @@ class AwsCli(object):
 
         return cmd
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(
+        stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES,
+        wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_file(self, cmd, dest, awscli_output):
         logging.debug(" ".join(cmd))
         with open(awscli_output, "w") as output:
@@ -140,7 +143,9 @@ class AwsCli(object):
             )
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(
+        stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES,
+        wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def download_file(self, cmd, dest, awscli_output):
         logging.debug(" ".join(cmd))
         with open(awscli_output, "w") as output:
@@ -163,7 +168,9 @@ class AwsCli(object):
             )
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(
+        stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES,
+        wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, blob_name):
         # This needs to be retried as S3 is eventually consistent
         obj = self.storage.get_blob(blob_name)
