@@ -28,6 +28,7 @@ import time
 import yaml
 from cassandra.util import Version
 
+from medusa.host_man import HostMan
 from medusa.utils import null_if_empty
 
 from subprocess import PIPE
@@ -602,14 +603,18 @@ def is_node_up(config, host):
     """
     If not configured with ccm, proceed with direct health check for Cassandra.
     """
-    check_type = config.checks.health_check
-    logging.info('Verifying node state for host {} using check type {}'.format(host, check_type))
-    if int(config.cassandra.is_ccm) == 1:
-        logging.debug('Checking ccm health')
-        return is_ccm_healthy(check_type)
+    try:
+        check_type = config.checks.health_check
+        logging.info('Verifying node state for host {} using check type {}'.format(host, check_type))
+        if int(config.cassandra.is_ccm) == 1:
+            logging.debug('Checking ccm health')
+            return is_ccm_healthy(check_type)
 
-    from medusa.host_man import HostMan
-    return is_cassandra_healthy(check_type, Cassandra(config, release_version=HostMan.get_release_version(host)), host)
+        return is_cassandra_healthy(check_type, Cassandra(config, release_version=HostMan.get_release_version(host)),
+                                    host)
+    except Exception as e:
+        err_msg = 'Unable to determine if node is up for host: {}'.format(host)
+        logging.debug(err_msg, exc_info=e)
 
 
 def is_ccm_healthy(check_type):
