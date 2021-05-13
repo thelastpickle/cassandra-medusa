@@ -175,13 +175,14 @@ def list_backups(medusaconfig, show_all):
     """
     List backups
     """
-    medusa.listing.list_backups(medusaconfig, show_all)
+    print("Listing backups")
+    # medusa.listing.list_backups(medusaconfig, show_all)
 
 
 @cli.command(name='download')
 @click.option('--backup-name', help='Custom name for the backup', required=True)
 @click.option('--download-destination', help='Download destination', required=True)
-@click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace, use --keyspace ks1 [--keyspace ks2]",
+@click.option('--keyspace', 'keyspaces', help="Restore tables fro:q1:qqqqcdfadfm this keyspace, use --keyspace ks1 [--keyspace ks2]",
               multiple=True, default={})
 @click.option('--table', 'tables', help="Restore only this table, use --table ks.t1 [--table ks.t2]",
               multiple=True, default={})
