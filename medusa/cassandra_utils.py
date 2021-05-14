@@ -25,21 +25,21 @@ import shlex
 import socket
 import subprocess
 import time
-import yaml
-from cassandra.util import Version
-
-from medusa.host_man import HostMan
-from medusa.utils import null_if_empty
-
+from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from subprocess import PIPE
-from retrying import retry
+
+import yaml
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.auth import PlainTextAuthProvider
-from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
+from cassandra.util import Version
+from retrying import retry
+
+from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
-from medusa.service.snapshot import SnapshotService
 from medusa.nodetool import Nodetool
+from medusa.service.snapshot import SnapshotService
+from medusa.utils import null_if_empty
 
 
 class SnapshotPath(object):
@@ -615,6 +615,7 @@ def is_node_up(config, host):
     except Exception as e:
         err_msg = 'Unable to determine if node is up for host: {}'.format(host)
         logging.debug(err_msg, exc_info=e)
+        return False
 
 
 def is_ccm_healthy(check_type):
@@ -666,8 +667,8 @@ def is_cassandra_healthy(check_type, cassandra, host):
             return is_cassandra_up(host, rpc_port)
         elif check_type == 'all':
             # Port checks to include all of: rpc, native, and storage(gossip) health.
-            return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) and \
-                is_cassandra_up(host, storage_port)
+            return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) \
+                and is_cassandra_up(host, storage_port)
         else:
             # Default port checks for native OR storage(gossip).
             return is_cassandra_up(host, native_port) or is_cassandra_up(host, storage_port)
@@ -690,28 +691,30 @@ def is_ccm_up(args, nodetool_command):
         else:
             logging.debug('CCM native transport is not up yet')
             return False
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         logging.debug('CCM native transport is not up yet', exc_info=e)
         return False
 
 
 def is_open(host, port):
-    timeout = 3
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
     is_accessible = False
+    timeout = 3
+    s = None
     try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
         s.connect((host, port))
         s.shutdown(socket.SHUT_RDWR)
         is_accessible = True
     except socket.error as e:
-        logging.debug('Port {} closed on host {}'.format(port, host), exc_info=e)
+        logging.error('Port {} closed on host {}'.format(port, host), exc_info=e)
     finally:
         try:
-            s.close()
+            if s:
+                s.close()
         except os.error as ose:
-            logging.error('Port {} close on host {}'.format(port, host), exc_info=ose)
-
+            logging.warning('Socket used for Port {} check failed to close for host {}'.format(port, host),
+                            exc_info=ose)
     return is_accessible
 
 

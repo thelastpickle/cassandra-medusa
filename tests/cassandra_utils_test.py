@@ -12,13 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import _socket
 import configparser
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
-
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, MagicMock
@@ -590,9 +590,14 @@ class CassandraUtilsTest(unittest.TestCase):
                                                          config_checks={"health_check": "all"})
 
         self.assertTrue(medusa.cassandra_utils.is_node_up(medusa_config_v4, host))
-
         assert fm_cass.call_count == 1
         assert fm_ccm.call_count == 0
+
+        # generate exception as side-effect
+        fm_cass.side_effect = Exception("Not good.")
+
+        # And, when an exception occurs during the check, expect a return of False
+        self.assertFalse(medusa.cassandra_utils.is_node_up(medusa_config_v4, host))
 
     @mock.patch.object(medusa.cassandra_utils, "is_ccm_up")
     def test_is_ccm_healthy(self, fm):
@@ -608,6 +613,9 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertTrue(medusa.cassandra_utils.is_ccm_healthy("whatever"))
         assert fm.call_count == 1
         fm.call_count = 0
+
+        fm.side_effect = Exception("Not good.")
+        self.assertFalse(medusa.cassandra_utils.is_ccm_healthy("all"))
 
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_v2_healthy(self, fm):
@@ -658,6 +666,24 @@ class CassandraUtilsTest(unittest.TestCase):
         # When c* version 4 is used, check for the port values.
         self.assertTrue(is_cassandra_healthy("all", cassandra_v4, host))
         assert fm.call_count == 3
+
+    @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
+    def test_is_cassandra_healthy_check_types(self, fm):
+
+        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
+        host.release_version = "4"
+
+        # Not using ccm, directing check for cassandra health.
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+
+        # When c* version 4 is used, check for the port values.
+        fm.return_value = True
+        self.assertTrue(is_cassandra_healthy("all", cassandra_v4, host))
+        self.assertTrue(is_cassandra_healthy("thrift", cassandra_v4, host))
+        self.assertTrue(is_cassandra_healthy("unknown", cassandra_v4, host))
 
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_healthy_check_type_unknown2(self, is_cassandra_up_mock):
@@ -743,6 +769,105 @@ class CassandraUtilsTest(unittest.TestCase):
         assert cassandra_v4.rpc_port == 9160
         assert cassandra_v4.native_port == 9042
         assert cassandra_v4.storage_port == 7000
+
+    @mock.patch.object(medusa.cassandra_utils.Cassandra, "replace_tokens_in_cassandra_yaml_and_disable_bootstrap")
+    @mock.patch.object(subprocess, "check_output")
+    def test_cassandra_start(self, subproc_mock, replace_tokens_mock):
+
+        subproc_mock.return_value = None
+        replace_tokens_mock.return_value = None
+        subproc_mock.call_count = 0
+        replace_tokens_mock.call_count = 0
+
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+        cassandra_v4.start(['test-token'])
+
+        # When start invoked with ccm active, expect both check_output and replace tokens are
+        # invoked.
+        assert subproc_mock.call_count == 1 and replace_tokens_mock.call_count == 1
+
+        # And, when start invoked with ccm active, expect that only check_output is called
+        # as there is no need to replace tokens in c* yaml and disabling bootstrap.
+        subproc_mock.call_count = 0
+        replace_tokens_mock.call_count = 0
+
+        medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="1",
+                                                         yaml_file='resources/yaml/original/default-c4.yaml')
+        cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
+        cassandra_v4.start(['test-token'])
+        assert subproc_mock.call_count == 1 and replace_tokens_mock.call_count == 0
+
+    @mock.patch.object(subprocess, "check_output")
+    def test_is_ccm_up(self, check_mock):
+
+        check_mock.return_value = "running"
+
+        self.assertTrue(medusa.cassandra_utils.is_ccm_up([], "test-nt-cmd"))
+
+        check_mock.return_value = "not running"
+        self.assertFalse(medusa.cassandra_utils.is_ccm_up([], "test-nt-cmd"))
+
+        check_mock.side_effect = Exception("unknown issue reported")
+        self.assertFalse(medusa.cassandra_utils.is_ccm_up([], "test-nt-cmd"))
+
+    @staticmethod
+    def socket_connect_exception():
+        return _socket.error("socket connect not good")
+
+    @staticmethod
+    def socket_close_exception():
+        return _socket.error("socket close not good")
+
+    @mock.patch('socket.socket')
+    def test_is_open_valid(self, mock_socket):
+
+        mock_instance = mock_socket.return_value
+        mock_instance.socket.side_effect = None
+        mock_instance.connect.side_effect = None
+        mock_instance.shutdown.side_effect = None
+        mock_instance.close.side_effect = None
+
+        self.assertTrue(medusa.cassandra_utils.is_open("test-host", 2001))
+
+        assert mock_socket.call_count == 1
+        assert mock_instance.connect.call_count == 1
+        assert mock_instance.shutdown.call_count == 1
+        assert mock_instance.close.call_count == 1
+
+    @mock.patch('socket.socket')
+    def test_is_open_failed_connect(self, mock_socket):
+
+        mock_instance = mock_socket.return_value
+        mock_instance.socket.side_effect = None
+        mock_instance.connect.side_effect = self.socket_connect_exception()
+        mock_instance.shutdown.side_effect = None
+        mock_instance.close.side_effect = None
+
+        self.assertFalse(medusa.cassandra_utils.is_open("test-host", 2001))
+
+        assert mock_socket.call_count == 1
+        assert mock_instance.connect.call_count == 1
+        assert mock_instance.shutdown.call_count == 0
+        assert mock_instance.close.call_count == 1
+
+    @mock.patch('socket.socket')
+    def test_is_open_failed_close(self, mock_socket):
+
+        mock_instance = mock_socket.return_value
+        mock_instance.socket.side_effect = None
+        mock_instance.connect.side_effect = None
+        mock_instance.shutdown.side_effect = None
+        mock_instance.close.side_effect = self.socket_close_exception()
+
+        # Expect we get a good is_open status even though socket close failed.
+        self.assertTrue(medusa.cassandra_utils.is_open("test-host", 2001))
+
+        assert mock_socket.call_count == 1
+        assert mock_instance.connect.call_count == 1
+        assert mock_instance.shutdown.call_count == 1
+        assert mock_instance.close.call_count == 1
 
     if __name__ == '__main__':
         unittest.main()
