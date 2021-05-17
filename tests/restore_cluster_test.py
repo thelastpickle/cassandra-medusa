@@ -15,16 +15,16 @@
 
 import configparser
 import json
-import unittest
 import os
-
+import tempfile
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
+from medusa.config import (MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,
+                           KubernetesConfig)
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,\
-    KubernetesConfig
 
 
 class RestoreClusterTest(unittest.TestCase):
@@ -51,7 +51,9 @@ class RestoreClusterTest(unittest.TestCase):
         config['kubernetes'] = {
             "enabled": "0"
         }
-        self.config = MedusaConfig(
+        self.config = config
+        self.medusa_config = MedusaConfig(
+            file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -61,6 +63,7 @@ class RestoreClusterTest(unittest.TestCase):
             grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
             kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
+        self.tmp_dir = Path(tempfile.gettempdir())
 
     # Test that we can properly associate source and target nodes for restore using a host list
     def test_populate_ringmap(self):
@@ -71,12 +74,13 @@ class RestoreClusterTest(unittest.TestCase):
             tokenmap = json.loads(f.read())
             cluster_backup.tokenmap.return_value = tokenmap
             host_list = "tests/resources/restore_cluster_host_list.txt"
-            restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), host_list, None, False, False, None)
+            restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
+                                    None)
             restoreJob._populate_hostmap()
 
-        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['source'], ["node1.mydomain.net"])
-        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['source'], ["node2.mydomain.net"])
-        self.assertEqual(restoreJob.host_map["node3.mydomain.net"]['source'], ["node4.mydomain.net"])
+        assert restoreJob.host_map["node1.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restoreJob.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restoreJob.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
 
     # Test that we can properly associate source and target nodes for restore using a token map
     def test_populate_tokenmap(self):
@@ -88,8 +92,8 @@ class RestoreClusterTest(unittest.TestCase):
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
                     cluster_backup,
-                    self.config,
-                    Path('/tmp'),
+                    self.medusa_config,
+                    self.tmp_dir,
                     None,
                     "node1.mydomain.net",
                     False,
@@ -102,9 +106,9 @@ class RestoreClusterTest(unittest.TestCase):
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
                 assert restoreJob.use_sstableloader is False
 
-        self.assertEqual(restoreJob.host_map["node4.mydomain.net"]['source'], ["node1.mydomain.net"])
-        self.assertEqual(restoreJob.host_map["node5.mydomain.net"]['source'], ["node2.mydomain.net"])
-        self.assertEqual(restoreJob.host_map["node6.mydomain.net"]['source'], ["node3.mydomain.net"])
+        assert restoreJob.host_map["node4.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restoreJob.host_map["node5.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restoreJob.host_map["node6.mydomain.net"]['source'] == ["node3.mydomain.net"]
 
     # Test that we can't restore the cluster if the source and target topology have different sizes
     def test_populate_tokenmap_fail(self):
@@ -116,8 +120,8 @@ class RestoreClusterTest(unittest.TestCase):
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
                     cluster_backup,
-                    self.config,
-                    Path('/tmp'),
+                    self.medusa_config,
+                    self.tmp_dir,
                     None,
                     "node1.mydomain.net",
                     False,
@@ -140,7 +144,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
-                    cluster_backup, self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None
+                    cluster_backup, self.medusa_config, self.tmp_dir, None, "node1.mydomain.net", False, False, None
                 )
 
                 target_tokenmap = json.loads(f_target.read())
@@ -156,7 +160,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(
-                    cluster_backup, self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None
+                    cluster_backup, self.medusa_config, self.tmp_dir, None, "node1.mydomain.net", False, False, None
                 )
 
                 target_tokenmap = json.loads(f_target.read())
@@ -165,18 +169,17 @@ class RestoreClusterTest(unittest.TestCase):
                 assert restoreJob.use_sstableloader is True
 
     def test_expand_repeatable_option(self):
-
         option, values = 'keyspace', {}
         result = expand_repeatable_option(option, values)
-        self.assertEqual('', result)
+        assert result == ''
 
         option, values = 'keyspace', {'k1'}
         result = expand_repeatable_option(option, values)
-        self.assertEqual('--keyspace k1', result)
+        assert result == '--keyspace k1'
 
         option, values = 'keyspace', {'k1', 'k2'}
         result = expand_repeatable_option(option, sorted(list(values)))
-        self.assertEqual('--keyspace k1 --keyspace k2', result)
+        assert result == '--keyspace k1 --keyspace k2'
 
     def test_restore_is_in_place_no_diff(self):
         node_backups = list()
@@ -187,9 +190,9 @@ class RestoreClusterTest(unittest.TestCase):
             tokenmap = json.loads(tokenmap_content)
             backup_tokenmap = json.loads(tokenmap_content)
             cluster_backup.tokenmap.return_value = tokenmap
-            restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+            restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False, None)
             in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
-            self.assertTrue(in_place)
+            assert in_place
 
     def test_restore_is_in_place_one_diff(self):
         node_backups = list()
@@ -200,9 +203,10 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f2.read())
                 backup_tokenmap = json.loads(f.read())
                 cluster_backup.tokenmap.return_value = tokenmap
-                restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+                restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
+                                        None)
                 in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
-                self.assertTrue(in_place)
+                assert in_place
 
     def test_restore_is_not_in_place(self):
         node_backups = list()
@@ -213,9 +217,43 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f2.read())
                 backup_tokenmap = json.loads(f.read())
                 cluster_backup.tokenmap.return_value = tokenmap
-                restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), None, None, False, False, None)
+                restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
+                                        None)
                 in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
-                self.assertFalse(in_place)
+                assert not in_place
+
+    def test_cmd_no_config_specified(self):
+        """Ensure that command line is OK when"""
+        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
+            cluster_backup = Mock()
+            tokenmap = json.loads(f.read())
+            cluster_backup.tokenmap.return_value = tokenmap
+            host_list = "tests/resources/restore_cluster_host_list.txt"
+            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
+                                     None)
+            cmd = restore_job._build_restore_cmd()
+            assert '--config-file' not in cmd
+
+    def test_cmd_with_custom_config_path(self):
+        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
+            cluster_backup = Mock()
+            tokenmap = json.loads(f.read())
+            cluster_backup.tokenmap.return_value = tokenmap
+            host_list = "tests/resources/restore_cluster_host_list.txt"
+            config = MedusaConfig(
+                file_path='/custom/path/to/medusa.ini',
+                storage=_namedtuple_from_dict(StorageConfig, self.config['storage']),
+                monitoring={},
+                cassandra=_namedtuple_from_dict(CassandraConfig, self.config['cassandra']),
+                ssh=None,
+                checks=None,
+                logging=None,
+                grpc=_namedtuple_from_dict(GrpcConfig, self.config['grpc']),
+                kubernetes=_namedtuple_from_dict(KubernetesConfig, self.config['kubernetes']),
+            )
+            restore_job = RestoreJob(cluster_backup, config, self.tmp_dir, host_list, None, False, False, None)
+            cmd = restore_job._build_restore_cmd()
+            assert '--config-file /custom/path/to/medusa.ini' in cmd
 
 
 if __name__ == '__main__':

@@ -15,22 +15,22 @@
 # limitations under the License.
 
 import collections
-import logging
-import sys
-import uuid
 import datetime
-import traceback
+import logging
 import socket
+import sys
+import traceback
+import uuid
 
 import medusa.config
 import medusa.utils
-from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
+from medusa.monitoring import Monitoring
+from medusa.network.hostname_resolver import HostnameResolver
 from medusa.orchestration import Orchestration
 from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
-from medusa.network.hostname_resolver import HostnameResolver
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
@@ -349,10 +349,12 @@ class RestoreJob(object):
         verify_option = '--no-verify'
 
         # %s placeholders in the below command will get replaced by pssh using per host command substitution
-        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa --fqdn=%s -vvv restore-node ' \
+        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa {config} ' \
+                  '--fqdn=%s -vvv restore-node ' \
                   '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} ' \
                   '{use_sstableloader} {keyspaces} {tables}' \
             .format(work=self.work_dir,
+                    config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
                     verify=verify_option,

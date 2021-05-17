@@ -488,6 +488,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
     }
 
     context.medusa_config = MedusaConfig(
+        file_path=None,
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
@@ -514,6 +515,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     )
 
     context.medusa_config = MedusaConfig(
+        file_path=None,
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
@@ -547,6 +549,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name)
 
     context.medusa_config = MedusaConfig(
+        file_path=None,
         storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
         cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
         monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
@@ -1289,6 +1292,7 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
         "expected_rows": expected_rows,
     }
     custom_config = MedusaConfig(
+        file_path=None,
         storage=context.medusa_config.storage,
         cassandra=context.medusa_config.cassandra,
         monitoring=context.medusa_config.monitoring,

@@ -40,6 +40,7 @@ class PurgeTest(unittest.TestCase):
             'bucket_name': 'purge_test'
         }
         self.config = MedusaConfig(
+            file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=None,

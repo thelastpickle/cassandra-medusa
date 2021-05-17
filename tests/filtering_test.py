@@ -32,6 +32,7 @@ class FilteringTest(unittest.TestCase):
             'host_file_separator': ','
         }
         self.config = MedusaConfig(
+            file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=None,
