@@ -40,7 +40,7 @@ class CassandraUtilsTest(unittest.TestCase):
             'host_file_separator': ','
         }
         config['cassandra'] = {
-            'resolve_ip_addresses': False
+            'resolve_ip_addresses': 'False'
         }
         config["grpc"] = {
             "enabled": "0"
@@ -49,6 +49,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         self.config = MedusaConfig(
+            file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -149,6 +150,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -178,6 +180,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -209,6 +212,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -241,6 +245,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -279,6 +284,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -318,6 +324,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -356,6 +363,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -395,6 +403,7 @@ class CassandraUtilsTest(unittest.TestCase):
             "enabled": "0"
         }
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),

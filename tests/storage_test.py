@@ -59,6 +59,7 @@ class RestoreNodeTest(unittest.TestCase):
         }
 
         self.config = MedusaConfig(
+            file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             monitoring={},

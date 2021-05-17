@@ -56,7 +56,10 @@ MonitoringConfig = collections.namedtuple(
 
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc', 'kubernetes']
+    [
+        'file_path',  # Store a specific config file path, None for default file
+        'storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc', 'kubernetes'
+    ]
 )
 
 LoggingConfig = collections.namedtuple(
@@ -92,7 +95,7 @@ def load_config(args, config_file):
     """Load configuration from a medusa.ini file
 
     :param args: settings override. Higher priority than settings defined in medusa.ini
-    :param config_file: path to a medusa.ini file
+    :param config_file: path to a medusa.ini file or None if default path should be used
     :return: Medusa configuration
     """
     config = configparser.ConfigParser(interpolation=None)
@@ -161,17 +164,15 @@ def load_config(args, config_file):
         'use_mgmt_api': 'False'
     }
 
-    if config_file:
-        logging.debug('Loading configuration from {}'.format(config_file))
-        config.read_file(config_file.open())
-    elif DEFAULT_CONFIGURATION_PATH.exists():
-        logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
-        config.read_file(DEFAULT_CONFIGURATION_PATH.open())
-    else:
+    if config_file is None and not DEFAULT_CONFIGURATION_PATH.exists():
         logging.error(
             'No configuration file provided via CLI, nor no default file found in {}'.format(DEFAULT_CONFIGURATION_PATH)
         )
         sys.exit(1)
+
+    actual_config_file = DEFAULT_CONFIGURATION_PATH if config_file is None else config_file
+    logging.debug('Loading configuration from {}'.format(actual_config_file))
+    config.read_file(actual_config_file.open())
 
     # Override config file settings with command line options
     for config_section in config.keys():
@@ -197,6 +198,7 @@ def load_config(args, config_file):
         config['cassandra']['cql_password'] = os.environ["CQL_PASSWORD"]
 
     medusa_config = MedusaConfig(
+        file_path=config_file,
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
