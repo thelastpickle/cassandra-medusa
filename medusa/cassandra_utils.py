@@ -661,7 +661,7 @@ def is_cassandra_healthy(check_type, cassandra, host):
         rpc_port = cassandra.rpc_port
         logging.debug('Checking Cassandra health type: {} for host id: {} '
                       'release_ver: {} native_port: {} storage_port: {}, rpc_port: {} '
-                      .format(type, host.host_id, cassandra.release_version, native_port, storage_port, rpc_port))
+                      .format(check_type, host, cassandra.release_version, native_port, storage_port, rpc_port))
 
         if check_type == 'thrift':
             return is_cassandra_up(host, rpc_port)
