@@ -653,7 +653,7 @@ def is_cassandra_healthy(check_type, cassandra, host):
     """
 
     try:
-        if not cassandra or not host or not host.host_id:
+        if not cassandra or not host:
             return False
 
         native_port = cassandra.native_port
