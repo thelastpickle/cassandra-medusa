@@ -21,16 +21,16 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import yaml
 from cassandra.metadata import Murmur3Token
-from cassandra.pool import Host
 
 import medusa.cassandra_utils
 from medusa.cassandra_utils import CqlSession, SnapshotPath, Cassandra, is_cassandra_healthy
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, GrpcConfig, _namedtuple_from_dict, \
     KubernetesConfig, ChecksConfig
+from medusa.host_man import HostMan
 from medusa.nodetool import Nodetool
 
 
@@ -239,6 +239,7 @@ class CassandraUtilsTest(unittest.TestCase):
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_no_tokens.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
+            'nodetool_version_cmd': 'nodetool version',
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
@@ -279,6 +280,7 @@ class CassandraUtilsTest(unittest.TestCase):
             'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_with_tokens.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
+            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -319,6 +321,7 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
+            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -358,6 +361,7 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
+            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -398,6 +402,7 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_custom_seedprovider.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
+            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -537,6 +542,7 @@ class CassandraUtilsTest(unittest.TestCase):
                                         yaml_file),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
+            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': is_ccm_active
         }
         config["grpc"] = {
@@ -569,14 +575,18 @@ class CassandraUtilsTest(unittest.TestCase):
         fm_ccm.return_value = True
         fm_cass.return_value = True
 
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_0-id")
-        host.release_version = "4"
+        # TODO setup cache
+
+        host = "h1"
+        HostMan.set_release_version(host, "1.2.3.4")
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="1",
                                                          yaml_file='resources/yaml/original/default-c4.yaml',
                                                          config_checks={"health_check": "all"})
 
+        # TODO Setup the hostman to properly associate for this host to resolve to a release version
         # When ccm is active, expect ccm health check
         self.assertTrue(medusa.cassandra_utils.is_node_up(medusa_config_v4, host))
+
         assert fm_cass.call_count == 0
         assert fm_ccm.call_count == 1
 
@@ -621,8 +631,7 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_is_cassandra_v2_healthy(self, fm):
         fm.return_value = True
 
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_0-id")
-        host.release_version = "2"
+        host = Mock()
 
         medusa_config_v2 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c2.yaml')
@@ -636,9 +645,7 @@ class CassandraUtilsTest(unittest.TestCase):
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_v3_healthy(self, fm):
         fm.return_value = True
-
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "3"
+        host = Mock()
 
         # Not using ccm, directing check for cassandra health.
         medusa_config_v3 = self.get_simple_medusa_config(is_ccm_active="0",
@@ -653,9 +660,7 @@ class CassandraUtilsTest(unittest.TestCase):
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_v4_healthy(self, fm):
         fm.return_value = True
-
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "4"
+        host = Mock()
 
         # Not using ccm, directing check for cassandra health.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
@@ -670,8 +675,7 @@ class CassandraUtilsTest(unittest.TestCase):
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_healthy_check_types(self, fm):
 
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "4"
+        host = Mock()
 
         # Not using ccm, directing check for cassandra health.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
@@ -687,9 +691,7 @@ class CassandraUtilsTest(unittest.TestCase):
 
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_healthy_check_type_unknown2(self, is_cassandra_up_mock):
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "4"
-
+        host = Mock()
         # Not using ccm, directing check for cassandra health.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c4.yaml')
@@ -706,9 +708,7 @@ class CassandraUtilsTest(unittest.TestCase):
 
     @mock.patch.object(medusa.cassandra_utils, "is_open")
     def test_is_cassandra_healthy_check_type_unknown(self, is_open):
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "4"
-
+        host = Mock()
         # Not using ccm, directing check for cassandra health.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c4.yaml')
@@ -724,17 +724,11 @@ class CassandraUtilsTest(unittest.TestCase):
         assert is_open.call_count == 2
 
     def test_is_cassandra_healthy_invalid_input(self):
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host.release_version = "4"
-
+        host = Mock()
         # Not using ccm, directing check for cassandra health.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c4.yaml')
         cassandra_v4 = Cassandra(medusa_config_v4, release_version="4")
-
-        # invalid host without required host identifier
-        host.host_id = ""
-        self.assertFalse(is_cassandra_healthy("all", cassandra_v4, host))
 
         # invalid cassandra input
         self.assertFalse(is_cassandra_healthy("all", {}, host))

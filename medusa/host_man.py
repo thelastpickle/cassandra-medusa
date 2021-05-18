@@ -12,19 +12,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from cassandra.pool import Host
 
 
 class HostMan:
     __host_releases = dict()
 
     @staticmethod
+    def set_release_version(host, release_version):
+
+        if host and release_version and host not in HostMan.__host_releases:
+            HostMan.__host_releases[host] = release_version
+
+    @staticmethod
     def get_release_version(host):
 
-        if not host or not isinstance(host, Host) or not host.host_id or not host.release_version:
+        if not host:
             return None
 
-        if host.host_id not in HostMan.__host_releases:
-            HostMan.__host_releases[host.host_id] = host.release_version
+        if host in HostMan.__host_releases:
+            return HostMan.__host_releases[host]
 
-        return HostMan.__host_releases[host.host_id]
+        return None

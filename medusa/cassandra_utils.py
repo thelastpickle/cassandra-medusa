@@ -207,17 +207,14 @@ class CqlSession(object):
 
 class CassandraConfigReader(object):
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
-    _release_version = None
 
     def __init__(self, cassandra_config=None, release_version=None):
+        self._release_version = release_version
         config_file = pathlib.Path(cassandra_config or self.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
         with open(config_file, 'r') as f:
             self._config = yaml.load(f, Loader=yaml.BaseLoader)
-
-        # Used for port designation based on request for secured connection and target version of c*
-        self._release_version = release_version
 
     @property
     def root(self):
@@ -328,8 +325,11 @@ class Cassandra(object):
         self._os_has_systemd = self._has_systemd()
         self._nodetool = Nodetool(cassandra_config)
         logging.warning('is ccm : {}'.format(self._is_ccm))
-
-        config_reader = CassandraConfigReader(cassandra_config.config_file, release_version)
+        # Release version of c* obtained, if not specified at init, obtain using nodetool command.
+        self._release_version_cmd = shlex.split(cassandra_config.nodetool_version_cmd)
+        print("release_version_cmd = ", self._release_version_cmd)
+        self._release_version = release_version if release_version else self.get_release_version
+        config_reader = CassandraConfigReader(cassandra_config.config_file, release_version=self._release_version)
         self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
@@ -347,7 +347,6 @@ class Cassandra(object):
         self.grpc_config = config.grpc
         self.kubernetes_config = config.kubernetes
         self.snapshot_service = SnapshotService(config=config).snapshot_service
-        self.release_version = release_version
 
     @staticmethod
     def _has_systemd():
@@ -391,6 +390,10 @@ class Cassandra(object):
     @property
     def rpc_port(self):
         return int(self._rpc_port)
+
+    @property
+    def release_version(self):
+        return self._release_version
 
     class Snapshot(object):
         def __init__(self, parent, tag):
@@ -541,6 +544,29 @@ class Cassandra(object):
         logging.debug('Starting Cassandra with {}'.format(cmd))
         subprocess.check_output(cmd)
 
+    def get_release_version(self):
+        if self._release_version:
+            return self._release_version
+
+        error_msg = 'Unable to identify Cassandra release version using nodetool'
+        try:
+
+            # Obtain via nodetool
+            cmd = self._release_version_cmd
+            logging.debug('Getting release version with command {}'.format(cmd))
+            subprocess.check_output(cmd, shell=True)
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True)
+            if output:
+                self._release_version = output
+                logging.debug('Release version obtained {}'.format(self._release_version))
+                return self._release_version
+            else:
+                logging.debug(error_msg)
+        except subprocess.CalledProcessError as cpe:
+            logging.debug(error_msg, exc_info=cpe)
+
+        return None
+
     def start(self, token_list):
         if self._is_ccm == 0:
             self.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(token_list)
@@ -659,7 +685,7 @@ def is_cassandra_healthy(check_type, cassandra, host):
         native_port = cassandra.native_port
         storage_port = cassandra.storage_port
         rpc_port = cassandra.rpc_port
-        logging.debug('Checking Cassandra health type: {} for host id: {} '
+        logging.debug('Checking Cassandra health type: {} for host: {} '
                       'release_ver: {} native_port: {} storage_port: {}, rpc_port: {} '
                       .format(check_type, host, cassandra.release_version, native_port, storage_port, rpc_port))
 
@@ -667,8 +693,9 @@ def is_cassandra_healthy(check_type, cassandra, host):
             return is_cassandra_up(host, rpc_port)
         elif check_type == 'all':
             # Port checks to include all of: rpc, native, and storage(gossip) health.
-            return is_cassandra_up(host, rpc_port) and is_cassandra_up(host, native_port) \
-                and is_cassandra_up(host, storage_port)
+            return \
+                is_cassandra_up(host, rpc_port) and \
+                is_cassandra_up(host, native_port) and is_cassandra_up(host, storage_port)
         else:
             # Default port checks for native OR storage(gossip).
             return is_cassandra_up(host, native_port) or is_cassandra_up(host, storage_port)

@@ -14,9 +14,7 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import MagicMock
-
-from cassandra.pool import Host
+from unittest.mock import Mock
 
 from medusa.host_man import HostMan
 
@@ -25,16 +23,6 @@ class HostManTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def test_get_release_version():
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(),
-                    host_id="test-host-id")
-        host.release_version = "test-rel-ver"
-
-        rel_version = HostMan.get_release_version(host)
-        assert rel_version
-        assert rel_version == "test-rel-ver"
 
     @staticmethod
     def test_get_release_version_no_host():
@@ -46,26 +34,22 @@ class HostManTest(unittest.TestCase):
         assert HostMan.get_release_version(invalid_host) is None
 
     @staticmethod
-    def test_get_release_version_missing_host_id():
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id=None)
-        host.release_version = "test-rel-ver"
-
-        assert HostMan.get_release_version(host) is None
-
-    @staticmethod
     def test_get_release_version_missing_host_release_version():
-        host = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host-id")
-        host.release_version = None
-
+        host = Mock()
         assert HostMan.get_release_version(host) is None
 
     @staticmethod
     def test_get_release_versions_from_hosts():
-        host_1 = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_1-id")
-        host_1.release_version = "test-host_1-version"
+        host_1 = "h1"
+        host_2 = "h2"
+        host_3 = "h3"
+        rv_1 = "1.2.3.4"
+        rv_2 = "5.6.7.8"
+        rv_3 = "10.11.12.13"
 
-        host_2 = Host(endpoint=MagicMock(), conviction_policy_factory=MagicMock(), host_id="test-host_2-id")
-        host_2.release_version = "test-host_2-version"
+        HostMan.set_release_version(host_1, rv_1)
+        HostMan.set_release_version(host_2, rv_2)
+        HostMan.set_release_version(host_3, rv_3)
 
-        assert HostMan.get_release_version(host_1) == "test-host_1-version"
-        assert HostMan.get_release_version(host_2) == "test-host_2-version"
+        assert HostMan.get_release_version(host_1) == rv_1
+        assert HostMan.get_release_version(host_2) == rv_2
