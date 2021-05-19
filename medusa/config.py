@@ -36,7 +36,7 @@ CassandraConfig = collections.namedtuple(
     ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts', 'sstableloader_tspw',
-     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'nodetool_version_cmd']
+     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses']
 )
 
 SSHConfig = collections.namedtuple(
@@ -130,7 +130,6 @@ def load_config(args, config_file):
         'start_cmd': 'sudo service cassandra start',
         'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
-        'nodetool_version_cmd': 'nodetool version',
         'is_ccm': '0',
         'sstableloader_bin': 'sstableloader',
         'resolve_ip_addresses': 'True'
@@ -215,7 +214,7 @@ def load_config(args, config_file):
             logging.error('Required configuration "{}" is missing in [storage] section.'.format(field))
             sys.exit(2)
 
-    for field in ['start_cmd', 'stop_cmd', 'nodetool_version_cmd']:
+    for field in ['start_cmd', 'stop_cmd']:
         if getattr(medusa_config.cassandra, field) is None:
             logging.error('Required configuration "{}" is missing in [cassandra] section.'.format(field))
             sys.exit(2)

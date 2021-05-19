@@ -12,24 +12,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from cassandra.util import Version
 
 
 class HostMan:
-    __host_releases = dict()
+    __instance = None
 
     @staticmethod
-    def set_release_version(host, release_version):
+    def set_release_version(version):
+        if not version:
+            raise RuntimeError('No version supplied.')
 
-        if host and release_version and host not in HostMan.__host_releases:
-            HostMan.__host_releases[host] = release_version
+        if not HostMan.__instance:
+            HostMan()
+
+        HostMan.__instance.__release_version = Version(version)
 
     @staticmethod
-    def get_release_version(host):
+    def get_release_version():
+        if not HostMan.__instance:
+            raise RuntimeError('Release version must be set before getting')
+        return HostMan.__instance.__release_version
 
-        if not host:
-            return None
+    def __init__(self):
+        if HostMan.__instance:
+            raise RuntimeError('Unable to re-init HostMan')
+        HostMan.__instance = self
 
-        if host in HostMan.__host_releases:
-            return HostMan.__host_releases[host]
-
-        return None
+    @staticmethod
+    def reset():
+        HostMan.__instance = None

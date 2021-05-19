@@ -198,7 +198,7 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
 
 @cli.command(name='restore-cluster')
 @click.option('--backup-name', help='Backup name', required=True)
-@click.option('--seed-target', help='seed of the target hosts', required=False)
+@click.option('--seed-target', help='Seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--host-list', help='List of nodes to restore with the associated target host', required=False)
 @click.option('--keep-auth', help='Keep system_auth as found on the nodes', default=False, is_flag=True)
@@ -214,9 +214,10 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
               default=False, is_flag=True)
 @click.option('--parallel-restores', '-pr', help="Number of concurrent synchronous (blocking) "
                                                  "ssh sessions started by pssh", default=500)
+@click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                    verify, keyspaces, tables, parallel_restores, use_sstableloader):
+                    verify, keyspaces, tables, parallel_restores, use_sstableloader, version_target):
     """
     Restore Cassandra cluster
     """
@@ -231,7 +232,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        set(keyspaces),
                                        set(tables),
                                        int(parallel_restores),
-                                       use_sstableloader)
+                                       use_sstableloader,
+                                       version_target)
 
 
 @cli.command(name='restore-node')
@@ -251,14 +253,15 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               multiple=True, default={})
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
+@click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
 @pass_MedusaConfig
 def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                 use_sstableloader):
+                 use_sstableloader, version_target):
     """
     Restore single Cassandra node
     """
     medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds,
-                                     verify, set(keyspaces), set(tables), use_sstableloader)
+                                     verify, set(keyspaces), set(tables), use_sstableloader, version_target)
 
 
 @cli.command(name='status')

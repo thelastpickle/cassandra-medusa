@@ -14,7 +14,8 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import Mock
+
+from cassandra.util import Version
 
 from medusa.host_man import HostMan
 
@@ -24,32 +25,31 @@ class HostManTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    @staticmethod
-    def test_get_release_version_no_host():
-        assert HostMan.get_release_version(None) is None
+    def setUp(self):
+        HostMan.reset()
 
-    @staticmethod
-    def test_get_release_version_invalid_host():
-        invalid_host = "not-a-host"
-        assert HostMan.get_release_version(invalid_host) is None
+    def test_get_release_version_not_set(self):
+        with self.assertRaises(RuntimeError):
+            HostMan.get_release_version()
 
-    @staticmethod
-    def test_get_release_version_missing_host_release_version():
-        host = Mock()
-        assert HostMan.get_release_version(host) is None
+    def test_set_release_version_missing_input(self):
+        with self.assertRaises(RuntimeError):
+            HostMan.set_release_version(None)
 
-    @staticmethod
-    def test_get_release_versions_from_hosts():
-        host_1 = "h1"
-        host_2 = "h2"
-        host_3 = "h3"
-        rv_1 = "1.2.3.4"
-        rv_2 = "5.6.7.8"
-        rv_3 = "10.11.12.13"
+    def test_set_release_version_singleton_check(self):
+        rv_1 = "1.2.3"
+        HostMan.set_release_version(rv_1)
 
-        HostMan.set_release_version(host_1, rv_1)
-        HostMan.set_release_version(host_2, rv_2)
-        HostMan.set_release_version(host_3, rv_3)
+        with self.assertRaises(RuntimeError):
+            HostMan()
 
-        assert HostMan.get_release_version(host_1) == rv_1
-        assert HostMan.get_release_version(host_2) == rv_2
+    def test_get_release_version(self):
+        rv_1 = "1.2.3"
+        rv_2 = "5.6.7"
+        rv_3 = "10.11.12"
+
+        HostMan.set_release_version(rv_1)
+        HostMan.set_release_version(rv_2)
+        HostMan.set_release_version(rv_3)
+
+        self.assertEqual(HostMan.get_release_version(), Version(rv_3))

@@ -239,7 +239,6 @@ class CassandraUtilsTest(unittest.TestCase):
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_no_tokens.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
-            'nodetool_version_cmd': 'nodetool version',
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1'
         }
@@ -280,7 +279,6 @@ class CassandraUtilsTest(unittest.TestCase):
             'config_file': os.path.join(os.path.dirname(__file__), 'resources/yaml/work/cassandra_with_tokens.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -321,7 +319,6 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -361,7 +358,6 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_tokens_and_autobootstrap.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -402,7 +398,6 @@ class CassandraUtilsTest(unittest.TestCase):
                                         'resources/yaml/work/cassandra_with_custom_seedprovider.yaml'),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': '1'
         }
         config["grpc"] = {
@@ -542,7 +537,6 @@ class CassandraUtilsTest(unittest.TestCase):
                                         yaml_file),
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
-            'nodetool_version_cmd': 'nodetool version',
             'is_ccm': is_ccm_active
         }
         config["grpc"] = {
@@ -575,10 +569,8 @@ class CassandraUtilsTest(unittest.TestCase):
         fm_ccm.return_value = True
         fm_cass.return_value = True
 
-        # TODO setup cache
-
         host = "h1"
-        HostMan.set_release_version(host, "1.2.3.4")
+        HostMan.set_release_version("1.2.3")
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="1",
                                                          yaml_file='resources/yaml/original/default-c4.yaml',
                                                          config_checks={"health_check": "all"})

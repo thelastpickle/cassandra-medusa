@@ -318,6 +318,7 @@ class Cassandra(object):
     SNAPSHOT_PREFIX = 'medusa-'
 
     def __init__(self, config, contact_point=None, release_version=None):
+        self._release_version = release_version
         cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
@@ -325,11 +326,7 @@ class Cassandra(object):
         self._os_has_systemd = self._has_systemd()
         self._nodetool = Nodetool(cassandra_config)
         logging.warning('is ccm : {}'.format(self._is_ccm))
-        # Release version of c* obtained, if not specified at init, obtain using nodetool command.
-        self._release_version_cmd = shlex.split(cassandra_config.nodetool_version_cmd)
-        print("release_version_cmd = ", self._release_version_cmd)
-        self._release_version = release_version if release_version else self.get_release_version
-        config_reader = CassandraConfigReader(cassandra_config.config_file, release_version=self._release_version)
+        config_reader = CassandraConfigReader(cassandra_config.config_file, release_version)
         self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
@@ -544,29 +541,6 @@ class Cassandra(object):
         logging.debug('Starting Cassandra with {}'.format(cmd))
         subprocess.check_output(cmd)
 
-    def get_release_version(self):
-        if self._release_version:
-            return self._release_version
-
-        error_msg = 'Unable to identify Cassandra release version using nodetool'
-        try:
-
-            # Obtain via nodetool
-            cmd = self._release_version_cmd
-            logging.debug('Getting release version with command {}'.format(cmd))
-            subprocess.check_output(cmd, shell=True)
-            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True)
-            if output:
-                self._release_version = output
-                logging.debug('Release version obtained {}'.format(self._release_version))
-                return self._release_version
-            else:
-                logging.debug(error_msg)
-        except subprocess.CalledProcessError as cpe:
-            logging.debug(error_msg, exc_info=cpe)
-
-        return None
-
     def start(self, token_list):
         if self._is_ccm == 0:
             self.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(token_list)
@@ -636,7 +610,7 @@ def is_node_up(config, host):
             logging.debug('Checking ccm health')
             return is_ccm_healthy(check_type)
 
-        return is_cassandra_healthy(check_type, Cassandra(config, release_version=HostMan.get_release_version(host)),
+        return is_cassandra_healthy(check_type, Cassandra(config, release_version=HostMan.get_release_version()),
                                     host)
     except Exception as e:
         err_msg = 'Unable to determine if node is up for host: {}'.format(host)

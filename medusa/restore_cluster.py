@@ -25,6 +25,7 @@ import uuid
 import medusa.config
 import medusa.utils
 from medusa.cassandra_utils import CqlSessionProvider, Cassandra
+from medusa.host_man import HostMan
 from medusa.monitoring import Monitoring
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.orchestration import Orchestration
@@ -34,7 +35,7 @@ from medusa.verify_restore import verify_restore
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, keyspaces, tables, parallel_restores, use_sstableloader=False):
+                verify, keyspaces, tables, parallel_restores, use_sstableloader=False, version_target=None):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -64,7 +65,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise Exception(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader)
+                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -96,8 +97,12 @@ def expand_repeatable_option(option, values):
 
 
 class RestoreJob(object):
+    DEFAULT_APP_VERSION = "3.11.9"
+
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 parallel_restores, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False):
+                 parallel_restores, keyspaces={}, tables={}, bypass_checks=False, use_sstableloader=False,
+                 version_target=None):
+
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -120,6 +125,7 @@ class RestoreJob(object):
         self.cassandra = Cassandra(config)
         fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
+        self._version_target = version_target
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -130,15 +136,16 @@ class RestoreJob(object):
         if self.seed_target is not None:
             self.session_provider = CqlSessionProvider([self.seed_target],
                                                        self.config.cassandra)
-
             with self.session_provider.new_session() as session:
                 self._populate_ringmap(self.cluster_backup.tokenmap, session.tokenmap())
+                self._set_release_version(session)
 
         # CASE 2 : We're restoring a backup on a different cluster
         if self.host_list is not None:
             logging.info('Restore will happen on new hardware')
             self.in_place = False
             self._populate_hostmap()
+            self._set_release_version(session=None)
             logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
         self._restore_data()
@@ -320,7 +327,7 @@ class RestoreJob(object):
         for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
             logging.info('Restoring data on {}...'.format(target))
             seeds = '' if target in target_seeds or len(target_seeds) == 0 \
-                    else '--seeds {}'.format(','.join(target_seeds))
+                else '--seeds {}'.format(','.join(target_seeds))
             hosts_variables.append((','.join(source), seeds))
 
         command = self._build_restore_cmd()
@@ -406,3 +413,22 @@ class RestoreJob(object):
             # Base tables are created now, we can create the MVs
             logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
             session.execute(mv[1])
+
+    def _set_release_version(self, session):
+        # Use c* version target if provided as supplied, otherwise obtain from the driver.
+        if not self._version_target and session:
+            driver_app_version = session.cluster.application_version
+            if driver_app_version:
+                logging.debug('Driver version provided as: {}'.format(driver_app_version))
+                HostMan.set_release_version(driver_app_version)
+            else:
+                logging.debug('Unable to obtain app_version via driver or command line, '
+                              'using default: {}'.format(self.DEFAULT_APP_VERSION))
+                # Using default as target wasn't found by driver or provided to RestoreJob
+                HostMan.set_release_version(self.DEFAULT_APP_VERSION)
+        elif not self._version_target:
+            # Use default
+            HostMan.set_release_version(self.DEFAULT_APP_VERSION)
+        else:
+            logging.debug('Target version provided as: {}'.format(self._version_target))
+            HostMan.set_release_version(self._version_target)
