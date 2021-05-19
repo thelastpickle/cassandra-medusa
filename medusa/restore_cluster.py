@@ -385,8 +385,7 @@ class RestoreJob(object):
                 else:
                     self._create_or_recreate_schema_objects(session, keyspace, schema[keyspace])
 
-    @staticmethod
-    def _create_or_recreate_schema_objects(session, keyspace, keyspace_schema):
+    def _create_or_recreate_schema_objects(self, session, keyspace, keyspace_schema):
         logging.info("(Re)creating schema for keyspace {}".format(keyspace))
         if keyspace not in session.cluster.metadata.keyspaces:
             # Keyspace doesn't exist on the target cluster. Got to create it and all the tables as well.
