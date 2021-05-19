@@ -17,16 +17,17 @@ import socket
 import logging
 
 
-class HostnameResolver():
-    def __init__(self, resolve_addresses=True):
+class HostnameResolver:
+    def __init__(self, resolve_addresses):
         self.resolve_addresses = resolve_addresses
-        logging.debug
 
     def resolve_fqdn(self, ip_address=''):
-        if str(self.resolve_addresses) == "False":
-            logging.debug("Not resolving {} as requested".format(ip_address))
-            return ip_address
+        ip_address_to_resolve = ip_address if ip_address != '' else socket.gethostbyname(socket.getfqdn())
 
-        fqdn = socket.getfqdn(ip_address)
-        logging.debug("Resolved {} to {}".format(ip_address, fqdn))
+        if str(self.resolve_addresses) == "False":
+            logging.debug("Not resolving {} as requested".format(ip_address_to_resolve))
+            return ip_address_to_resolve
+
+        fqdn = socket.getfqdn(ip_address_to_resolve)
+        logging.debug("Resolved {} to {}".format(ip_address_to_resolve, fqdn))
         return fqdn
