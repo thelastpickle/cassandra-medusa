@@ -23,27 +23,35 @@ import sys
 import time
 import uuid
 
+import medusa.config
 import medusa.utils
 from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_down
 from medusa.download import download_data
+from medusa.filtering import filter_fqtns
+from medusa.host_man import HostMan
+from medusa.network.hostname_resolver import HostnameResolver
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
-from medusa.filtering import filter_fqtns
-from medusa.network.hostname_resolver import HostnameResolver
-import medusa.config
 
 A_MINUTE = 60
 MAX_ATTEMPTS = 60
 
 
 def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                 use_sstableloader=False):
-
+                 use_sstableloader=False, version_target=None):
     if in_place and keep_auth:
         logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
         sys.exit(1)
 
     storage = Storage(config=config.storage)
+
+    # Obtain version via CLI, driver or default.
+    if version_target:
+        HostMan.set_release_version(version_target)
+    elif storage.storage_driver and storage.storage_driver.driver:
+        HostMan.set_release_version(storage.storage_driver.driver.api_version)
+    else:
+        HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)
 
     if not use_sstableloader:
         restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
@@ -134,7 +142,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
             cassandra.start(tokens)
     elif not in_place:
         # Kubernetes will manage the lifecycle, but we still need to modify the tokens
-        cassandra.replaceTokensInCassandraYamlAndDisableBootstrap(tokens)
+        cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
 
     # Clean the restored data from local temporary folder
     clean_path(download_dir, use_sudo, keep_folder=False)
@@ -145,6 +153,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
     cassandra = Cassandra(config)
     node_backup = None
     fqdns = config.storage.fqdn.split(",")
+    download_dir = None
+
     for fqdn in fqdns:
         differential_blob = storage.storage_driver.get_blob(
             os.path.join(fqdn, backup_name, 'meta', 'differential'))
@@ -176,7 +186,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         logging.info('Finished loading backup from {}'.format(fqdn))
 
     # Clean the restored data from local temporary folder
-    clean_path(download_dir, keep_folder=False)
+    if download_dir:
+        clean_path(download_dir, keep_folder=False)
     return node_backup
 
 
@@ -206,9 +217,9 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                         sstableloader_args.append("--storage-port")
                         sstableloader_args.append(str(storage_port))
                     if config.cassandra.sstableloader_ts is not None and \
-                       config.cassandra.sstableloader_tspw is not None and \
-                       config.cassandra.sstableloader_ks is not None and \
-                       config.cassandra.sstableloader_kspw is not None:
+                            config.cassandra.sstableloader_tspw is not None and \
+                            config.cassandra.sstableloader_ks is not None and \
+                            config.cassandra.sstableloader_kspw is not None:
                         sstableloader_args.append("-ts")
                         sstableloader_args.append(config.cassandra.sstableloader_ts)
                         sstableloader_args.append("-tspw")
@@ -241,7 +252,6 @@ def keyspace_is_allowed_to_restore(keyspace, keep_auth, fqtns_to_restore):
 
 
 def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
-
     # table is allowed to restore if it's present in at least one fqtn allowed to restore
     fqtn = '{}.{}'.format(keyspace, table)
     if fqtn not in fqtns_to_restore:
@@ -272,7 +282,6 @@ def clean_path(p, use_sudo=True, keep_folder=False):
 
 
 def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth, use_sudo=True):
-
     # decide whether to restore files for this table or not
 
     # we restore everything from all keyspaces when restoring in_place
@@ -284,9 +293,9 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
     restore_section = True
 
     if not in_place:
-        if section['keyspace'] == 'system':
-            if section['columnfamily'].startswith('local-') or section['columnfamily'].startswith('peers'):
-                restore_section = False
+        if section['keyspace'] == 'system' and section['columnfamily'].startswith('local-') \
+                or section['columnfamily'].startswith('peers'):
+            restore_section = False
         if section['keyspace'] == 'system_auth' and keep_auth:
             logging.info('Keeping section {}.{} untouched'.format(section['keyspace'], section['columnfamily']))
             return

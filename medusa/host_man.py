@@ -16,6 +16,7 @@ from cassandra.util import Version
 
 
 class HostMan:
+    DEFAULT_RELEASE_VERSION = "3.11.9"
     __instance = None
 
     @staticmethod

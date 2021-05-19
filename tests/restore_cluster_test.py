@@ -74,13 +74,13 @@ class RestoreClusterTest(unittest.TestCase):
             tokenmap = json.loads(f.read())
             cluster_backup.tokenmap.return_value = tokenmap
             host_list = "tests/resources/restore_cluster_host_list.txt"
-            restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
-                                    None, version_target="4.0.0")
-            restoreJob._populate_hostmap()
+            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
+                                     None, version_target="4.0.0")
+            restore_job._populate_hostmap()
 
-        assert restoreJob.host_map["node1.mydomain.net"]['source'] == ["node1.mydomain.net"]
-        assert restoreJob.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
-        assert restoreJob.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
+        assert restore_job.host_map["node1.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restore_job.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restore_job.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
 
     # Test that we can properly associate source and target nodes for restore using a token map
     def test_populate_tokenmap(self):
@@ -90,7 +90,7 @@ class RestoreClusterTest(unittest.TestCase):
             with open("tests/resources/restore_cluster_tokenmap.target.json", 'r') as f_target:
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
-                restoreJob = RestoreJob(
+                restore_job = RestoreJob(
                     cluster_backup,
                     self.medusa_config,
                     self.tmp_dir,
@@ -103,12 +103,12 @@ class RestoreClusterTest(unittest.TestCase):
                     version_target="4.0.0")
 
                 target_tokenmap = json.loads(f_target.read())
-                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
-                assert restoreJob.use_sstableloader is False
+                restore_job._populate_ringmap(tokenmap, target_tokenmap)
+                assert restore_job.use_sstableloader is False
 
-        assert restoreJob.host_map["node4.mydomain.net"]['source'] == ["node1.mydomain.net"]
-        assert restoreJob.host_map["node5.mydomain.net"]['source'] == ["node2.mydomain.net"]
-        assert restoreJob.host_map["node6.mydomain.net"]['source'] == ["node3.mydomain.net"]
+        assert restore_job.host_map["node4.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restore_job.host_map["node5.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restore_job.host_map["node6.mydomain.net"]['source'] == ["node3.mydomain.net"]
 
     # Test that we can't restore the cluster if the source and target topology have different sizes
     def test_populate_tokenmap_fail(self):
@@ -118,7 +118,7 @@ class RestoreClusterTest(unittest.TestCase):
             with open("tests/resources/restore_cluster_tokenmap.fail.json", 'r') as f_target:
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
-                restoreJob = RestoreJob(
+                restore_job = RestoreJob(
                     cluster_backup,
                     self.medusa_config,
                     self.tmp_dir,
@@ -132,9 +132,9 @@ class RestoreClusterTest(unittest.TestCase):
                 )
 
                 target_tokenmap = json.loads(f_target.read())
-                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                restore_job._populate_ringmap(tokenmap, target_tokenmap)
                 # topologies are different, which forces the use of the sstableloader
-                assert restoreJob.use_sstableloader is True
+                assert restore_job.use_sstableloader is True
 
     # Test that we can't restore the cluster if the source and target topology have different tokens
     def test_populate_tokenmap_fail_tokens(self):
@@ -144,15 +144,15 @@ class RestoreClusterTest(unittest.TestCase):
             with open("tests/resources/restore_cluster_tokenmap.fail_tokens.json", 'r') as f_target:
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
-                restoreJob = RestoreJob(
+                restore_job = RestoreJob(
                     cluster_backup, self.medusa_config, self.tmp_dir, None, "node1.mydomain.net", False, False, None,
                     version_target="4.0.0"
                 )
 
                 target_tokenmap = json.loads(f_target.read())
-                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                restore_job._populate_ringmap(tokenmap, target_tokenmap)
                 # topologies are different, which forces the use of the sstableloader
-                assert restoreJob.use_sstableloader is True
+                assert restore_job.use_sstableloader is True
 
     def test_populate_ringmap_catches_mismatching_tokens_when_using_vnodes(self):
         node_backups = list()
@@ -192,9 +192,9 @@ class RestoreClusterTest(unittest.TestCase):
             tokenmap = json.loads(tokenmap_content)
             backup_tokenmap = json.loads(tokenmap_content)
             cluster_backup.tokenmap.return_value = tokenmap
-            restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
+            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
                                     None, version_target="4.0.0")
-            in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+            in_place = restore_job._is_restore_in_place(tokenmap, backup_tokenmap)
             assert in_place
 
     def test_restore_is_in_place_one_diff(self):
@@ -206,10 +206,9 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f2.read())
                 backup_tokenmap = json.loads(f.read())
                 cluster_backup.tokenmap.return_value = tokenmap
-                restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
-                                        None,
-                                        version_target="4.0.0")
-                in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+                restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
+                                        None, version_target="4.0.0")
+                in_place = restore_job._is_restore_in_place(tokenmap, backup_tokenmap)
                 assert in_place
 
     def test_restore_is_not_in_place(self):
@@ -221,10 +220,10 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f2.read())
                 backup_tokenmap = json.loads(f.read())
                 cluster_backup.tokenmap.return_value = tokenmap
-                restoreJob = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
-                                        None,
-                                        version_target="4.0.0")
-                in_place = restoreJob._is_restore_in_place(tokenmap, backup_tokenmap)
+                restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
+                                         None, version_target="4.0.0")
+
+                in_place = restore_job._is_restore_in_place(tokenmap, backup_tokenmap)
                 assert not in_place
 
     def test_cmd_no_config_specified(self):
