@@ -2,15 +2,8 @@ coverage:
   precision: 2
   round: down
   range: "63...100"
-  notify:
-    after_n_builds: 17
-    wait_for_ci: yes
-  status:
-    project:
-    patch:
-    changes:
-  comment:
-    layout: "reach, diff, flags, files"
-    behavior: default
-    require_changes: false  # if true: only post the comment if coverage changes
-    after_n_builds: 17
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false  # if true: only post the comment if coverage changes
+  after_n_builds: 17
