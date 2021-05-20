@@ -7,3 +7,8 @@ comment:
   behavior: default
   require_changes: false  # if true: only post the comment if coverage changes
   after_n_builds: 17
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    after_n_builds: 17
+    wait_for_ci: yes
