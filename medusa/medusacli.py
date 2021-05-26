@@ -131,6 +131,8 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
 
 @cli.command(name='backup-cluster')
 @click.option('--backup-name', help='Backup name', required=True)
+@click.option('--seed-target', help='Seed of the target hosts. If not provided, \
+    will default to the node where the command is triggered', required=False)
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
 @click.option('--enable-md5-checks',
               help='During backups and verify, use md5 calculations to determine file integrity '
@@ -143,13 +145,14 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
 @click.option('--parallel-uploads', '-pu', help="Number of concurrent synchronous (blocking) "
                                                 "ssh sessions started by pssh", default=1)
 @pass_MedusaConfig
-def backup_cluster(medusaconfig, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                    parallel_snapshots, parallel_uploads):
     """
     Backup Cassandra cluster
     """
     medusa.backup_cluster.orchestrate(medusaconfig,
                                       backup_name,
+                                      seed_target,
                                       stagger,
                                       enable_md5_checks,
                                       mode,

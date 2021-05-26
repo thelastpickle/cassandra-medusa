@@ -28,7 +28,7 @@ from medusa.storage import Storage
 from medusa.network.hostname_resolver import HostnameResolver
 
 
-def orchestrate(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+def orchestrate(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                 parallel_snapshots, parallel_uploads):
     backup = None
     monitoring = Monitoring(config=config.monitoring)
@@ -56,7 +56,7 @@ def orchestrate(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
             info_msg = 'Starting backup {}'.format(backup_name)
             logging.info(info_msg)
 
-        backup = BackupJob(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+        backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                            parallel_snapshots, parallel_uploads)
         backup.execute()
 
@@ -101,7 +101,7 @@ def orchestrate(config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
 
 
 class BackupJob(object):
-    def __init__(self, config, backup_name, stagger, enable_md5_checks, mode, temp_dir,
+    def __init__(self, config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                  parallel_snapshots, parallel_uploads):
         self.id = uuid.uuid4()
         # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
@@ -110,6 +110,7 @@ class BackupJob(object):
         self.config = config
         self.backup_name = backup_name
         self.stagger = stagger
+        self.seed_target = seed_target
         self.enable_md5_checks = enable_md5_checks
         self.mode = mode
         self.temp_dir = temp_dir
@@ -124,7 +125,8 @@ class BackupJob(object):
         # Two step: Take snapshot everywhere, then upload the backups to the external storage
 
         # Getting the list of Cassandra nodes.
-        session_provider = CqlSessionProvider([self.config.storage.fqdn],
+        seed_target = self.seed_target if self.seed_target is not None else self.config.storage.fqdn
+        session_provider = CqlSessionProvider([seed_target],
                                               self.config.cassandra)
         with session_provider.new_session() as session:
             tokenmap = session.tokenmap()
@@ -173,9 +175,10 @@ class BackupJob(object):
         enable_md5_checks_option = '--enable-md5-checks' if self.enable_md5_checks else ''
 
         # Use %s placeholders in the below command to have them replaced by pssh using per host command substitution
-        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa -vvv backup-node ' \
+        command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa {config} -vvv backup-node ' \
                   '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode}' \
             .format(work=self.work_dir,
+                    config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
                     backup_name=self.backup_name,
                     stagger=stagger_option,
                     enable_md5_checks=enable_md5_checks_option,
