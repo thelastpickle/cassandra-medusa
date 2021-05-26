@@ -44,14 +44,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
         sys.exit(1)
 
     storage = Storage(config=config.storage)
-
-    # Obtain version via CLI, driver or default.
-    if version_target:
-        HostMan.set_release_version(version_target)
-    elif storage.storage_driver and storage.storage_driver.driver:
-        HostMan.set_release_version(storage.storage_driver.driver.api_version)
-    else:
-        HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)
+    capture_release_version(storage, version_target)
 
     if not use_sstableloader:
         restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
@@ -363,3 +356,14 @@ def wait_for_seeds(config, seeds):
             logging.error('Gave up waiting for seeds, aborting the restore')
             sys.exit(1)
     logging.info('At least one seed is now up')
+
+
+def capture_release_version(storage, version_target):
+    # Obtain version via CLI, driver or default.
+    if version_target:
+        HostMan.set_release_version(version_target)
+    elif storage and storage.storage_driver and storage.storage_driver.driver and \
+            storage.storage_driver.driver.api_version:
+        HostMan.set_release_version(storage.storage_driver.driver.api_version)
+    else:
+        HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)

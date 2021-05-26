@@ -40,6 +40,7 @@ class HostMan:
             raise RuntimeError('Unable to re-init HostMan')
         HostMan.__instance = self
 
+    # Reset the instance
     @staticmethod
     def reset():
         HostMan.__instance = None

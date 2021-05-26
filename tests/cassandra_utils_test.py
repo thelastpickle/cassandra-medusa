@@ -622,12 +622,10 @@ class CassandraUtilsTest(unittest.TestCase):
     @mock.patch.object(medusa.cassandra_utils, "is_cassandra_up")
     def test_is_cassandra_v2_healthy(self, fm):
         fm.return_value = True
-
         host = Mock()
 
         medusa_config_v2 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c2.yaml')
-
         cassandra_v2 = Cassandra(medusa_config_v2, release_version="2")
 
         # When c* version 2 is used, check for the port values.
@@ -642,7 +640,6 @@ class CassandraUtilsTest(unittest.TestCase):
         # Not using ccm, directing check for cassandra health.
         medusa_config_v3 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c3.yaml')
-
         cassandra_v3 = Cassandra(medusa_config_v3, release_version="3")
 
         # When c* version 3 is used, check for the port values.
