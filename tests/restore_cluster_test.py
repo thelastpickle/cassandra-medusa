@@ -16,8 +16,8 @@
 import configparser
 import json
 import os
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -192,8 +192,8 @@ class RestoreClusterTest(unittest.TestCase):
             tokenmap = json.loads(tokenmap_content)
             backup_tokenmap = json.loads(tokenmap_content)
             cluster_backup.tokenmap.return_value = tokenmap
-            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
-                                    None, version_target="4.0.0")
+            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False, None,
+                                     version_target="4.0.0")
             in_place = restore_job._is_restore_in_place(tokenmap, backup_tokenmap)
             assert in_place
 
@@ -207,7 +207,7 @@ class RestoreClusterTest(unittest.TestCase):
                 backup_tokenmap = json.loads(f.read())
                 cluster_backup.tokenmap.return_value = tokenmap
                 restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, None, None, False, False,
-                                        None, version_target="4.0.0")
+                                         None, version_target="4.0.0")
                 in_place = restore_job._is_restore_in_place(tokenmap, backup_tokenmap)
                 assert in_place
 
@@ -234,7 +234,7 @@ class RestoreClusterTest(unittest.TestCase):
             cluster_backup.tokenmap.return_value = tokenmap
             host_list = "tests/resources/restore_cluster_host_list.txt"
             restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
-                                     None)
+                                     None, None)
             cmd = restore_job._build_restore_cmd()
             assert '--config-file' not in cmd
 

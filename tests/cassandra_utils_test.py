@@ -552,6 +552,7 @@ class CassandraUtilsTest(unittest.TestCase):
             checks_set = _namedtuple_from_dict(ChecksConfig, config['checks'])
 
         medusa_config = MedusaConfig(
+            file_path=None,
             storage=None,
             monitoring=None,
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),

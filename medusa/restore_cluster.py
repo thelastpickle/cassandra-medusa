@@ -116,8 +116,8 @@ class RestoreJob(object):
         self.temp_dir = temp_dir  # temporary files
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
-        self.keyspaces = keyspaces
-        self.tables = tables
+        self.keyspaces = keyspaces if keyspaces else {}
+        self.tables = tables if tables else {}
         self.bypass_checks = bypass_checks
         self.use_sstableloader = use_sstableloader
         self.pssh_pool_size = parallel_restores
@@ -356,6 +356,7 @@ class RestoreJob(object):
         # from the control node
         verify_option = '--no-verify'
 
+        # %s placeholders in the below command will get replaced by pssh using per host command substitution
         # %s placeholders in the below command will get replaced by pssh using per host command substitution
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper sudo medusa {config} ' \
                   '--fqdn=%s -vvv restore-node ' \
