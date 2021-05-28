@@ -103,6 +103,7 @@ def configure_console_logging(verbosity, without_log_timestamp):
 @click.option('--fqdn', help='Act as another host')
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
+@click.version_option(package_name='cassandra-medusa', message='%(version)s')
 @click.pass_context
 def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
     config_file = Path(config_file) if config_file else None
