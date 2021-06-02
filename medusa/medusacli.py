@@ -131,7 +131,7 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
 
 
 @cli.command(name='backup-cluster')
-@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--backup-name', help='Backup name of the backup, defaults to current local timestamp')
 @click.option('--seed-target', help='Seed of the target hosts. If not provided, \
     will default to the node where the command is triggered', required=False)
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
