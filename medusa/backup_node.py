@@ -158,7 +158,7 @@ def stagger(fqdn, storage, tokenmap):
 
 def main(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
     start = datetime.datetime.now()
-    backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
+    backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
 
     try:

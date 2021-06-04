@@ -28,9 +28,10 @@ from medusa.storage import Storage
 from medusa.network.hostname_resolver import HostnameResolver
 
 
-def orchestrate(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
+def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                 parallel_snapshots, parallel_uploads):
     backup = None
+    backup_name = backup_name_arg or datetime.datetime.now().strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
     try:
         backup_start_time = datetime.datetime.now()
