@@ -383,7 +383,7 @@ Feature: Integration tests
         Then I cannot see the backup named "first_backup" when I list the backups
         Then I cannot see the backup named "second_backup" when I list the backups
         Then I cannot see the backup named "third_backup" when I list the backups
-        Then I cannot see purged backup files for the "test" table in keyspace "medusa"
+        Then I can not see purged backup files for the "test" table in keyspace "medusa"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "fifth_backup" when I list the backups
         Then I can verify the backup named "fourth_backup" with md5 checks "disabled" successfully
@@ -755,3 +755,44 @@ Feature: Integration tests
         Examples: Local storage
         | storage           | client encryption |
         | local      |  with_client_encryption |
+    
+    @19
+    Scenario Outline: Test backup gc grace period with purge
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario19"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool compact medusa" command
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
+        When I run a "ccm node1 nodetool compact medusa" command
+        When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
+        Then I can see the backup named "first_backup" when I list the backups
+        Then I can see the backup named "second_backup" when I list the backups
+        Then I can see the backup named "third_backup" when I list the backups
+        Then I can see the backup named "fourth_backup" when I list the backups
+        Then I can see the backup named "fifth_backup" when I list the backups
+        Then I can verify the backup named "fifth_backup" with md5 checks "disabled" successfully
+        When I purge the backup history to retain only 2 backups
+        Then I cannot see the backup named "first_backup" when I list the backups
+        Then I cannot see the backup named "second_backup" when I list the backups
+        Then I cannot see the backup named "third_backup" when I list the backups
+        Then I can actually see purged backup files for the "test" table in keyspace "medusa"
+        Then I can see the backup named "fourth_backup" when I list the backups
+        Then I can see the backup named "fifth_backup" when I list the backups
+        Then I can verify the backup named "fourth_backup" with md5 checks "disabled" successfully
+        Then I can verify the backup named "fifth_backup" with md5 checks "disabled" successfully
+        
+        @local
+        Examples: Local storage
+        | storage                    | client encryption |
+        | local_backup_gc_grace      |  with_client_encryption |

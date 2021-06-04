@@ -28,7 +28,8 @@ StorageConfig = collections.namedtuple(
     'StorageConfig',
     ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider',
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
-     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'aws_cli_path']
+     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'aws_cli_path',
+     'backup_grace_period_in_days']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -91,13 +92,7 @@ CONFIG_SECTIONS = {
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
 
-def load_config(args, config_file):
-    """Load configuration from a medusa.ini file
-
-    :param args: settings override. Higher priority than settings defined in medusa.ini
-    :param config_file: path to a medusa.ini file or None if default path should be used
-    :return: Medusa configuration
-    """
+def parse_config(args, config_file):
     config = configparser.ConfigParser(interpolation=None)
 
     # Set defaults
@@ -114,6 +109,7 @@ def load_config(args, config_file):
         'aws_cli_path': 'aws',
         'fqdn': socket.getfqdn(),
         'region': 'default',
+        'backup_grace_period_in_days': 10,
     }
 
     config['logging'] = {
@@ -196,6 +192,18 @@ def load_config(args, config_file):
         config['cassandra']['cql_username'] = os.environ["CQL_USERNAME"]
     if "CQL_PASSWORD" in os.environ:
         config['cassandra']['cql_password'] = os.environ["CQL_PASSWORD"]
+
+    return config
+
+
+def load_config(args, config_file):
+    """Load configuration from a medusa.ini file
+
+    :param args: settings override. Higher priority than settings defined in medusa.ini
+    :param config_file: path to a medusa.ini file or None if default path should be used
+    :return: Medusa configuration
+    """
+    config = parse_config(args, config_file)
 
     medusa_config = MedusaConfig(
         file_path=config_file,
