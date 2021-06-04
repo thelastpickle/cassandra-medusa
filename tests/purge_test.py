@@ -24,7 +24,8 @@ from random import randrange
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import NodeBackup, Storage
-from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, filter_differential_backups
+from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count
+from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 
 
 class PurgeTest(unittest.TestCase):
@@ -99,6 +100,14 @@ class PurgeTest(unittest.TestCase):
         backups.append(self.make_backup(self.storage, "four", datetime.now(), differential=True))
         backups.append(self.make_backup(self.storage, "five", datetime.now(), differential=False))
         assert 3 == len(filter_differential_backups(backups))
+
+    def test_filter_files_within_gc_grace(self):
+        blobs = list()
+        blobs.append(self.make_blob("file1", datetime.timestamp(datetime.now())))
+        blobs.append(self.make_blob("file2", datetime.timestamp(datetime.now() + timedelta(hours=-12))))
+        blobs.append(self.make_blob("file3", datetime.timestamp(datetime.now() + timedelta(days=-1))))
+        blobs.append(self.make_blob("file4", datetime.timestamp(datetime.now() + timedelta(days=-2))))
+        assert 2 == len(filter_files_within_gc_grace(self.storage.storage_driver, blobs, 1))
 
     def make_backup(self, storage, name, backup_date, differential=False):
         if differential is True:

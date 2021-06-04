@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import cassandra
-import configparser
 import datetime
 import json
 import logging
@@ -36,6 +35,7 @@ from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from zipfile import ZipFile
 
 import medusa.backup_node
+import medusa.config
 import medusa.download
 import medusa.index
 import medusa.filtering
@@ -336,175 +336,15 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
-    logging.info(STARTING_TESTS_MSG)
-    if not hasattr(context, "cluster_name"):
-        context.cluster_name = "test"
-    config = configparser.ConfigParser(interpolation=None)
-
-    if storage_provider == "local":
-        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
-            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
-        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa_it_bucket",
-            "key_file": "",
-            "storage_provider": "local",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "google_storage":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-integration-tests",
-            "key_file": GCS_CREDENTIALS,
-            "storage_provider": "google_storage",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "azure_blobs":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-integration-tests",
-            "key_file": "~/medusa_azure_credentials.json",
-            "storage_provider": "azure_blobs",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "concurrent_transfers": 4,
-            "multi_part_upload_threshold": 1 * 1024,
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "s3_us_west_oregon":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "tlp-medusa-dev",
-            "key_file": AWS_CREDENTIALS,
-            "storage_provider": storage_provider,
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws"
-        }
-    elif storage_provider == "minio":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-dev",
-            "key_file": "~/.aws/minio_credentials",
-            "storage_provider": "s3_compatible",
-            "fqdn": "127.0.0.1",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 1,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws",
-            "host": "localhost",
-            "port": 9000,
-            "secure": False,
-            "region": "default"
-        }
-    elif storage_provider.startswith("ibm"):
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-experiment-2",
-            "key_file": "~/.aws/ibm_credentials",
-            "storage_provider": storage_provider,
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws",
-            "host": "s3.eu.cloud-object-storage.appdomain.cloud",
-            "region": "eu-smart",
-            "transfer_max_bandwidth": "1MB/s",
-            "secure": True
-        }
-
-    config["cassandra"] = {
-        "is_ccm": 1,
-        "stop_cmd": CCM_STOP,
-        "start_cmd": CCM_START,
-        "cql_username": "cassandra",
-        "cql_password": "cassandra",
-        "config_file": os.path.expanduser(
-            os.path.join(
-                CCM_DIR, context.cluster_name, "node1", "conf", CASSANDRA_YAML
-            )
-        ),
-        "sstableloader_bin": os.path.expanduser(
-            os.path.join(
-                CCM_DIR,
-                "repository",
-                context.cassandra_version.replace(
-                    "github:", "githubCOLON").replace("/", "SLASH"),
-                "bin",
-                "sstableloader",
-            )
-        ),
-        "resolve_ip_addresses": False
-    }
-
-    if client_encryption == 'with_client_encryption':
-        config["cassandra"].update(
-            {
-                "certfile": certfile,
-                "usercert": usercert,
-                "userkey": userkey,
-                "sstableloader_ts": trustore_path,
-                "sstableloader_tspw": "truststorePass1",
-                "sstableloader_ks": keystore_path,
-                "sstableloader_kspw": "testdata1"
-            }
-        )
-
-    config["monitoring"] = {"monitoring_provider": "local"}
-
-    config["checks"] = config_checks
-
-    config["grpc"] = {
-        "enabled": "0"
-    }
-
-    config['kubernetes'] = {
-        "enabled": "0"
-    }
-
-    context.medusa_config = MedusaConfig(
-        file_path=None,
-        storage=_namedtuple_from_dict(StorageConfig, config["storage"]),
-        cassandra=_namedtuple_from_dict(CassandraConfig, config["cassandra"]),
-        monitoring=_namedtuple_from_dict(MonitoringConfig, config["monitoring"]),
-        ssh=None,
-        checks=_namedtuple_from_dict(ChecksConfig, config["checks"]),
-        logging=None,
-        grpc=_namedtuple_from_dict(GrpcConfig, config["grpc"]),
-        kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-    )
+    context.medusa_config = get_medusa_config(context, storage_provider, client_encryption, None)
     cleanup_storage(context, storage_provider)
     cleanup_monitoring(context)
 
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
-    config = get_medusa_config(context, storage_provider, client_encryption, "http://127.0.0.1:8778/jolokia/")
+    config = parse_medusa_config(context, storage_provider, client_encryption,
+                                 "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=1)
 
     GRPCServer.destroy()
     context.grpc_server = GRPCServer.init(config)
@@ -534,8 +374,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
 def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
-    config = get_medusa_config(context, storage_provider, client_encryption,
-                               "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1)
+    config = parse_medusa_config(context, storage_provider, client_encryption,
+                                 "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1, grpc=1)
 
     GRPCServer.destroy()
     context.grpc_server = GRPCServer.init(config)
@@ -585,55 +425,13 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0):
+def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
-    config = configparser.ConfigParser(interpolation=None)
-    if storage_provider == "local":
-        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
-            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
-        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa_it_bucket",
-            "key_file": "",
-            "storage_provider": "local",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider == "google_storage":
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "medusa-integration-tests",
-            "key_file": GCS_CREDENTIALS,
-            "storage_provider": "google_storage",
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "base_path": "/tmp",
-            "prefix": storage_prefix
-        }
-    elif storage_provider.startswith("s3"):
-        config["storage"] = {
-            "host_file_separator": ",",
-            "bucket_name": "tlp-medusa-dev",
-            "key_file": AWS_CREDENTIALS,
-            "storage_provider": storage_provider,
-            "fqdn": "127.0.0.1",
-            "api_key_or_username": "",
-            "api_secret_or_password": "",
-            "api_profile": "default",
-            "base_path": "/tmp",
-            "multi_part_upload_threshold": 1 * 1024,
-            "concurrent_transfers": 4,
-            "prefix": storage_prefix,
-            "aws_cli_path": "aws"
-        }
-    config["cassandra"] = {
+
+    storage_args = {"prefix": storage_prefix}
+    cassandra_args = {
         "is_ccm": 1,
         "stop_cmd": CCM_STOP,
         "start_cmd": CCM_START,
@@ -648,15 +446,17 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
             os.path.join(
                 CCM_DIR,
                 "repository",
-                context.cassandra_version,
+                context.cassandra_version.replace(
+                    "github:", "githubCOLON").replace("/", "SLASH"),
                 "bin",
                 "sstableloader",
             )
         ),
         "resolve_ip_addresses": False
     }
+
     if client_encryption == 'with_client_encryption':
-        config["cassandra"].update(
+        cassandra_args.update(
             {
                 "certfile": certfile,
                 "usercert": usercert,
@@ -667,17 +467,42 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
                 "sstableloader_kspw": "testdata1"
             }
         )
-    config["monitoring"] = {"monitoring_provider": "local"}
-    config["checks"] = config_checks
-    config["grpc"] = {
-        "enabled": "1",
+
+    grpc_args = {
+        "enabled": grpc
     }
-    config['kubernetes'] = {
-        "enabled": 1,
+
+    kubernetes_args = {
+        "enabled": use_mgmt_api,
         "cassandra_url": cassandra_url,
-        "use_mgmt_api": use_mgmt_api,
+        "use_mgmt_api": use_mgmt_api
     }
+
+    args = {**storage_args, **cassandra_args, **config_checks, **grpc_args, **kubernetes_args}
+    return args
+
+
+def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
+    config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
+    create_storage_specific_resources(storage_provider)
+    config = medusa.config.load_config(args, config_file)
     return config
+
+
+def parse_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
+    config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
+    create_storage_specific_resources(storage_provider)
+    config = medusa.config.parse_config(args, config_file)
+    return config
+
+
+def create_storage_specific_resources(storage_provider):
+    if storage_provider == "local":
+        if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
+            shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
+        os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
 
 
 @when(r'I create the "{table_name}" table in keyspace "{keyspace_name}"')
@@ -821,9 +646,9 @@ def _i_cannot_see_the_backup_named_backupname_when_i_list_the_backups(
     assert found is False
 
 
-@then('I cannot see purged backup files for the "{table_name}" table in keyspace "{keyspace}"')
-def _i_cannot_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacename(
-    context, table_name, keyspace
+@then('I can {can_see_purged} see purged backup files for the "{table_name}" table in keyspace "{keyspace}"')
+def _i_can_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacename(
+    context, can_see_purged, table_name, keyspace
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
@@ -844,11 +669,11 @@ def _i_cannot_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspa
             ):
                 for objects in section["objects"]:
                     nb_files[objects["path"]] = 0
-
-    if sb_files != len(nb_files):
-        logging.error("{} objects found on remote storage and {} objects found on backups manifest".format(
-            sb_files, len(nb_files)))
+    if can_see_purged == "not":
         assert sb_files == len(nb_files)
+    else:
+        # GC grace is activated and we expect more files in the storage bucket than in the manifests
+        assert sb_files > len(nb_files)
 
 
 @then('I can see the backup status for "{backup_name}" when I run the status command')
