@@ -49,7 +49,8 @@ RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --creat
 COPY --from=base /install /usr/local
 
 # wget could happen in the build-phase
-RUN apt-get update && apt-get install -y python3 python3-setuptools wget
+RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
     wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
