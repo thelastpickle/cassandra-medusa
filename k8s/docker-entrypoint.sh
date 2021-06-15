@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # While not limited to k8s environments, this script is designed for running
-# Medusa in two container in a Cassandra pod. One container runs the backup
-# service along side Cassandra, i.e., a sidecar container. The other container
+# Medusa in two containers in a Cassandra pod. One container runs the backup
+# service alongside Cassandra, i.e., a sidecar container. The other container
 # is an initContainer to perform restores. This script allows the same image
 # to be used for both containers with the MEDUSA_MODE env var.
 

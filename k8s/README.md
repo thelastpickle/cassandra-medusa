@@ -30,7 +30,7 @@ Next you need to run the protobuf compiler:
 ```
 $ cd medusa/service/grpc
 
-$ python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. medusa.protoc
+$ python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. medusa.proto
 ``` 
 
 These steps should be integrated into the build or setup.py at some point. I am just not sure where the appropriate integrations points are yet.
