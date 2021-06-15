@@ -261,6 +261,27 @@ jobs:
     - uses: codecov/codecov-action@v1
       name: Report code coverage
   
+
+  publish-docker-master:
+    needs: [debian-build, build, integration-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Publish Beta Docker Image
+      env:
+        DOCKER_USERNAME: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
+        DOCKER_TOKEN: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+      run: |
+        docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
+        echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
+        python setup.py build
+        # Push Docker image tagged with the short commit sha
+        docker build -t k8ssandra/medusa:$(git rev-parse --short HEAD) -f k8s/Dockerfile .
+        docker push k8ssandra/medusa:$(git rev-parse --short HEAD)
+        # Push Docker image tagged as "latest"
+        docker tag k8ssandra/medusa:$(git rev-parse --short HEAD) k8ssandra/medusa:latest
+        docker push k8ssandra/medusa:latest
     
   publish-debian:
     # We can only release if the build above succeeded first
@@ -305,7 +326,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - name: Publish Debian version
+    - name: Publish Docker Image
       env:
         DOCKER_USERNAME: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
         DOCKER_TOKEN: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
