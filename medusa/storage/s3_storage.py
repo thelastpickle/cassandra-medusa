@@ -95,9 +95,7 @@ class S3Storage(S3BaseStorage):
             raise NotImplementedError("No valid method of AWS authentication provided.")
 
         cls = get_driver(Provider.S3)
-        region = self.config.region
-        if self.config.storage_provider != Provider.S3:
-            region = get_driver(self.config.storage_provider).region_name
+        region = get_driver(self.config.storage_provider).region_name
         driver = cls(
             aws_access_key_id, aws_secret_access_key, token=aws_security_token, region=region
         )
