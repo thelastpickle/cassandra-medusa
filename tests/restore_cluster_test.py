@@ -16,15 +16,16 @@
 import configparser
 import json
 import os
+import pathlib
 import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 from medusa.config import (MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,
-                           KubernetesConfig)
+                           KubernetesConfig, parse_config)
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
+from medusa.utils import evaluate_boolean
 
 
 class RestoreClusterTest(unittest.TestCase):
@@ -33,6 +34,33 @@ class RestoreClusterTest(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
     def setUp(self):
+        self.config = self._build_config_parser()
+        self.medusa_config = MedusaConfig(
+            file_path=None,
+            storage=_namedtuple_from_dict(StorageConfig, self.config['storage']),
+            monitoring={},
+            cassandra=_namedtuple_from_dict(CassandraConfig, self.config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, self.config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, self.config['kubernetes']),
+        )
+        self.tmp_dir = pathlib.Path(tempfile.gettempdir())
+        # Useful for a couple of tests
+        self.default_restore_job = RestoreJob(cluster_backup=Mock(),
+                                              config=self.medusa_config,
+                                              temp_dir=self.tmp_dir,
+                                              host_list=None,
+                                              seed_target=None,
+                                              keep_auth=False,
+                                              verify=False,
+                                              parallel_restores=None)
+
+    @staticmethod
+    def _build_config_parser():
+        """Build and return a mutable config"""
+
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {
             'host_file_separator': ','
@@ -43,27 +71,18 @@ class RestoreClusterTest(unittest.TestCase):
             'start_cmd': '/etc/init.d/cassandra start',
             'stop_cmd': '/etc/init.d/cassandra stop',
             'is_ccm': '1',
-            'resolve_ip_addresses': 'False'
+            'resolve_ip_addresses': 'True',
+            'use_sudo': 'True',
         }
         config["grpc"] = {
-            "enabled": "0"
+            'enabled': '0'
         }
         config['kubernetes'] = {
-            "enabled": "0"
+            'enabled': '0',
+            'cassandra_url': 'None',
+            'use_mgmt_api': 'False'
         }
-        self.config = config
-        self.medusa_config = MedusaConfig(
-            file_path=None,
-            storage=_namedtuple_from_dict(StorageConfig, config['storage']),
-            monitoring={},
-            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            ssh=None,
-            checks=None,
-            logging=None,
-            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
-        )
-        self.tmp_dir = Path(tempfile.gettempdir())
+        return config
 
     # Test that we can properly associate source and target nodes for restore using a host list
     def test_populate_ringmap(self):
@@ -164,7 +183,6 @@ class RestoreClusterTest(unittest.TestCase):
                 restore_job = RestoreJob(
                     cluster_backup, self.medusa_config, self.tmp_dir, None, "node1.mydomain.net", False, False, None,
                     version_target="4.0.0")
-
                 target_tokenmap = json.loads(f_target.read())
                 restore_job._populate_ringmap(tokenmap, target_tokenmap)
                 # topologies are different, which forces the use of the sstableloader
@@ -227,37 +245,80 @@ class RestoreClusterTest(unittest.TestCase):
                 assert not in_place
 
     def test_cmd_no_config_specified(self):
-        """Ensure that command line is OK when"""
-        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
-            cluster_backup = Mock()
-            tokenmap = json.loads(f.read())
-            cluster_backup.tokenmap.return_value = tokenmap
-            host_list = "tests/resources/restore_cluster_host_list.txt"
-            restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
-                                     None, None)
-            cmd = restore_job._build_restore_cmd()
-            assert '--config-file' not in cmd
+        """Ensure that command line is OK when default config file should be used"""
+        cmd = self.default_restore_job._build_restore_cmd()
+        assert '--config-file' not in cmd
 
     def test_cmd_with_custom_config_path(self):
-        with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
-            cluster_backup = Mock()
-            tokenmap = json.loads(f.read())
-            cluster_backup.tokenmap.return_value = tokenmap
-            host_list = "tests/resources/restore_cluster_host_list.txt"
-            config = MedusaConfig(
-                file_path='/custom/path/to/medusa.ini',
-                storage=_namedtuple_from_dict(StorageConfig, self.config['storage']),
-                monitoring={},
-                cassandra=_namedtuple_from_dict(CassandraConfig, self.config['cassandra']),
-                ssh=None,
-                checks=None,
-                logging=None,
-                grpc=_namedtuple_from_dict(GrpcConfig, self.config['grpc']),
-                kubernetes=_namedtuple_from_dict(KubernetesConfig, self.config['kubernetes']),
-            )
-            restore_job = RestoreJob(cluster_backup, config, self.tmp_dir, host_list, None, False, False, None)
-            cmd = restore_job._build_restore_cmd()
-            assert '--config-file /custom/path/to/medusa.ini' in cmd
+        """Ensure that custom config file is honored during a restore"""
+        config = MedusaConfig(
+            file_path=pathlib.Path('/custom/path/to/medusa.ini'),
+            storage=_namedtuple_from_dict(StorageConfig, self.config['storage']),
+            monitoring={},
+            cassandra=_namedtuple_from_dict(CassandraConfig, self.config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, self.config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, self.config['kubernetes']),
+        )
+        restore_job = RestoreJob(Mock(), config, self.tmp_dir, None, None, False, False, None)
+        cmd = restore_job._build_restore_cmd()
+        assert '--config-file /custom/path/to/medusa.ini' in cmd
+
+    def test_build_restore_command_default(self):
+        """Ensure that a restore uses sudo by default"""
+        cmd = self.default_restore_job._build_restore_cmd()
+        # sudo is enabled by default
+        assert evaluate_boolean(self.medusa_config.cassandra.use_sudo)
+        # Ensure that Kubernetes mode is not enabled in default test config
+        assert not evaluate_boolean(self.medusa_config.kubernetes.enabled)
+        assert 'sudo' in cmd
+
+    def test_build_restore_command_without_sudo(self):
+        """Ensure that a restore can be done without using sudo"""
+        config = self._build_config_parser()
+        config['cassandra']['use_sudo'] = 'False'
+
+        medusa_config = MedusaConfig(
+            file_path=None,
+            storage=_namedtuple_from_dict(StorageConfig, config['storage']),
+            monitoring={},
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+        )
+        restore_job = RestoreJob(Mock(), medusa_config, self.tmp_dir, None, None, False, False, None)
+        cmd = restore_job._build_restore_cmd()
+        assert not evaluate_boolean(medusa_config.cassandra.use_sudo)
+        assert 'sudo' not in cmd, 'command line should not contain sudo when use_sudo is explicitly set to False'
+
+    def test_build_restore_command_kubernetes(self):
+        """Ensure Kubernetes mode does not generate a command line with sudo"""
+        medusa_config_file = pathlib.Path(__file__).parent / "resources/config/medusa-kubernetes.ini"
+        cassandra_yaml = pathlib.Path(__file__).parent / "resources/config/cassandra.yaml"
+        args = {'config_file': str(cassandra_yaml)}
+        config = parse_config(args, medusa_config_file)
+
+        medusa_config = MedusaConfig(
+            file_path=medusa_config_file,
+            storage=_namedtuple_from_dict(StorageConfig, config['storage']),
+            monitoring={},
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+        )
+        restore_job = RestoreJob(Mock(), medusa_config, self.tmp_dir, None, None, False, False, None)
+        cmd = restore_job._build_restore_cmd()
+        assert evaluate_boolean(medusa_config.kubernetes.enabled)
+        assert 'sudo' not in cmd, 'Kubernetes mode should not generate command line with sudo'
+        assert str(medusa_config_file) in cmd
 
 
 if __name__ == '__main__':

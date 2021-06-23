@@ -16,6 +16,7 @@
 import os
 import pathlib
 import unittest
+import socket
 
 import medusa.config
 import medusa.utils
@@ -69,6 +70,55 @@ class ConfigTest(unittest.TestCase):
         assert config.checks.query == 'SELECT * FROM greek_mythology'
         assert medusa.utils.evaluate_boolean(config.kubernetes.use_mgmt_api)
         assert config.ssh.username == 'Zeus'
+
+    def test_use_sudo_default(self):
+        """Ensure that, by default, use_sudo is enabled and kubernetes disabled"""
+        args = {}
+        config = medusa.config.load_config(args, self.medusa_config_file)
+        assert medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
+        # Kubernetes must be disabled by default so use_sudo can be honored
+        assert not medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+
+    def test_use_sudo_kubernetes_disabled(self):
+        """Ensure that use_sudo is honored when Kubernetes mode is disabled (default)"""
+        args = {'use_sudo': 'True'}
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        assert config['cassandra']['use_sudo'] == 'True', 'sudo should be used because Kubernetes mode is not enabled'
+
+        args = {'use_sudo': 'False'}
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        assert config['cassandra']['use_sudo'] == 'False', 'sudo should not be used as explicitly required'
+
+    def test_use_sudo_kubernetes_enabled(self):
+        """Ensure that use_sudo is disabled when Kubernetes mode is enabled"""
+        args = {'use_sudo': 'true'}
+        medusa_k8s_config = pathlib.Path(__file__).parent / "resources/config/medusa-kubernetes.ini"
+        config = medusa.config.parse_config(args, medusa_k8s_config)
+        assert config['cassandra']['use_sudo'] == 'False'
+
+    def test_overridden_fqdn(self):
+        """Ensure that a overridden fqdn in config is honored"""
+        args = {'fqdn': 'overridden-fqdn'}
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        assert config['storage']['fqdn'] == 'overridden-fqdn'
+
+    def test_fqdn_with_resolve_ip_addresses_enabled(self):
+        """Ensure that explicitly defined fqdn is untouched when DNS resolving is enabled"""
+        args = {
+            'fqdn': socket.getfqdn(),
+            'resolve_ip_addresses': 'True'
+        }
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        assert config['storage']['fqdn'] == socket.getfqdn()
+
+    def test_fqdn_with_resolve_ip_addresses_disabled(self):
+        """Ensure that fqdn is an IP address when DNS resolving is disabled"""
+        args = {
+            'fqdn': socket.getfqdn(),
+            'resolve_ip_addresses': 'False'
+        }
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        assert config['storage']['fqdn'] == socket.gethostbyname(socket.getfqdn())
 
 
 if __name__ == '__main__':

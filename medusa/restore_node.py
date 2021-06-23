@@ -95,7 +95,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    use_sudo = not medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+    use_sudo = medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
     clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
 
@@ -180,7 +180,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
     # Clean the restored data from local temporary folder
     if download_dir:
-        clean_path(download_dir, keep_folder=False)
+        use_sudo = medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
+        clean_path(download_dir, use_sudo, keep_folder=False)
     return node_backup
 
 
@@ -253,7 +254,7 @@ def table_is_allowed_to_restore(keyspace, table, fqtns_to_restore):
     return True
 
 
-def clean_path(p, use_sudo=True, keep_folder=False):
+def clean_path(p, use_sudo, keep_folder=False):
     path = str(p)
     if p.exists() and os.path.isdir(path) and len(os.listdir(path)):
         logging.debug('Cleaning ({})'.format(path))
