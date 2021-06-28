@@ -147,8 +147,8 @@ class CqlSession(object):
                 return token.value
         raise RuntimeError('Unable to get current token')
 
-    def datacenter(self):
-        logging.debug('Checking datacenter...')
+    def placement(self):
+        logging.debug('Checking placement using dc and rack...')
         listen_address = socket.gethostbyname(self.cluster.contact_points[0])
         token_map = self.cluster.metadata.token_map
 
@@ -156,13 +156,13 @@ class CqlSession(object):
             socket_host = self.hostname_resolver.resolve_fqdn(listen_address)
             logging.debug('Checking host {} against {}/{}'.format(host.address, listen_address, socket_host))
             if host.address == listen_address or self.hostname_resolver.resolve_fqdn(host.address) == socket_host:
-                return host.datacenter
+                return host.datacenter, host.rack
 
-        raise RuntimeError('Unable to get current datacenter')
+        raise RuntimeError('Unable to get current placement')
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
-        datacenter = self.datacenter()
+        dc_rack_pair = self.placement()
 
         def get_host(host_token_pair):
             return host_token_pair[0]
@@ -183,10 +183,12 @@ class CqlSession(object):
         return {
             self.hostname_resolver.resolve_fqdn(host.address): {
                 'tokens': tokens,
-                'is_up': host.is_up
+                'is_up': host.is_up,
+                'rack': host.rack,
+                'dc': host.datacenter
             }
             for host, tokens in host_tokens_pairs
-            if host.datacenter == datacenter
+            if host.datacenter == dc_rack_pair[0]
         }
 
     def dump_schema(self):
