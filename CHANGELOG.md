@@ -1,5 +1,20 @@
 ## Change Log
 
+### 0.11.0 (2021/06/28 07:41 +00:00)
+- Make sudo switchable when Kubernetes mode is disabled (@rhardouin)
+- Add support for Azure backend in docker image (@adutra)
+- Fossa Integration (@jdonenine)
+- Set a gc grace period on backup files to prevent premature purge while backup is running (@adejanovski)
+- Health check updates for encrypted connections (@jeffbanks)
+- Use a datetime as default backup name for backup-cluster (@optplx)
+- Add seed_target for backup-cluster (@optplx)
+- Add a --version option (@optplx)
+- Use custom config file when restoring data (@rhardouin)
+- Fix hostname_resolver.resolve_fqdn when resolve_ip_addresses is False (@optplx)
+- Support ssh with public certificates (@optplx)
+- Add exponential delays in retries for S3 libcloud uploads and downloads (@ivanmp91)
+- Ensure each setting can be overridden (@rhardouin)
+
 ### 0.10.1 (2021/04/27 12:37 +00:00)
 - Add retries for Azure to remove test flakiness (@adejanovski)
 - Publish debian packages to Cloudsmith (@adejanovski)
