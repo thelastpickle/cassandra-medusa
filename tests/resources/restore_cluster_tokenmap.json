@@ -1,14 +1,20 @@
 {
     "node1.mydomain.net": {
     "tokens": [-3074457345618258400],
-    "is_up": true
+    "is_up": true,
+    "rack": "r100",
+    "dc": "dc1"
     },
     "node2.mydomain.net": {
     "tokens": [-9223372036854776000],
-    "is_up": true
+    "is_up": true,
+    "rack": "r200",
+    "dc": "dc2"
     },
     "node3.mydomain.net": {
     "tokens": [3074457345618258400],
-    "is_up": true
+    "is_up": true,
+    "rack": "r300",
+    "dc": "dc2"
     }
 }
