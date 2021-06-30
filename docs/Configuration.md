@@ -27,8 +27,8 @@ resolve_ip_addresses = True
 
 [storage]
 storage_provider = <Storage system used for backups>
-; storage_provider should be either of "local", "google_storage" or the s3_* values from
-; https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py
+; storage_provider should be either of "local", "google_storage" or "s3"
+region = <Region hosting the storage>
 
 ; Name of the bucket used for storing backups
 bucket_name = cassandra_backups
