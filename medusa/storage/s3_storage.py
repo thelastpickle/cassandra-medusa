@@ -25,16 +25,23 @@ from medusa.storage.s3_base_storage import S3BaseStorage
 
 
 class S3Storage(S3BaseStorage):
+    def __init__(self, config):
+        super().__init__(config)
+        imds_token = requests.put("http://169.254.169.254/latest/api/token",
+                                  headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"})
+        self.imds_headers = None if imds_token.status_code != 200 else {
+            "X-aws-ec2-metadata-token": imds_token.text}
+
     def get_aws_instance_profile(self):
         """
         Get IAM Role from EC2
         """
         logging.debug('Getting IAM Role:')
         try:
-            aws_instance_profile = requests.get('http://169.254.169.254/latest/meta-data/iam/security-credentials',
-                                                timeout=10)
+            aws_instance_profile = requests.get("http://169.254.169.254/latest/meta-data/iam/security-credentials",
+                                                timeout=10, headers=self.imds_headers)
         except requests.exceptions.RequestException:
-            logging.warn('Can\'t fetch IAM Role.')
+            logging.warn("Can\'t fetch IAM Role.")
             return None
 
         if aws_instance_profile.status_code != 200:
@@ -82,7 +89,7 @@ class S3Storage(S3BaseStorage):
                 logging.debug('Reading AWS credentials from IAM Role: %s', aws_instance_profile.text)
                 url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/" + aws_instance_profile.text
                 try:
-                    auth_data = requests.get(url).json()
+                    auth_data = requests.get(url, headers=self.imds_headers).json()
                 except requests.exceptions.RequestException:
                     logging.error('Can\'t fetch AWS IAM Role credentials.')
                     sys.exit(1)
