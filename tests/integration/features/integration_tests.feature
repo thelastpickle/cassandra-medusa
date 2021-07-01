@@ -722,6 +722,7 @@ Feature: Integration tests
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup" exists
+        And I verify over gRPC that the backup "grpc_backup" has the expected placement information
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup" and it fails
         Then I delete the backup "grpc_backup" over gRPC
         Then I delete the backup "grpc_backup" over gRPC and it fails

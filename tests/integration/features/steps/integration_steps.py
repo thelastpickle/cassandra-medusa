@@ -577,6 +577,21 @@ def _i_verify_over_grpc_backup_exists(context, backup_name):
     assert found is True
 
 
+@then(r'I verify over gRPC that the backup "{backup_name}" has the expected placement information')
+def _i_verify_over_grpc_backup_has_expected_information(context, backup_name):
+    found = False
+    backups = context.grpc_client.get_backups()
+    for backup in backups:
+        if backup.backupName == backup_name:
+            found = True
+            assert backup.nodes[0].host == "127.0.0.1"
+            assert backup.nodes[0].datacenter in ["dc1", "datacenter1", "DC1"]
+            assert backup.nodes[0].rack in ["rack1", "r1"]
+            assert len(backup.nodes[0].tokens) >= 1
+            break
+    assert found is True
+
+
 @then(r'I delete the backup "{backup_name}" over gRPC')
 def _i_delete_backup_grpc(context, backup_name):
     context.grpc_client.delete_backup(backup_name)
