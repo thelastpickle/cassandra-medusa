@@ -58,3 +58,4 @@ def list_backups(config, show_all):
     if seen_incomplete_backup:
         print('')
         print('Incomplete backups found. You can run "medusa status --backup-name <name>" for more details')
+    return cluster_backups

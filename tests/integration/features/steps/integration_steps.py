@@ -15,9 +15,11 @@
 
 import cassandra
 import datetime
+import glob
 import json
 import logging
 import os
+import random
 import requests
 import shutil
 import subprocess
@@ -39,6 +41,7 @@ import medusa.config
 import medusa.download
 import medusa.index
 import medusa.filtering
+import medusa.fetch_tokenmap
 import medusa.listing
 import medusa.purge
 import medusa.report_latest
@@ -47,6 +50,7 @@ import medusa.status
 import medusa.verify
 import medusa.verify_restore
 import medusa.service.grpc.client
+import medusa.service.grpc.server
 
 from medusa.config import (
     MedusaConfig,
@@ -129,36 +133,22 @@ def tune_ccm_settings(cluster_name):
 
 
 class GRPCServer:
-    @staticmethod
-    def init(config):
-        server = GRPCServer(config)
-        server.start()
-        return server
+    def __init__(self, config):
+        if not os.path.isdir(os.path.join("/tmp", "medusa_grpc")):
+            os.makedirs(os.path.join("/tmp", "medusa_grpc"))
 
-    @staticmethod
-    def destroy():
-        p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
-        out, err = p.communicate()
-        for line in out.splitlines():
-            if b"medusa.service.grpc.server server.py" in line:
-                logging.info(line)
-                pid = int(line.split(None, 2)[1])
-                os.kill(pid, signal.SIGKILL)
+        self.config = config
+        medusa_conf_file = "/tmp/medusa_grpc/medusa.ini"
+        with open(medusa_conf_file, "w") as config_file:
+            self.config.write(config_file)
 
+        self.grpc_server = medusa.service.grpc.server.Server(medusa_conf_file, testing=True)
+        self.grpc_server.serve()
+
+    def destroy(self):
+        self.grpc_server.shutdown(None, None)
         if os.path.isdir(os.path.join("/tmp", "medusa_grpc")):
             shutil.rmtree(os.path.join("/tmp", "medusa_grpc"))
-
-    def __init__(self, config):
-        self.config = config
-        self.medusa_conf_file = "/tmp/medusa_grpc/medusa.ini"
-
-    def start(self):
-        os.makedirs(os.path.join("/tmp", "medusa_grpc"))
-
-        with open(self.medusa_conf_file, "w") as config_file:
-            self.config.write(config_file)
-            cmd = ["python3", "-m", "medusa.service.grpc.server", "server.py", self.medusa_conf_file]
-            subprocess.Popen(cmd, cwd=os.path.abspath("../"))
 
 
 class MgmtApiServer:
@@ -346,9 +336,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     config = parse_medusa_config(context, storage_provider, client_encryption,
                                  "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=1)
 
-    GRPCServer.destroy()
-    context.grpc_server = GRPCServer.init(config)
-
+    context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
         "127.0.0.1:50051",
         channel_options=[('grpc.enable_retries', 0)]
@@ -377,8 +365,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     config = parse_medusa_config(context, storage_provider, client_encryption,
                                  "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1, grpc=1)
 
-    GRPCServer.destroy()
-    context.grpc_server = GRPCServer.init(config)
+    context.grpc_server = GRPCServer(config)
 
     context.grpc_client = medusa.service.grpc.client.Client(
         "127.0.0.1:50051",
@@ -744,8 +731,10 @@ def _i_can_download_the_backup_all_tables_successfully(context, backup_name):
         fqdn=config.storage.fqdn,
         name=backup_name,
     )
-    fqtn = set({})
-    medusa.download.download_data(context.medusa_config.storage, backup, fqtn, Path(download_path))
+    keyspaces = set()
+    tables = set()
+    medusa.download.download_cmd(context.medusa_config, backup_name, Path(download_path), keyspaces, tables, False)
+
     # check all manifest objects that have been backed up have been downloaded
     keyspaces = {section['keyspace'] for section in json.loads(backup.manifest) if section['objects']}
     for ks in keyspaces:
@@ -1146,10 +1135,75 @@ def _i_can_verify_the_restore_verify_query_returned_rows(context, query, expecte
     medusa.verify_restore.verify_restore(["127.0.0.1"], custom_config)
 
 
+@then(r'I delete the manifest from the backup named "{backup_name}"')
+def _i_delete_the_manifest_from_the_backup_named(context, backup_name):
+    storage = Storage(config=context.medusa_config.storage)
+    path_root = BUCKET_ROOT
+
+    fqdn = "127.0.0.1"
+    path_manifest_index_latest = "{}/{}index/backup_index/{}/manifest_{}.json".format(
+        path_root, storage.prefix_path, backup_name, fqdn
+    )
+    path_backup_index = "{}/{}index/backup_index/{}".format(
+        path_root, storage.prefix_path, backup_name
+    )
+    path_manifest_backup = "{}/{}{}/{}/meta/manifest.json".format(
+        path_root, storage.prefix_path, fqdn, backup_name, fqdn
+    )
+
+    os.remove(path_manifest_backup)
+    os.remove(path_manifest_index_latest)
+
+    meta_files = os.listdir(path_backup_index)
+    for meta_file in meta_files:
+        if meta_file.startswith("finished"):
+            os.remove(os.path.join(path_backup_index, meta_file))
+
+
+@then(r'the backup named "{backup_name}" is incomplete')
+def _the_backup_named_is_incomplete(context, backup_name):
+    backups = medusa.listing.list_backups(config=context.medusa_config, show_all=True)
+    for backup in backups:
+        if backup.name == backup_name:
+            assert not backup.finished
+
+
+@then(u'I delete a random sstable from backup "{backup_name}" in the "{table}" table in keyspace "{keyspace}"')
+def _i_delete_a_random_sstable(context, backup_name, table, keyspace):
+    storage = Storage(config=context.medusa_config.storage)
+    path_root = BUCKET_ROOT
+
+    fqdn = "127.0.0.1"
+    path_sstables = "{}/{}{}/{}/data/{}/{}*".format(
+        path_root, storage.prefix_path, fqdn, backup_name, keyspace, table
+    )
+
+    table_path = glob.glob(path_sstables)[0]
+    sstable_files = os.listdir(table_path)
+    random.shuffle(sstable_files)
+    os.remove(os.path.join(table_path, sstable_files[0]))
+
+
+@then(r'verifying backup "{backup_name}" fails')
+def _verifying_backup_fails(context, backup_name):
+    try:
+        medusa.verify.verify(context.medusa_config, backup_name, True)
+        assert "Verify should have failed" == "Well it didn't"
+    except RuntimeError:
+        # All good, we should get this exception
+        pass
+
+
 @when(r'I delete the backup named "{backup_name}"')
 def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
     medusa.purge.delete_backup(context.medusa_config,
                                backup_name=backup_name, all_nodes=all_nodes)
+
+
+@then(r'I can fetch the tokenmap of the backup named "{backup_name}"')
+def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
+    tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config)
+    assert "127.0.0.1" in tokenmap
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

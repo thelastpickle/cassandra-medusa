@@ -28,3 +28,5 @@ def main(config, backup_name):
     for hostname, ringitem in backup.tokenmap.items():
         print(hostname)
         print(ringitem['tokens'])
+
+    return backup.tokenmap

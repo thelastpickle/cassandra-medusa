@@ -31,6 +31,7 @@ Feature: Integration tests
         Then I can see the backup named "first_backup" when I list the backups
         Then I can download the backup named "first_backup" for all tables
         Then I can download the backup named "first_backup" for "medusa.test"
+        And I can fetch the tokenmap of the backup named "first_backup"
         Then I can see the backup status for "first_backup" when I run the status command
         Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
         Then the backup index exists
@@ -797,3 +798,41 @@ Feature: Integration tests
         Examples: Local storage
         | storage                    | client encryption |
         | local_backup_gc_grace      |  with_client_encryption |
+
+    @20
+    Scenario Outline: Create an incomplete backup, verify it and delete it
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario20"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
+        And I delete the manifest from the backup named "first_backup"
+        Then I can see the backup named "first_backup" when I list the backups
+        And the backup named "first_backup" is incomplete
+        And verifying backup "first_backup" fails
+        When I delete the backup named "first_backup"
+        Then I cannot see the backup named "first_backup" when I list the backups
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
+    
+    @21
+    Scenario Outline: Create a corrupt backup, verify it and delete it
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario21"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
+        And I delete a random sstable from backup "first_backup" in the "test" table in keyspace "medusa"
+        Then verifying backup "first_backup" fails
+        When I delete the backup named "first_backup"
+        Then I cannot see the backup named "first_backup" when I list the backups
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
