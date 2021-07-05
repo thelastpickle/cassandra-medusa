@@ -42,7 +42,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         'python-dateutil<2.8.1,>=2.1',
-        'Click>=6.7',
+        'Click>=8.0.1',
         'click-aliases>=1.0.1',
         'PyYAML>=5.1',
         'cassandra-driver>=3.25.0',
