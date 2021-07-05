@@ -40,6 +40,7 @@ def verify(config, backup_name, enable_md5_checks_flag):
             print('  - [{0.fqdn}] Backup started at {0.started}, but not finished yet'.format(incomplete_node))
         for fqdn in cluster_backup.missing_nodes():
             print('  - [{}] Backup missing'.format(fqdn))
+        raise RuntimeError("Backup is incomplete")
 
     consistency_errors = [
         consistency_error
