@@ -87,7 +87,7 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
 - `schema.cql` contains the CQL commands to recreate the schema. This is the very first file to be
   uploaded to the bucket, and thus the existence of this file indicates that a backup has begun.
 - `tokenmap.json` contains the topology (token) configuration of the cluster as seen by the node
-  at the time of backup.
+  at the time of backup.  The tokenmap includes the placement for designated rack and datacenter. 
 - `manifest.json` will contain a list of all expected data files along with expected sizes and
   MD5 checksums. This can be used to easily validate the content of a backup in a bucket.
   The content of `manifest.json` is generated on the node as part of the upload process.

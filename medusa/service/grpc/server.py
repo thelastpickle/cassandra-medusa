@@ -95,6 +95,15 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                     summary.finishTime = backup.finished
                 summary.totalNodes = len(backup.tokenmap)
                 summary.finishedNodes = len(backup.complete_nodes())
+                for node in backup.tokenmap:
+                    tokenmapNode = medusa_pb2.BackupNode()
+                    tokenmapNode.host = node
+                    tokenmapNode.datacenter = backup.tokenmap[node]["dc"] if "dc" in backup.tokenmap[node] else ""
+                    tokenmapNode.rack = backup.tokenmap[node]["rack"] if "rack" in backup.tokenmap[node] else ""
+                    if "tokens" in backup.tokenmap[node]:
+                        for token in backup.tokenmap[node]["tokens"]:
+                            tokenmapNode.tokens.append(token)
+                    summary.nodes.append(tokenmapNode)
                 response.backups.append(summary)
 
             return response

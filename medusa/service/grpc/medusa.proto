@@ -56,4 +56,12 @@ message BackupSummary {
     int64 finishTime = 3;
     int32 totalNodes = 4;
     int32 finishedNodes = 5;
+    repeated BackupNode nodes = 6;
+}
+
+message BackupNode {
+    string host = 1;
+    repeated int64 tokens = 2;
+    string datacenter = 3;
+    string rack = 4;
 }

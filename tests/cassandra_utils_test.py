@@ -68,23 +68,27 @@ class CassandraUtilsTest(unittest.TestCase):
         host = Mock()
         host.is_up = True
         host.address = '127.0.0.1'
+        host.rack = 'r1'
+        host.datacenter = 'dc1'
+
         session = Mock()
         session.cluster = Mock()
         session.cluster.contact_points = ["localhost"]
         session.cluster.metadata.token_map.token_to_host_owner = {
             Murmur3Token(-9): host
         }
+
         s = CqlSession(session, resolve_ip_addresses=self.config.cassandra.resolve_ip_addresses)
         token_map = s.tokenmap()
         self.assertEqual(
-            {'127.0.0.1': {'is_up': True, 'tokens': [-9]}},
-            token_map
+            {'127.0.0.1': {'is_up': True, 'tokens': [-9], 'rack': 'r1', 'dc': 'dc1'}}, token_map
         )
 
     def test_tokenmap_vnodes(self):
         host = Mock()
         host.is_up = True
         host.address = '127.0.0.1'
+
         session = Mock()
         session.cluster = Mock()
         session.cluster.contact_points = ["localhost"]
@@ -98,16 +102,18 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertEqual(True, token_map["127.0.0.1"]["is_up"])
         self.assertEqual([-9, -6, 0], sorted(token_map["127.0.0.1"]["tokens"]))
 
-    def test_tokenmap_two_dc(self):
+    def test_tokenmap_dc_rack(self):
         host_a = Mock()
         host_a.is_up = True
         host_a.address = '127.0.0.1'
         host_a.datacenter = "dcA"
+        host_a.rack = "r1"
 
         host_b = Mock()
         host_b.is_up = True
         host_b.address = '127.0.0.2'
         host_b.datacenter = "dcB"
+        host_b.rack = "r1"
 
         session = Mock()
         session.cluster = Mock()
@@ -117,10 +123,53 @@ class CassandraUtilsTest(unittest.TestCase):
             Murmur3Token(6): host_b
         }
         s = CqlSession(session, resolve_ip_addresses=False)
+
         token_map = s.tokenmap()
         self.assertEqual(
-            {'127.0.0.1': {'is_up': True, 'tokens': [-6]}},
+            {'127.0.0.1': {'is_up': True, 'tokens': [-6], 'rack': 'r1', 'dc': 'dcA'}},
             token_map
+        )
+
+    def test_tokenmap_two_dc(self):
+        host_a = Mock()
+        host_a.is_up = True
+        host_a.address = '127.0.0.1'
+        host_a.datacenter = 'dcA'
+        host_a.rack = 'r1'
+        host_b = Mock()
+        host_b.is_up = False
+        host_b.address = '127.0.0.2'
+        host_b.datacenter = 'dcB'
+        host_b.rack = 'r2'
+
+        session = Mock()
+        session.cluster = Mock()
+        session.cluster.contact_points = ["127.0.0.1"]
+        session.cluster.metadata.token_map.token_to_host_owner = {
+            Murmur3Token(-6): host_a,
+            Murmur3Token(6): host_b
+        }
+        s = CqlSession(session, resolve_ip_addresses=False)
+
+        token_map = s.tokenmap()
+        self.assertEqual(
+            {'127.0.0.1': {'is_up': True, 'tokens': [-6], 'rack': 'r1', 'dc': 'dcA'}},
+            token_map
+        )
+
+        # A session with different cluster contact points
+        session2 = Mock()
+        session2.cluster = Mock()
+        session2.cluster.contact_points = ["127.0.0.2"]
+        session2.cluster.metadata.token_map.token_to_host_owner = {
+            Murmur3Token(-6): host_a,
+            Murmur3Token(6): host_b
+        }
+        s2 = CqlSession(session2, resolve_ip_addresses=False)
+        token_map2 = s2.tokenmap()
+        self.assertEqual(
+            {'127.0.0.2': {'is_up': False, 'tokens': [6], 'rack': 'r2', 'dc': 'dcB'}},
+            token_map2
         )
 
     def test_snapshot_path_lists_hidden_files(self):
