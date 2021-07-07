@@ -699,13 +699,14 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_0"
         Then the backup index exists
-        Then I verify over gRPC that the backup "grpc_backup" exists
-        Then I can see the backup index entry for "grpc_backup"
-        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
-        Then I delete the backup "grpc_backup" over gRPC
-        Then I verify over gRPC the backup "grpc_backup" does not exist
+        Then I verify over gRPC that the backup "grpc_backup_0" exists
+        Then I can see the backup index entry for "grpc_backup_0"
+        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_0"
+        Then I verify over gRPC that the backup "grpc_backup_0" has expected status SUCCESS
+        Then I delete the backup "grpc_backup_0" over gRPC
+        Then I verify over gRPC the backup "grpc_backup_0" does not exist
         Then I shutdown the gRPC server
 
         @local
@@ -721,14 +722,14 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_1"
         Then the backup index exists
-        Then I verify over gRPC that the backup "grpc_backup" exists
-        And I verify over gRPC that the backup "grpc_backup" has the expected placement information
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup" and it fails
-        Then I delete the backup "grpc_backup" over gRPC
-        Then I delete the backup "grpc_backup" over gRPC and it fails
-        Then I verify over gRPC the backup "grpc_backup" does not exist
+        Then I verify over gRPC that the backup "grpc_backup_1" exists
+        And I verify over gRPC that the backup "grpc_backup_1" has the expected placement information
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_1" and it fails
+        Then I delete the backup "grpc_backup_1" over gRPC
+        Then I delete the backup "grpc_backup_1" over gRPC and it fails
+        Then I verify over gRPC the backup "grpc_backup_1" does not exist
         Then I shutdown the gRPC server
 
         @local
@@ -744,13 +745,13 @@ Feature: Integration tests
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup"
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2"
         Then the backup index exists
-        Then I verify over gRPC that the backup "grpc_backup" exists
-        Then I can see the backup index entry for "grpc_backup"
-        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup"
-        Then I delete the backup "grpc_backup" over gRPC
-        Then I verify over gRPC the backup "grpc_backup" does not exist
+        Then I verify over gRPC that the backup "grpc_backup_2" exists
+        Then I can see the backup index entry for "grpc_backup_2"
+        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
+        Then I delete the backup "grpc_backup_2" over gRPC
+        Then I verify over gRPC the backup "grpc_backup_2" does not exist
         Then I shutdown the gRPC server
         Then I shutdown the mgmt api server
 
@@ -893,3 +894,28 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage | client encryption         |
         | minio   | without_client_encryption |
+
+
+    @23
+    Scenario Outline: Perform a differential async backup over gRPC, verify its index, then delete it over gRPC with Jolokia
+        Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario23"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_23"
+        Then the backup index exists
+        Then I verify over gRPC that the backup "grpc_backup_23" exists
+        Then I can see the backup index entry for "grpc_backup_23"
+        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_23"
+        Then I verify over gRPC that the backup "grpc_backup_23" has expected status SUCCESS
+        Then I delete the backup "grpc_backup_23" over gRPC
+        Then I verify over gRPC the backup "grpc_backup_23" does not exist
+        Then I verify that backup manager has removed the backup "grpc_backup_23"
+        Then I shutdown the gRPC server
+
+        @local
+        Examples: Local storage
+        | storage                    | client encryption |
+        | local_backup_gc_grace      |  with_client_encryption |

@@ -17,6 +17,8 @@
 from gevent import monkey
 
 import medusa.utils
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
 
 monkey.patch_all()
 import datetime
@@ -29,6 +31,7 @@ import sys
 # Need to get rid of the annoying pssh warning about paramiko
 if not sys.warnoptions:
     import warnings
+
     warnings.simplefilter("ignore")
 
 from collections import defaultdict
@@ -47,7 +50,6 @@ import medusa.restore_node
 import medusa.status
 import medusa.verify
 import medusa.fetch_tokenmap
-
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
@@ -128,7 +130,8 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
     Backup single Cassandra node
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup_node.main(medusaconfig, backup_name, stagger_time, enable_md5_checks, mode)
+    BackupMan.register_backup(backup_name, is_async=False)
+    return backup_node.handle_backup(medusaconfig, backup_name, stagger_time, enable_md5_checks, mode)
 
 
 @cli.command(name='backup-cluster')

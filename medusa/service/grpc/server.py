@@ -18,6 +18,7 @@ import signal
 import sys
 from collections import defaultdict
 from concurrent import futures
+from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -25,10 +26,11 @@ import grpc
 import grpc_health.v1.health
 from grpc_health.v1 import health_pb2_grpc
 
-import medusa.backup_node
-import medusa.config
-import medusa.listing
-import medusa.purge
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
+from medusa.config import load_config
+from medusa.listing import get_backups
+from medusa.purge import delete_backup
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -44,10 +46,11 @@ class Server:
         self.medusa_config = self.create_config()
         self.testing = testing
         self.grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        logging.info(f"GRPC server initialized")
+        logging.info("GRPC server initialized")
 
     def shutdown(self, signum, frame):
         logging.info("Shutting down GRPC server")
+        handle_backup_removal_all()
         self.grpc_server.stop(0)
 
     def serve(self):
@@ -69,7 +72,7 @@ class Server:
         config_file = Path(self.config_file_path)
         args = defaultdict(lambda: None)
 
-        return medusa.config.load_config(args, config_file)
+        return load_config(args, config_file)
 
     def configure_console_logging(self):
         root_logger = logging.getLogger('')
@@ -95,89 +98,193 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         self.config = config
         self.storage = Storage(config=self.config.storage)
 
-    def Backup(self, request, context):
-        logging.info("Performing backup {} (type={})".format(request.name, request.mode))
-        resp = medusa_pb2.BackupResponse()
+    def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
+        logging.info("Performing ASYNC backup {} (type={})".format(request.name, request.mode))
+        response = medusa_pb2.BackupResponse()
         mode = BACKUP_MODE_DIFFERENTIAL
         if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
             mode = BACKUP_MODE_FULL
-        try:
-            medusa.backup_node.main(self.config, request.name, None, False, mode)
-        except Exception as e:
-            context.set_details("failed to create backups: {}".format(e))
-            context.set_code(grpc.StatusCode.INTERNAL)
-            logging.exception("backup failed")
 
-        return resp
+        try:
+            response.backupName = request.name
+            response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
+            with ThreadPoolExecutor(max_workers=1, thread_name_prefix=request.name) as executor:
+                BackupMan.register_backup(request.name, is_async=True)
+                backup_future = executor.submit(backup_node.handle_backup, config=self.config,
+                                                backup_name_arg=request.name, stagger_time=None,
+                                                enable_md5_checks_flag=False, mode=mode)
+
+                backup_future.add_done_callback(record_backup_info)
+                BackupMan.set_backup_future(request.name, backup_future)
+
+        except Exception as e:
+
+            response.status = medusa_pb2.StatusType.FAILED
+            if request.name:
+                BackupMan.update_backup_status(request.name, BackupMan.STATUS_FAILED)
+
+            context.set_details("Failed to create async backup: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Async backup failed due to error: {}".format(e))
+
+        return response
+
+    def Backup(self, request, context):
+        # TODO pass the staggered arg
+        logging.info("Performing SYNC backup {} (type={})".format(request.name, request.mode))
+        response = medusa_pb2.BackupResponse()
+        mode = BACKUP_MODE_DIFFERENTIAL
+        if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
+            mode = BACKUP_MODE_FULL
+
+        try:
+            response.backupName = request.name
+            BackupMan.register_backup(request.name, is_async=False)
+            backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
+                                      enable_md5_checks_flag=False, mode=mode)
+            record_status_in_response(response, request.name)
+            return response
+        except Exception as e:
+            response.status = medusa_pb2.StatusType.FAILED
+            if request.name:
+                BackupMan.update_backup_status(request.name, BackupMan.STATUS_FAILED)
+
+            context.set_details("Failed to create sync backups: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Sync backup failed due to error: {}".format(e))
+
+        return response
 
     def BackupStatus(self, request, context):
+
         response = medusa_pb2.BackupStatusResponse()
         try:
             backup = self.storage.get_cluster_backup(request.backupName)
 
             # TODO how is the startTime determined?
             response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
-            response.finishedNodes = [node.fqdn for node in backup.complete_nodes()]
-            response.unfinishedNodes = [node.fqdn for node in backup.incomplete_nodes()]
-            response.missingNodes = [node.fqdn for node in backup.missing_nodes()]
+            response.finishedNodes.extend([node.fqdn for node in backup.complete_nodes()])
+            response.unfinishedNodes.extend([node.fqdn for node in backup.incomplete_nodes()])
+            response.missingNodes.extend([node.fqdn for node in backup.missing_nodes()])
 
             if backup.finished:
                 response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
             else:
                 response.finishTime = ""
 
-            return response
+            record_status_in_response(response, request.backupName)
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            return response
+            response.status = medusa_pb2.StatusType.UNKNOWN
+        return response
 
     def GetBackups(self, request, context):
         response = medusa_pb2.GetBackupsResponse()
+        last_status = medusa_pb2.StatusType.UNKNOWN
         try:
-            backups = medusa.listing.get_backups(self.config, True)
+            # cluster backups
+            backups = get_backups(self.config, True)
             for backup in backups:
                 summary = medusa_pb2.BackupSummary()
                 summary.backupName = backup.name
                 if backup.started is None:
-                    summary.starTime = 0
+                    summary.startTime = 0
                 else:
                     summary.startTime = backup.started
+
                 if backup.finished is None:
                     summary.finishTime = 0
+                    summary.status = medusa_pb2.StatusType.IN_PROGRESS
+                    last_status = medusa_pb2.StatusType.IN_PROGRESS
                 else:
                     summary.finishTime = backup.finished
+                    if last_status != medusa_pb2.StatusType.IN_PROGRESS:
+                        summary.status = medusa_pb2.StatusType.SUCCESS
+
                 summary.totalNodes = len(backup.tokenmap)
                 summary.finishedNodes = len(backup.complete_nodes())
+
                 for node in backup.tokenmap:
-                    tokenmapNode = medusa_pb2.BackupNode()
-                    tokenmapNode.host = node
-                    tokenmapNode.datacenter = backup.tokenmap[node]["dc"] if "dc" in backup.tokenmap[node] else ""
-                    tokenmapNode.rack = backup.tokenmap[node]["rack"] if "rack" in backup.tokenmap[node] else ""
-                    if "tokens" in backup.tokenmap[node]:
-                        for token in backup.tokenmap[node]["tokens"]:
-                            tokenmapNode.tokens.append(token)
-                    summary.nodes.append(tokenmapNode)
+                    summary.nodes.append(create_token_map_node(backup, node))
+
                 response.backups.append(summary)
 
-            return response
         except Exception as e:
-            context.set_details("failed to get backups: {}".format(e))
+            context.set_details("Failed to get backups due to error: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
-            return response
+            response.status = medusa_pb2.StatusType.UNKNOWN
+        return response
 
     def DeleteBackup(self, request, context):
         logging.info("Deleting backup {}".format(request.name))
-        resp = medusa_pb2.DeleteBackupResponse()
+        response = medusa_pb2.DeleteBackupResponse()
+
         try:
-            medusa.purge.delete_backup(self.config, [request.name], True)
+            delete_backup(self.config, [request.name], True)
+            handle_backup_removal(request.name)
         except Exception as e:
             context.set_details("deleting backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Deleting backup {} failed".format(request.name))
+        return response
 
-        return resp
+
+# Callback function for recording unique backup results
+def record_backup_info(future):
+    try:
+        logging.info("Recording async backup information.")
+        if future.exception():
+            logging.error("Failed to record backup information executed in "
+                          "async manner. Error: {}".format(future.exception()))
+            return
+
+        result = future.result()
+        if not result:
+            logging.error("Expected a backup result for recording in callback function.")
+            return
+
+        (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start,
+         backup_name) = result
+
+        logging.info("Setting result in callback for backup Name: {}".format(backup_name))
+        BackupMan.set_backup_result(backup_name, result)
+
+    except Exception as e:
+        logging.error("Failed to record backup information executed in async manner. Error: {}".format(e))
+
+
+def create_token_map_node(backup, node):
+    token_map_node = medusa_pb2.BackupNode()
+    token_map_node.host = node
+    token_map_node.datacenter = backup.tokenmap[node]["dc"] if "dc" in backup.tokenmap[node] else ""
+    token_map_node.rack = backup.tokenmap[node]["rack"] if "rack" in backup.tokenmap[node] else ""
+    if "tokens" in backup.tokenmap[node]:
+        for token in backup.tokenmap[node]["tokens"]:
+            token_map_node.tokens.append(token)
+    return token_map_node
+
+
+# Transform internal status code to gRPC backup status type
+def record_status_in_response(response, backup_name):
+    status = BackupMan.get_backup_status(backup_name)
+    if status == BackupMan.STATUS_IN_PROGRESS:
+        response.status = medusa_pb2.StatusType.IN_PROGRESS
+    if status == BackupMan.STATUS_FAILED:
+        response.status = medusa_pb2.StatusType.FAILED
+    if status == BackupMan.STATUS_SUCCESS:
+        response.status = medusa_pb2.StatusType.SUCCESS
+
+
+def handle_backup_removal(backup_name):
+    if not BackupMan.remove_backup(backup_name):
+        logging.error("Failed to cleanup single backup Name: {}".format(backup_name))
+
+
+def handle_backup_removal_all():
+    if not BackupMan.remove_all_backups():
+        logging.error("Failed to cleanup all backups")
 
 
 if __name__ == '__main__':
