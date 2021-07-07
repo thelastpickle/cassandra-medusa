@@ -18,6 +18,10 @@ The gRPC API is defined in `medusa/service/grpc/medusa.proto`. At some point we 
 
 While the gRPC service layer was added for k8s integration, it is worth pointing out that there is nothing prevents using it outside of k8s. In fact, I created and use `medusa/service/grpc/client.py` to do ad hoc testing locally on my laptop.
 
+There is now support for asynchronous backups when using the gRPC service layer.  The status of the background running backups can be queried using the existing `BackupStatusRequest`.  
+
+A communications [diagram](../docs/images/medusa_backup_communications.png) is available for more detail.
+
 ## Generating gRPC Code
 You need to first install the protobuf and gRPC modules:
 

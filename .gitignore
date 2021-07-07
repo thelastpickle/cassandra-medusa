@@ -28,3 +28,4 @@ debian/.debhelper
 debian/cassandra-medusa/
 .coverage
 coverage.xml
+pytest.ini

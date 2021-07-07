@@ -13,25 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import datetime
 import json
 import logging
 import os
 import pathlib
-import psutil
 import time
 import traceback
+import psutil
 
 from libcloud.storage.providers import Provider
 from retrying import retry
 
 import medusa.utils
+from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
-from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
 from medusa.storage import Storage, format_bytes_str, ManifestObject, divide_chunks
+from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
 
 
 class NodeBackupCache(object):
@@ -129,7 +129,7 @@ class NodeBackupCache(object):
 
 def throttle_backup():
     """
-    Makes sure to only us idle IO for backups
+    Makes sure to only use idle IO for backups
     """
     p = psutil.Process(os.getpid())
     p.ionice(psutil.IOPRIO_CLASS_IDLE)
@@ -165,12 +165,15 @@ def stagger(fqdn, storage, tokenmap):
     return has_backup
 
 
-def main(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
+# Kicks off the node backup unit of work and registers for backup queries.
+# No return value, throws back exception for failed kickoff.
+def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
 
     try:
+        logging.debug("Starting backup preparations with Mode: {}".format(mode))
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config)
 
@@ -183,58 +186,88 @@ def main(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
             name=backup_name,
             differential_mode=differential_mode
         )
-
         if node_backup.exists():
             raise IOError('Error: Backup {} already exists'.format(backup_name))
 
-        # Make sure that priority remains to Cassandra/limiting backups resource usage
-        try:
-            throttle_backup()
-        except Exception:
-            logging.warning("Throttling backup impossible. It's probable that ionice is not available.")
+        logging.info("Starting backup using Stagger: {} Mode: {} Name: {}".format(stagger_time, mode, backup_name))
+        info = start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
+                            enable_md5_checks_flag, backup_name, config, monitoring)
 
-        logging.info('Saving tokenmap and schema')
-        schema, tokenmap = get_schema_and_tokenmap(cassandra)
-
-        node_backup.schema = schema
-        node_backup.tokenmap = json.dumps(tokenmap)
-        if differential_mode is True:
-            node_backup.differential = mode
-        add_backup_start_to_index(storage, node_backup)
-
-        if stagger_time:
-            stagger_end = start + stagger_time
-            logging.info('Staggering backup run, trying until {}'.format(stagger_end))
-            while not stagger(config.storage.fqdn, storage, tokenmap):
-                if datetime.datetime.now() < stagger_end:
-                    logging.info('Staggering this backup run...')
-                    time.sleep(60)
-                else:
-                    raise IOError('Backups on previous nodes did not complete'
-                                  ' within our stagger time.')
-
-        actual_start = datetime.datetime.now()
-
-        enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
-        num_files, node_backup_cache = do_backup(
-            cassandra, node_backup, storage, differential_mode, enable_md5, config, backup_name)
-
-        end = datetime.datetime.now()
-        actual_backup_duration = end - actual_start
-
-        print_backup_stats(actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
-
-        update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup)
-        return (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
+        # Result may get returned directly back to caller, or packed in future result.
+        if BackupMan.is_active():
+            logging.info("Async mode is active, getting backup future for reference")
+            backup_future = BackupMan.get_backup_future(backup_name)
+            if backup_future:
+                backup_future.set_result(info)
+            else:
+                raise RuntimeError("start_backup failed to locate an expected future for backup: {}"
+                                   .format(backup_name))
+        else:
+            logging.debug("Async mode NOT active, returning payload directly back to caller")
+            # Direct return to caller of the results after synchronous activities completed above.
+            return (info["actual_backup_duration"], info["actual_start_time"], info["end_time"],
+                    info["node_backup"], info["node_backup_cache"], info["num_files"],
+                    info["start_time"])
 
     except Exception as e:
+        logging.error("Issue occurred inside handle_backup Name: {} Error: {}".format(backup_name, str(e)))
         tags = ['medusa-node-backup', 'backup-error', backup_name]
         monitoring.send(tags, 1)
         medusa.utils.handle_exception(
             e,
-            "This error happened during the backup: {}".format(str(e)),
+            "Error occurred during backup: {}".format(str(e)),
             config
         )
+
+
+def start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
+                 enable_md5_checks_flag, backup_name, config, monitoring):
+    try:
+        # Make sure that priority remains to Cassandra/limiting backups resource usage
+        throttle_backup()
+    except Exception:
+        logging.warning("Throttling backup impossible. It's probable that ionice is not available.")
+
+    logging.info('Saving tokenmap and schema')
+    schema, tokenmap = get_schema_and_tokenmap(cassandra)
+
+    node_backup.schema = schema
+    node_backup.tokenmap = json.dumps(tokenmap)
+    if differential_mode is True:
+        node_backup.differential = mode
+    add_backup_start_to_index(storage, node_backup)
+
+    if stagger_time:
+        stagger_end = start + stagger_time
+        logging.info('Staggering backup run, trying until {}'.format(stagger_end))
+        while not stagger(config.storage.fqdn, storage, tokenmap):
+            if datetime.datetime.now() < stagger_end:
+                logging.info('Staggering this backup run...')
+                time.sleep(60)
+            else:
+                raise IOError('Backups on previous nodes did not complete'
+                              ' within our stagger time.')
+
+    # Perform the actual backup
+    actual_start = datetime.datetime.now()
+    enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
+    num_files, node_backup_cache = do_backup(
+        cassandra, node_backup, storage, differential_mode, enable_md5, config, backup_name)
+    end = datetime.datetime.now()
+
+    actual_backup_duration = end - actual_start
+    print_backup_stats(actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
+
+    update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup)
+    return {
+        "actual_backup_duration": actual_backup_duration,
+        "actual_start_time": actual_start,
+        "end_time": end,
+        "node_backup": node_backup,
+        "node_backup_cache": node_backup_cache,
+        "num_files": num_files,
+        "start_time": start
+    }
 
 
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
@@ -249,7 +282,6 @@ def get_schema_and_tokenmap(cassandra):
 
 def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_checks,
               config, backup_name):
-
     # Load last backup as a cache
     node_backup_cache = NodeBackupCache(
         node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn),
@@ -259,8 +291,6 @@ def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_che
         storage_provider=storage.storage_provider,
         storage_config=config.storage
     )
-
-    logging.info('Starting backup')
 
     # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
     # so even if exception is thrown, a new snapshot will be created on the next run
@@ -274,7 +304,6 @@ def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_che
     node_backup.manifest = json.dumps(manifest)
     add_backup_finish_to_index(storage, node_backup)
     set_latest_backup_in_index(storage, node_backup)
-
     return num_files, node_backup_cache
 
 
@@ -352,7 +381,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
 
         return num_files
     except Exception as e:
-        logging.error('This error happened during the backup: {}'.format(str(e)))
+        logging.error('Error occurred during backup: {}'.format(str(e)))
         traceback.print_exc()
         raise e
 

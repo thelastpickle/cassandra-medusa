@@ -238,6 +238,7 @@ class RestoreJob(object):
                 is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
                 self.host_map[restore_host] = {'source': [hosts[0]], 'seed': is_seed}
                 i += 1
+            logging.debug("self.host_map: {}".format(self.host_map))
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
             self.use_sstableloader = True
@@ -261,6 +262,7 @@ class RestoreJob(object):
         seeds = list()
         for seed in self.cassandra.seeds:
             seeds.append(self.fqdn_resolver.resolve_fqdn(seed))
+        logging.debug("seeds are: {}".format(seeds))
         return seeds
 
     def _populate_hostmap(self):
@@ -292,8 +294,9 @@ class RestoreJob(object):
                     continue
                 seed, target, source = _line.split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
-                self.host_map[self.fqdn_resolver.resolve_fqdn(target.strip())] \
-                    = {'source': [self.fqdn_resolver.resolve_fqdn(source.strip())], 'seed': seed in ['True']}
+                target_resolved = self.fqdn_resolver.resolve_fqdn(target.strip())
+                source_resolved = self.fqdn_resolver.resolve_fqdn(source.strip())
+                self.host_map[target_resolved] = {'source': [source_resolved], 'seed': seed in ['True']}
 
     def _restore_data(self):
         # create workdir on each target host
