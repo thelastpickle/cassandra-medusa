@@ -17,6 +17,8 @@
 from gevent import monkey
 
 import medusa.utils
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
 
 monkey.patch_all()
 import datetime
