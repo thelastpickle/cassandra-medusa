@@ -107,7 +107,8 @@ class PurgeTest(unittest.TestCase):
         blobs.append(self.make_blob("file2", datetime.timestamp(datetime.now() + timedelta(hours=-12))))
         blobs.append(self.make_blob("file3", datetime.timestamp(datetime.now() + timedelta(days=-1))))
         blobs.append(self.make_blob("file4", datetime.timestamp(datetime.now() + timedelta(days=-2))))
-        assert 2 == len(filter_files_within_gc_grace(self.storage.storage_driver, blobs, 1))
+        blob_map = {blob.name: blob for blob in blobs}
+        assert 2 == len(filter_files_within_gc_grace(self.storage, blob_map.keys(), blob_map, 1))
 
     def make_backup(self, storage, name, backup_date, differential=False):
         if differential is True:

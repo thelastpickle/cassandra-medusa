@@ -43,7 +43,7 @@ def main(config, max_backup_age=0, max_backup_count=0):
         # list all backups to purge based on count conditions
         backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
         # purge all candidate backups
-        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days)
+        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn)
 
         logging.debug('Emitting metrics')
         tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -83,7 +83,7 @@ def backups_to_purge_by_count(backups, max_backup_count):
 #     return list(filter(lambda backup: backup.name = backup_name, backups)) or list()
 
 
-def purge_backups(storage, backups, backup_grace_period_in_days):
+def purge_backups(storage, backups, backup_grace_period_in_days, local_fqdn):
     """
     Core function to purge a set of node_backups
     Used for node purge and backup delete (using a specific backup_name)
@@ -92,6 +92,7 @@ def purge_backups(storage, backups, backup_grace_period_in_days):
     fqdns = set()
     nb_objects_purged = 0
     total_purged_size = 0
+    total_objects_within_grace = 0
 
     for backup in backups:
         (purged_objects, purged_size) = purge_backup(storage, backup)
@@ -99,17 +100,27 @@ def purge_backups(storage, backups, backup_grace_period_in_days):
         total_purged_size += purged_size
         fqdns.add(backup.fqdn)
 
+    if len(fqdns) == 0:
+        # If we didn't purge any backup, we still want to cleanup obsolete files for the local node
+        fqdns.add(local_fqdn)
+
     for fqdn in fqdns:
-        (cleaned_objects_count, cleaned_objects_size) = cleanup_obsolete_files(storage,
-                                                                               fqdn,
-                                                                               backup_grace_period_in_days)
+        (cleaned_objects_count, cleaned_objects_size, nb_objects_within_grace) \
+            = cleanup_obsolete_files(storage,
+                                     fqdn,
+                                     backup_grace_period_in_days)
         nb_objects_purged += cleaned_objects_count
         total_purged_size += cleaned_objects_size
+        total_objects_within_grace += nb_objects_within_grace
 
     logging.info("Purged {} objects with a total size of {}".format(
         nb_objects_purged,
-        format_bytes_str(total_purged_size))
-    )
+        format_bytes_str(total_purged_size)))
+    if total_objects_within_grace > 0:
+        logging.info("{} objects within {} days grace period were not deleted".format(
+            total_objects_within_grace,
+            backup_grace_period_in_days
+        ))
 
 
 def purge_backup(storage, backup):
@@ -137,9 +148,14 @@ def cleanup_obsolete_files(storage, fqdn, backup_grace_period_in_days):
 
     backups = storage.list_node_backups(fqdn=fqdn)
     paths_in_manifest = get_file_paths_from_manifests_for_differential_backups(backups)
-    paths_in_storage = get_file_paths_from_storage(storage, fqdn, backup_grace_period_in_days)
+    paths_in_storage = get_file_paths_from_storage(storage, fqdn)
 
-    for path in paths_in_storage - paths_in_manifest:
+    deletion_candidates = set(paths_in_storage.keys()) - paths_in_manifest
+    objects_to_delete = filter_files_within_gc_grace(storage,
+                                                     deletion_candidates,
+                                                     paths_in_storage,
+                                                     backup_grace_period_in_days)
+    for path in objects_to_delete:
         logging.debug("  - [{}] exists in storage, but not in manifest".format(path))
         obj = storage.storage_driver.get_blob(path)
         if obj is not None:
@@ -147,25 +163,27 @@ def cleanup_obsolete_files(storage, fqdn, backup_grace_period_in_days):
             total_purged_size += int(obj.size)
             storage.storage_driver.delete_object(obj)
 
-    return nb_objects_purged, total_purged_size
+    nb_objects_within_grace = len(set(deletion_candidates) - set(objects_to_delete))
+
+    return nb_objects_purged, total_purged_size, nb_objects_within_grace
 
 
-def get_file_paths_from_storage(storage, fqdn, backup_grace_period_in_days):
+def get_file_paths_from_storage(storage, fqdn):
     data_directory = "{}{}/data".format(storage.prefix_path, fqdn)
     data_files = {
         blob.name: blob
-        for blob in filter_files_within_gc_grace(storage.storage_driver,
-                                                 storage.storage_driver.list_objects(str(data_directory)),
-                                                 backup_grace_period_in_days)
+        for blob in storage.storage_driver.list_objects(str(data_directory))
     }
 
-    return set(data_files.keys())
+    return data_files
 
 
-def filter_files_within_gc_grace(storage_driver, blobs, backup_grace_period_in_days):
+def filter_files_within_gc_grace(storage, blobs, paths_in_storage, backup_grace_period_in_days):
     return list(
         filter(lambda blob:
-               is_older_than_gc_grace(storage_driver.get_object_datetime(blob), backup_grace_period_in_days), blobs))
+               is_older_than_gc_grace(storage.storage_driver.get_object_datetime(paths_in_storage[blob]),
+                                      backup_grace_period_in_days),
+               blobs))
 
 
 def is_older_than_gc_grace(blob_datetime, gc_grace) -> bool:
@@ -209,7 +227,7 @@ def delete_backup(config, backup_name, all_nodes):
             backups_to_purge = [nb for nb in backups_to_purge if storage.config.fqdn in nb.fqdn]
 
         logging.info('Deleting Backup {}...'.format(backup_name))
-        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days)
+        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, storage.config.fqdn)
 
         logging.debug('Emitting metrics')
         tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
