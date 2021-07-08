@@ -101,6 +101,7 @@ def configure_console_logging(verbosity, without_log_timestamp):
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
 @click.option('--fqdn', help='Act as another host')
+@click.option('--backup-grace-period-in-days', help='Duration for which backup files cannot be deleted from storage')
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.version_option(package_name='cassandra-medusa', message='%(version)s')
