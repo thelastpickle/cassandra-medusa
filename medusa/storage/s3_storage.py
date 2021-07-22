@@ -41,7 +41,7 @@ class S3Storage(S3BaseStorage):
             aws_instance_profile = requests.get("http://169.254.169.254/latest/meta-data/iam/security-credentials",
                                                 timeout=10, headers=self.imds_headers)
         except requests.exceptions.RequestException:
-            logging.warn("Can\'t fetch IAM Role.")
+            logging.warn("Can't fetch IAM Role.")
             return None
 
         if aws_instance_profile.status_code != 200:
