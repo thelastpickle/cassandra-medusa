@@ -34,6 +34,8 @@ from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
+BACKUP_MODE_DIFFERENTIAL = "differential"
+BACKUP_MODE_FULL = "full"
 
 
 class MedusaService(medusa_pb2_grpc.MedusaServicer):
@@ -44,11 +46,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         self.storage = Storage(config=self.config.storage)
 
     def Backup(self, request, context):
-        logging.info("Performing backup {}".format(request.name))
+        logging.info("Performing backup {} (type={})".format(request.name, request.mode))
         resp = medusa_pb2.BackupResponse()
-        # TODO pass the staggered and mode args
+        # TODO pass the staggered arg
+        mode = BACKUP_MODE_DIFFERENTIAL
+        if medusa_pb2.Mode.FULL == request.mode:
+            mode = BACKUP_MODE_FULL
         try:
-            medusa.backup_node.main(self.config, request.name, None, False, "differential")
+            medusa.backup_node.main(self.config, request.name, None, False, mode)
         except Exception as e:
             context.set_details("failed to create backups: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
