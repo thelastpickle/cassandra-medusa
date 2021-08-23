@@ -313,6 +313,21 @@ def update_monitoring(actual_backup_duration, backup_name, monitoring, node_back
 def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot):
     try:
         num_files = 0
+        _snapshot_file_dirs = snapshot.find_dirs()
+        _num_dirs = len(_snapshot_file_dirs)
+        logging.info("Found '{num_dir}' directories that may contain snapshot files.".format(num_dir=_num_dirs))
+
+        # Dump the list of directories if debugging
+        logging.debug("_snapshot_file_dirs: {}".format(_snapshot_file_dirs))
+
+        # Consider find_dirs() returning nothing to be a critical failure. At no point should a cassandra snapshot
+        #   exist in 0 directories on the host.
+        # We can't backup what we can't find and we consider any result other than a successful backup to be a failure
+        if _num_dirs < 1:
+            _e = "Could not identify any directories where snapshot files should reside."
+            logging.critical(_e)
+            raise Exception(_e)
+
         for snapshot_path in snapshot.find_dirs():
             logging.debug("Backing up {}".format(snapshot_path))
 
