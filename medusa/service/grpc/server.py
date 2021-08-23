@@ -50,7 +50,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         resp = medusa_pb2.BackupResponse()
         # TODO pass the staggered arg
         mode = BACKUP_MODE_DIFFERENTIAL
-        if medusa_pb2.Mode.FULL == request.mode:
+        if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
             mode = BACKUP_MODE_FULL
         try:
             medusa.backup_node.main(self.config, request.name, None, False, mode)
