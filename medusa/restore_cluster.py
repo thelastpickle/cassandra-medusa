@@ -266,7 +266,7 @@ class RestoreJob(object):
     def _populate_hostmap(self):
         """
         When there are no seed nodes to pull cluster topology from, the essential information required for a restore
-            can be passed in via a simple file using the --host-list CLI argument
+            can be passed in via a simple file using the --host-list CLI argument.
 
         Each line in the file must have three pieces of information in this order:
             - the string `True` or `False`; This indicates if the source node was a seed node
