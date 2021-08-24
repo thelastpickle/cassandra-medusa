@@ -108,7 +108,7 @@ jobs:
           it-backend: [local, s3, gcs, minio, azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.10, 'github:apache/trunk']
+          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
           experimental: [false]
           include:
             - python-version: 3.6
