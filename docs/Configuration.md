@@ -65,6 +65,18 @@ concurrent_transfers = 1
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
 multi_part_upload_threshold = 104857600
 
+; When not using sstableloader to restore data on a node, Medusa will copy snapshot files from a
+; temporary location into the cassandra data directroy. Medusa will then attempt to change the
+; ownership of the snapshot files so the cassandra user can access them.
+; Depending on how users/file permissions are set up on the cassandra instance, the medusa user 
+; may need elevated permissions to manipulate the files in the cassandra data directory.
+;
+; This option does NOT replace the `use_sudo` option under the 'cassandra' section!
+; See: https://github.com/thelastpickle/cassandra-medusa/pull/399
+;
+; Defaults to False
+;use_sudo_for_restore = False
+
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
 
