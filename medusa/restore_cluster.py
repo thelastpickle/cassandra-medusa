@@ -282,7 +282,7 @@ class RestoreJob(object):
         for target, sources in self.host_map.items():
             logging.info('About to restore on {} using {} as backup source'.format(target, sources))
 
-        logging.info('This will delete all data on the target nodes and replace it with backup {}.'
+        logging.info("This will delete all data on the target nodes and replace it with backup '{}'."
                      .format(self.cluster_backup.name))
 
         proceed = None
