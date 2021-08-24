@@ -362,7 +362,7 @@ class RestoreJob(object):
                   '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} ' \
                   '{use_sstableloader} {keyspaces} {tables}' \
             .format(work=self.work_dir,
-                    sudo='sudo' if medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo) else '',
+                    sudo='sudo' if medusa.utils.evaluate_boolean(self.config.storage.use_sudo_for_restore) else '',
                     config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
