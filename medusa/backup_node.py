@@ -323,10 +323,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
         # Consider find_dirs() returning nothing to be a critical failure. At no point should a cassandra snapshot
         #   exist in 0 directories on the host.
         # We can't backup what we can't find and we consider any result other than a successful backup to be a failure
-        if _num_dirs < 1:
-            _e = "Could not identify any directories where snapshot files should reside."
-            logging.critical(_e)
-            raise ValueError(_e)
+        assert _num_dirs >= 1, "Could not identify any directories where snapshot files should reside."
 
         for snapshot_path in snapshot.find_dirs():
             logging.debug("Backing up {}".format(snapshot_path))
