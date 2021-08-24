@@ -95,7 +95,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    use_sudo = medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
+    use_sudo = medusa.utils.evaluate_boolean(config.storage.use_sudo_for_restore)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
     clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
 
