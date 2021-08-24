@@ -708,7 +708,7 @@ def is_open(host, port):
         s.settimeout(timeout)
         s.connect((host, port))
         s.shutdown(socket.SHUT_RDWR)
-        return True
+        is_accessible = True
 
     # If cassandra is not running but the host is up, host may choose to silently drop inbound connections to the
     #   closed port or may respond with a RST indicating that the connection was refused.
