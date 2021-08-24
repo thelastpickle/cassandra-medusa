@@ -351,8 +351,17 @@ class Storage(object):
 
     def latest_node_backup(self, *, fqdn):
         index_path = '{}index/latest_backup/{}/backup_name.txt'.format(self.prefix_path, fqdn)
+        logging.debug("Checking for latest backup in '{}'".format(index_path))
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
+            # get_blob_content_as_string() uses None to indicate a 404 or other non-exception-worthy problem
+            if latest_backup_name is None:
+                _e = "Unable to determine the latest_backup_name from '{}'".format(index_path)
+                logging.critical(_e)
+                raise Exception(_e)
+            # Otherwise, we know the name of the last backup
+            logging.info("Proceeding with latest_backup_name: '{}'".format(latest_backup_name))
+
             differential_blob = self.storage_driver.get_blob(
                 '{}{}/{}/meta/differential'.format(self.prefix_path, fqdn, latest_backup_name))
             # Should be removed after while. Here for backwards compatibility.
