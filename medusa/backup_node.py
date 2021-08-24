@@ -326,7 +326,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
         if _num_dirs < 1:
             _e = "Could not identify any directories where snapshot files should reside."
             logging.critical(_e)
-            raise Exception(_e)
+            raise ValueError(_e)
 
         for snapshot_path in snapshot.find_dirs():
             logging.debug("Backing up {}".format(snapshot_path))
