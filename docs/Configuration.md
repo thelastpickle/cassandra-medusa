@@ -25,6 +25,12 @@ Modify it to match your requirements:
 ; Defaults to True.
 resolve_ip_addresses = True
 
+; When true, almost all commands executed by Medusa are prefixed with `sudo`.
+; Does not affect the use_sudo_for_restore setting in the 'storage' section.
+; See https://github.com/thelastpickle/cassandra-medusa/issues/318
+; Defaults to True
+;use_sudo = True
+
 [storage]
 storage_provider = <Storage system used for backups>
 ; storage_provider should be either of "local", "google_storage" or "s3"
