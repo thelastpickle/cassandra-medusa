@@ -113,7 +113,7 @@ def _build_default_config():
         'fqdn': socket.getfqdn(),
         'region': 'default',
         'backup_grace_period_in_days': 10,
-        'use_sudo_for_restore': 'False'
+        'use_sudo_for_restore': 'True'
     }
 
     config['logging'] = {
