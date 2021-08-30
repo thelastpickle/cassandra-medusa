@@ -74,8 +74,8 @@ multi_part_upload_threshold = 104857600
 ; This option does NOT replace the `use_sudo` option under the 'cassandra' section!
 ; See: https://github.com/thelastpickle/cassandra-medusa/pull/399
 ;
-; Defaults to False
-;use_sudo_for_restore = False
+; Defaults to True
+;use_sudo_for_restore = True
 
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
