@@ -44,7 +44,7 @@ RUN pip3 install --ignore-installed --user -r /requirements-s3.txt
 # Azure
 COPY requirements-azure.txt /requirements-azure.txt
 RUN pip3 install --ignore-installed --user -r /requirements-azure.txt \
-     && pip3 install --ignore-installed --user --no-deps azure-cli
+     && pip3 install --ignore-installed --user azure-cli
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM ubuntu:18.04
