@@ -68,7 +68,7 @@ setuptools.setup(
     extras_require={
         'S3': ["awscli>=1.16.291"],
         'GCS': ["google-cloud-storage>=1.7.0"],
-        'AZURE': ["azure-cli>=2.13.0"]
+        'AZURE': ["azure-cli>=2.24.0"]
     },
     entry_points={
         'console_scripts': [
