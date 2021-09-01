@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.11.1 (2021/09/01 12:40 +00:00)
+- Make Azure requirements coherent with the Docker image (@adejanovski)
+- Add missing deps for Azure-cli in the Docker image (@adejanovski)
+
 ### 0.11.0 (2021/06/28 07:41 +00:00)
 - Make sudo switchable when Kubernetes mode is disabled (@rhardouin)
 - Add support for Azure backend in docker image (@adutra)
