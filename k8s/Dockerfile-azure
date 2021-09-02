@@ -37,10 +37,6 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
     -r /requirements.txt \
     -r /requirements-grpc-runtime.txt
 
-# Amazon S3
-COPY requirements-s3.txt /requirements-s3.txt
-RUN pip3 install --ignore-installed --user -r /requirements-s3.txt
-
 # Azure
 COPY requirements-azure.txt /requirements-azure.txt
 RUN pip3 install --ignore-installed --user -r /requirements-azure.txt \
@@ -64,16 +60,6 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
 
 USER cassandra
 WORKDIR /home/cassandra
-
-# GCP sdk
-COPY --chown=cassandra:cassandra k8s/clean-cloud-sdk.sh /home/cassandra/clean-cloud-sdk.sh
-RUN wget -q https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz \
-    && tar -zxvf google-cloud-sdk.tar.gz \
-    && google-cloud-sdk/install.sh --quiet \
-    && chmod +x clean-cloud-sdk.sh && ./clean-cloud-sdk.sh
-ENV DEBUG_VERSION 1
-ENV DEBUG_SLEEP 0
-ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:$PATH
 
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
