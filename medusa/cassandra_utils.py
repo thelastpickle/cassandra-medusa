@@ -709,8 +709,14 @@ def is_open(host, port):
         s.connect((host, port))
         s.shutdown(socket.SHUT_RDWR)
         is_accessible = True
+
+    # If cassandra is not running but the host is up, host may choose to silently drop inbound connections to the
+    #   closed port or may respond with a RST indicating that the connection was refused.
+    # ConnectionRefusedError: [Errno 111] Connection refused
+    except ConnectionRefusedError as cre:
+        logging.error("Host '{host}' is up, but port '{port}' is closed.".format(host=host, port=port), exc_info=cre)
     except socket.error as e:
-        logging.error('Port {} closed on host {}'.format(port, host), exc_info=e)
+        logging.error("Could not open socket to port '{port}' on '{host}'.".format(host=host, port=port), exc_info=e)
     finally:
         try:
             if s:

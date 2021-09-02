@@ -6,35 +6,36 @@ $ medusa
 Usage: medusa [OPTIONS] COMMAND [ARGS]...
 
 Options:
-  -v, --verbosity          Verbosity
-  --without-log-timestamp  Do not show timestamp in logs
-  --config-file TEXT       Specify config file
-  --bucket-name TEXT       Bucket name
-  --key-file TEXT          GCP credentials key file
-  --prefix TEXT            Prefix for shared storage
-  --fqdn TEXT              Act as another host
+  -v, --verbosity                 Verbosity  [x>=0]
+  --without-log-timestamp         Do not show timestamp in logs
+  --config-file TEXT              Specify config file
+  --bucket-name TEXT              Bucket name
+  --key-file TEXT                 GCP credentials key file
+  --prefix TEXT                   Prefix for shared storage
+  --fqdn TEXT                     Act as another host
+  --backup-grace-period-in-days TEXT
+                                  Duration for which backup files cannot be
+                                  deleted from storage
   --ssh-username TEXT
   --ssh-key-file TEXT
-  --help                   Show this message and exit.
+  --version                       Show the version and exit.
+  --help                          Show this message and exit.
 
 Commands:
-  backup-cluster                  Backup Cassandra on the whole cluster
-  backup                          Backup Cassandra on the current node
-  backup-node                     Backup Cassandra on the current node
-  build-index                     Builds indices for all present backups
-                                  and...
+  backup (backup,backup-node)     Backup single Cassandra node
+  backup-cluster                  Backup Cassandra cluster
+  build-index                     Build indices for all present backups...
+  delete-backup                   Delete the given backup on the...
   download                        Download backup
-  fetch-tokenmap                  Backup Cassandra
+  fetch-tokenmap                  Get the token/node mapping for a...
   get-last-complete-cluster-backup
-                                  Pints the name of the latest complete
-                                  cluster...
+                                  Print the name of the latest complete...
   list-backups                    List backups
   purge                           Delete obsolete backups
-  report-last-backup              Find time since last backup and print it
-                                  to...
+  report-last-backup              Find time since last backup and print...
   restore-cluster                 Restore Cassandra cluster
   restore-node                    Restore single Cassandra node
-  status                          Show status of backups
+  status                          Show status of backups.
   verify                          Verify the integrity of a backup
 ```
 
@@ -185,6 +186,57 @@ Since SSTables and meta files are stored in different places for differential ba
 
 * Delete all backup directories
 * Scan active backup files from manifests and compare with the list of SSTables in the `data` directory. All SSTables present in the `data` directory but absent from all manifests will get deleted in that step.
+
+SSTable files are protected from deletion if they are still within the grace period, which defaults to 10 days.
+In order to force purge files within the grace period, you can use the `--backup-grace-period-in-days` flag to reduce the value for the duration of a command (`purge` or `delete-backup`):
+
+```
+$ medusa --backup-grace-period-in-days=1 purge
+```
+
+Be careful when reducing the grace period to 0 as it can corrupt ongoing backups by deleting their sstables that were uploaded so far.
+
+Delete a backup
+---------------
+
+```
+$ medusa delete-backup --help
+Usage: medusa delete-backup [OPTIONS]
+
+  Delete the given backup on the current node (or on all nodes)
+
+Options:
+  --backup-name TEXT              Backup name  [required]
+  -a, --all-nodes / -c, --current-node
+                                  Delete backups on all nodes (Default is
+                                  current node only)
+  --help                          Show this message and exit.
+```
+
+By default backups will only be deleted on the local node. In order to globally remove a backup add the `-a` flag to the command.
+
+```
+$ medusa delete-backup --backup-name=backup1
+[2021-07-08 09:49:48,994] INFO: Monitoring provider is noop
+[2021-07-08 09:49:50,078] INFO: Deleting Backup backup1...
+[2021-07-08 09:49:50,078] INFO: 1 backups are candidate to be purged
+[2021-07-08 09:49:50,078] INFO: Purging backup 1 from node ip-172-31-28-101.us-west-2.compute.internal...
+[2021-07-08 09:49:50,369] INFO: Cleaning up orphaned files for ip-172-31-28-101.us-west-2.compute.internal...
+[2021-07-08 09:49:50,462] INFO: Purged 4 objects with a total size of 82.13 KB
+[2021-07-08 09:49:50,462] INFO: 168 objects within 10 days grace period were not deleted
+```
+
+Since SSTables and meta files are stored in different places for differential backups, the deletion is a two step process:
+
+* Delete all backup directories
+* Scan active backup files from manifests and compare with the list of SSTables in the `data` directory. All SSTables present in the `data` directory but absent from all manifests will get deleted in that step.
+
+SSTable files are protected from deletion if they are still within the grace period, which defaults to 10 days.
+In order to force purge files within the grace period, you can use the `--backup-grace-period-in-days` flag to reduce the value for the duration of a command (`purge` or `delete-backup`):
+
+```
+$ medusa --backup-grace-period-in-days=1 delete-backup --backup-name=backup1
+```
 
 
 Check the status of a backup

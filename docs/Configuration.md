@@ -25,6 +25,12 @@ Modify it to match your requirements:
 ; Defaults to True.
 resolve_ip_addresses = True
 
+; When true, almost all commands executed by Medusa are prefixed with `sudo`.
+; Does not affect the use_sudo_for_restore setting in the 'storage' section.
+; See https://github.com/thelastpickle/cassandra-medusa/issues/318
+; Defaults to True
+;use_sudo = True
+
 [storage]
 storage_provider = <Storage system used for backups>
 ; storage_provider should be either of "local", "google_storage" or "s3"
@@ -58,6 +64,18 @@ concurrent_transfers = 1
 
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
 multi_part_upload_threshold = 104857600
+
+; When not using sstableloader to restore data on a node, Medusa will copy snapshot files from a
+; temporary location into the cassandra data directroy. Medusa will then attempt to change the
+; ownership of the snapshot files so the cassandra user can access them.
+; Depending on how users/file permissions are set up on the cassandra instance, the medusa user 
+; may need elevated permissions to manipulate the files in the cassandra data directory.
+;
+; This option does NOT replace the `use_sudo` option under the 'cassandra' section!
+; See: https://github.com/thelastpickle/cassandra-medusa/pull/399
+;
+; Defaults to True
+;use_sudo_for_restore = True
 
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">

@@ -108,13 +108,16 @@ jobs:
           it-backend: [local, s3, gcs, minio, azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.10, 'github:apache/trunk']
-          experimental: [false]
+          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
           include:
-            - python-version: 3.6
-              tox-py: py36
-            - python-version: 3.9
-              tox-py: py39
+            - cassandra-version: 2.2.19
+              experimental: false
+            - cassandra-version: 3.11.11
+              experimental: false
+            - cassandra-version: 4.0.0
+              experimental: false
+            - cassandra-version: 'github:apache/trunk'
+              experimental: true
           exclude:
             # excludes unnecessary combinations
             - it-backend: s3
@@ -265,6 +268,9 @@ jobs:
   publish-docker-master:
     needs: [debian-build, build, integration-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    strategy:
+      matrix:
+        storage-provider: ["", "-s3", "-azure", "-gcs"]
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
@@ -274,14 +280,14 @@ jobs:
         DOCKER_TOKEN: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
       run: |
         docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
-        echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
+        echo "Publishing release $(git rev-parse --short HEAD)${{ matrix.storage-provider }} in Docker Hub"
         python setup.py build
         # Push Docker image tagged with the short commit sha
-        docker build -t k8ssandra/medusa:$(git rev-parse --short HEAD) -f k8s/Dockerfile .
-        docker push k8ssandra/medusa:$(git rev-parse --short HEAD)
+        docker build -t k8ssandra/medusa:$(git rev-parse --short HEAD)${{ matrix.storage-provider }} -f k8s/Dockerfile${{ matrix.storage-provider }} .
+        docker push k8ssandra/medusa:$(git rev-parse --short HEAD)${{ matrix.storage-provider }}
         # Push Docker image tagged as "master"
-        docker tag k8ssandra/medusa:$(git rev-parse --short HEAD) k8ssandra/medusa:master
-        docker push k8ssandra/medusa:master
+        docker tag k8ssandra/medusa:$(git rev-parse --short HEAD)${{ matrix.storage-provider }} k8ssandra/medusa:master${{ matrix.storage-provider }}
+        docker push k8ssandra/medusa:master${{ matrix.storage-provider }}
     
   publish-debian:
     # We can only release if the build above succeeded first
@@ -323,6 +329,9 @@ jobs:
   publish-docker:
     needs: [publish-debian]
     if: github.event_name == 'release' && github.event.action == 'published'
+    strategy:
+      matrix:
+        storage-provider: ["", "-s3", "-azure", "-gcs"]
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
@@ -335,8 +344,8 @@ jobs:
         docker login -u $DOCKER_USERNAME -p $DOCKER_TOKEN
         echo "Publishing release ${version} in Docker Hub"
         python setup.py build
-        docker build -t k8ssandra/medusa:${version} -f k8s/Dockerfile .
-        docker push k8ssandra/medusa:${version}
+        docker build -t k8ssandra/medusa:${version}${{ matrix.storage-provider }} -f k8s/Dockerfile${{ matrix.storage-provider }} .
+        docker push k8ssandra/medusa:${version}${{ matrix.storage-provider }}
 
   publish-pypi:
     # We can only release if the build above succeeded first

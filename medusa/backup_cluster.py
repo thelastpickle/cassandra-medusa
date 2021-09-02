@@ -29,10 +29,11 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 
 def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                parallel_snapshots, parallel_uploads):
+                parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
+                cassandra_config=None, monitoring=None, storage=None, cql_session_provider=None):
     backup = None
     backup_name = backup_name_arg or datetime.datetime.now().strftime('%Y%m%d%H%M')
-    monitoring = Monitoring(config=config.monitoring)
+    monitoring = Monitoring(config=config.monitoring) if monitoring is None else monitoring
     try:
         backup_start_time = datetime.datetime.now()
         if not config.storage.fqdn:
@@ -47,7 +48,7 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
         try:
             # Try to get a backup with backup_name. If it exists then we cannot take another backup with that name
-            storage = Storage(config=config.storage)
+            storage = Storage(config=config.storage) if storage is None else storage
             cluster_backup = storage.get_cluster_backup(backup_name)
             if cluster_backup:
                 err_msg = 'Backup named {} already exists.'.format(backup_name)
@@ -58,8 +59,9 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
             logging.info(info_msg)
 
         backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                           parallel_snapshots, parallel_uploads)
-        backup.execute()
+                           parallel_snapshots, parallel_uploads, orchestration_snapshots, orchestration_uploads,
+                           cassandra_config)
+        backup.execute(cql_session_provider)
 
         backup_end_time = datetime.datetime.now()
         backup_duration = backup_end_time - backup_start_time
@@ -103,11 +105,14 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
 class BackupJob(object):
     def __init__(self, config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                 parallel_snapshots, parallel_uploads):
+                 parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
+                 cassandra_config=None):
         self.id = uuid.uuid4()
         # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
-        self.orchestration_snapshots = Orchestration(config, parallel_snapshots)
-        self.orchestration_uploads = Orchestration(config, parallel_uploads)
+        self.orchestration_snapshots = Orchestration(config, parallel_snapshots) if orchestration_snapshots is None \
+            else orchestration_snapshots
+        self.orchestration_uploads = Orchestration(config, parallel_uploads) if orchestration_uploads is None \
+            else orchestration_uploads
         self.config = config
         self.backup_name = backup_name
         self.stagger = stagger
@@ -117,18 +122,19 @@ class BackupJob(object):
         self.temp_dir = temp_dir
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.hosts = {}
-        self.cassandra = Cassandra(config)
+        self.cassandra = Cassandra(config) if cassandra_config is None else cassandra_config
         self.snapshot_tag = '{}{}'.format(self.cassandra.SNAPSHOT_PREFIX, self.backup_name)
         fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
 
-    def execute(self):
+    def execute(self, cql_session_provider=None):
         # Two step: Take snapshot everywhere, then upload the backups to the external storage
 
         # Getting the list of Cassandra nodes.
         seed_target = self.seed_target if self.seed_target is not None else self.config.storage.fqdn
         session_provider = CqlSessionProvider([seed_target],
-                                              self.config.cassandra)
+                                              self.config.cassandra) \
+            if cql_session_provider is None else cql_session_provider
         with session_provider.new_session() as session:
             tokenmap = session.tokenmap()
             self.hosts = [host for host in tokenmap.keys()]

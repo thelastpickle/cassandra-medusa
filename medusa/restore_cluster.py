@@ -264,9 +264,33 @@ class RestoreJob(object):
         return seeds
 
     def _populate_hostmap(self):
+        """
+        When there are no seed nodes to pull cluster topology from, the essential information required for a restore
+            can be passed in via a simple file using the --host-list CLI argument.
+
+        Each line in the file must have three pieces of information in this order:
+            - the string `True` or `False`; This indicates if the source node was a seed node
+            - the host/ip that the restore operation is to take place on / destination node
+            - the host/ip where the data came from / source node
+        Each field is separated by a comma.
+
+        E.G.: Using medusa to restore a 4 node cluster from a previous backup taken of that same cluster:
+            medusa@cassandra-node01:~$ cat nodes.list
+            True,10.10.1.127,10.10.1.127
+            True,10.10.1.128,10.10.1.128
+            False,10.10.1.129,10.10.1.129
+            False,10.10.1.130,10.10.1.130
+
+        :return:
+        """
         with open(self.host_list, 'r') as f:
             for line in f.readlines():
-                seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
+                # Remove leading/trailing whitespace
+                _line = line.strip()
+                # Ignore comment lines
+                if _line.startswith('#'):
+                    continue
+                seed, target, source = _line.split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
                 self.host_map[self.fqdn_resolver.resolve_fqdn(target.strip())] \
                     = {'source': [self.fqdn_resolver.resolve_fqdn(source.strip())], 'seed': seed in ['True']}
@@ -282,7 +306,7 @@ class RestoreJob(object):
         for target, sources in self.host_map.items():
             logging.info('About to restore on {} using {} as backup source'.format(target, sources))
 
-        logging.info('This will delete all data on the target nodes and replace it with backup {}.'
+        logging.info("This will delete all data on the target nodes and replace it with backup '{}'."
                      .format(self.cluster_backup.name))
 
         proceed = None

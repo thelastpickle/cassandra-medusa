@@ -89,6 +89,10 @@ while test $# -gt 0; do
       LOGGING="--no-capture --no-capture-stderr --format=plain"
       shift
       ;;
+    -vv)
+      LOGGING="--no-logcapture --no-capture --no-capture-stderr --format=plain"
+      shift
+      ;;
     --cassandra-version*)
       CASSANDRA_VERSION=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift

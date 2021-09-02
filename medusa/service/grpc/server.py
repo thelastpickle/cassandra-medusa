@@ -34,6 +34,58 @@ from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
+BACKUP_MODE_DIFFERENTIAL = "differential"
+BACKUP_MODE_FULL = "full"
+
+
+class Server:
+    def __init__(self, config_file_path, testing=False):
+        self.config_file_path = config_file_path
+        self.medusa_config = self.create_config()
+        self.testing = testing
+        self.grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        logging.info(f"GRPC server initialized")
+
+    def shutdown(self, signum, frame):
+        logging.info("Shutting down GRPC server")
+        self.grpc_server.stop(0)
+
+    def serve(self):
+        config = self.create_config()
+        self.configure_console_logging()
+
+        medusa_pb2_grpc.add_MedusaServicer_to_server(MedusaService(config), self.grpc_server)
+        health_pb2_grpc.add_HealthServicer_to_server(grpc_health.v1.health.HealthServicer(), self.grpc_server)
+
+        logging.info('Starting server. Listening on port 50051.')
+        self.grpc_server.add_insecure_port('[::]:50051')
+        self.grpc_server.start()
+
+        if not self.testing:
+            signal.signal(signal.SIGTERM, self.shutdown)
+            self.grpc_server.wait_for_termination()
+
+    def create_config(self):
+        config_file = Path(self.config_file_path)
+        args = defaultdict(lambda: None)
+
+        return medusa.config.load_config(args, config_file)
+
+    def configure_console_logging(self):
+        root_logger = logging.getLogger('')
+        root_logger.setLevel(logging.DEBUG)
+
+        log_format = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, self.medusa_config.logging.level))
+        console_handler.setFormatter(log_format)
+        root_logger.addHandler(console_handler)
+
+        if console_handler.level > logging.DEBUG:
+            # Disable debugging logging for external libraries
+            for logger_name in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
+                logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
 class MedusaService(medusa_pb2_grpc.MedusaServicer):
@@ -44,11 +96,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         self.storage = Storage(config=self.config.storage)
 
     def Backup(self, request, context):
-        logging.info("Performing backup {}".format(request.name))
+        logging.info("Performing backup {} (type={})".format(request.name, request.mode))
         resp = medusa_pb2.BackupResponse()
-        # TODO pass the staggered and mode args
+        # TODO pass the staggered arg
+        mode = BACKUP_MODE_DIFFERENTIAL
+        if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
+            mode = BACKUP_MODE_FULL
         try:
-            medusa.backup_node.main(self.config, request.name, None, False, "differential")
+            medusa.backup_node.main(self.config, request.name, None, False, mode)
         except Exception as e:
             context.set_details("failed to create backups: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -125,52 +180,11 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return resp
 
 
-def create_config(config_file_path):
-    config_file = Path(config_file_path)
-    args = defaultdict(lambda: None)
+if __name__ == '__main__':
+    if len(sys.argv) > 2:
+        config_file_path = sys.argv[2]
+    else:
+        config_file_path = "/etc/medusa/medusa.ini"
 
-    return medusa.config.load_config(args, config_file)
-
-
-def configure_console_logging(config):
-    root_logger = logging.getLogger('')
-    root_logger.setLevel(logging.DEBUG)
-
-    log_format = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(getattr(logging, config.level))
-    console_handler.setFormatter(log_format)
-    root_logger.addHandler(console_handler)
-
-    if console_handler.level > logging.DEBUG:
-        # Disable debugging logging for external libraries
-        for logger_name in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
-            logging.getLogger(logger_name).setLevel(logging.WARN)
-
-
-def shutdown(signum, frame):
-    logging.info("shutting down")
-    server.stop(0)
-
-
-if len(sys.argv) > 2:
-    config_file_path = sys.argv[2]
-else:
-    config_file_path = "/etc/medusa/medusa.ini"
-
-config = create_config(config_file_path)
-configure_console_logging(config.logging)
-
-server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-
-medusa_pb2_grpc.add_MedusaServicer_to_server(MedusaService(config), server)
-health_pb2_grpc.add_HealthServicer_to_server(grpc_health.v1.health.HealthServicer(), server)
-
-logging.info('Starting server. Listening on port 50051.')
-server.add_insecure_port('[::]:50051')
-server.start()
-
-signal.signal(signal.SIGTERM, shutdown)
-
-server.wait_for_termination()
+    server = Server(config_file_path)
+    server.serve()
