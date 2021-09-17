@@ -22,7 +22,7 @@ Feature: Integration tests
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario1"
         Then Test TLS version connections if "<client encryption>" is turned on
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
-        When I create the "test" table in keyspace "medusa"
+        When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I load 100 rows in the "medusa.test" table
@@ -33,9 +33,9 @@ Feature: Integration tests
         Then I can download the backup named "first_backup" for "medusa.test"
         And I can fetch the tokenmap of the backup named "first_backup"
         Then I can see the backup status for "first_backup" when I run the status command
-        Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
+        Then backup named "first_backup" has 32 files in the manifest for the "test" table in keyspace "medusa"
         Then the backup index exists
-        Then the backup named "first_backup" has 2 SSTables for the "test" table in keyspace "medusa"
+        Then the backup named "first_backup" has 4 SSTables for the "test" table in keyspace "medusa"
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
         When I load 100 rows in the "medusa.test" table
@@ -279,40 +279,41 @@ Feature: Integration tests
     Scenario Outline: Perform an differential backup, verify it, restore it and delete it
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario8"
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
-        When I create the "test" table in keyspace "medusa"
+        When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
-        Then backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
-        Then I can see 1 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
+        Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
+        Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I run a "ccm node1 nodetool flush" command
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         Then some files from the previous backup were not reuploaded
-        Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
+        Then I can see 4 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         Then I can see the backup named "second_backup" when I list the backups
         Then I can see the backup status for "second_backup" when I run the status command
         Then I can verify the backup named "second_backup" with md5 checks "disabled" successfully
-        Then backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
-        Then backup named "second_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
+        Then backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
+        Then backup named "second_backup" has 32 files in the manifest for the "test" table in keyspace "medusa"
+        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "enabled"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "enabled"
+        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "enabled"
         Then some files from the previous backup were not reuploaded
         Then I can see the backup named "third_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
         Then I can verify the backup named "third_backup" with md5 checks "disabled" successfully
-        When I restore the backup named "second_backup"
+        When I restore the backup named "third_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
+        When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the backup named "fourth_backup" when I list the backups
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups

@@ -46,7 +46,7 @@ class NodeBackupCache(object):
             self._data_path = node_backup.data_path
             self._cached_objects = {
                 (section['keyspace'], section['columnfamily']): {
-                    pathlib.Path(object['path']).name: object
+                    self._retain_2i_subdir(pathlib.Path(object['path'])): object
                     for object in section['objects']
                 }
                 for section in json.loads(node_backup.manifest)
@@ -64,6 +64,15 @@ class NodeBackupCache(object):
         self._storage_provider = storage_provider
         self._storage_config = storage_config
         self._enable_md5_checks = enable_md5_checks
+
+    def _retain_2i_subdir(self, path):
+        # Secondary indexes are stored as subdirectories to the base table, starting with a dot.
+        # In order to avoid mixing 2i sstables with the base table sstables, the file name isn't enough
+        # to perform the comparison on differential backups. We need to retain the subdir name for 2i tables.
+        if path.parts[-2].startswith('.'):
+            return os.path.join(path.parts[-2], path.parts[-1])
+        else:
+            return path.name
 
     @property
     def replaced(self):
@@ -84,7 +93,7 @@ class NodeBackupCache(object):
                 fqtn = (keyspace, columnfamily)
                 cached_item = None
                 if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
-                    cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
+                    cached_item = self._cached_objects.get(fqtn, {}).get(self._retain_2i_subdir(src))
 
                 threshold = self._storage_config.multi_part_upload_threshold
                 if cached_item is None or not self._storage_driver.file_matches_cache(src,
