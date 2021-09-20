@@ -26,11 +26,17 @@ from medusa.storage.s3_base_storage import S3BaseStorage
 
 class S3Storage(S3BaseStorage):
     def __init__(self, config):
+        try:
+            imds_token = requests.put("http://169.254.169.254/latest/api/token",
+                                      headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
+                                      timeout=2)
+            self.imds_headers = None if imds_token.status_code != 200 else {
+                "X-aws-ec2-metadata-token": imds_token.text}
+        except Exception as e:
+            logging.info(
+                'Could not use imdsv2, got an exception while reaching http://169.254.169.254/latest/api/token: {}'.format(str(e)))
+            self.imds_headers = None
         super().__init__(config)
-        imds_token = requests.put("http://169.254.169.254/latest/api/token",
-                                  headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"})
-        self.imds_headers = None if imds_token.status_code != 200 else {
-            "X-aws-ec2-metadata-token": imds_token.text}
 
     def get_aws_instance_profile(self):
         """
