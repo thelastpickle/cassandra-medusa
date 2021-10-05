@@ -34,7 +34,8 @@ class S3Storage(S3BaseStorage):
                 "X-aws-ec2-metadata-token": imds_token.text}
         except Exception as e:
             logging.info(
-                'Could not use imdsv2, got an exception while reaching http://169.254.169.254/latest/api/token: {}'.format(str(e)))
+                'Could not use imdsv2: \
+got an exception while reaching http://169.254.169.254/latest/api/token: {}' .format(str(e)))
             self.imds_headers = None
         super().__init__(config)
 
