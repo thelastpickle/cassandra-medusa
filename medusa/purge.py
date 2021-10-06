@@ -225,7 +225,7 @@ def backups_to_purge_by_name(storage, cluster_backups, backup_names_to_purge, al
     :return: list of NodeBackups that should be purged
     """
     backups_to_purge = list()
-    cluster_backups_by_name = { bk.name: bk for bk in cluster_backups }
+    cluster_backups_by_name = {bk.name: bk for bk in cluster_backups}
     for backup_name in backup_names_to_purge:
         if backup_name in cluster_backups_by_name:
             backups_to_purge.extend(cluster_backups_by_name[backup_name].node_backups.values())

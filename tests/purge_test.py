@@ -116,7 +116,8 @@ class PurgeTest(unittest.TestCase):
         backup_names = ["backup1", "backup2", "backup3"]
         cluster_backups = list()
         for backup_name in backup_names:
-            cluster_backups.append(self.make_cluster_backup(self.storage, backup_name, datetime.now(), nodes, differential=True))
+            cluster_backups.append(self.make_cluster_backup(self.storage, backup_name, datetime.now(), nodes,
+                                                            differential=True))
 
         # all nodes, one backups
         backups_to_purge = backups_to_purge_by_name(self.storage, cluster_backups, ["backup1"], True)
