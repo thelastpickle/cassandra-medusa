@@ -19,6 +19,7 @@ import multiprocessing
 import os
 import pathlib
 import threading
+import time
 
 from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
@@ -41,6 +42,8 @@ class StorageJob:
         self.lock = threading.Lock()
         self.func = func
         self.connection_pool = []
+        self.timer = time.time()
+        self.connection_ttl = 1200
         if max_workers is None:
             self.max_workers = int(multiprocessing.cpu_count())
         else:
@@ -52,6 +55,10 @@ class StorageJob:
 
     def with_storage(self, iterable):
         with self.lock:
+            current_timer = time.time()
+            if current_timer - self.timer > self.connection_ttl:
+                self.connection_pool = []
+                self.timer = time.time()
             if not self.connection_pool:
                 connection = self.storage.connect_storage()
             else:
