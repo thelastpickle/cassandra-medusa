@@ -206,7 +206,7 @@ Usage: medusa delete-backup [OPTIONS]
   Delete the given backup on the current node (or on all nodes)
 
 Options:
-  --backup-name TEXT              Backup name  [required]
+  --backup-name TEXT              Backup name (repeat for multiple names) [required]
   -a, --all-nodes / -c, --current-node
                                   Delete backups on all nodes (Default is
                                   current node only)
@@ -218,7 +218,7 @@ By default backups will only be deleted on the local node. In order to globally 
 ```
 $ medusa delete-backup --backup-name=backup1
 [2021-07-08 09:49:48,994] INFO: Monitoring provider is noop
-[2021-07-08 09:49:50,078] INFO: Deleting Backup backup1...
+[2021-07-08 09:49:50,078] INFO: Deleting Backup(s) backup1...
 [2021-07-08 09:49:50,078] INFO: 1 backups are candidate to be purged
 [2021-07-08 09:49:50,078] INFO: Purging backup 1 from node ip-172-31-28-101.us-west-2.compute.internal...
 [2021-07-08 09:49:50,369] INFO: Cleaning up orphaned files for ip-172-31-28-101.us-west-2.compute.internal...
