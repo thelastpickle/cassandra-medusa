@@ -1197,7 +1197,7 @@ def _verifying_backup_fails(context, backup_name):
 @when(r'I delete the backup named "{backup_name}"')
 def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
     medusa.purge.delete_backup(context.medusa_config,
-                               backup_name=backup_name, all_nodes=all_nodes)
+                               backup_names=[backup_name], all_nodes=all_nodes)
 
 
 @then(r'I can fetch the tokenmap of the backup named "{backup_name}"')
