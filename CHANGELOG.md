@@ -1,5 +1,12 @@
 ## Change Log
 
+### 0.11.2 (2021/10/22 11:37 +00:00)
+- fix aws imdsv2 setting (@optplx)
+- Use the aws_session_token setting of the aws profile (@atallahade)
+- make medusa compatible with imdsv2 on AWS (@optplx)
+- Fix required version for Click package (@ivanmp91)
+- Fix corrupt backups when tables have 2i (@adejanovski)
+
 ### 0.11.1 (2021/09/01 12:40 +00:00)
 - Make Azure requirements coherent with the Docker image (@adejanovski)
 - Add missing deps for Azure-cli in the Docker image (@adejanovski)
