@@ -338,7 +338,7 @@ def purge(medusaconfig):
 
 
 @cli.command(name='delete-backup')
-@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--backup-name', help='Backup name (repeat for multiple names)', required=True, multiple=True)
 @click.option('-a/-c', '--all-nodes/--current-node',
               help='Delete backups on all nodes (Default is current node only)',
               default=False, is_flag=True)

@@ -171,7 +171,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         logging.info("Deleting backup {}".format(request.name))
         resp = medusa_pb2.DeleteBackupResponse()
         try:
-            medusa.purge.delete_backup(self.config, request.name, True)
+            medusa.purge.delete_backup(self.config, [request.name], True)
         except Exception as e:
             context.set_details("deleting backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)

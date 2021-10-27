@@ -214,19 +214,39 @@ def filter_differential_backups(backups):
     return list(filter(lambda backup: backup.is_differential is True, backups))
 
 
-def delete_backup(config, backup_name, all_nodes):
+def backups_to_purge_by_name(storage, cluster_backups, backup_names_to_purge, all_nodes):
+    """
+    select NodeBackups that should be purged by backup name.
+    Raises KeyError exception if some of the backup_names_to_purge do not exist.
+    :param storage: storage object
+    :param cluster_backups: list of ClusterBackups for cluster
+    :param backup_names_to_purge: names of backups to purge
+    :param all_nodes: purge for all nodes if true, otherwise for current node only
+    :return: list of NodeBackups that should be purged
+    """
     backups_to_purge = list()
+    cluster_backups_by_name = {bk.name: bk for bk in cluster_backups}
+    for backup_name in backup_names_to_purge:
+        if backup_name in cluster_backups_by_name:
+            backups_to_purge.extend(cluster_backups_by_name[backup_name].node_backups.values())
+        else:
+            raise KeyError('The backup {} does not exist'.format(backup_name))
+
+    if not all_nodes:
+        backups_to_purge = [nb for nb in backups_to_purge if storage.config.fqdn in nb.fqdn]
+
+    return backups_to_purge
+
+
+def delete_backup(config, backup_names, all_nodes):
     monitoring = Monitoring(config=config.monitoring)
 
     try:
         storage = Storage(config=config.storage)
-        cluster_backup = storage.get_cluster_backup(backup_name)
-        backups_to_purge = cluster_backup.node_backups.values()
+        cluster_backups = storage.list_cluster_backups()
+        backups_to_purge = backups_to_purge_by_name(storage, cluster_backups, backup_names, all_nodes)
 
-        if not all_nodes:
-            backups_to_purge = [nb for nb in backups_to_purge if storage.config.fqdn in nb.fqdn]
-
-        logging.info('Deleting Backup {}...'.format(backup_name))
+        logging.info('Deleting Backup(s) {}...'.format(",".join(backup_names)))
         purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, storage.config.fqdn)
 
         logging.debug('Emitting metrics')
@@ -237,6 +257,6 @@ def delete_backup(config, backup_name, all_nodes):
         monitoring.send(tags, 1)
         medusa.utils.handle_exception(
             e,
-            'This error happened during the delete of backup "{}": {}'.format(backup_name, str(e)),
+            'This error happened during the delete of backup(s) "{}": {}'.format(",".join(backup_names), str(e)),
             config
         )

@@ -23,8 +23,8 @@ from libcloud.storage.base import Object
 from random import randrange
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.storage import NodeBackup, Storage
-from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count
+from medusa.storage import NodeBackup, Storage, ClusterBackup
+from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 
 
@@ -38,7 +38,8 @@ class PurgeTest(unittest.TestCase):
             'host_file_separator': ',',
             'storage_provider': 'local',
             'base_path': '/tmp',
-            'bucket_name': 'purge_test'
+            'bucket_name': 'purge_test',
+            'fqdn': 'node1'
         }
         self.config = MedusaConfig(
             file_path=None,
@@ -58,7 +59,7 @@ class PurgeTest(unittest.TestCase):
         # Build a list of 40 daily backups
         for i in range(1, 80, 2):
             file_time = datetime.now() + timedelta(days=(i + 1) - 80)
-            backups.append(self.make_backup(self.storage, str(i), file_time, differential=True))
+            backups.append(self.make_node_backup(self.storage, str(i), file_time, differential=True))
 
         obsolete_backups = backups_to_purge_by_age(backups, 1)
         assert len(obsolete_backups) == 39
@@ -81,7 +82,7 @@ class PurgeTest(unittest.TestCase):
         # Build a list of 40 daily backups
         for i in range(1, 80, 2):
             file_time = datetime.now() + timedelta(days=(i + 1) - 80)
-            backups.append(self.make_backup(self.storage, str(i), file_time, differential=True))
+            backups.append(self.make_node_backup(self.storage, str(i), file_time, differential=True))
 
         obsolete_backups = backups_to_purge_by_count(backups, 10)
         assert(obsolete_backups[0].name == "1")
@@ -94,11 +95,11 @@ class PurgeTest(unittest.TestCase):
 
     def test_filter_differential_backups(self):
         backups = list()
-        backups.append(self.make_backup(self.storage, "one", datetime.now(), differential=True))
-        backups.append(self.make_backup(self.storage, "two", datetime.now(), differential=True))
-        backups.append(self.make_backup(self.storage, "three", datetime.now(), differential=False))
-        backups.append(self.make_backup(self.storage, "four", datetime.now(), differential=True))
-        backups.append(self.make_backup(self.storage, "five", datetime.now(), differential=False))
+        backups.append(self.make_node_backup(self.storage, "one", datetime.now(), differential=True))
+        backups.append(self.make_node_backup(self.storage, "two", datetime.now(), differential=True))
+        backups.append(self.make_node_backup(self.storage, "three", datetime.now(), differential=False))
+        backups.append(self.make_node_backup(self.storage, "four", datetime.now(), differential=True))
+        backups.append(self.make_node_backup(self.storage, "five", datetime.now(), differential=False))
         assert 3 == len(filter_differential_backups(backups))
 
     def test_filter_files_within_gc_grace(self):
@@ -110,19 +111,63 @@ class PurgeTest(unittest.TestCase):
         blob_map = {blob.name: blob for blob in blobs}
         assert 2 == len(filter_files_within_gc_grace(self.storage, blob_map.keys(), blob_map, 1))
 
-    def make_backup(self, storage, name, backup_date, differential=False):
+    def test_purge_backups_by_name(self):
+        nodes = ["node1", "node2", "node3"]
+        backup_names = ["backup1", "backup2", "backup3"]
+        cluster_backups = list()
+        for backup_name in backup_names:
+            cluster_backups.append(self.make_cluster_backup(self.storage, backup_name, datetime.now(), nodes,
+                                                            differential=True))
+
+        # all nodes, one backups
+        backups_to_purge = backups_to_purge_by_name(self.storage, cluster_backups, ["backup1"], True)
+        self.assertEqual(3, len(backups_to_purge))
+        for btp in backups_to_purge:
+            self.assertEqual("backup1", btp.name)
+        self.assertFalse(set(nodes) - set(map(lambda x: x.fqdn, backups_to_purge)))
+
+        # one node, one backup
+        backups_to_purge = backups_to_purge_by_name(self.storage, cluster_backups, ["backup1"], False)
+        self.assertEqual(1, len(backups_to_purge))
+        for btp in backups_to_purge:
+            self.assertEqual("backup1", btp.name)
+            self.assertEqual("node1", btp.fqdn)
+
+        # all nodes, 2 backups
+        backups_to_purge = backups_to_purge_by_name(self.storage, cluster_backups, ["backup1", "backup2"], True)
+        self.assertEqual(6, len(backups_to_purge))
+        for btp in backups_to_purge:
+            self.assertTrue(btp.name in ["backup1", "backup2"])
+        self.assertFalse(set(nodes) - set(map(lambda x: x.fqdn, backups_to_purge)))
+
+        # one nodes, 2 backups
+        backups_to_purge = backups_to_purge_by_name(self.storage, cluster_backups, ["backup1", "backup2"], False)
+        self.assertEqual(2, len(backups_to_purge))
+        for btp in backups_to_purge:
+            self.assertTrue(btp.name in ["backup1", "backup2"])
+            self.assertEqual("node1", btp.fqdn)
+
+        # non-existent backup name raises KeyError
+        self.assertRaises(KeyError, backups_to_purge_by_name, self.storage, cluster_backups, ["nonexistent"], False)
+
+    def make_node_backup(self, storage, name, backup_date, differential=False, fqdn="localhost"):
         if differential is True:
             differential_blob = self.make_blob("localhost/{}/meta/differential".format(name), backup_date.timestamp())
         else:
             differential_blob = None
-        manifest_blob = self.make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
         tokenmap_blob = self.make_blob("localhost/{}/meta/tokenmap.json".format(name), backup_date.timestamp())
         schema_blob = self.make_blob("localhost/{}/meta/schema.cql".format(name), backup_date.timestamp())
         manifest_blob = self.make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
-        return NodeBackup(storage=storage, fqdn="localhost", name=str(name),
+        return NodeBackup(storage=storage, fqdn=fqdn, name=str(name),
                           differential_blob=differential_blob, manifest_blob=manifest_blob,
                           tokenmap_blob=tokenmap_blob, schema_blob=schema_blob,
                           started_timestamp=backup_date.timestamp(), finished_timestamp=backup_date.timestamp())
+
+    def make_cluster_backup(self, storage, name, backup_date, nodes, differential=False):
+        node_backups = list()
+        for node in nodes:
+            node_backups.append(self.make_node_backup(storage, name, backup_date, differential, node))
+        return ClusterBackup(name, node_backups)
 
     def make_blob(self, blob_name, blob_date):
         extra = {
