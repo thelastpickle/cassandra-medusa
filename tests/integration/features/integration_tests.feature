@@ -837,3 +837,59 @@ Feature: Integration tests
         Examples: Local storage
         | storage           | client encryption |
         | local      |  with_client_encryption |
+
+    @22
+    Scenario Outline: Delete a backup with the presence of an incomplete backup
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario22"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool compact medusa" command
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool compact medusa" command
+        When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
+        Then I can see the backup named "first_backup" when I list the backups
+        Then I can see the backup named "second_backup" when I list the backups
+        And I delete the manifest from the backup named "second_backup"
+        And the backup named "second_backup" is incomplete
+        Then I can see the backup named "third_backup" when I list the backups
+        When I delete the backup named "first_backup"
+        Then I cannot see the backup named "first_backup" when I list the backups
+        Then I can see the backup named "second_backup" when I list the backups
+        Then I can see the backup named "third_backup" when I list the backups
+
+        @local
+        Examples: Local storage
+        | storage | client encryption      |
+        | local   | with_client_encryption |
+
+        @s3
+        Examples: S3 storage
+        | storage           | client encryption         |
+        | s3_us_west_oregon | without_client_encryption |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage        | client encryption         |
+        | google_storage | without_client_encryption |
+
+        @azure
+        Examples: Azure Blob Storage
+        | storage     | client encryption         |
+        | azure_blobs | without_client_encryption |
+
+        @ibm
+        Examples: IBM Cloud Object Storage
+        | storage     | client encryption         |
+        | ibm_storage | without_client_encryption |
+
+        @minio
+        Examples: MinIO storage
+        | storage | client encryption         |
+        | minio   | without_client_encryption |
