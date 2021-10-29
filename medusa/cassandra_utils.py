@@ -327,7 +327,6 @@ class Cassandra(object):
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
         self._os_has_systemd = self._has_systemd()
         self._nodetool = Nodetool(cassandra_config)
-        logging.warning('is ccm : {}'.format(self._is_ccm))
         config_reader = CassandraConfigReader(cassandra_config.config_file, release_version)
         self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
