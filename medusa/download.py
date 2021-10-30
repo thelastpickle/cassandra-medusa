@@ -20,7 +20,11 @@ import sys
 
 from medusa.storage import Storage, divide_chunks
 from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.storage.azure_storage import AZCOPY_MAX_FILES_PER_DOWNLOAD
 from medusa.filtering import filter_fqtns
+
+from libcloud.storage.providers import Provider
+from medusa.storage.azure_blobs_storage.azcopy import AzCopy
 
 
 def download_data(storageconfig, backup, fqtns_to_restore, destination):
@@ -48,7 +52,13 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
             for subfolder in dst_subfolders:
                 subfolder.mkdir(parents=False)
 
-            for src_batch in divide_chunks(srcs, GSUTIL_MAX_FILES_PER_CHUNK):
+            src_batches = []
+            if storage.storage_provider == Provider.AZURE_BLOBS and AzCopy.get_azcopy_if_exists():  # TODO also check for azcopy
+                src_batches = divide_chunks(srcs, AZCOPY_MAX_FILES_PER_DOWNLOAD)
+            else:
+                src_batches = divide_chunks(srcs, GSUTIL_MAX_FILES_PER_CHUNK)
+
+            for src_batch in src_batches:
                 storage.storage_driver.download_blobs(src_batch, dst)
         elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.debug('There is nothing to download for {}'.format(fqtn))

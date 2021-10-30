@@ -25,6 +25,7 @@ from retrying import retry
 
 import medusa
 from medusa.storage.azure_blobs_storage.azcli import AzCli
+from medusa.storage.azure_blobs_storage.azcopy import AzCopy
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
@@ -136,6 +137,23 @@ def _upload_multi_part(storage, connection, src, bucket, object_name):
     with AzCli(storage) as azcli:
         objects = azcli.cp_upload(srcs=[src], bucket_name=bucket.name, dest=object_name)
     return objects[0]
+
+
+def download_blobs_azcopy(storage, src, dest, bucket):
+    """
+    Download files concurrently to local storage
+
+    :param storage: An AbstractStorage instance, needed to create a connection pool
+    :param src: A list of files to download from the remote storage system
+    :param dest: The path to where objects should be downloaded locally
+    :param bucket: Storage bucket from which files will be downloaded
+    :return:
+    """
+
+    with AzCli(storage) as azcli:
+        sas = azcli.generate_sas_for_downloads(bucket_name=bucket.name)
+    azcopy = AzCopy(storage)
+    azcopy.download_blobs(src, dest, bucket, sas)
 
 
 def download_blobs(storage, src, dest, bucket, max_workers=None, multi_part_upload_threshold=0):

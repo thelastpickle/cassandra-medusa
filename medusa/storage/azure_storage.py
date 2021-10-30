@@ -15,6 +15,8 @@ from medusa.storage.azure_blobs_storage.azcli import AzCli
 import medusa
 
 
+AZCOPY_MAX_FILES_PER_DOWNLOAD = 1000
+
 class AzureStorage(AbstractStorage):
 
     def connect_storage(self):
@@ -70,12 +72,17 @@ class AzureStorage(AbstractStorage):
             multi_part_upload_threshold=int(self.config.multi_part_upload_threshold)
         )
 
-    def download_blobs(self, srcs, dest):
-        return medusa.storage.azure_blobs_storage.concurrent.download_blobs(
-            self, srcs, dest, self.bucket,
-            max_workers=self.config.concurrent_transfers,
-            multi_part_upload_threshold=int(self.config.multi_part_upload_threshold)
-        )
+    def download_blobs(self, srcs, dest, with_azcopy=False):
+        if with_azcopy:
+            return medusa.storage.azure_blobs_storage.concurrent.download_blobs_azcopy(
+                self, srcs, dest, self.bucket
+            )
+        else:
+            return medusa.storage.azure_blobs_storage.concurrent.download_blobs(
+                self, srcs, dest, self.bucket,
+                max_workers=self.config.concurrent_transfers,
+                multi_part_upload_threshold=int(self.config.multi_part_upload_threshold)
+            )
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest):

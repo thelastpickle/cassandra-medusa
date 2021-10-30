@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import uuid
+from datetime import datetime, timedelta
 
 from retrying import retry
 
@@ -83,6 +84,16 @@ class AzCli(object):
         return objects
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    def generate_sas_for_downloads(self, bucket_name):
+        one_day_expiry = datetime.now() + timedelta(days=1)
+        one_day_expiry_str = one_day_expiry.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        cmd = [self._az_cli_path, "storage", "container", "generate-sas", "--name", bucket_name,
+               "--expiry", one_day_expiry_str, "--permissions", "r"]
+        logging.debug(" ".join(cmd))
+        return subprocess.check_output(cmd)
+
+    @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def upload_file(self, cmd, dest, azcli_output):
         logging.debug(" ".join(cmd))
         with open(azcli_output, "w") as output:
@@ -136,3 +147,4 @@ class AzCli(object):
         if obj is None:
             raise IOError("Failed to find uploaded object {} in Azure".format(blob_name))
         return obj
+
