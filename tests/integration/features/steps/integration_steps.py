@@ -1160,6 +1160,30 @@ def _i_delete_the_manifest_from_the_backup_named(context, backup_name):
             os.remove(os.path.join(path_backup_index, meta_file))
 
 
+@then(r'I delete the manifest from the backup named "{backup_name}" from the storage')
+def _i_delete_the_manifest_from_the_backup_named_from_the_storage(context, backup_name):
+    storage = Storage(config=context.medusa_config.storage)
+
+    fqdn = context.medusa_config.storage.fqdn
+    path_manifest_index_latest = "{}index/backup_index/{}/manifest_{}.json".format(
+        storage.prefix_path, backup_name, fqdn
+    )
+    path_backup_index = "{}index/backup_index/{}".format(
+        storage.prefix_path, backup_name
+    )
+    path_manifest_backup = "{}{}/{}/meta/manifest.json".format(
+        storage.prefix_path, fqdn, backup_name
+    )
+
+    storage.storage_driver.get_blob(path_manifest_backup).delete()
+    storage.storage_driver.get_blob(path_manifest_index_latest).delete()
+
+    meta_files = storage.storage_driver.list_objects(path_backup_index)
+    for meta_file in meta_files:
+        if meta_file.name.split("/")[-1].startswith("finished"):
+            storage.storage_driver.delete_object(meta_file)
+
+
 @then(r'the backup named "{backup_name}" is incomplete')
 def _the_backup_named_is_incomplete(context, backup_name):
     backups = medusa.listing.list_backups(config=context.medusa_config, show_all=True)

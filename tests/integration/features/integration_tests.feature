@@ -856,7 +856,7 @@ Feature: Integration tests
         When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
-        And I delete the manifest from the backup named "second_backup"
+        And I delete the manifest from the backup named "second_backup" from the storage
         And the backup named "second_backup" is incomplete
         Then I can see the backup named "third_backup" when I list the backups
         When I delete the backup named "first_backup"
