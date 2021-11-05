@@ -126,8 +126,8 @@ jobs:
               cassandra-version: 'github:apache/trunk'
             - it-backend: s3
               python-version: 3.9
-            - it-backend: gcs
-              cassandra-version: 2.2.19
+            #- it-backend: gcs
+            #  cassandra-version: 2.2.19
             - it-backend: gcs
               cassandra-version: 'github:apache/trunk'
             - it-backend: gcs
