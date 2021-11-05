@@ -51,6 +51,10 @@ Documentation
 
 For user questions and general/dev discussions, please join the #cassandra-medusa channel on the ASF slack at [http://s.apache.org/slack-invite](http://s.apache.org/slack-invite).
 
+Docker images
+-------------
+You can find the Docker images for Cassandra Medusa at [https://hub.docker.com/r/k8ssandra/medusa](https://hub.docker.com/r/k8ssandra/medusa).
+
 Dependencies
 ------------
 
