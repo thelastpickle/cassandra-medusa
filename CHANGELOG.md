@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.11.3 (2021/11/08 14:33 +00:00)
+- Remove use of exec for containerized restore operations (@adejanovski)
+
 ### 0.11.2 (2021/10/22 11:37 +00:00)
 - fix aws imdsv2 setting (@optplx)
 - Use the aws_session_token setting of the aws profile (@atallahade)
