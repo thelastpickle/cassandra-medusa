@@ -147,7 +147,7 @@ def cleanup_obsolete_files(storage, fqdn, backup_grace_period_in_days):
     total_purged_size = 0
 
     backups = storage.list_node_backups(fqdn=fqdn)
-    paths_in_manifest = get_file_paths_from_manifests_for_differential_backups(backups)
+    paths_in_manifest = get_file_paths_from_manifests_for_complete_differential_backups(backups)
     paths_in_storage = get_file_paths_from_storage(storage, fqdn)
 
     deletion_candidates = set(paths_in_storage.keys()) - paths_in_manifest
@@ -190,10 +190,11 @@ def is_older_than_gc_grace(blob_datetime, gc_grace) -> bool:
     return datetime.timestamp(blob_datetime) <= datetime.timestamp(datetime.now()) - (int(gc_grace) * 86400)
 
 
-def get_file_paths_from_manifests_for_differential_backups(backups):
+def get_file_paths_from_manifests_for_complete_differential_backups(backups):
     differential_backups = filter_differential_backups(backups)
+    complete_differential_backups = list(filter(lambda backup: backup.manifest is not None, differential_backups))
 
-    manifests = list(map(lambda backup: json.loads(backup.manifest), differential_backups))
+    manifests = list(map(lambda backup: json.loads(backup.manifest), complete_differential_backups))
 
     objects_in_manifests = [
         obj
