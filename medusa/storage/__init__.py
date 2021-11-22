@@ -21,13 +21,13 @@ import operator
 import pathlib
 import re
 
-from libcloud.storage.providers import Provider
 from libcloud.common.types import InvalidCredsError
 from retrying import retry
 
 import medusa.index
 
 from medusa.utils import evaluate_boolean
+from medusa.storage.storage_provider import StorageProvider
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
@@ -36,6 +36,7 @@ from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
 from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.s3_base_storage import S3BaseStorage
+from medusa.storage.s3_compatible_storage import S3CompatibleStorage
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -77,31 +78,31 @@ class Storage(object):
 
     def _connect_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
-        if self._config.storage_provider == Provider.GOOGLE_STORAGE:
+        if self._config.storage_provider == StorageProvider.GOOGLE_STORAGE:
             google_storage = GoogleStorage(self._config)
             if not self._k8s_mode:
                 google_storage.check_dependencies()
             return google_storage
-        elif self._config.storage_provider == Provider.AZURE_BLOBS:
+        elif self._config.storage_provider == StorageProvider.AZURE_BLOBS:
             azure_storage = AzureStorage(self._config)
             if not self._k8s_mode:
                 azure_storage.check_dependencies()
             return azure_storage
-        elif self._config.storage_provider == Provider.S3_RGW:
+        elif self._config.storage_provider == StorageProvider.S3_RGW:
             return S3RGWStorage(self._config)
-        elif self._config.storage_provider.lower() == "s3_compatible":
-            s3_storage = S3BaseStorage(self._config)
+        elif self._config.storage_provider.lower() == StorageProvider.S3_COMPATIBLE:
+            s3_storage = S3CompatibleStorage(self._config)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()
             return s3_storage
-        elif self._config.storage_provider.startswith(Provider.S3):
+        elif self._config.storage_provider.startswith(StorageProvider.S3):
             s3_storage = S3Storage(self._config)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()
             return s3_storage
-        elif self._config.storage_provider == Provider.LOCAL:
+        elif self._config.storage_provider == StorageProvider.LOCAL:
             return LocalStorage(self._config)
-        elif self._config.storage_provider.lower() == "ibm_storage":
+        elif self._config.storage_provider == StorageProvider.IBM_CLOUD_STORAGE:
             s3_storage = S3BaseStorage(self._config)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()

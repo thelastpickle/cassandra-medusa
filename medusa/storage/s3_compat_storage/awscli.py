@@ -24,6 +24,7 @@ from retrying import retry
 
 from libcloud.storage.providers import get_driver, Provider
 from medusa import utils
+from medusa.storage.storage_provider import StorageProvider
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
@@ -114,6 +115,13 @@ class AwsCli(object):
 
         if self.endpoint_url is not None:
             cmd.extend(["--endpoint-url", self.endpoint_url])
+
+        if utils.evaluate_boolean(self._config.secure) and \
+                self._config.storage_provider == StorageProvider.S3_COMPATIBLE:
+            if self._config.cert_file:
+                cmd.extend(["--ca-bundle", self._config.cert_file])
+            else:
+                cmd.extend(["--no-verify-ssl"])
 
         return cmd
 

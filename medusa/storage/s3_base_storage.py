@@ -24,8 +24,8 @@ from pathlib import Path
 import botocore.session
 from libcloud.storage.providers import get_driver, Provider
 
+from medusa import utils
 from medusa.libcloud.storage.drivers.s3_base_driver import S3BaseStorageDriver
-
 from medusa.storage.abstract_storage import AbstractStorage
 import medusa.storage.s3_compat_storage.concurrent
 from medusa.storage.s3_compat_storage.awscli import AwsCli
@@ -74,7 +74,10 @@ class S3BaseStorage(AbstractStorage):
     def connect_storage(self):
         credentials = self.session.get_credentials()
 
-        secure = False if self.config.secure is None or self.config.secure.lower() in ('0', 'false') else True
+        secure = False
+        if self.config.secure:
+            secure = utils.evaluate_boolean(self.config.secure)
+
         driver = S3BaseStorageDriver(
             host=self.config.host,
             port=self.config.port,
