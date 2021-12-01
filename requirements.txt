@@ -18,3 +18,4 @@ wheel>=0.32.0
 gevent
 greenlet
 fasteners==0.16
+datadog
