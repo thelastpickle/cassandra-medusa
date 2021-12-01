@@ -53,7 +53,7 @@ ChecksConfig = collections.namedtuple(
 
 MonitoringConfig = collections.namedtuple(
     'MonitoringConfig',
-    ['monitoring_provider']
+    ['monitoring_provider', 'send_backup_name_tag']
 )
 
 MedusaConfig = collections.namedtuple(
@@ -152,7 +152,8 @@ def _build_default_config():
     }
 
     config['monitoring'] = {
-        'monitoring_provider': 'None'
+        'monitoring_provider': 'None',
+        'send_backup_name_tag': 'False'
     }
 
     config['grpc'] = {
