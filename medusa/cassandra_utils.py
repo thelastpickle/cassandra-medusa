@@ -56,12 +56,12 @@ class SnapshotPath(object):
 
 class CqlSessionProvider(object):
 
-    def __init__(self, ip_addresses, cassandra_config, port):
+    def __init__(self, ip_addresses, cassandra_config):
         self._ip_addresses = ip_addresses
         self._auth_provider = None
         self._ssl_context = None
         self._cassandra_config = cassandra_config
-        self._native_port = port
+        self._native_port = CassandraConfigReader(cassandra_config.config_file).native_port
 
         if null_if_empty(cassandra_config.cql_username) and null_if_empty(cassandra_config.cql_password):
             auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
@@ -339,8 +339,7 @@ class Cassandra(object):
         self._native_port = config_reader.native_port
         self._cql_session_provider = CqlSessionProvider(
             [self._hostname],
-            cassandra_config,
-            self._native_port)
+            cassandra_config)
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds
 
