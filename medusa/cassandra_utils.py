@@ -61,6 +61,7 @@ class CqlSessionProvider(object):
         self._auth_provider = None
         self._ssl_context = None
         self._cassandra_config = cassandra_config
+        self._native_port = CassandraConfigReader(cassandra_config.config_file).native_port
 
         if null_if_empty(cassandra_config.cql_username) and null_if_empty(cassandra_config.cql_password):
             auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
@@ -90,6 +91,7 @@ class CqlSessionProvider(object):
          """
 
         cluster = Cluster(contact_points=self._ip_addresses,
+                          port=int(self._native_port),
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles,
                           ssl_context=self._ssl_context)
@@ -333,12 +335,11 @@ class Cassandra(object):
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
         self._hostname = contact_point if contact_point is not None else config_reader.listen_address
+        self._storage_port = config_reader.storage_port
+        self._native_port = config_reader.native_port
         self._cql_session_provider = CqlSessionProvider(
             [self._hostname],
             cassandra_config)
-
-        self._storage_port = config_reader.storage_port
-        self._native_port = config_reader.native_port
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds
 
