@@ -17,8 +17,6 @@
 from gevent import monkey
 
 import medusa.utils
-from medusa import backup_node
-from medusa.backup_manager import BackupMan
 
 monkey.patch_all()
 import datetime
@@ -37,7 +35,8 @@ if not sys.warnoptions:
 from collections import defaultdict
 from pathlib import Path
 
-import medusa.backup_node
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
 import medusa.backup_cluster
 import medusa.config
 import medusa.download
