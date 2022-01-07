@@ -19,6 +19,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
@@ -85,7 +86,12 @@ class RestoreClusterTest(unittest.TestCase):
         return config
 
     # Test that we can properly associate source and target nodes for restore using a host list
-    def test_populate_ringmap(self):
+    @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
+    def test_populate_hostmap(self, resolver_mock):
+        # target and source lookups mocked
+        resolver_mock.side_effect = ['node1.mydomain.net', 'node1.mydomain.net',
+                                     'node2.mydomain.net', 'node2.mydomain.net',
+                                     'node3.mydomain.net', 'node4.mydomain.net']
         node_backups = list()
         node_backups.append(Mock())
         with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
@@ -95,14 +101,24 @@ class RestoreClusterTest(unittest.TestCase):
             host_list = "tests/resources/restore_cluster_host_list.txt"
             restore_job = RestoreJob(cluster_backup, self.medusa_config, self.tmp_dir, host_list, None, False, False,
                                      None, version_target="4.0.0")
+
+            # mock the referenced fqdn_resolver for unit testing, takes a loong time
             restore_job._populate_hostmap()
 
-        assert restore_job.host_map["node1.mydomain.net"]['source'] == ["node1.mydomain.net"]
-        assert restore_job.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
-        assert restore_job.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
+            assert restore_job.host_map["node1.mydomain.net"]['source'] == ["node1.mydomain.net"]
+            assert restore_job.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
+            assert restore_job.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
 
     # Test that we can properly associate source and target nodes for restore using a token map
-    def test_populate_tokenmap(self):
+    @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
+    def test_populate_ringmap(self, resolver_mock):
+
+        # resolver checks for seed target w/ resolve as well.
+        seed_target = "node1.mydomain.net"
+        resolver_mock.side_effect = ['node4.mydomain.net', seed_target, 'node1.mydomain.net',
+                                     'node5.mydomain.net', seed_target, 'node2.mydomain.net',
+                                     'node6.mydomain.net', seed_target, 'node3.mydomain.net']
+
         node_backups = list()
         node_backups.append(Mock())
         with open("tests/resources/restore_cluster_tokenmap.json", 'r') as f:
@@ -114,7 +130,7 @@ class RestoreClusterTest(unittest.TestCase):
                     self.medusa_config,
                     self.tmp_dir,
                     None,
-                    "node1.mydomain.net",
+                    seed_target,
                     False,
                     False,
                     None,

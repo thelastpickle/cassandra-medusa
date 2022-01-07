@@ -1,67 +1,81 @@
 syntax = "proto3";
 
 service Medusa {
-    rpc Backup(BackupRequest) returns (BackupResponse);
+  rpc Backup(BackupRequest) returns (BackupResponse);
 
-    rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse);
+  rpc AsyncBackup(BackupRequest) returns (BackupResponse);
 
-    rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+  rpc BackupStatus(BackupStatusRequest) returns (BackupStatusResponse);
 
-    rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+
+  rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
+}
+
+enum StatusType {
+  IN_PROGRESS = 0;
+  SUCCESS = 1;
+  FAILED = 2;
+  UNKNOWN = 3;
 }
 
 message BackupRequest {
-    string name = 1;
-    enum Mode {
-        DIFFERENTIAL = 0;
-        FULL = 1;
-    }
-    Mode mode = 2;
+  string name = 1;
+  enum Mode {
+    DIFFERENTIAL = 0;
+    FULL = 1;
+  }
+  Mode   mode = 2;
 }
 
 message BackupResponse {
-
+  string           backupName = 1;
+  StatusType status = 2;
 }
 
 message BackupStatusRequest {
-    string backupName = 1;
+  string backupName = 1;
 }
 
 message BackupStatusResponse {
-    repeated string finishedNodes = 1;
-    repeated string unfinishedNodes = 2;
-    repeated string missingNodes = 3;
-    string startTime = 4;
-    string finishTime = 5;
+  repeated string  finishedNodes = 1;
+  repeated string  unfinishedNodes = 2;
+  repeated string  missingNodes = 3;
+  string           startTime = 4;
+  string           finishTime = 5;
+  StatusType status = 6;
 }
 
 message DeleteBackupRequest {
-    string name = 1;
+  string name = 1;
 }
 
 message DeleteBackupResponse {
+  string name = 1;
+  StatusType status = 2;
 }
 
 message GetBackupsRequest {
-
 }
 
 message GetBackupsResponse {
-    repeated BackupSummary backups = 1;
+  repeated BackupSummary backups = 1;
+  StatusType overallStatus = 2;
 }
 
 message BackupSummary {
-    string backupName = 1;
-    int64 startTime = 2;
-    int64 finishTime = 3;
-    int32 totalNodes = 4;
-    int32 finishedNodes = 5;
-    repeated BackupNode nodes = 6;
+  string              backupName = 1;
+  int64               startTime = 2;
+  int64               finishTime = 3;
+  int32               totalNodes = 4;
+  int32               finishedNodes = 5;
+  repeated BackupNode nodes = 6;
+  StatusType    status = 7;
 }
 
 message BackupNode {
-    string host = 1;
-    repeated int64 tokens = 2;
-    string datacenter = 3;
-    string rack = 4;
+  string         host = 1;
+  repeated int64 tokens = 2;
+  string         datacenter = 3;
+  string         rack = 4;
 }

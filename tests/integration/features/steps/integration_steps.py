@@ -13,45 +13,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cassandra
 import datetime
 import glob
 import json
 import logging
 import os
 import random
-import requests
 import shutil
+import signal
 import subprocess
 import time
 import uuid
-
-from behave import given, when, then
 from pathlib import Path
-from subprocess import PIPE
-import signal
-from cassandra import ProtocolVersion
-import cassandra.cluster
-from cassandra.cluster import Cluster
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1_2, CERT_REQUIRED
+from subprocess import PIPE
 from zipfile import ZipFile
+
+import cassandra
+import cassandra.cluster
+import requests
+from behave import given, when, then
+from cassandra import ProtocolVersion
+from cassandra.cluster import Cluster
 
 import medusa.backup_node
 import medusa.config
 import medusa.download
-import medusa.index
 import medusa.filtering
 import medusa.fetch_tokenmap
+import medusa.index
 import medusa.listing
 import medusa.purge
 import medusa.report_latest
 import medusa.restore_node
+import medusa.service.grpc.client
 import medusa.status
 import medusa.verify
 import medusa.verify_restore
 import medusa.service.grpc.client
 import medusa.service.grpc.server
 
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
 from medusa.config import (
     MedusaConfig,
     StorageConfig,
@@ -62,8 +65,9 @@ from medusa.config import (
     KubernetesConfig,
 )
 from medusa.config import _namedtuple_from_dict
-from medusa.storage import Storage
 from medusa.monitoring import LocalMonitoring
+from medusa.service.grpc import medusa_pb2
+from medusa.storage import Storage
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
 os.chdir("..")
@@ -532,15 +536,21 @@ def _i_run_a_whatever_command(context, command):
 @when(r'I perform a backup in "{backup_mode}" mode of the node named'
       r' "{backup_name}" with md5 checks "{md5_enabled_str}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name, md5_enabled_str):
-    (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start) \
-        = medusa.backup_node.main(context.medusa_config, backup_name, None,
-                                  str(md5_enabled_str).lower() == "enabled", backup_mode)
+    BackupMan.register_backup(backup_name, is_async=False)
+    (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start, backup_name) = \
+        backup_node.handle_backup(context.medusa_config, backup_name, None, str(md5_enabled_str).lower() == "enabled",
+                                  backup_mode)
     context.latest_backup_cache = node_backup_cache
 
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup_name):
     context.grpc_client.backup(backup_name, backup_mode)
+
+
+@when(r'I perform an async backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
+def _i_perform_grpc_async_backup_of_node_named_backupname(context, backup_mode, backup_name):
+    context.grpc_client.async_backup(backup_name, backup_mode)
 
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}" and it fails')
@@ -564,11 +574,35 @@ def _i_verify_over_grpc_backup_exists(context, backup_name):
     assert found is True
 
 
+@then(r'I sleep for {num_secs} seconds')
+def _i_sleep_for_seconds(context, num_secs):
+    time.sleep(int(num_secs))
+
+
+@then(r'I verify over gRPC that the backup "{backup_name}" has expected status IN_PROGRESS')
+def _i_verify_over_grpc_backup_has_status_in_progress(context, backup_name):
+    status = context.grpc_client.get_backup_status(backup_name)
+    assert status == medusa_pb2.StatusType.IN_PROGRESS
+
+
+@then(r'I verify over gRPC that the backup "{backup_name}" has expected status UNKNOWN')
+def _i_verify_over_grpc_backup_has_status_unknown(context, backup_name):
+    status = context.grpc_client.get_backup_status(backup_name)
+    assert status == medusa_pb2.StatusType.UNKNOWN
+
+
+@then(r'I verify over gRPC that the backup "{backup_name}" has expected status SUCCESS')
+def _i_verify_over_grpc_backup_has_status_success(context, backup_name):
+    status = context.grpc_client.get_backup_status(backup_name)
+    assert status == medusa_pb2.StatusType.SUCCESS
+
+
 @then(r'I verify over gRPC that the backup "{backup_name}" has the expected placement information')
 def _i_verify_over_grpc_backup_has_expected_information(context, backup_name):
     found = False
     backups = context.grpc_client.get_backups()
     for backup in backups:
+
         if backup.backupName == backup_name:
             found = True
             assert backup.nodes[0].host == "127.0.0.1"
@@ -599,6 +633,14 @@ def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
     assert not context.grpc_client.backup_exists(backup_name)
 
 
+@then(r'I verify that backup manager has removed the backup "{backup_name}"')
+def _i_verify_backup_manager_removed_backup(context, backup_name):
+    try:
+        BackupMan.get_backup_status(backup_name)
+    except RuntimeError:
+        pass
+
+
 @then(r'the gRPC server is up')
 def _check_grpc_server_is_up(context):
     resp = context.grpc_client.health_check()
@@ -618,7 +660,7 @@ def _i_shutdown_the_mgmt_api_server(context):
 
 @then(r'I can see the backup named "{backup_name}" when I list the backups')
 def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(
-    context, backup_name
+        context, backup_name
 ):
     storage = Storage(config=context.medusa_config.storage)
     cluster_backups = storage.list_cluster_backups()
@@ -637,7 +679,7 @@ def _some_files_from_the_previous_backup_were_not_reuploaded(context):
 
 @then(r'I cannot see the backup named "{backup_name}" when I list the backups')
 def _i_cannot_see_the_backup_named_backupname_when_i_list_the_backups(
-    context, backup_name
+        context, backup_name
 ):
     storage = Storage(config=context.medusa_config.storage)
     cluster_backups = storage.list_cluster_backups()
@@ -651,7 +693,7 @@ def _i_cannot_see_the_backup_named_backupname_when_i_list_the_backups(
 
 @then('I can {can_see_purged} see purged backup files for the "{table_name}" table in keyspace "{keyspace}"')
 def _i_can_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacename(
-    context, can_see_purged, table_name, keyspace
+        context, can_see_purged, table_name, keyspace
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
@@ -667,8 +709,8 @@ def _i_can_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacen
         manifest = json.loads(nb.manifest)
         for section in manifest:
             if (
-                section["keyspace"] == keyspace
-                and section["columnfamily"][: len(table_name)] == table_name
+                    section["keyspace"] == keyspace
+                    and section["columnfamily"][: len(table_name)] == table_name
             ):
                 for objects in section["objects"]:
                     nb_files[objects["path"]] = 0
@@ -696,7 +738,7 @@ def _i_can_see_no_backups(context):
     + r'for the "{table_name}" table in keyspace "{keyspace}"'
 )
 def _the_backup_named_backupname_has_nb_sstables_for_the_whatever_table(
-    context, backup_name, nb_sstables, table_name, keyspace
+        context, backup_name, nb_sstables, table_name, keyspace
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
@@ -859,17 +901,14 @@ def _the_backup_named_backupname_is_present_in_the_index(context, backup_name):
     )
     path = os.path.join(storage.prefix_path + fqdn, backup_name, "meta", "manifest.json")
     manifest_from_backup = storage.storage_driver.get_blob_content_as_string(path)
-    assert (
-        tokenmap_from_backup == tokenmap_from_index
-        and manifest_from_backup == manifest_from_index
-    )
+    assert (tokenmap_from_backup == tokenmap_from_index and manifest_from_backup == manifest_from_index)
 
 
 @then(
     r'I can see the latest backup for "{expected_fqdn}" being called "{expected_backup_name}"'
 )
 def _the_latest_backup_for_fqdn_is_called_backupname(
-    context, expected_fqdn, expected_backup_name
+        context, expected_fqdn, expected_backup_name
 ):
     storage = Storage(config=context.medusa_config.storage)
     latest_backup = storage.latest_node_backup(fqdn=expected_fqdn)
@@ -1021,7 +1060,7 @@ def _the_backup_index_exists(context):
     r'I can see {nb_sstables} SSTables in the SSTable pool for the "{table_name}" table in keyspace "{keyspace}"'
 )
 def _i_can_see_nb_sstables_in_the_sstable_pool(
-    context, nb_sstables, table_name, keyspace
+        context, nb_sstables, table_name, keyspace
 ):
     storage = Storage(config=context.medusa_config.storage)
     path = os.path.join(
@@ -1040,7 +1079,7 @@ def _i_can_see_nb_sstables_in_the_sstable_pool(
     + r'in the manifest for the "{table_name}" table in keyspace "{keyspace_name}"'
 )
 def _backup_named_something_has_nb_files_in_the_manifest(
-    context, backup_name, nb_files, table_name, keyspace_name
+        context, backup_name, nb_files, table_name, keyspace_name
 ):
     storage = Storage(config=context.medusa_config.storage)
     node_backups = storage.list_node_backups()
@@ -1052,8 +1091,8 @@ def _backup_named_something_has_nb_files_in_the_manifest(
     manifest = json.loads(target_backup.manifest)
     for section in manifest:
         if (
-            section["keyspace"] == keyspace_name
-            and section["columnfamily"][: len(table_name)] == table_name
+                section["keyspace"] == keyspace_name
+                and section["columnfamily"][: len(table_name)] == table_name
         ):
             if len(section["objects"]) != int(nb_files):
                 logging.error(
@@ -1237,7 +1276,6 @@ def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     _ssl_context = None
 
     if is_client_encryption_enable:
-
         ssl_context = SSLContext(tls_version)
         ssl_context.load_verify_locations(certfile)
         ssl_context.verify_mode = CERT_REQUIRED
@@ -1281,7 +1319,6 @@ def write_dummy_file(path, mtime_str, contents=None):
 def get_mgmt_api_jars(
         version,
         url="https://api.github.com/repos/datastax/management-api-for-apache-cassandra/releases/latest"):
-
     # clear out any temp resources that might exist
     remove_temporary_mgmtapi_resources()
 
