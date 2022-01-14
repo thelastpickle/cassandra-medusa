@@ -25,13 +25,13 @@ SSH_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VE
 export DH_ALWAYS_EXCLUDE = .git
 export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 %:
-	dh $@ --with python-virtualenv
+	dh $@ --with python-virtualenv --buildsystem=pybuild
 
 override_dh_virtualenv:
 	dh_virtualenv \
 	  --extra-pip-arg "--ignore-installed" \
 	  --extra-pip-arg "--no-cache-dir" \
-	  --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==20.2.3 --preinstall=wheel --builtin-venv
+	  --python /usr/bin/python3 --preinstall=setuptools --preinstall=pip --preinstall=wheel --builtin-venv
 
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym -X libssh2 -X libssh -X libgssapi_krb5 -X libcrypto -X libkrb5 -X libk5crypto
