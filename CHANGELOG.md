@@ -1,5 +1,13 @@
 ## Change Log
 
+### 0.12.0 (2022/02/14 08:57 +00:00)
+- Fix debian package build with python 3.9 (@Skunnyk)
+- gRPC backup and status modifications to support async mode (#386) (@jeffbanks)
+- Use cassandra native_port for cluster connection (#430) (@ajmaidak)
+- Proposal to add the Docker hub URI to the README (@a-nldisr)
+- Fix backup deletion with incomplete backups (@atallahade)
+- Update example.ini from docs (@elsmorian)
+
 ### 0.11.3 (2021/11/08 14:33 +00:00)
 - Remove use of exec for containerized restore operations (@adejanovski)
 
