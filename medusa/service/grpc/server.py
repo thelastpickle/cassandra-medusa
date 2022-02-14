@@ -27,6 +27,7 @@ import grpc_health.v1.health
 from grpc_health.v1 import health_pb2_grpc
 
 from medusa import backup_node
+from medusa import purge
 from medusa.backup_manager import BackupMan
 from medusa.config import load_config
 from medusa.listing import get_backups
@@ -224,6 +225,24 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         try:
             delete_backup(self.config, [request.name], True)
             handle_backup_removal(request.name)
+        except Exception as e:
+            context.set_details("deleting backups failed: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Deleting backup {} failed".format(request.name))
+        return response
+
+    def PurgeBackups(self, request, context):
+        logging.info("Purging backups with max age {} and max count {}".format(request.maxBackupAge, request.maxBackupCount))
+        response = medusa_pb2.PurgeBackupsResponse()
+
+        try:
+            (nb_objects_purged, total_purged_size, total_objects_within_grace, nb_backups_purged) = purge.main(
+                self.config, max_backup_age=request.maxBackupAge, max_backup_count=request.maxBackupCount)
+            response.nbObjectsPurged = nb_objects_purged
+            response.totalPurgedSize = total_purged_size
+            response.totalObjectsWithinGcGrace = total_objects_within_grace
+            response.nbBackupsPurged = nb_backups_purged
+
         except Exception as e:
             context.set_details("deleting backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
