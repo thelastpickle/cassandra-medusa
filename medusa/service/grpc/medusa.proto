@@ -10,6 +10,8 @@ service Medusa {
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
 
   rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
+
+  rpc PurgeBackups(PurgeBackupsRequest) returns (PurgeBackupsResponse);
 }
 
 enum StatusType {
@@ -78,4 +80,16 @@ message BackupNode {
   repeated int64 tokens = 2;
   string         datacenter = 3;
   string         rack = 4;
+}
+
+message PurgeBackupsRequest {
+  int32 maxBackupAge = 1;
+  int32 maxBackupCount = 2;
+}
+
+message PurgeBackupsResponse {
+  int32     nbBackupsPurged = 1;
+  int32     nbObjectsPurged = 2;
+  int64     totalPurgedSize = 3;
+  int32     totalObjectsWithinGcGrace = 4;
 }

@@ -738,7 +738,7 @@ Feature: Integration tests
         | local      |  with_client_encryption |
 
     @18 @skip-cassandra-2
-    Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with management API
+    Scenario Outline: Perform differential backups over gRPC , verify its index, then delete it over gRPC with management API
         Given I have a fresh ccm cluster with mgmt api "<client encryption>" named "scenario18"
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with mgmt api
         Then the gRPC server is up
@@ -750,8 +750,13 @@ Feature: Integration tests
         Then I verify over gRPC that the backup "grpc_backup_2" exists
         Then I can see the backup index entry for "grpc_backup_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
-        Then I delete the backup "grpc_backup_2" over gRPC
-        Then I verify over gRPC the backup "grpc_backup_2" does not exist
+        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
+        Then I verify over gRPC that the backup "grpc_backup_2_2" exists
+        Then I can see the backup index entry for "grpc_backup_2_2"
+        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
+        When I perform a purge over gRPC with a max backup count of 1
+        Then 1 backup has been purged
+        Then I verify over gRPC that the backup "grpc_backup_2" does not exist
         Then I shutdown the gRPC server
         Then I shutdown the mgmt api server
 

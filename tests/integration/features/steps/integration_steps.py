@@ -1268,6 +1268,13 @@ def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
     tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config)
     assert "127.0.0.1" in tokenmap
 
+@when(r'I perform a purge over gRPC with a max backup count of {max_backup_count}')
+def _i_perform_a_purge_over_grpc_with_a_max_backup_count(context, max_backup_count):
+    context.purge_result = context.grpc_client.purge_backups(max_backup_count=max_backup_count, max_backup_age=0)
+
+@then(r'{nb_purged_backups} backup has been purged')
+def _backup_has_been_purged(context, nb_purged_backups):
+    assert context.purge_result.nb_purged_backups == int(nb_purged_backups)
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
