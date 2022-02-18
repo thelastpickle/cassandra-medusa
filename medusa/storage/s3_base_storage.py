@@ -15,14 +15,14 @@
 # limitations under the License.
 import base64
 import logging
-import os
-import io
 import itertools
 import subprocess
-import configparser
 from subprocess import PIPE
 from dateutil import parser
 from pathlib import Path
+
+import botocore.session
+from libcloud.storage.providers import get_driver, Provider
 
 from medusa.libcloud.storage.drivers.s3_base_driver import S3BaseStorageDriver
 
@@ -44,35 +44,39 @@ import medusa
 
 class S3BaseStorage(AbstractStorage):
 
-    def connect_storage(self):
-        aws_access_key_id = None
-        aws_secret_access_key = None
+    def __init__(self, config):
+        self.session = botocore.session.Session()
 
-        if self.config.key_file and os.path.exists(os.path.expanduser(self.config.key_file)):
-            logging.debug("Reading credentials from {}".format(
-                self.config.key_file
+        if config.api_profile:
+            logging.debug("Using AWS profile {}".format(
+                config.api_profile,
             ))
+            self.session.set_config_variable('profile', config.api_profile)
 
-            aws_config = configparser.ConfigParser(interpolation=None)
-            with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as aws_file:
-                aws_config.read_file(aws_file)
-                aws_profile = self.config.api_profile
-                profile = aws_config[aws_profile]
-                aws_access_key_id = profile['aws_access_key_id']
-                aws_secret_access_key = profile['aws_secret_access_key']
+        if config.region and config.region != "default":
+            self.session.set_config_variable('region', config.region)
+        elif config.storage_provider not in [Provider.S3, "s3_compatible"] and config.region == "default":
+            self.session.set_config_variable('region', get_driver(config.storage_provider).region_name)
 
-        if aws_access_key_id is None:
-            raise NotImplementedError("No valid access key defined.")
+        if config.key_file:
+            logging.debug("Setting AWS credentials file to {}".format(
+                config.key_file,
+            ))
+            self.session.set_config_variable('credentials_file', config.key_file)
 
-        # MinIOStorageDriver is the only clean implementation of BaseS3StorageDriver in libcloud
+        super().__init__(config)
+
+    def connect_storage(self):
+        credentials = self.session.get_credentials()
+
         secure = False if self.config.secure is None or self.config.secure.lower() in ('0', 'false') else True
         driver = S3BaseStorageDriver(
             host=self.config.host,
             port=self.config.port,
-            key=aws_access_key_id,
-            secret=aws_secret_access_key,
+            key=credentials.access_key,
+            secret=credentials.secret_key,
             secure=secure,
-            region=self.config.region
+            region=self.session.get_config_variable('region'),
         )
 
         return driver

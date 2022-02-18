@@ -38,10 +38,19 @@ class AwsCli(object):
         return self._config.bucket_name
 
     def __enter__(self):
+        self._env = os.environ.copy()
+
+        if self._config.api_profile:
+            self._env['AWS_PROFILE'] = self._config.api_profile
+
         if self._config.key_file:
-            self._env = dict(os.environ, AWS_SHARED_CREDENTIALS_FILE=self._config.key_file)
-        else:
-            self._env = dict(os.environ)
+            self._env['AWS_SHARED_CREDENTIALS_FILE'] = self._config.key_file
+
+        if self._config.region and self._config.region != "default":
+            self._env['AWS_REGION'] = self._config.region
+        elif self._config.storage_provider not in [Provider.S3, "s3_compatible"] and self._config.region == "default":
+            # Legacy libcloud S3 providers that were tied to a specific region such as s3_us_west_oregon
+            self._env['AWS_REGION'] = get_driver(self._config.storage_provider).region_name
 
         if self._config.aws_cli_path == 'dynamic':
             self._aws_cli_path = self.find_aws_cli()
@@ -108,12 +117,6 @@ class AwsCli(object):
 
         if self.endpoint_url is not None:
             cmd.extend(["--endpoint-url", self.endpoint_url])
-
-        if self._config.region is not None and self._config.region != "default":
-            cmd.extend(["--region", self._config.region])
-        elif not (self._config.storage_provider in [Provider.S3, "s3_compatible"]) and self._config.region == "default":
-            # Legacy libcloud S3 providers that were tied to a specific region such as s3_us_west_oregon
-            cmd.extend(["--region", get_driver(self._config.storage_provider).region_name])
 
         return cmd
 
