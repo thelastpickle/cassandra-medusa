@@ -104,7 +104,7 @@ def _build_default_config():
         'host_file_separator': ',',
         'max_backup_age': '0',
         'max_backup_count': '0',
-        'api_profile': 'default',
+        'api_profile': '',
         'transfer_max_bandwidth': '50MB/s',
         'concurrent_transfers': '1',
         'multi_part_upload_threshold': str(100 * 1024 * 1024),

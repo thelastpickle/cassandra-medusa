@@ -63,7 +63,8 @@ setuptools.setup(
         'grpcio-tools>=1.29.0',
         'gevent',
         'greenlet',
-        'fasteners==0.16'
+        'fasteners==0.16',
+        'botocore>=1.13.27',
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
