@@ -61,6 +61,10 @@ class ClusterBackup(object):
             self._schema = self._first_nodebackup.schema
         return self._schema
 
+    @property
+    def backup_type(self):
+        return "differential" if self._first_nodebackup.is_differential else "full"
+
     def is_complete(self):
         return not self.missing_nodes() and all(map(operator.attrgetter('finished'), self.node_backups.values()))
 

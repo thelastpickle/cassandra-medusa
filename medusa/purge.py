@@ -77,13 +77,6 @@ def backups_to_purge_by_count(backups, max_backup_count):
         return sorted_node_backups[:backups_to_remove_count]
     return list()
 
-# def backups_to_purge_by_name(backups, backup_name):
-#     """
-#     Return a list
-#     Returns the list of the backups to delete for a given name (1 name = 1 backup, but on N nodes).
-#     """
-#     return list(filter(lambda backup: backup.name = backup_name, backups)) or list()
-
 
 def purge_backups(storage, backups, backup_grace_period_in_days, local_fqdn):
     """

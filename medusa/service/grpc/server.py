@@ -210,6 +210,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 for node in backup.tokenmap:
                     summary.nodes.append(create_token_map_node(backup, node))
 
+                summary.backupType = backup.backup_type
                 response.backups.append(summary)
 
         except Exception as e:
@@ -232,21 +233,21 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return response
 
     def PurgeBackups(self, request, context):
-        logging.info("Purging backups with max age {} and max count {}".format(request.maxBackupAge, request.maxBackupCount))
+        logging.info("Purging backups with max age {} and max count {}".format(self.config.storage.max_backup_age, self.config.storage.max_backup_count))
         response = medusa_pb2.PurgeBackupsResponse()
 
         try:
             (nb_objects_purged, total_purged_size, total_objects_within_grace, nb_backups_purged) = purge.main(
-                self.config, max_backup_age=request.maxBackupAge, max_backup_count=request.maxBackupCount)
+                self.config, max_backup_age=int(self.config.storage.max_backup_age), max_backup_count=int(self.config.storage.max_backup_count))
             response.nbObjectsPurged = nb_objects_purged
             response.totalPurgedSize = total_purged_size
             response.totalObjectsWithinGcGrace = total_objects_within_grace
             response.nbBackupsPurged = nb_backups_purged
 
         except Exception as e:
-            context.set_details("deleting backups failed: {}".format(e))
+            context.set_details("purging backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
-            logging.exception("Deleting backup {} failed".format(request.name))
+            logging.exception("Purging backups failed")
         return response
 
 
