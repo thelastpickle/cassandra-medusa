@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.12.1 (2022/02/23 06:33 +00:00)
+- Re introduce k8s restore file (@adejanovski)
+
 ### 0.12.0 (2022/02/14 08:57 +00:00)
 - Fix debian package build with python 3.9 (@Skunnyk)
 - gRPC backup and status modifications to support async mode (#386) (@jeffbanks)
