@@ -108,5 +108,6 @@ class Client:
             resp = stub.PurgeBackups(request)
             return resp
         except grpc.RpcError as e:
-            logging.error("Failed to purge backupsdue to error: {}".format(e))
+            logging.error("Failed to purge backupsdue to error: {}" \
+                .format(e))
             return None
