@@ -21,7 +21,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='cassandra-medusa',
-    version='0.12.1-dev',
+    version='0.12.1',
     author='The Last Pickle',
     author_email='medusa@thelastpickle.com',
     url='https://github.com/thelastpickle/cassandra-medusa',
