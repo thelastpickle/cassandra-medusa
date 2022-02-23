@@ -101,13 +101,13 @@ class Client:
             logging.error("Failed to determine if backup exists for backup name: {} due to error: {}".format(name, e))
             return False
     
-    def purge_backups(self, max_backup_count, max_backup_age):
+    def purge_backups(self):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
-            request = medusa_pb2.PurgeBackupsRequest(maxBackupCount=max_backup_count, maxBackupAge=max_backup_age)
+            request = medusa_pb2.PurgeBackupsRequest()
             resp = stub.PurgeBackups(request)
             return resp
         except grpc.RpcError as e:
-            logging.error("Failed to purge backups with max count {} and max age {} due to error: {}" \
-                .format(max_backup_count, max_backup_age, e))
+            logging.error("Failed to purge backupsdue to error: {}" \
+                .format(e))
             return None

@@ -73,6 +73,7 @@ message BackupSummary {
   int32               finishedNodes = 5;
   repeated BackupNode nodes = 6;
   StatusType    status = 7;
+  string    backupType = 8;
 }
 
 message BackupNode {
@@ -83,8 +84,6 @@ message BackupNode {
 }
 
 message PurgeBackupsRequest {
-  int32 maxBackupAge = 1;
-  int32 maxBackupCount = 2;
 }
 
 message PurgeBackupsResponse {

@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\xa0\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t\x12\x1b\n\x06status\x18\x06 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xae\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"C\n\x13PurgeBackupsRequest\x12\x14\n\x0cmaxBackupAge\x18\x01 \x01(\x05\x12\x16\n\x0emaxBackupCount\x18\x02 \x01(\x05\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\xd1\x02\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponseb\x06proto3'
+  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\xa0\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t\x12\x1b\n\x06status\x18\x06 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xc2\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\x12\x12\n\nbackupType\x18\x08 \x01(\t\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"\x15\n\x13PurgeBackupsRequest\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\xd1\x02\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponseb\x06proto3'
 )
 
 _STATUSTYPE = _descriptor.EnumDescriptor(
@@ -53,8 +53,8 @@ _STATUSTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1066,
-  serialized_end=1133,
+  serialized_start=1040,
+  serialized_end=1107,
 )
 _sym_db.RegisterEnumDescriptor(_STATUSTYPE)
 
@@ -461,6 +461,13 @@ _BACKUPSUMMARY = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='backupType', full_name='BackupSummary.backupType', index=7,
+      number=8, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -474,7 +481,7 @@ _BACKUPSUMMARY = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=608,
-  serialized_end=782,
+  serialized_end=802,
 )
 
 
@@ -526,8 +533,8 @@ _BACKUPNODE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=784,
-  serialized_end=860,
+  serialized_start=804,
+  serialized_end=880,
 )
 
 
@@ -539,20 +546,6 @@ _PURGEBACKUPSREQUEST = _descriptor.Descriptor(
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
-    _descriptor.FieldDescriptor(
-      name='maxBackupAge', full_name='PurgeBackupsRequest.maxBackupAge', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='maxBackupCount', full_name='PurgeBackupsRequest.maxBackupCount', index=1,
-      number=2, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -565,8 +558,8 @@ _PURGEBACKUPSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=862,
-  serialized_end=929,
+  serialized_start=882,
+  serialized_end=903,
 )
 
 
@@ -618,8 +611,8 @@ _PURGEBACKUPSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=932,
-  serialized_end=1064,
+  serialized_start=906,
+  serialized_end=1038,
 )
 
 _BACKUPREQUEST.fields_by_name['mode'].enum_type = _BACKUPREQUEST_MODE
@@ -739,8 +732,8 @@ _MEDUSA = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1136,
-  serialized_end=1473,
+  serialized_start=1110,
+  serialized_end=1447,
   methods=[
   _descriptor.MethodDescriptor(
     name='Backup',

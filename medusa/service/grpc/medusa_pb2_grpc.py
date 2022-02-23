@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import medusa_pb2  as medusa__pb2
+import medusa.service.grpc.medusa_pb2 as medusa__pb2
 
 
 class MedusaStub(object):
