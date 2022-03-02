@@ -12,6 +12,8 @@ service Medusa {
   rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
 
   rpc PurgeBackups(PurgeBackupsRequest) returns (PurgeBackupsResponse);
+
+  rpc PrepareRestore(PrepareRestoreRequest) returns (PrepareRestoreResponse);
 }
 
 enum StatusType {
@@ -91,4 +93,13 @@ message PurgeBackupsResponse {
   int32     nbObjectsPurged = 2;
   int64     totalPurgedSize = 3;
   int32     totalObjectsWithinGcGrace = 4;
+}
+
+message PrepareRestoreRequest {
+  string backupName = 1;
+  string datacenter = 2;
+  string restoreKey = 3;
+}
+
+message PrepareRestoreResponse {
 }

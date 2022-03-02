@@ -126,9 +126,9 @@ class RestoreJob(object):
         self.fqdn_resolver = HostnameResolver(fqdn_resolver)
         self._version_target = version_target
 
-    def execute(self):
+    def prepare_restore(self):
         logging.info('Ensuring the backup is found and is complete')
-        if not self.cluster_backup.is_complete():
+        if not self.config.kubernetes.enabled and not self.cluster_backup.is_complete():
             raise RuntimeError('Backup is not complete')
 
         # CASE 1 : We're restoring using a seed target. Source/target mapping will be built based on tokenmap.
@@ -147,6 +147,8 @@ class RestoreJob(object):
             self._capture_release_version(session=None)
             logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
+    def execute(self):
+        self.prepare_restore()
         self._restore_data()
 
     @staticmethod

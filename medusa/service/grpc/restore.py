@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 import sys
@@ -22,11 +23,11 @@ from pathlib import Path
 import medusa.config
 import medusa.restore_node
 import medusa.listing
+from medusa.service.grpc.server import RESTORE_MAPPING_LOCATION
 
 
-def create_config(config_file_path):
+def create_config(config_file_path, args={}):
     config_file = Path(config_file_path)
-    args = defaultdict(lambda: None)
 
     return medusa.config.load_config(args, config_file)
 
@@ -48,17 +49,38 @@ def configure_console_logging(config):
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
-if len(sys.argv) > 2:
-    config_file_path = sys.argv[2]
-else:
-    config_file_path = "/etc/medusa/medusa.ini"
 
-config = create_config(config_file_path)
+if len(sys.argv) > 3:
+    config_file_path = sys.argv[2]
+    restore_key = sys.argv[3]
+else:
+    logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
+    sys.exit(1)
+
+# Read mapping file from the restore prep to know which backup node we map to
+try:
+    with open(f"{RESTORE_MAPPING_LOCATION}/{restore_key}", 'r') as f:
+        mapping = json.load(f)
+
+    # Mapping json structure will look like: {'in_place': true, 'host_map': {'172.24.0.3': {'source': ['172.24.0.3'], 'seed': False}, '127.0.0.1': {'source': ['172.24.0.4'], 'seed': False}, '172.24.0.6': {'source': ['172.24.0.6'], 'seed': False}}}
+    # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1, which will be different for each pod.
+    args = {"fqdn": mapping["host_map"]["127.0.0.1"]["source"][0]}
+    in_place = mapping["in_place"]
+    logging.info(f"Config args: {args}")
+    logging.info(f"In-place restore: {in_place}")
+except Exception as e:
+    logging.error(f"Failed to read restore mapping file: {e}")
+    args = {}
+    in_place = False
+
+
+
+config = create_config(config_file_path, args)
 configure_console_logging(config.logging)
 
 backup_name = os.environ["BACKUP_NAME"]
 tmp_dir = Path("/tmp")
-in_place = True
+
 keep_auth = False
 seeds = None
 verify = False
@@ -66,11 +88,13 @@ keyspaces = {}
 tables = {}
 use_sstableloader = False
 
-cluster_backups = medusa.listing.get_backups(config, False)
+cluster_backups = list(medusa.listing.get_backups(config, True))
+logging.info(f"Found {len(cluster_backups)} backups in cluster")
 backup_found = False
 # Checking if the backup exists for the node we're restoring.
 # Skipping restore if it doesn't exist.
 for cluster_backup in cluster_backups:
+    logging.info(f"Found backup: {cluster_backup.name}")
     if cluster_backup.name == backup_name:
         backup_found = True
         logging.info("Starting restore of backup {}".format(backup_name))
