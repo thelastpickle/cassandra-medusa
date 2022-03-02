@@ -41,7 +41,7 @@ restore() {
         echo "Skipping restore operation"    
     else
         echo "Restoring backup $BACKUP_NAME"
-        python3 -m medusa.service.grpc.restore
+        python3 -m medusa.service.grpc.restore -- "/etc/medusa/medusa.ini" $RESTORE_KEY
         echo $RESTORE_KEY > $last_restore_file
     fi
 }
