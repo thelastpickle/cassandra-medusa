@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import datetime
 import logging
 import operator
@@ -252,7 +251,6 @@ class RestoreJob(object):
         for node in tokenmap.keys():
             nodes[node] = tokenmap[node]['tokens'][0]
         return sorted(nodes.items(), key=operator.itemgetter(1))
-
 
     @staticmethod
     def _is_restore_in_place(backup_tokenmap, target_tokenmap):

@@ -31,6 +31,7 @@ def create_config(config_file_path):
     conf = medusa.config.load_config(defaultdict(lambda: None), config_file)
     return conf
 
+
 def configure_console_logging(config):
     root_logger = logging.getLogger('')
     root_logger.setLevel(logging.DEBUG)
@@ -47,6 +48,7 @@ def configure_console_logging(config):
         for logger_name in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
+
 if __name__ == '__main__':
     if len(sys.argv) > 3:
         config_file_path = sys.argv[2]
@@ -60,8 +62,14 @@ if __name__ == '__main__':
         logging.info(f"Reading mapping file {RESTORE_MAPPING_LOCATION}/{restore_key}")
         with open(f"{RESTORE_MAPPING_LOCATION}/{restore_key}", 'r') as f:
             mapping = json.load(f)
-            # Mapping json structure will look like: {'in_place': true, 'host_map': {'172.24.0.3': {'source': ['172.24.0.3'], 'seed': False}, '127.0.0.1': {'source': ['172.24.0.4'], 'seed': False}, '172.24.0.6': {'source': ['172.24.0.6'], 'seed': False}}}
-            # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1, which will be different for each pod.
+            # Mapping json structure will look like:
+            # {'in_place': true,
+            #  'host_map':
+            #       {'172.24.0.3': {'source': ['172.24.0.3'], 'seed': False},
+            #        '127.0.0.1': {'source': ['172.24.0.4'], 'seed': False},
+            #        '172.24.0.6': {'source': ['172.24.0.6'], 'seed': False}}}
+            # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1,
+            # which will be different for each pod.
             os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
             in_place = mapping["in_place"]
 
@@ -87,7 +95,7 @@ if __name__ == '__main__':
             backup_found = True
             logging.info("Starting restore of backup {}".format(backup_name))
             medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth,
-                                            seeds, verify, keyspaces, tables, use_sstableloader)
+                                             seeds, verify, keyspaces, tables, use_sstableloader)
             logging.info("Finished restore of backup {}".format(backup_name))
             break
 

@@ -37,7 +37,7 @@ from medusa.purge import delete_backup
 from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
-from medusa.storage import Storage, cluster_backup
+from medusa.storage import Storage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
@@ -264,7 +264,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             backups = get_backups(self.config, True)
             for cluster_backup in backups:
                 if cluster_backup.name == request.backupName:
-                    restore_job = RestoreJob(cluster_backup, self.config, Path("/tmp"), None, "127.0.0.1", True, False, 1, bypass_checks=True)
+                    restore_job = RestoreJob(cluster_backup,
+                                             self.config, Path("/tmp"),
+                                             None,
+                                             "127.0.0.1",
+                                             True,
+                                             False,
+                                             1,
+                                             bypass_checks=True)
                     restore_job.prepare_restore()
                     os.makedirs(RESTORE_MAPPING_LOCATION, exist_ok=True)
                     with open(f"{RESTORE_MAPPING_LOCATION}/{request.restoreKey}", "w") as f:
@@ -272,8 +279,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         except Exception as e:
             context.set_details("Failed to prepare restore: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
-            logging.exception("Preparing restore {} for backup {} failed".format(request.restoreKey, request.backupName))
+            logging.exception("Failed restore prep {} for backup {}".format(request.restoreKey, request.backupName))
         return response
+
 
 # Callback function for recording unique backup results
 def record_backup_info(future):
