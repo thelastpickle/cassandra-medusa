@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ast import And
 import datetime
 import glob
 import json
@@ -1274,13 +1273,16 @@ def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
     tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config)
     assert "127.0.0.1" in tokenmap
 
+
 @when(r'I perform a purge over gRPC')
 def _i_perform_a_purge_over_grpc_with_a_max_backup_count(context):
     context.purge_result = context.grpc_client.purge_backups()
 
+
 @then(r'{nb_purged_backups} backup has been purged')
 def _backup_has_been_purged(context, nb_purged_backups):
     assert context.purge_result.nbBackupsPurged == int(nb_purged_backups)
+
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False

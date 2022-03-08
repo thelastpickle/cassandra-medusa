@@ -100,7 +100,7 @@ class Client:
         except grpc.RpcError as e:
             logging.error("Failed to determine if backup exists for backup name: {} due to error: {}".format(name, e))
             return False
-    
+
     def purge_backups(self):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
@@ -108,6 +108,5 @@ class Client:
             resp = stub.PurgeBackups(request)
             return resp
         except grpc.RpcError as e:
-            logging.error("Failed to purge backupsdue to error: {}" \
-                .format(e))
+            logging.error("Failed to purge backupsdue to error: {}".format(e))
             return None

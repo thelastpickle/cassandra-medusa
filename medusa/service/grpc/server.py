@@ -233,12 +233,15 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return response
 
     def PurgeBackups(self, request, context):
-        logging.info("Purging backups with max age {} and max count {}".format(self.config.storage.max_backup_age, self.config.storage.max_backup_count))
+        logging.info("Purging backups with max age {} and max count {}"
+                     .format(self.config.storage.max_backup_age, self.config.storage.max_backup_count))
         response = medusa_pb2.PurgeBackupsResponse()
 
         try:
             (nb_objects_purged, total_purged_size, total_objects_within_grace, nb_backups_purged) = purge.main(
-                self.config, max_backup_age=int(self.config.storage.max_backup_age), max_backup_count=int(self.config.storage.max_backup_count))
+                self.config,
+                max_backup_age=int(self.config.storage.max_backup_age),
+                max_backup_count=int(self.config.storage.max_backup_count))
             response.nbObjectsPurged = nb_objects_purged
             response.totalPurgedSize = total_purged_size
             response.totalObjectsWithinGcGrace = total_objects_within_grace
