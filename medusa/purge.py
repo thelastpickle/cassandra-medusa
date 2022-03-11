@@ -234,7 +234,7 @@ def backups_to_purge_by_name(storage, cluster_backups, backup_names_to_purge, al
             raise KeyError('The backup {} does not exist'.format(backup_name))
 
     if not all_nodes:
-        backups_to_purge = [nb for nb in backups_to_purge if storage.config.fqdn in nb.fqdn]
+        backups_to_purge = [nb for nb in backups_to_purge if storage.config.fqdn == nb.fqdn]
 
     return backups_to_purge
 
