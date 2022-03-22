@@ -64,7 +64,8 @@ setuptools.setup(
         'gevent',
         'greenlet',
         'fasteners==0.16',
-        'datadog'
+        'datadog',
+        'botocore>=1.13.27',
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
