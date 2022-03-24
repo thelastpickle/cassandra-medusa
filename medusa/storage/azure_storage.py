@@ -39,9 +39,9 @@ class AzureStorage(AbstractStorage):
         return driver
 
     def check_dependencies(self):
-        az_cli_path = AzCli.find_az_cli()
+        az_cli_cmd = AzCli.cmd()
         try:
-            subprocess.check_call([az_cli_path, "help"], stdout=PIPE, stderr=PIPE)
+            subprocess.check_call(az_cli_cmd + ["help"], stdout=PIPE, stderr=PIPE)
         except Exception:
             raise RuntimeError(
                 "Azure cli doesn't seem to be installed on this system and is a "

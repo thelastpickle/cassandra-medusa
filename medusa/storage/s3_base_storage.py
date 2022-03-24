@@ -83,12 +83,12 @@ class S3BaseStorage(AbstractStorage):
 
     def check_dependencies(self):
         if self.config.aws_cli_path == 'dynamic':
-            aws_cli_path = AwsCli.find_aws_cli()
+            aws_cli_cmd = AwsCli.cmd()
         else:
-            aws_cli_path = self.config.aws_cli_path
+            aws_cli_cmd = [self.config.aws_cli_path]
 
         try:
-            subprocess.check_call([aws_cli_path, '--version'], stdout=PIPE, stderr=PIPE)
+            subprocess.check_call(aws_cli_cmd + ['--version'], stdout=PIPE, stderr=PIPE)
         except Exception:
             raise RuntimeError(
                 "AWS cli doesn't seem to be installed on this system and is a "
