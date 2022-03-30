@@ -31,22 +31,71 @@ class ConfigTest(unittest.TestCase):
         self.medusa_config_file = pathlib.Path(__file__).parent / "resources/config/medusa.ini"
 
     def test_no_auth_env_variables(self):
-        """Ensure that CQL credentials in config file are honored"""
-        os.environ.pop("CQL_USERNAME")
-        os.environ.pop("CQL_PASSWORD")
+        """
+        Ensure that CQL credentials, Nodetool credentials, and keystore/truststore passwords
+        in config file are honored
+        """
+        for cass_cred in [
+            'CQL_USERNAME',
+            'CQL_PASSWORD',
+            'NODETOOL_USERNAME',
+            'NODETOOL_PASSWORD',
+            'SSTABLELOADER_TSPW',
+            'SSTABLELOADER_KSPW'
+        ]:
+            # We need to check if the deprecated CQL_USERNAME and CQL_PASSWORD appear in the envs
+            if cass_cred in os.environ:
+                os.environ.pop(cass_cred)
+            if 'MEDUSA_{}'.format(cass_cred) in os.environ:
+                os.environ.pop('MEDUSA_{}'.format(cass_cred))
+
         args = {}
         config = medusa.config.load_config(args, self.medusa_config_file)
-        assert config.cassandra.cql_username == "test_username"
-        assert config.cassandra.cql_password == "test_password"
+        assert config.cassandra.cql_username == 'test_cql_username'
+        assert config.cassandra.cql_password == 'test_cql_password'
+        assert config.cassandra.nodetool_username == 'test_nodetool_username'
+        assert config.cassandra.nodetool_password == 'test_nodetool_password'
+        assert config.cassandra.sstableloader_tspw == 'test_ts_password'
+        assert config.cassandra.sstableloader_kspw == 'test_ks_password'
 
     def test_different_auth_env_variables(self):
-        """Ensure that CQL credentials env vars have an higher priority than config file"""
-        os.environ["CQL_USERNAME"] = "different_username"
-        os.environ["CQL_PASSWORD"] = "different_password"
+        """
+        Ensure that CQL credentials, Nodetool credentials, and keystore/truststore passwords env vars
+        have a higher priority than config
+        """
+        for cass_cred in [
+            'CQL_USERNAME',
+            'CQL_PASSWORD',
+            'NODETOOL_USERNAME',
+            'NODETOOL_PASSWORD',
+            'SSTABLELOADER_TSPW',
+            'SSTABLELOADER_KSPW'
+        ]:
+            os.environ['MEDUSA_{}'.format(cass_cred)] = 'different_{}'.format(cass_cred.lower())
+
         args = {}
         config = medusa.config.load_config(args, self.medusa_config_file)
-        assert config.cassandra.cql_username == "different_username"
-        assert config.cassandra.cql_password == "different_password"
+        assert config.cassandra.cql_username == 'different_cql_username'
+        assert config.cassandra.cql_password == 'different_cql_password'
+        assert config.cassandra.nodetool_username == 'different_nodetool_username'
+        assert config.cassandra.nodetool_password == 'different_nodetool_password'
+        assert config.cassandra.sstableloader_tspw == 'different_sstableloader_tspw'
+        assert config.cassandra.sstableloader_kspw == 'different_sstableloader_kspw'
+
+    def test_new_env_variables_override_deprecated_ones(self):
+        """
+        Ensure that CQL credentials stored in the new env vars have a higher priority than the deprecated env vars
+        """
+        for cql_cred in ['CQL_USERNAME', 'CQL_PASSWORD']:
+            # new env vars prefixed with MEDUSA_*; MEDUSA_CQL_USERNAME and MEDUSA_CQL_PASSWORD
+            os.environ['MEDUSA_{}'.format(cql_cred)] = 'new_{}'.format(cql_cred.lower())
+            # old env vars; CQL_USERNAME and CQL_PASSWORD
+            os.environ[cql_cred] = 'deprecated_{}'.format(cql_cred.lower())
+
+        args = {}
+        config = medusa.config.load_config(args, self.medusa_config_file)
+        assert config.cassandra.cql_username == 'new_cql_username'
+        assert config.cassandra.cql_password == 'new_cql_password'
 
     def test_args_settings_override(self):
         """Ensure that each config file's section settings can be overridden with command line options"""

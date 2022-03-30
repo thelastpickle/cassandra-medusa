@@ -211,10 +211,27 @@ def parse_config(args, config_file):
         # Use the ip address instead of the fqdn when DNS resolving is turned off
         config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
 
-    if "CQL_USERNAME" in os.environ:
-        config['cassandra']['cql_username'] = os.environ["CQL_USERNAME"]
-    if "CQL_PASSWORD" in os.environ:
-        config['cassandra']['cql_password'] = os.environ["CQL_PASSWORD"]
+    for config_property in ['cql_username', 'cql_password']:
+        config_property_upper_old = config_property.upper()
+        config_property_upper_new = "MEDUSA_{}".format(config_property.upper())
+        if config_property_upper_old in os.environ:
+            config['cassandra'][config_property] = os.environ[config_property_upper_old]
+            logging.warning('The {} environment variable is deprecated and has been replaced by the {} variable'
+                            .format(config_property_upper_old, config_property_upper_new))
+        if config_property_upper_new in os.environ:
+            config['cassandra'][config_property] = os.environ[config_property_upper_new]
+            logging.warning('Both {0} and {1} are defined in the environment; using the value set in {1}'
+                            .format(config_property_upper_old, config_property_upper_new))
+
+    for config_property in [
+        'nodetool_username',
+        'nodetool_password',
+        'sstableloader_tspw',
+        'sstableloader_kspw'
+    ]:
+        config_property_upper = "MEDUSA_{}".format(config_property.upper())
+        if config_property_upper in os.environ:
+            config['cassandra'][config_property] = os.environ[config_property_upper]
 
     return config
 
