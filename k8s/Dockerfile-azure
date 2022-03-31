@@ -63,6 +63,8 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
 USER cassandra
 WORKDIR /home/cassandra
 
+ENV PATH=/home/cassandra/.local/bin:$PATH
+
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
