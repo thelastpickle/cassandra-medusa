@@ -68,6 +68,10 @@ COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
 COPY --chown=cassandra:cassandra k8s/docker-entrypoint.sh /home/cassandra
 
+# Avoid Click locale errors when running medusa directly
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
 WORKDIR /home/cassandra
 
 ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
