@@ -172,6 +172,7 @@ jobs:
       run: |
         python -m venv venv
         . venv/bin/activate
+        sudo apt-get remove azure-cli
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
