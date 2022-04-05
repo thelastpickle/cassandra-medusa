@@ -179,7 +179,8 @@ jobs:
         pip install ccm
         case '${{ matrix.it-backend }}' in
           'azure')
-            pip install -r requirements-azure.txt
+            pip install -r requirements-azure.txt --force-reinstall --upgrade
+            az version
             ;;
           'ibm'|'minio'|'s3')
             pip install -r requirements-s3.txt
