@@ -29,6 +29,7 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 
 
 class AwsCli(object):
+
     def __init__(self, storage):
         self._config = storage.config
         self.storage = storage
@@ -53,9 +54,9 @@ class AwsCli(object):
             self._env['AWS_REGION'] = get_driver(self._config.storage_provider).region_name
 
         if self._config.aws_cli_path == 'dynamic':
-            self._aws_cli_path = self.find_aws_cli()
+            self._aws_cli_cmd = self.cmd()
         else:
-            self._aws_cli_path = self._config.aws_cli_path
+            self._aws_cli_cmd = [self._config.aws_cli_path]
 
         self.endpoint_url = None
         if self._config.host is not None:
@@ -73,23 +74,8 @@ class AwsCli(object):
         return False
 
     @staticmethod
-    def find_aws_cli():
-        """
-        Construct the AWS command line with parameters and variables
-        Also includes a lookup for the AWS binary, in case we are running
-        under a venv
-        """
-        aws_bin = 'aws'
-        binary_paths = ['/usr/bin', '/usr/local/bin']
-        paths = sys.path + binary_paths
-        for path in paths:
-            if not path:
-                continue
-            tpath = '/'.join([path, 'aws'])
-            if os.path.exists(tpath) and os.path.isfile(tpath) and os.access(tpath, os.X_OK):
-                aws_bin = tpath
-                break
-        return aws_bin
+    def cmd():
+        return [sys.executable, '-m', 'awscli']
 
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
@@ -113,7 +99,7 @@ class AwsCli(object):
         return objects
 
     def _create_s3_cmd(self):
-        cmd = [self._aws_cli_path]
+        cmd = self._aws_cli_cmd.copy()
 
         if self.endpoint_url is not None:
             cmd.extend(["--endpoint-url", self.endpoint_url])

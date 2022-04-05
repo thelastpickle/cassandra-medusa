@@ -12,6 +12,7 @@ from medusa.storage.abstract_storage import AbstractStorage
 
 
 class AzCli(object):
+
     def __init__(self, storage):
         self._config = storage.config
         self.storage = storage
@@ -35,7 +36,7 @@ class AzCli(object):
                 AZURE_STORAGE_ACCOUNT=credentials['storage_account'],
                 AZURE_STORAGE_KEY=credentials['key']
             )
-        self._az_cli_path = self.find_az_cli()
+        self._az_cli_cmd = self.cmd()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -43,23 +44,8 @@ class AzCli(object):
         return False
 
     @staticmethod
-    def find_az_cli():
-        """
-        Construct the AZ command line with parameters and variables
-        Also includes a lookup for the AZ binary, in case we are running
-        under a venv
-        """
-        az_bin = 'az'
-        binary_paths = ['/usr/bin', '/usr/local/bin']
-        paths = sys.path + binary_paths
-        for path in paths:
-            if not path:
-                continue
-            tpath = '/'.join([path, 'az'])
-            if os.path.exists(tpath) and os.path.isfile(tpath) and os.access(tpath, os.X_OK):
-                az_bin = tpath
-                break
-        return az_bin
+    def cmd():
+        return [sys.executable, '-m', 'azure.cli']
 
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
@@ -67,8 +53,8 @@ class AzCli(object):
         objects = []
         # Az cli expects the client to provide the MD5 hash of the upload
         for src in srcs:
-            cmd = [self._az_cli_path, "storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
-                   "--content-md5", AbstractStorage.generate_md5_hash(src)]
+            cmd = self._az_cli_cmd + ["storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
+                                      "--content-md5", AbstractStorage.generate_md5_hash(src)]
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
@@ -78,7 +64,7 @@ class AzCli(object):
         azcli_output = "/tmp/azcli_{0}.output".format(job_id)
         objects = []
         dest_path = os.path.join(str(dest), str(src).split("/")[-1])
-        cmd = [self._az_cli_path, "storage", "blob", "download", "-f", dest_path, "-c", bucket_name, "-n", str(src)]
+        cmd = self._az_cli_cmd + ["storage", "blob", "download", "-f", dest_path, "-c", bucket_name, "-n", str(src)]
         self.download_file(cmd, dest, azcli_output)
         return objects
 
