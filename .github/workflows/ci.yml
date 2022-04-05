@@ -98,7 +98,7 @@ jobs:
         exit $?
       
   integration-tests:
-    needs: build
+    #needs: build
     continue-on-error: ${{ matrix.experimental }}
     strategy:
         fail-fast: false
