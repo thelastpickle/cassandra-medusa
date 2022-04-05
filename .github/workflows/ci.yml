@@ -173,13 +173,14 @@ jobs:
       run: |
         python -m venv venv
         . venv/bin/activate
+        sudo apt-get remove azure-cli
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
         pip install ccm
         case '${{ matrix.it-backend }}' in
           'azure')
-            pip install -r requirements-azure.txt --force-reinstall --upgrade
+            pip install -r requirements-azure.txt
             az version
             ;;
           'ibm'|'minio'|'s3')
