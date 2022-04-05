@@ -103,9 +103,10 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          #python-version: [3.6]
-          python-version: [3.6, 3.9]
-          it-backend: [local, s3, gcs, minio, azure]
+          python-version: [3.6]
+          #python-version: [3.6, 3.9]
+          #it-backend: [local, s3, gcs, minio, azure]
+          it-backend: [azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
@@ -268,6 +269,11 @@ jobs:
         # Move and convert the coverage analysis file to XML
         mv tests/integration/.coverage .
         coverage xml
+    
+    - name: Setup tmate session
+      if: "failure()"
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 30
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
