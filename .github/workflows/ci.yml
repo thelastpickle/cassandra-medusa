@@ -176,6 +176,14 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-test.txt
         pip install ccm
+        case '${{ matrix.it-backend }}' in
+          'azure')
+            pip install -r requirements-azure.txt
+            ;;
+          'ibm'|'minio'|'s3')
+            pip install -r requirements-s3.txt
+            ;;
+        esac
 
     - name: Check if integration tests can run
       env:
