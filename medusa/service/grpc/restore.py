@@ -15,13 +15,33 @@
 
 import logging
 import os
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 import medusa.config
-import medusa.restore_node
 import medusa.listing
+import medusa.restore_node
+
+
+def sanitize_fqdn(fqdn):
+    """
+     Ensure fqdn is trimmed to support k8s operators using a longer fqdn such as:
+     k8ssandra-dc1-default-sts-0.k8ssandra-dc1-all-pods-service.k8ssandra2022040617103007.svc.cluster.local
+
+     should result in
+     k8ssandra-dc1-default-sts-0
+
+     Retain input value if not containing a '.' or detected as physical ip address.
+     """
+
+    trimmed_fqdn = fqdn
+    if fqdn is not None and re.match(r'(^[\d]{1,3})\.([\d]{1,3})\.([\d]{1,3})\.([\d]{1,3})', fqdn) is None:
+        idx = fqdn.index('.')
+        if idx > 0:
+            trimmed_fqdn = fqdn[:idx]
+    return trimmed_fqdn
 
 
 def create_config(config_file_path):

@@ -26,6 +26,7 @@ from unittest.mock import Mock
 from medusa.config import (MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,
                            KubernetesConfig, parse_config)
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
+from medusa.service.grpc.restore import sanitize_fqdn
 from medusa.utils import evaluate_boolean
 
 
@@ -85,6 +86,14 @@ class RestoreClusterTest(unittest.TestCase):
         }
         return config
 
+    @staticmethod
+    def test_operator_naming_sanitizer():
+        fqdn_from_operator = "k8ssandra-dc1-default-sts-0.k8ssandra-dc1-all-pods-service.k8ssandra2022040617103007" \
+                             ".svc.cluster.local"
+        fqdn_result = sanitize_fqdn(fqdn_from_operator)
+
+        assert fqdn_from_operator != fqdn_result
+
     # Test that we can properly associate source and target nodes for restore using a host list
     @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
     def test_populate_hostmap(self, resolver_mock):
@@ -112,7 +121,6 @@ class RestoreClusterTest(unittest.TestCase):
     # Test that we can properly associate source and target nodes for restore using a token map
     @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
     def test_populate_ringmap(self, resolver_mock):
-
         # resolver checks for seed target w/ resolve as well.
         seed_target = "node1.mydomain.net"
         resolver_mock.side_effect = ['node4.mydomain.net', seed_target, 'node1.mydomain.net',
