@@ -19,7 +19,8 @@ from enum import IntEnum
 from unittest.mock import create_autospec
 
 from medusa.cassandra_utils import Cassandra, CqlSessionProvider
-from medusa.config import (_namedtuple_from_dict, MedusaConfig, CassandraConfig, SSHConfig, StorageConfig)
+from medusa.config import (KubernetesConfig, _namedtuple_from_dict,
+                           MedusaConfig, CassandraConfig, SSHConfig, StorageConfig)
 from medusa.monitoring import Monitoring
 from medusa.orchestration import Orchestration
 from medusa.storage import Storage
@@ -64,6 +65,9 @@ class BackupClusterTest(unittest.TestCase):
             'fqdn': '127.0.0.1',
             'storage_provider': ''
         } if storage_config is None else storage_config
+        config['kubernetes'] = {
+            'enabled': 'False',
+        }
         return config
 
     @staticmethod
@@ -77,7 +81,7 @@ class BackupClusterTest(unittest.TestCase):
             checks=None,
             logging=None,
             grpc=None,
-            kubernetes=None,
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
 
     def test_backup_object_creation(self):

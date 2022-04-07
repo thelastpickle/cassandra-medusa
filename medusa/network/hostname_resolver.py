@@ -18,8 +18,9 @@ import logging
 
 
 class HostnameResolver:
-    def __init__(self, resolve_addresses):
+    def __init__(self, resolve_addresses, k8s_mode):
         self.resolve_addresses = resolve_addresses
+        self.k8s_mode = k8s_mode
 
     def resolve_fqdn(self, ip_address=''):
         ip_address_to_resolve = ip_address if ip_address != '' else socket.gethostbyname(socket.getfqdn())
@@ -29,5 +30,9 @@ class HostnameResolver:
             return ip_address_to_resolve
 
         fqdn = socket.getfqdn(ip_address_to_resolve)
-        logging.debug("Resolved {} to {}".format(ip_address_to_resolve, fqdn))
-        return fqdn
+        returned_fqdn = fqdn
+        if self.k8s_mode and fqdn.find('.') > 0:
+            returned_fqdn = fqdn.split('.')[0]
+        logging.debug("Resolved {} to {}".format(ip_address_to_resolve, returned_fqdn))
+
+        return returned_fqdn

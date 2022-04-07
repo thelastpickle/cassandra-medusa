@@ -24,6 +24,7 @@ import sys
 import medusa.cassandra_utils
 import medusa.storage
 from medusa.utils import evaluate_boolean
+from medusa.network.hostname_resolver import HostnameResolver
 
 StorageConfig = collections.namedtuple(
     'StorageConfig',
@@ -206,9 +207,14 @@ def parse_config(args, config_file):
 
     resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
     config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
+    kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
+    hostname_resolver = HostnameResolver(resolve_ip_addresses, kubernetes_enabled)
     if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
         # Use the ip address instead of the fqdn when DNS resolving is turned off
         config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
+    elif config['storage']['fqdn'] == socket.getfqdn():
+        # The FQDN for the local node should comply with the hostname resolving rules.
+        config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
 
     if "CQL_USERNAME" in os.environ:
         config['cassandra']['cql_username'] = os.environ["CQL_USERNAME"]
