@@ -41,7 +41,8 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         restore_start_time = datetime.datetime.now()
         if seed_target is None and host_list is None:
             # if no target node is provided, nor a host list file, default to the local node as seed target
-            hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+            hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses),
+                                                 medusa.utils.evaluate_boolean(config.kubernetes.enabled))
             seed_target = hostname_resolver.resolve_fqdn(socket.gethostbyname(socket.getfqdn()))
             logging.warning("Seed target was not provided, using the local hostname: {}".format(seed_target))
 
@@ -123,7 +124,8 @@ class RestoreJob(object):
         self.pssh_pool_size = parallel_restores
         self.cassandra = Cassandra(config)
         fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
-        self.fqdn_resolver = HostnameResolver(fqdn_resolver)
+        k8s_mode = medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+        self.fqdn_resolver = HostnameResolver(fqdn_resolver, k8s_mode)
         self._version_target = version_target
 
     def execute(self):
@@ -133,8 +135,7 @@ class RestoreJob(object):
 
         # CASE 1 : We're restoring using a seed target. Source/target mapping will be built based on tokenmap.
         if self.seed_target is not None:
-            self.session_provider = CqlSessionProvider([self.seed_target],
-                                                       self.config.cassandra)
+            self.session_provider = CqlSessionProvider([self.seed_target], self.config)
             with self.session_provider.new_session() as session:
                 self._populate_ringmap(self.cluster_backup.tokenmap, session.tokenmap())
                 self._capture_release_version(session)

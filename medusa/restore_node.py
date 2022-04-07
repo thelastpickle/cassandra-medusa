@@ -54,7 +54,8 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
                                    keyspaces, tables)
 
     if verify:
-        hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+        hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses),
+                                             medusa.utils.evaluate_boolean(config.kubernetes.enabled))
         verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
@@ -186,7 +187,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
-    hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses))
+    hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses),
+                                         medusa.utils.evaluate_boolean(config.kubernetes.enabled))
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:

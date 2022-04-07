@@ -124,8 +124,9 @@ class BackupJob(object):
         self.hosts = {}
         self.cassandra = Cassandra(config) if cassandra_config is None else cassandra_config
         self.snapshot_tag = '{}{}'.format(self.cassandra.SNAPSHOT_PREFIX, self.backup_name)
-        fqdn_resolver = medusa.config.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
-        self.fqdn_resolver = HostnameResolver(fqdn_resolver)
+        fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
+        k8s_mode = medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+        self.fqdn_resolver = HostnameResolver(fqdn_resolver, k8s_mode)
 
     def execute(self, cql_session_provider=None):
         # Two step: Take snapshot everywhere, then upload the backups to the external storage
@@ -133,7 +134,7 @@ class BackupJob(object):
         # Getting the list of Cassandra nodes.
         seed_target = self.seed_target if self.seed_target is not None else self.config.storage.fqdn
         session_provider = CqlSessionProvider([seed_target],
-                                              self.config.cassandra) \
+                                              self.config) \
             if cql_session_provider is None else cql_session_provider
         with session_provider.new_session() as session:
             tokenmap = session.tokenmap()

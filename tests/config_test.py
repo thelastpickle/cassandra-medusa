@@ -16,6 +16,7 @@
 import os
 import pathlib
 import unittest
+from unittest.mock import patch
 import socket
 
 import medusa.config
@@ -104,12 +105,16 @@ class ConfigTest(unittest.TestCase):
 
     def test_fqdn_with_resolve_ip_addresses_enabled(self):
         """Ensure that explicitly defined fqdn is untouched when DNS resolving is enabled"""
-        args = {
-            'fqdn': socket.getfqdn(),
-            'resolve_ip_addresses': 'True'
-        }
-        config = medusa.config.parse_config(args, self.medusa_config_file)
-        assert config['storage']['fqdn'] == socket.getfqdn()
+        with patch('medusa.network.hostname_resolver.socket') as mock_socket_resolver:
+            with patch('medusa.config.socket') as mock_socket_config:
+                mock_socket_resolver.getfqdn.return_value = "localhost"
+                mock_socket_config.getfqdn.return_value = "localhost"
+                args = {
+                    'fqdn': 'localhost',
+                    'resolve_ip_addresses': 'True'
+                }
+                config = medusa.config.parse_config(args, self.medusa_config_file)
+                assert config['storage']['fqdn'] == 'localhost'
 
     def test_fqdn_with_resolve_ip_addresses_disabled(self):
         """Ensure that fqdn is an IP address when DNS resolving is disabled"""
