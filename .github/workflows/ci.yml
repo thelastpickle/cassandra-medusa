@@ -105,7 +105,7 @@ jobs:
         matrix:
           #python-version: [3.6]
           python-version: [3.6, 3.9]
-          it-backend: [local, s3, gcs, minio, azure]
+          it-backend: [local, s3, gcs, minio]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
@@ -172,8 +172,6 @@ jobs:
       run: |
         python -m venv venv
         . venv/bin/activate
-        sudo apt-get remove azure-cli
-        sudo apt-get install azure-cli=2.33.1 -y
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-test.txt
