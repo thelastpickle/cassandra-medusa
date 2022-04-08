@@ -125,7 +125,7 @@ class BackupJob(object):
         self.cassandra = Cassandra(config) if cassandra_config is None else cassandra_config
         self.snapshot_tag = '{}{}'.format(self.cassandra.SNAPSHOT_PREFIX, self.backup_name)
         fqdn_resolver = medusa.utils.evaluate_boolean(self.config.cassandra.resolve_ip_addresses)
-        k8s_mode = medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+        k8s_mode = medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver, k8s_mode)
 
     def execute(self, cql_session_provider=None):

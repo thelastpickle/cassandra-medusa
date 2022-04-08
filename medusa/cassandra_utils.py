@@ -106,9 +106,10 @@ class CqlSessionProvider(object):
                     session = cluster.connect()
                     return CqlSession(session,
                                       evaluate_boolean(self._cassandra_config.resolve_ip_addresses),
-                                      evaluate_boolean(self._config.kubernetes.enabled))
+                                      evaluate_boolean(
+                                          self._config.kubernetes.enabled if self._config.kubernetes else False))
                 except Exception as e:
-                    logging.debug('Failed to create session', exc_info=e)
+                    logging.warning('Failed to create session', exc_info=e)
                 delay = 5 * (2 ** (attempts + 1))
                 time.sleep(delay)
                 attempts = attempts + 1
@@ -118,7 +119,7 @@ class CqlSessionProvider(object):
             session = cluster.connect()
             return CqlSession(session,
                               evaluate_boolean(self._cassandra_config.resolve_ip_addresses),
-                              evaluate_boolean(self._config.kubernetes.enabled))
+                              evaluate_boolean(self._config.kubernetes.enabled if self._config.kubernetes else False))
 
 
 class CqlSession(object):

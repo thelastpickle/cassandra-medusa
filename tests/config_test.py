@@ -65,7 +65,8 @@ class ConfigTest(unittest.TestCase):
         assert config.storage.bucket_name == 'Hector'
         assert config.cassandra.cql_username == 'Priam'
         assert medusa.utils.evaluate_boolean(config.grpc.enabled)  # FIXME collision
-        assert medusa.utils.evaluate_boolean(config.kubernetes.enabled)  # FIXME collision
+        assert medusa.utils.evaluate_boolean(
+            config.kubernetes.enabled if config.kubernetes else False)  # FIXME collision
         assert config.logging.file == 'hera.log'
         assert config.monitoring.monitoring_provider == 'local'
         assert config.checks.query == 'SELECT * FROM greek_mythology'
@@ -78,7 +79,7 @@ class ConfigTest(unittest.TestCase):
         config = medusa.config.load_config(args, self.medusa_config_file)
         assert medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
         # Kubernetes must be disabled by default so use_sudo can be honored
-        assert not medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+        assert not medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False)
 
     def test_use_sudo_kubernetes_disabled(self):
         """Ensure that use_sudo is honored when Kubernetes mode is disabled (default)"""

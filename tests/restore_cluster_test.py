@@ -288,7 +288,7 @@ class RestoreClusterTest(unittest.TestCase):
         # sudo is enabled by default
         assert evaluate_boolean(self.medusa_config.cassandra.use_sudo)
         # Ensure that Kubernetes mode is not enabled in default test config
-        assert not evaluate_boolean(self.medusa_config.kubernetes.enabled)
+        assert not evaluate_boolean(self.medusa_config.kubernetes.enabled if self.medusa_config.kubernetes else False)
         assert 'sudo' in cmd
 
     def test_build_restore_command_without_sudo(self):
@@ -332,7 +332,7 @@ class RestoreClusterTest(unittest.TestCase):
         )
         restore_job = RestoreJob(Mock(), medusa_config, self.tmp_dir, None, None, False, False, None)
         cmd = restore_job._build_restore_cmd()
-        assert evaluate_boolean(medusa_config.kubernetes.enabled)
+        assert evaluate_boolean(medusa_config.kubernetes.enabled if medusa_config.kubernetes else False)
         assert 'sudo' not in cmd, 'Kubernetes mode should not generate command line with sudo'
         assert str(medusa_config_file) in cmd
 

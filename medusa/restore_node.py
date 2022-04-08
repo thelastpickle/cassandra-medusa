@@ -55,7 +55,8 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
     if verify:
         hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses),
-                                             medusa.utils.evaluate_boolean(config.kubernetes.enabled))
+                                             medusa.utils.evaluate_boolean(
+                                                 config.kubernetes.enabled if config.kubernetes else False))
         verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
@@ -89,7 +90,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
 
-    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled):
+    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False):
         logging.info('Stopping Cassandra')
         cassandra.shutdown()
         wait_for_node_to_go_down(config, cassandra.hostname)
@@ -121,7 +122,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     # In a Kubernetes deployment we can assume that seed nodes will be started first. It will
     # handled either by the statefulset controller or by the controller of a Cassandra
     # operator.
-    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled):
+    if not medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False):
         if seeds is not None:
             wait_for_seeds(config, seeds)
         else:
@@ -188,7 +189,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
     hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses),
-                                         medusa.utils.evaluate_boolean(config.kubernetes.enabled))
+                                         medusa.utils.evaluate_boolean(
+                                             config.kubernetes.enabled if config.kubernetes else False))
     cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(str(download_dir))
     for keyspace in keyspaces:

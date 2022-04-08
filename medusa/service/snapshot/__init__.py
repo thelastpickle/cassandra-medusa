@@ -26,7 +26,7 @@ class SnapshotService(object):
         self.snapshot_service = self._create_snapshot_service()
 
     def _create_snapshot_service(self):
-        if medusa.utils.evaluate_boolean(self._config.kubernetes.enabled):
+        if medusa.utils.evaluate_boolean(self._config.kubernetes.enabled if self._config.kubernetes else False):
             if medusa.utils.evaluate_boolean(self._config.kubernetes.use_mgmt_api):
                 return ManagementAPISnapshotService(self._config.kubernetes)
             else:
