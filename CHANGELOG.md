@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.12.2 (2022/04/08 15:35 +00:00)
+- Restrict Azure dependency version to fix breakage (@adejanovski)
+- Sanitize fqdns for kubernetes deployments (@adejanovski)
+
 ### 0.12.1 (2022/02/23 06:33 +00:00)
 - Re introduce k8s restore file (@adejanovski)
 

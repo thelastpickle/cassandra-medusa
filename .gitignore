@@ -29,3 +29,4 @@ debian/cassandra-medusa/
 .coverage
 coverage.xml
 pytest.ini
+.python-version

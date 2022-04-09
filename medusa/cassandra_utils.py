@@ -39,7 +39,7 @@ from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.nodetool import Nodetool
 from medusa.service.snapshot import SnapshotService
-from medusa.utils import null_if_empty
+from medusa.utils import null_if_empty, evaluate_boolean
 
 
 class SnapshotPath(object):
@@ -56,26 +56,27 @@ class SnapshotPath(object):
 
 class CqlSessionProvider(object):
 
-    def __init__(self, ip_addresses, cassandra_config):
+    def __init__(self, ip_addresses, config):
         self._ip_addresses = ip_addresses
         self._auth_provider = None
         self._ssl_context = None
-        self._cassandra_config = cassandra_config
-        self._native_port = CassandraConfigReader(cassandra_config.config_file).native_port
+        self._cassandra_config = config.cassandra
+        self._config = config
+        self._native_port = CassandraConfigReader(self._cassandra_config.config_file).native_port
 
-        if null_if_empty(cassandra_config.cql_username) and null_if_empty(cassandra_config.cql_password):
-            auth_provider = PlainTextAuthProvider(username=cassandra_config.cql_username,
-                                                  password=cassandra_config.cql_password)
+        if null_if_empty(self._cassandra_config.cql_username) and null_if_empty(self._cassandra_config.cql_password):
+            auth_provider = PlainTextAuthProvider(username=self._cassandra_config.cql_username,
+                                                  password=self._cassandra_config.cql_password)
             self._auth_provider = auth_provider
 
-        if cassandra_config.certfile is not None:
+        if self._cassandra_config.certfile is not None:
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
-            ssl_context.load_verify_locations(cassandra_config.certfile)
+            ssl_context.load_verify_locations(self._cassandra_config.certfile)
             ssl_context.verify_mode = CERT_REQUIRED
-            if cassandra_config.usercert is not None and cassandra_config.userkey is not None:
+            if self._cassandra_config.usercert is not None and self._cassandra_config.userkey is not None:
                 ssl_context.load_cert_chain(
-                    certfile=cassandra_config.usercert,
-                    keyfile=cassandra_config.userkey)
+                    certfile=self._cassandra_config.usercert,
+                    keyfile=self._cassandra_config.userkey)
             self._ssl_context = ssl_context
 
         load_balancing_policy = WhiteListRoundRobinPolicy(ip_addresses)
@@ -103,9 +104,12 @@ class CqlSessionProvider(object):
             while attempts < max_retries:
                 try:
                     session = cluster.connect()
-                    return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
+                    return CqlSession(session,
+                                      evaluate_boolean(self._cassandra_config.resolve_ip_addresses),
+                                      evaluate_boolean(
+                                          self._config.kubernetes.enabled if self._config.kubernetes else False))
                 except Exception as e:
-                    logging.debug('Failed to create session', exc_info=e)
+                    logging.warning('Failed to create session', exc_info=e)
                 delay = 5 * (2 ** (attempts + 1))
                 time.sleep(delay)
                 attempts = attempts + 1
@@ -113,15 +117,17 @@ class CqlSessionProvider(object):
                                                'after {attempts}'.format(attempts=attempts))
         else:
             session = cluster.connect()
-            return CqlSession(session, self._cassandra_config.resolve_ip_addresses)
+            return CqlSession(session,
+                              evaluate_boolean(self._cassandra_config.resolve_ip_addresses),
+                              evaluate_boolean(self._config.kubernetes.enabled if self._config.kubernetes else False))
 
 
 class CqlSession(object):
     EXCLUDED_KEYSPACES = ['system_traces']
 
-    def __init__(self, session, resolve_ip_addresses=True):
+    def __init__(self, session, resolve_ip_addresses=True, k8s_mode=False):
         self._session = session
-        self.hostname_resolver = HostnameResolver(resolve_ip_addresses)
+        self.hostname_resolver = HostnameResolver(resolve_ip_addresses, k8s_mode)
 
     def __enter__(self):
         return self
@@ -339,7 +345,7 @@ class Cassandra(object):
         self._native_port = config_reader.native_port
         self._cql_session_provider = CqlSessionProvider(
             [self._hostname],
-            cassandra_config)
+            config)
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds
 
