@@ -21,7 +21,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='cassandra-medusa',
-    version='0.12.2',
+    version='0.12.3-dev',
     author='The Last Pickle',
     author_email='medusa@thelastpickle.com',
     url='https://github.com/thelastpickle/cassandra-medusa',
@@ -49,7 +49,7 @@ setuptools.setup(
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
         'apache-libcloud<3.4.0,>=3.3.0',
-        'lockfile>=0.12.2',
+        'lockfile>=0.12.3-dev',
         'cryptography<=3.3.2,>=2.5',
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
