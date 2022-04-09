@@ -296,7 +296,12 @@ jobs:
     strategy:
       matrix:
         suite: [focal, bionic]
-    runs-on: ubuntu-18.04
+        include:
+          - suite: focal
+            os-version: ubuntu-20.04
+          - suite: bionic
+            os-version: ubuntu-18.04
+    runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
