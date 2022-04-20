@@ -206,8 +206,7 @@ def parse_config(args, config_file):
         if evaluate_boolean(config['cassandra']['use_sudo']):
             logging.warning('Forcing use_sudo to False because Kubernetes mode is enabled')
         config['cassandra']['use_sudo'] = 'False'
-        # In Kubernetes mode, we want to use the pod IP as fqdn and avoid resolving to hostnames
-        config['cassandra']['resolve_ip_addresses'] = 'False'
+        config['storage']['use_sudo_for_restore'] = 'False'
         if "POD_IP" in os.environ:
             config['storage']['fqdn'] = os.environ["POD_IP"]
 
