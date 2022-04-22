@@ -54,7 +54,7 @@ setuptools.setup(
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
         'parallel-ssh==2.2.0',
-        'ssh2-python==0.22.0',
+        'ssh2-python==0.27.0',
         'ssh-python>=0.6.0',
         'requests==2.22.0',
         'protobuf>=3.12.0',
