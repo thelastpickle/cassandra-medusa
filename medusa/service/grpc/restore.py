@@ -70,7 +70,11 @@ if __name__ == '__main__':
             #        '172.24.0.6': {'source': ['172.24.0.6'], 'seed': False}}}
             # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1,
             # which will be different for each pod.
-            os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
+            # If hostname resolving is turned on, we're looking for the localhost key instead.
+            if "localhost" in mapping["host_map"].keys():
+                os.environ["POD_IP"] = mapping["host_map"]["localhost"]["source"][0]
+            else:
+                os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
             in_place = mapping["in_place"]
 
     config = create_config(config_file_path)
