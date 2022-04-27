@@ -758,7 +758,7 @@ Feature: Integration tests
         Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_2_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
-        When I perform a purge over gRPC with a max backup count of 1
+        When I perform a purge over gRPC
         Then 1 backup has been purged
         Then I verify over gRPC that the backup "grpc_backup_2" does not exist
         Then I shutdown the gRPC server
