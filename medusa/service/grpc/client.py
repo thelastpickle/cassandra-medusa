@@ -93,10 +93,11 @@ class Client:
 
     def backup_exists(self, name):
         try:
-            stub = medusa_pb2_grpc.MedusaStub(self.channel)
-            request = medusa_pb2.BackupStatusRequest(backupName=name)
-            stub.BackupStatus(request)
-            return True
+            backups = self.get_backups()
+            for backup in list(backups):
+                if backup.backupName == name:
+                    return True
+            return False
         except grpc.RpcError as e:
             logging.error("Failed to determine if backup exists for backup name: {} due to error: {}".format(name, e))
             return False

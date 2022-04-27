@@ -167,7 +167,7 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '8.0.232'
+        java-version: '8.0.252'
         architecture: x64
     - name: Install dependencies
       run: |
