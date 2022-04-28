@@ -106,7 +106,7 @@ jobs:
         fail-fast: false
         matrix:
           #python-version: [3.6]
-          python-version: [3.6, 3.9, "3.10"]
+          python-version: [3.6, "3.10"]
           it-backend: [local, s3, gcs, minio, azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -127,25 +127,25 @@ jobs:
             - it-backend: s3
               cassandra-version: 'github:apache/trunk'
             - it-backend: s3
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: gcs
               cassandra-version: 2.2.19
             - it-backend: gcs
               cassandra-version: 'github:apache/trunk'
             - it-backend: gcs
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: minio
               cassandra-version: 2.2.19
             - it-backend: minio
               cassandra-version: 'github:apache/trunk'
             - it-backend: minio
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: azure
               cassandra-version: 2.2.19
             - it-backend: azure
               cassandra-version: 'github:apache/trunk'
             - it-backend: azure
-              python-version: 3.9
+              python-version: "3.10"
             
     runs-on: ubuntu-18.04
     services:
@@ -168,7 +168,7 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '1.8'
+        java-version: '8.0.232'
         architecture: x64
     - name: Install dependencies
       run: |
