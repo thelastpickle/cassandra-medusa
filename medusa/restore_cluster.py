@@ -256,7 +256,10 @@ class RestoreJob(object):
     def _is_restore_in_place(backup_tokenmap, target_tokenmap):
         # If at least one node is part of both tokenmaps, then we're restoring in place
         # Otherwise we're restoring a remote cluster
-        return len(set(backup_tokenmap.keys()) & set(target_tokenmap.keys())) > 0
+        logging.info(f"backup tokenmap keys: {backup_tokenmap.keys()}")
+        logging.info(f"target tokenmap keys: {target_tokenmap.keys()}")
+        logging.info(f"backup tokenmap keys intersection with target tokenmap keys: {set(backup_tokenmap.keys()) & set(target_tokenmap.keys())}")
+        return len(list(set(backup_tokenmap.keys()) & set(target_tokenmap.keys()))) > 0
 
     def _get_seeds_fqdn(self):
         seeds = list()
