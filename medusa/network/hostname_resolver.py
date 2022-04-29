@@ -29,10 +29,9 @@ class HostnameResolver:
             logging.debug("Not resolving {} as requested".format(ip_address_to_resolve))
             return ip_address_to_resolve
 
-        fqdn = socket.getfqdn(ip_address_to_resolve)
-        returned_fqdn = fqdn
-        if self.k8s_mode and fqdn.find('.') > 0:
-            returned_fqdn = fqdn.split('.')[0]
-        logging.debug("Resolved {} to {}".format(ip_address_to_resolve, returned_fqdn))
+        hostname = socket.getfqdn(ip_address_to_resolve)
+        if self.k8s_mode:
+            hostname = socket.getnameinfo((ip_address_to_resolve, 0), socket.NI_NOFQDN)[0]
+        logging.debug("Resolved {} to {}".format(ip_address_to_resolve, hostname))
 
-        return returned_fqdn
+        return hostname
