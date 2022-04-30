@@ -20,3 +20,4 @@ greenlet
 fasteners==0.16
 datadog
 botocore>=1.13.27
+dnspython>=2.2.1

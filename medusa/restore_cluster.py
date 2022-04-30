@@ -258,8 +258,8 @@ class RestoreJob(object):
         # Otherwise we're restoring a remote cluster
         logging.info(f"backup tokenmap keys: {backup_tokenmap.keys()}")
         logging.info(f"target tokenmap keys: {target_tokenmap.keys()}")
-        logging.info("backup tokenmap keys intersection with target tokenmap keys: " +
-                     f"{set(backup_tokenmap.keys()) & set(target_tokenmap.keys())}")
+        logging.info("backup tokenmap keys intersection with target tokenmap keys: "
+                     + f"{set(backup_tokenmap.keys()) & set(target_tokenmap.keys())}")
         return len(list(set(backup_tokenmap.keys()) & set(target_tokenmap.keys()))) > 0
 
     def _get_seeds_fqdn(self):
