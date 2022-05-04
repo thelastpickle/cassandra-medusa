@@ -66,6 +66,7 @@ setuptools.setup(
         'fasteners==0.16',
         'datadog',
         'botocore>=1.13.27',
+        'dnspython>=2.2.1',
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],

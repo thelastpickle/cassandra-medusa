@@ -15,7 +15,7 @@
 
 set -ex
 
-export SSH2_LIBS_SUFFIX
+#export SSH2_LIBS_SUFFIX
 
 # build Debian
 # copy built packages into a mounted volume
