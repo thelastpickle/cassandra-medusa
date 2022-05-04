@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dns.rdtypes.ANY.PTR
-import dns.name
 import unittest
 from unittest.mock import patch, MagicMock, Mock
 
@@ -28,7 +26,8 @@ mock_resolve.to_text = MagicMock(return_value=mock_fqdn)
 mock_resolve_invalid = Mock()
 mock_resolve_invalid.to_text = MagicMock(return_value=mock_invalid_fqdn)
 mock_reverse = Mock()
-mock_reverse.to_text = MagicMock(return_value="1.0.0.127-in-addr.arpa.") 
+mock_reverse.to_text = MagicMock(return_value="1.0.0.127-in-addr.arpa.")
+
 
 class HostnameResolverTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):

@@ -45,7 +45,7 @@ class HostnameResolver:
             reverse_name = dns.reversename.from_address(ip_address).to_text()
             fqdns = dns.resolver.resolve(reverse_name, 'PTR')
             for fqdn in fqdns:
-                if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-','.')):
+                if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-', '.')):
                     return fqdn.to_text().split('.')[0]
 
         return ip_address
