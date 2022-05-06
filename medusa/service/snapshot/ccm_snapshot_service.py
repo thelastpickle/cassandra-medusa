@@ -21,10 +21,10 @@ class CCMSnapshotService(AbstractSnapshotService):
 
     def create_snapshot(self, *, tag):
         # create the CCM command
-        cmd = 'ccm node1 nodetool \"snapshot -t {}\"'.format(tag)
+        cmd = 'ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy \"snapshot -t {}\"'.format(tag)
         os.popen(cmd).read()
 
     def delete_snapshot(self, *, tag):
         # create the CCM command
-        cmd = 'ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)
+        cmd = 'ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy \"clearsnapshot -t {}\"'.format(tag)
         os.popen(cmd).read()

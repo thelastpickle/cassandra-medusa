@@ -24,9 +24,9 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can download the backup named "first_backup" for all tables
@@ -39,7 +39,7 @@ Feature: Integration tests
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I restore the backup named "first_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
@@ -80,7 +80,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "second_backup" with md5 checks "disabled"
         Then the backup index exists
         Then I can see the backup index entry for "second_backup"
@@ -129,11 +129,11 @@ Feature: Integration tests
         Then there is no latest backup for node "127.0.0.1"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "fourth_backup" with md5 checks "disabled"
         Then I can see the latest backup for "127.0.0.1" being called "fourth_backup"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the latest backup for "127.0.0.1" being called "fifth_backup"
         @local
@@ -218,7 +218,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "second_backup" with md5 checks "disabled"
         When I perform a backup in "full" mode of the node named "third_backup" with md5 checks "disabled"
         When I truncate the backup index
@@ -243,7 +243,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         When I truncate the backup folder
         Then the backup index exists
@@ -261,7 +261,7 @@ Feature: Integration tests
         Given I am using "local" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then the backup index exists
         When I truncate the backup index
@@ -281,7 +281,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
@@ -289,7 +289,7 @@ Feature: Integration tests
         Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         Then some files from the previous backup were not reuploaded
         Then I can see 4 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
@@ -300,7 +300,7 @@ Feature: Integration tests
         Then backup named "second_backup" has 32 files in the manifest for the "test" table in keyspace "medusa"
         When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "enabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "enabled"
         Then some files from the previous backup were not reuploaded
@@ -311,7 +311,7 @@ Feature: Integration tests
         When I restore the backup named "third_backup"
         Then I have 200 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the backup named "fourth_backup" when I list the backups
@@ -361,19 +361,19 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -427,7 +427,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I see 3 metrics emitted
         Then I can report latest backups without errors
@@ -469,14 +469,14 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         When I truncate the "medusa.test" table in ccm cluster "<client encryption>"
         When I restore the backup named "first_backup" with the sstableloader
@@ -520,7 +520,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test1" table
         When I create the "test2" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test2" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         Then I have 100 rows in the "medusa.test1" table in ccm cluster "<client encryption>"
         Then I have 100 rows in the "medusa.test2" table in ccm cluster "<client encryption>"
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
@@ -569,7 +569,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         When I restore the backup named "first_backup"
@@ -611,7 +611,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
         Then I can see secondary index files in the "first_backup" files
@@ -655,7 +655,7 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
@@ -698,7 +698,7 @@ Feature: Integration tests
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_0"
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_0" exists
@@ -721,7 +721,7 @@ Feature: Integration tests
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_1"
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_1" exists
@@ -744,7 +744,7 @@ Feature: Integration tests
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2"
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_2" exists
@@ -766,19 +766,19 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "disabled"
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I perform a backup in "differential" mode of the node named "fifth_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -845,15 +845,15 @@ Feature: Integration tests
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
-        When I run a "ccm node1 nodetool compact medusa" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy compact medusa" command
         When I perform a backup in "differential" mode of the node named "third_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can see the backup named "second_backup" when I list the backups
@@ -903,7 +903,7 @@ Feature: Integration tests
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool flush" command
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_23"
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_23" exists
