@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.12.3 (2022/05/07 06:20 +00:00)
+- Add rmi legacy url parsing to fix jdk upgrade related issues with nodetool (@adejanovski)
+
 ### 0.12.2 (2022/04/08 15:35 +00:00)
 - Restrict Azure dependency version to fix breakage (@adejanovski)
 - Sanitize fqdns for kubernetes deployments (@adejanovski)
