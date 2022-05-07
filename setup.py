@@ -49,7 +49,7 @@ setuptools.setup(
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
         'apache-libcloud<3.4.0,>=3.3.0',
-        'lockfile>=0.12.3-dev',
+        'lockfile>=0.12.2',
         'cryptography<=3.3.2,>=2.5',
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
