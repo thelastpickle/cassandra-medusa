@@ -480,7 +480,7 @@ class Cassandra(object):
         """
         tag = '{}{}'.format(self.SNAPSHOT_PREFIX, backup_name)
         if self._is_ccm == 1:
-            cmd = 'ccm node1 nodetool \"snapshot -t {}\"'.format(tag)
+            cmd = f'ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy \"snapshot -t {tag}\"'
         else:
             cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
         return cmd
@@ -491,7 +491,7 @@ class Cassandra(object):
         :return: Array repesentation of a command to delete a snapshot
         """
         if self._is_ccm == 1:
-            cmd = 'ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)
+            cmd = f'ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy \"clearsnapshot -t {tag}\"'
         else:
             cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
         return cmd
@@ -637,7 +637,7 @@ def is_ccm_healthy(check_type):
     must be ready to accept requests for both in order for the health check to be successful.
     """
     try:
-        args = ['ccm', 'node1', 'nodetool']
+        args = ['ccm', 'node1', 'nodetool', '--', '-Dcom.sun.jndi.rmiURLParsing=legacy']
 
         if check_type == 'thrift':
             return is_ccm_up(args, 'statusthrift')
