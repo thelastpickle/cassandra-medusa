@@ -41,11 +41,12 @@ class HostnameResolver:
         return hostname
 
     def compute_k8s_hostname(self, ip_address):
-        if (self.is_ipv4(ip_address)):
+        if (self.is_ipv4(ip_address) or self.is_ipv6(ip_address)):
             reverse_name = dns.reversename.from_address(ip_address).to_text()
             fqdns = dns.resolver.resolve(reverse_name, 'PTR')
             for fqdn in fqdns:
-                if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-', '.')):
+                if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-', '.')) \
+                   and not self.is_ipv6(fqdn.to_text().split('.')[0].replace('-', ':')):
                     return fqdn.to_text().split('.')[0]
 
         return ip_address
@@ -53,6 +54,13 @@ class HostnameResolver:
     def is_ipv4(self, ip_address):
         try:
             ipaddress.IPv4Network(ip_address)
+            return True
+        except ValueError:
+            return False
+
+    def is_ipv6(self, ip_address):
+        try:
+            ipaddress.IPv6Network(ip_address)
             return True
         except ValueError:
             return False

@@ -73,8 +73,10 @@ if __name__ == '__main__':
             # If hostname resolving is turned on, we're looking for the localhost key instead.
             if "localhost" in mapping["host_map"].keys():
                 os.environ["POD_IP"] = mapping["host_map"]["localhost"]["source"][0]
-            else:
+            elif "127.0.0.1" in mapping["host_map"].keys():
                 os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
+            else:
+                os.environ["POD_IP"] = mapping["host_map"]["::1"]["source"][0]
             in_place = mapping["in_place"]
 
     config = create_config(config_file_path)
