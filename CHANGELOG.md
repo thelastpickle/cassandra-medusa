@@ -1,5 +1,16 @@
 ## Change Log
 
+### v0.13.0 (2022/05/12 09:11 +00:00)
+- Allow remote restore in Kubernetes (@adejanovski)
+- Build medusa cli in docker files (#460) (@Dutchy-)
+- remove GCS dependency group (@maxbrunet)
+- Fix medusa delete-backup fqdn (@atallahade)
+- refactor: invoke CLIs as Python modules (#453) (@maxbrunet)
+- Remove plaintext passwords in config (@ossarga)
+- storage/s3: Use botocore credentials chain (@maxbrunet)
+- Set TTL for storage connections (@ivanmp91)
+- Add a datadog statsd monitoring backend (@ajmaidak)
+
 ### 0.12.2 (2022/04/08 15:35 +00:00)
 - Restrict Azure dependency version to fix breakage (@adejanovski)
 - Sanitize fqdns for kubernetes deployments (@adejanovski)
