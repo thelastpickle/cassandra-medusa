@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\xa0\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t\x12\x1b\n\x06status\x18\x06 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xc2\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\x12\x12\n\nbackupType\x18\x08 \x01(\t\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"\x15\n\x13PurgeBackupsRequest\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\xd1\x02\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponseb\x06proto3'
+  serialized_pb=b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"\xa0\x01\n\x14\x42\x61\x63kupStatusResponse\x12\x15\n\rfinishedNodes\x18\x01 \x03(\t\x12\x17\n\x0funfinishedNodes\x18\x02 \x03(\t\x12\x14\n\x0cmissingNodes\x18\x03 \x03(\t\x12\x11\n\tstartTime\x18\x04 \x01(\t\x12\x12\n\nfinishTime\x18\x05 \x01(\t\x12\x1b\n\x06status\x18\x06 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xc2\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\x12\x12\n\nbackupType\x18\x08 \x01(\t\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"\x15\n\x13PurgeBackupsRequest\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05\"S\n\x15PrepareRestoreRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x12\n\ndatacenter\x18\x02 \x01(\t\x12\x12\n\nrestoreKey\x18\x03 \x01(\t\"\x18\n\x16PrepareRestoreResponse*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\x94\x03\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponse\x12\x41\n\x0ePrepareRestore\x12\x16.PrepareRestoreRequest\x1a\x17.PrepareRestoreResponseb\x06proto3'
 )
 
 _STATUSTYPE = _descriptor.EnumDescriptor(
@@ -53,8 +53,8 @@ _STATUSTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1040,
-  serialized_end=1107,
+  serialized_start=1151,
+  serialized_end=1218,
 )
 _sym_db.RegisterEnumDescriptor(_STATUSTYPE)
 
@@ -615,6 +615,77 @@ _PURGEBACKUPSRESPONSE = _descriptor.Descriptor(
   serialized_end=1038,
 )
 
+
+_PREPARERESTOREREQUEST = _descriptor.Descriptor(
+  name='PrepareRestoreRequest',
+  full_name='PrepareRestoreRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='backupName', full_name='PrepareRestoreRequest.backupName', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='datacenter', full_name='PrepareRestoreRequest.datacenter', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='restoreKey', full_name='PrepareRestoreRequest.restoreKey', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1040,
+  serialized_end=1123,
+)
+
+
+_PREPARERESTORERESPONSE = _descriptor.Descriptor(
+  name='PrepareRestoreResponse',
+  full_name='PrepareRestoreResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1125,
+  serialized_end=1149,
+)
+
 _BACKUPREQUEST.fields_by_name['mode'].enum_type = _BACKUPREQUEST_MODE
 _BACKUPREQUEST_MODE.containing_type = _BACKUPREQUEST
 _BACKUPRESPONSE.fields_by_name['status'].enum_type = _STATUSTYPE
@@ -636,6 +707,8 @@ DESCRIPTOR.message_types_by_name['BackupSummary'] = _BACKUPSUMMARY
 DESCRIPTOR.message_types_by_name['BackupNode'] = _BACKUPNODE
 DESCRIPTOR.message_types_by_name['PurgeBackupsRequest'] = _PURGEBACKUPSREQUEST
 DESCRIPTOR.message_types_by_name['PurgeBackupsResponse'] = _PURGEBACKUPSRESPONSE
+DESCRIPTOR.message_types_by_name['PrepareRestoreRequest'] = _PREPARERESTOREREQUEST
+DESCRIPTOR.message_types_by_name['PrepareRestoreResponse'] = _PREPARERESTORERESPONSE
 DESCRIPTOR.enum_types_by_name['StatusType'] = _STATUSTYPE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -723,6 +796,20 @@ PurgeBackupsResponse = _reflection.GeneratedProtocolMessageType('PurgeBackupsRes
   })
 _sym_db.RegisterMessage(PurgeBackupsResponse)
 
+PrepareRestoreRequest = _reflection.GeneratedProtocolMessageType('PrepareRestoreRequest', (_message.Message,), {
+  'DESCRIPTOR' : _PREPARERESTOREREQUEST,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:PrepareRestoreRequest)
+  })
+_sym_db.RegisterMessage(PrepareRestoreRequest)
+
+PrepareRestoreResponse = _reflection.GeneratedProtocolMessageType('PrepareRestoreResponse', (_message.Message,), {
+  'DESCRIPTOR' : _PREPARERESTORERESPONSE,
+  '__module__' : 'medusa_pb2'
+  # @@protoc_insertion_point(class_scope:PrepareRestoreResponse)
+  })
+_sym_db.RegisterMessage(PrepareRestoreResponse)
+
 
 
 _MEDUSA = _descriptor.ServiceDescriptor(
@@ -732,8 +819,8 @@ _MEDUSA = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=1110,
-  serialized_end=1447,
+  serialized_start=1221,
+  serialized_end=1625,
   methods=[
   _descriptor.MethodDescriptor(
     name='Backup',
@@ -792,6 +879,16 @@ _MEDUSA = _descriptor.ServiceDescriptor(
     containing_service=None,
     input_type=_PURGEBACKUPSREQUEST,
     output_type=_PURGEBACKUPSRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='PrepareRestore',
+    full_name='Medusa.PrepareRestore',
+    index=6,
+    containing_service=None,
+    input_type=_PREPARERESTOREREQUEST,
+    output_type=_PREPARERESTORERESPONSE,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),

@@ -704,6 +704,7 @@ Feature: Integration tests
         Then I verify over gRPC that the backup "grpc_backup_2" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
+        Then I wait for 10 seconds
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
         Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_2_2"
@@ -733,7 +734,7 @@ Feature: Integration tests
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_1" and it fails
         Then I delete the backup "grpc_backup_1" over gRPC
         Then I delete the backup "grpc_backup_1" over gRPC and it fails
-        Then I verify over gRPC the backup "grpc_backup_1" does not exist
+        Then I verify over gRPC that the backup "grpc_backup_1" does not exist
         Then I shutdown the gRPC server
 
         @local
@@ -754,11 +755,12 @@ Feature: Integration tests
         Then I verify over gRPC that the backup "grpc_backup_2" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
+        Then I wait for 10 seconds
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
         Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_2_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
-        When I perform a purge over gRPC with a max backup count of 1
+        When I perform a purge over gRPC
         Then 1 backup has been purged
         Then I verify over gRPC that the backup "grpc_backup_2" does not exist
         Then I shutdown the gRPC server
@@ -920,7 +922,7 @@ Feature: Integration tests
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_23"
         Then I verify over gRPC that the backup "grpc_backup_23" has expected status SUCCESS
         Then I delete the backup "grpc_backup_23" over gRPC
-        Then I verify over gRPC the backup "grpc_backup_23" does not exist
+        Then I verify over gRPC that the backup "grpc_backup_23" does not exist
         Then I verify that backup manager has removed the backup "grpc_backup_23"
         Then I shutdown the gRPC server
 

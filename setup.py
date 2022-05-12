@@ -55,7 +55,7 @@ setuptools.setup(
         'retrying>=1.3.3',
         'parallel-ssh==2.2.0',
         'ssh2-python==0.22.0',
-        'ssh-python>=0.6.0',
+        'ssh-python>=0.8.0',
         'requests==2.22.0',
         'protobuf>=3.12.0',
         'grpcio>=1.29.0',
@@ -66,6 +66,7 @@ setuptools.setup(
         'fasteners==0.16',
         'datadog',
         'botocore>=1.13.27',
+        'dnspython>=2.2.1',
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],

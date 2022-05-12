@@ -44,6 +44,11 @@ class MedusaStub(object):
                 request_serializer=medusa__pb2.PurgeBackupsRequest.SerializeToString,
                 response_deserializer=medusa__pb2.PurgeBackupsResponse.FromString,
                 )
+        self.PrepareRestore = channel.unary_unary(
+                '/Medusa/PrepareRestore',
+                request_serializer=medusa__pb2.PrepareRestoreRequest.SerializeToString,
+                response_deserializer=medusa__pb2.PrepareRestoreResponse.FromString,
+                )
 
 
 class MedusaServicer(object):
@@ -85,6 +90,12 @@ class MedusaServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PrepareRestore(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MedusaServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -117,6 +128,11 @@ def add_MedusaServicer_to_server(servicer, server):
                     servicer.PurgeBackups,
                     request_deserializer=medusa__pb2.PurgeBackupsRequest.FromString,
                     response_serializer=medusa__pb2.PurgeBackupsResponse.SerializeToString,
+            ),
+            'PrepareRestore': grpc.unary_unary_rpc_method_handler(
+                    servicer.PrepareRestore,
+                    request_deserializer=medusa__pb2.PrepareRestoreRequest.FromString,
+                    response_serializer=medusa__pb2.PrepareRestoreResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -227,5 +243,22 @@ class Medusa(object):
         return grpc.experimental.unary_unary(request, target, '/Medusa/PurgeBackups',
             medusa__pb2.PurgeBackupsRequest.SerializeToString,
             medusa__pb2.PurgeBackupsResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PrepareRestore(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Medusa/PrepareRestore',
+            medusa__pb2.PrepareRestoreRequest.SerializeToString,
+            medusa__pb2.PrepareRestoreResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

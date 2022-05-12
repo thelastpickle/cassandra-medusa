@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
+import os
 import signal
 import sys
 from collections import defaultdict
@@ -32,6 +34,7 @@ from medusa.backup_manager import BackupMan
 from medusa.config import load_config
 from medusa.listing import get_backups
 from medusa.purge import delete_backup
+from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
@@ -39,6 +42,7 @@ from medusa.storage import Storage
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
 BACKUP_MODE_FULL = "full"
+RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 
 
 class Server:
@@ -251,6 +255,31 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             context.set_details("purging backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Purging backups failed")
+        return response
+
+    def PrepareRestore(self, request, context):
+        logging.info("Preparing restore {} for backup {}".format(request.restoreKey, request.backupName))
+        response = medusa_pb2.PrepareRestoreResponse()
+        try:
+            backups = get_backups(self.config, True)
+            for cluster_backup in backups:
+                if cluster_backup.name == request.backupName:
+                    restore_job = RestoreJob(cluster_backup,
+                                             self.config, Path("/tmp"),
+                                             None,
+                                             "127.0.0.1",
+                                             True,
+                                             False,
+                                             1,
+                                             bypass_checks=True)
+                    restore_job.prepare_restore()
+                    os.makedirs(RESTORE_MAPPING_LOCATION, exist_ok=True)
+                    with open(f"{RESTORE_MAPPING_LOCATION}/{request.restoreKey}", "w") as f:
+                        f.write(json.dumps({'in_place': restore_job.in_place, 'host_map': restore_job.host_map}))
+        except Exception as e:
+            context.set_details("Failed to prepare restore: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Failed restore prep {} for backup {}".format(request.restoreKey, request.backupName))
         return response
 
 

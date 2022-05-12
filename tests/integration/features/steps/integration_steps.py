@@ -1284,6 +1284,11 @@ def _backup_has_been_purged(context, nb_purged_backups):
     assert context.purge_result.nbBackupsPurged == int(nb_purged_backups)
 
 
+@then(r'I wait for {pause_duration} seconds')
+def _i_wait_for_seconds(context, pause_duration):
+    time.sleep(int(pause_duration))
+
+
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0

@@ -14,12 +14,22 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, Mock
 
 from medusa.network.hostname_resolver import HostnameResolver
 
 mock_fqdn = "k8ssandra-dc1-default-sts-0.k8ssandra-dc1-all-pods-service.k8ssandra2022040617103007.svc.cluster.local"
+mock_invalid_fqdn = "127-0-0-1.k8ssandra-dc1-all-pods-service.k8ssandra2022040617103007.svc.cluster.local"
+mock_invalid_ipv6_fqdn = "2001-db8-85a3-8d3-1319-8a2e-370-7348.k8ssandra-dc1-all-pods-service.test.svc.cluster.local"
 mock_alias = "k8ssandra-dc1-default-sts-0"
+mock_resolve = Mock()
+mock_resolve.to_text = MagicMock(return_value=mock_fqdn)
+mock_resolve_invalid = Mock()
+mock_resolve_invalid.to_text = MagicMock(return_value=mock_invalid_fqdn)
+mock_resolve_invalid_ipv6 = Mock()
+mock_resolve_invalid_ipv6.to_text = MagicMock(return_value=mock_invalid_ipv6_fqdn)
+mock_reverse = Mock()
+mock_reverse.to_text = MagicMock(return_value="1.0.0.127-in-addr.arpa.")
 
 
 class HostnameResolverTest(unittest.TestCase):
@@ -36,11 +46,51 @@ class HostnameResolverTest(unittest.TestCase):
 
     def test_address_for_kubernetes(self):
         with patch('medusa.network.hostname_resolver.socket') as mock_socket:
-            mock_socket.getfqdn.return_value = mock_fqdn
-            hostname_resolver = HostnameResolver(resolve_addresses=True, k8s_mode=True)
-            self.assertEqual(
-                mock_alias,
-                hostname_resolver.resolve_fqdn("127.0.0.1"))
+            with patch('medusa.network.hostname_resolver.dns.resolver') as mock_resolver:
+                with patch('medusa.network.hostname_resolver.dns.reversename') as mock_reverser:
+                    mock_socket.getfqdn.return_value = mock_fqdn
+                    mock_resolver.resolve.return_value = [mock_resolve_invalid, mock_resolve_invalid_ipv6, mock_resolve]
+                    mock_reverser.reverse.return_value = mock_reverse
+                    hostname_resolver = HostnameResolver(resolve_addresses=True, k8s_mode=True)
+                    self.assertEqual(
+                        mock_alias,
+                        hostname_resolver.resolve_fqdn("127.0.0.1"))
+
+    def test_invalid_address_for_kubernetes(self):
+        with patch('medusa.network.hostname_resolver.socket') as mock_socket:
+            with patch('medusa.network.hostname_resolver.dns.resolver') as mock_resolver:
+                with patch('medusa.network.hostname_resolver.dns.reversename') as mock_reverser:
+                    mock_socket.getfqdn.return_value = mock_invalid_fqdn
+                    mock_resolver.resolve.return_value = [mock_resolve_invalid_ipv6]
+                    mock_reverser.reverse.return_value = mock_reverse
+                    hostname_resolver = HostnameResolver(resolve_addresses=True, k8s_mode=True)
+                    self.assertNotEqual(
+                        mock_alias,
+                        hostname_resolver.resolve_fqdn("127.0.0.1"))
+
+    def test_valid_address_for_kubernetes_ipv6(self):
+        with patch('medusa.network.hostname_resolver.socket') as mock_socket:
+            with patch('medusa.network.hostname_resolver.dns.resolver') as mock_resolver:
+                with patch('medusa.network.hostname_resolver.dns.reversename') as mock_reverser:
+                    mock_socket.getfqdn.return_value = mock_invalid_fqdn
+                    mock_resolver.resolve.return_value = [mock_resolve]
+                    mock_reverser.reverse.return_value = mock_reverse
+                    hostname_resolver = HostnameResolver(resolve_addresses=True, k8s_mode=True)
+                    self.assertEqual(
+                        mock_alias,
+                        hostname_resolver.resolve_fqdn("::1"))
+
+    def test_invalid_address_for_kubernetes_ipv6(self):
+        with patch('medusa.network.hostname_resolver.socket') as mock_socket:
+            with patch('medusa.network.hostname_resolver.dns.resolver') as mock_resolver:
+                with patch('medusa.network.hostname_resolver.dns.reversename') as mock_reverser:
+                    mock_socket.getfqdn.return_value = mock_invalid_fqdn
+                    mock_resolver.resolve.return_value = [mock_resolve_invalid_ipv6]
+                    mock_reverser.reverse.return_value = mock_reverse
+                    hostname_resolver = HostnameResolver(resolve_addresses=True, k8s_mode=True)
+                    self.assertNotEqual(
+                        mock_alias,
+                        hostname_resolver.resolve_fqdn("::1"))
 
     def test_address_no_kubernetes(self):
         with patch('medusa.network.hostname_resolver.socket') as mock_socket:
