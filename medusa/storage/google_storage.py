@@ -105,7 +105,10 @@ class GoogleStorage(AbstractStorage):
         # we made src_paths a list of Path objects, but we need strings for copying
         # plus, we must not forget to point them to the bucket
         srcs = ['gs://{}/{}'.format(self.bucket.name, str(p)) for p in src_paths]
-        return gsutil.cp(srcs=srcs, dst=new_dest)
+        return gsutil.cp(
+            srcs=srcs,
+            dst=new_dest,
+            parallel_process_count=self.config.concurrent_transfers)
 
     def get_object_datetime(self, blob):
         logging.debug("Blob {} last modification time is {}".format(blob.name, blob.extra["last_modified"]))

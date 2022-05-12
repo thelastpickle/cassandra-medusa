@@ -330,6 +330,8 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
+    context.storage_provider = storage_provider
+    context.client_encryption = client_encryption
     context.medusa_config = get_medusa_config(context, storage_provider, client_encryption, None)
     cleanup_storage(context, storage_provider)
     cleanup_monitoring(context)
@@ -340,6 +342,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     config = parse_medusa_config(context, storage_provider, client_encryption,
                                  "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=1)
 
+    context.storage_provider = storage_provider
+    context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
         "127.0.0.1:50051",
@@ -369,8 +373,9 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     config = parse_medusa_config(context, storage_provider, client_encryption,
                                  "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1, grpc=1)
 
+    context.storage_provider = storage_provider
+    context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
-
     context.grpc_client = medusa.service.grpc.client.Client(
         "127.0.0.1:50051",
         channel_options=[('grpc.enable_retries', 0)]
@@ -563,12 +568,12 @@ def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, 
         pass
 
 
-@then(r'I verify over gRPC that the backup "{backup_name}" exists')
-def _i_verify_over_grpc_backup_exists(context, backup_name):
+@then(r'I verify over gRPC that the backup "{backup_name}" exists and is of type "{backup_type}"')
+def _i_verify_over_grpc_backup_exists(context, backup_name, backup_type):
     found = False
     backups = context.grpc_client.get_backups()
     for backup in backups:
-        if backup.backupName == backup_name:
+        if backup.backupName == backup_name and backup.backupType == backup_type:
             found = True
             break
     assert found is True
@@ -628,7 +633,7 @@ def _i_delete_backup_grpc_fail(context, backup_name):
         pass
 
 
-@then(r'I verify over gRPC the backup "{backup_name}" does not exist')
+@then(r'I verify over gRPC that the backup "{backup_name}" does not exist')
 def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
     assert not context.grpc_client.backup_exists(backup_name)
 
@@ -1267,6 +1272,21 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
 def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
     tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config)
     assert "127.0.0.1" in tokenmap
+
+
+@when(r'I perform a purge over gRPC')
+def _i_perform_a_purge_over_grpc_with_a_max_backup_count(context):
+    context.purge_result = context.grpc_client.purge_backups()
+
+
+@then(r'{nb_purged_backups} backup has been purged')
+def _backup_has_been_purged(context, nb_purged_backups):
+    assert context.purge_result.nbBackupsPurged == int(nb_purged_backups)
+
+
+@then(r'I wait for {pause_duration} seconds')
+def _i_wait_for_seconds(context, pause_duration):
+    time.sleep(int(pause_duration))
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

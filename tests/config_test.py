@@ -109,6 +109,7 @@ class ConfigTest(unittest.TestCase):
             'query': 'SELECT * FROM greek_mythology',
             'use_mgmt_api': 'True',
             'username': 'Zeus',
+            'fqdn': 'localhost',
         }
         config = medusa.config.load_config(args, self.medusa_config_file)
         assert config.storage.bucket_name == 'Hector'
