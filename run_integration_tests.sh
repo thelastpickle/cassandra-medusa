@@ -26,6 +26,7 @@ AZURE="no"
 IBM="no"
 MINIO="no"
 LOGGING_FLAGS=""
+COVERAGE="yes"
 
 while test $# -gt 0; do
   case "$1" in
@@ -43,6 +44,7 @@ while test $# -gt 0; do
       echo "--ibm                                       Include IBM in the storage backends"
       echo "--minio                                     Include MinIO in the storage backends"
       echo "--cassandra-version                         Cassandra version to test"
+      echo "--no-coverage                               Disable coverage evaluation"
       echo "-v                                          Verbose output (logging won't be captured by behave)"
       exit 0
       ;;
@@ -95,6 +97,10 @@ while test $# -gt 0; do
       ;;
     --cassandra-version*)
       CASSANDRA_VERSION=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --no-coverage)
+      COVERAGE="no"
       shift
       ;;
     *)
@@ -172,4 +178,9 @@ else
    CASSANDRA_VERSION_FLAG="-D cassandra-version=${CASSANDRA_VERSION}"
 fi
 
-PYTHONPATH=../.. coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+if [ "$COVERAGE" == "yes" ]
+then
+    PYTHONPATH=../.. coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+else
+    PYTHONPATH=../.. python3 -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+fi

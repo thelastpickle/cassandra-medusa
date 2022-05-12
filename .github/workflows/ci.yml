@@ -58,12 +58,15 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bionic]
+        # Focal builds are broken in CI, we can only build bionic for now
+        #suite: [focal, bionic]
+        suite: [bionic]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          #- suite: focal
+          #  os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
+      fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v2
@@ -166,7 +169,7 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '1.8'
+        java-version: '8.0.252'
         architecture: x64
     - name: Install dependencies
       run: |
@@ -304,12 +307,15 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal, bionic]
+        # Focal builds are broken in CI, we can only build bionic for now
+        #suite: [focal, bionic]
+        suite: [bionic]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          #- suite: focal
+          #  os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
+      fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v2

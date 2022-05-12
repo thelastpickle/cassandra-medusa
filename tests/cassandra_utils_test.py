@@ -224,7 +224,8 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_password': 'password',
             'nodetool_password_file_path': '/etc/cassandra/jmx.password',
             'nodetool_host': '127.0.0.1',
-            'nodetool_port': '7199'
+            'nodetool_port': '7199',
+            'nodetool_flags': '-Dcom.sun.jndi.rmiURLParsing=legacy'
         }
         config["grpc"] = {
             "enabled": "0"
@@ -244,7 +245,8 @@ class CassandraUtilsTest(unittest.TestCase):
             kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
         )
         n = Nodetool(medusa_config.cassandra).nodetool
-        expected = ['nodetool', '--ssl', '-u', 'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
+        expected = ['nodetool', '-Dcom.sun.jndi.rmiURLParsing=legacy', '--ssl', '-u',
+                    'cassandra', '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password',
                     '-h', '127.0.0.1', '-p', '7199']
         self.assertEqual(n, expected)
 
@@ -256,7 +258,41 @@ class CassandraUtilsTest(unittest.TestCase):
             'nodetool_password': 'password',
             'nodetool_password_file_path': '/etc/cassandra/jmx.password',
             'nodetool_host': '127.0.0.1',
-            'nodetool_port': '7199'
+            'nodetool_port': '7199',
+            'nodetool_flags': '-Dcom.sun.jndi.rmiURLParsing=legacy'
+        }
+        config["grpc"] = {
+            "enabled": "0"
+        }
+        config['kubernetes'] = {
+            "enabled": "0"
+        }
+        medusa_config = MedusaConfig(
+            file_path=None,
+            storage=None,
+            monitoring=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+            ssh=None,
+            checks=None,
+            logging=None,
+            grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
+            kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+        )
+        n = Nodetool(medusa_config.cassandra).nodetool
+        expected = ['nodetool', '-Dcom.sun.jndi.rmiURLParsing=legacy', '-u', 'cassandra',
+                    '-pw', 'password', '-pwf', '/etc/cassandra/jmx.password', '-h', '127.0.0.1', '-p', '7199']
+        self.assertEqual(n, expected)
+
+    def test_nodetool_command_with_ssl_false_no_flags(self):
+        config = configparser.ConfigParser(interpolation=None)
+        config['cassandra'] = {
+            'nodetool_ssl': 'false',
+            'nodetool_username': 'cassandra',
+            'nodetool_password': 'password',
+            'nodetool_password_file_path': '/etc/cassandra/jmx.password',
+            'nodetool_host': '127.0.0.1',
+            'nodetool_port': '7199',
+            'nodetool_flags': ''
         }
         config["grpc"] = {
             "enabled": "0"

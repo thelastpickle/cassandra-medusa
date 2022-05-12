@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import datetime
 import logging
+import operator
 import socket
 import sys
 import traceback
@@ -129,9 +129,9 @@ class RestoreJob(object):
         self.fqdn_resolver = HostnameResolver(fqdn_resolver, k8s_mode)
         self._version_target = version_target
 
-    def execute(self):
+    def prepare_restore(self):
         logging.info('Ensuring the backup is found and is complete')
-        if not self.cluster_backup.is_complete():
+        if not self.config.kubernetes.enabled and not self.cluster_backup.is_complete():
             raise RuntimeError('Backup is not complete')
 
         # CASE 1 : We're restoring using a seed target. Source/target mapping will be built based on tokenmap.
@@ -149,6 +149,8 @@ class RestoreJob(object):
             self._capture_release_version(session=None)
             logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
 
+    def execute(self):
+        self.prepare_restore()
         self._restore_data()
 
     @staticmethod
@@ -224,23 +226,13 @@ class RestoreJob(object):
                 topology_matches = False
 
         if topology_matches:
-            # We can associate each restore node with exactly one backup node
-            backup_ringmap = collections.defaultdict(list)
-            target_ringmap = collections.defaultdict(list)
-            for token, host in backup_tokens.items():
-                backup_ringmap[token].append(host)
-            for token, host in target_tokens.items():
-                target_ringmap[token].append(host)
-
-            self.ringmap = backup_ringmap
-            i = 0
-            for token, hosts in backup_ringmap.items():
-                # take the node that has the same token list or pick the one with the same position in the map.
-                restore_host = target_ringmap.get(token, list(target_ringmap.values())[i])[0]
+            # backup and restore nodes are ordered by smallest token and associated one by one
+            sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
+            sorted_target_nodes = self._tokenmap_to_sorted_nodes(target_tokenmap)
+            for i in range(len(sorted_backup_nodes)):
+                restore_host = sorted_target_nodes[i][0]
                 is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
-                self.host_map[restore_host] = {'source': [hosts[0]], 'seed': is_seed}
-                i += 1
-            logging.debug("self.host_map: {}".format(self.host_map))
+                self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
             self.use_sstableloader = True
@@ -254,11 +246,19 @@ class RestoreJob(object):
                 # associate one restore host with several backups as we don't have the same number of nodes.
                 self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
 
+    def _tokenmap_to_sorted_nodes(self, tokenmap):
+        nodes = dict()
+        for node in tokenmap.keys():
+            nodes[node] = tokenmap[node]['tokens'][0]
+        return sorted(nodes.items(), key=operator.itemgetter(1))
+
     @staticmethod
     def _is_restore_in_place(backup_tokenmap, target_tokenmap):
         # If at least one node is part of both tokenmaps, then we're restoring in place
         # Otherwise we're restoring a remote cluster
-        return len(set(backup_tokenmap.keys()) & set(target_tokenmap.keys())) > 0
+        logging.info(f"backup tokenmap keys: {backup_tokenmap.keys()}")
+        logging.info(f"target tokenmap keys: {target_tokenmap.keys()}")
+        return len(set(backup_tokenmap.keys()).intersection(set(target_tokenmap.keys()))) > 0
 
     def _get_seeds_fqdn(self):
         seeds = list()
