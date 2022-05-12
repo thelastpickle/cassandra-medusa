@@ -29,7 +29,6 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	  --extra-pip-arg "--ignore-installed" \
 	  --extra-pip-arg "--no-cache-dir" \
 	  --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip --preinstall=wheel --builtin-venv
 
