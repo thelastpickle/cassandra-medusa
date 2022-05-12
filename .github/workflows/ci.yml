@@ -308,11 +308,10 @@ jobs:
     strategy:
       matrix:
         # Focal builds are broken in CI, we can only build bionic for now
-        #suite: [focal, bionic]
-        suite: [bionic]
+        suite: [focal, bionic]
         include:
-          #- suite: focal
-          #  os-version: ubuntu-20.04
+          - suite: focal
+            os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
       fail-fast: false
