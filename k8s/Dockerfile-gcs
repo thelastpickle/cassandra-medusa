@@ -30,12 +30,15 @@ RUN apt-get update \
 
 ENV PATH=/root/.local/bin:$PATH
 
+COPY . /build/
+
 # General requirements
-COPY requirements.txt /requirements.txt
-COPY requirements-grpc-runtime.txt /requirements-grpc-runtime.txt
 RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
-    -r /requirements.txt \
-    -r /requirements-grpc-runtime.txt
+    -r /build/requirements.txt \
+    -r /build/requirements-grpc-runtime.txt
+
+# Build medusa itself so we can add the executables in the final image
+RUN pip3 install --ignore-installed --user /build
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM ubuntu:18.04
@@ -70,6 +73,10 @@ COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
 COPY --chown=cassandra:cassandra k8s/docker-entrypoint.sh /home/cassandra
+
+# Avoid Click locale errors when running medusa directly
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 
 WORKDIR /home/cassandra
 

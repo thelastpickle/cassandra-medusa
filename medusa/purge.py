@@ -43,11 +43,13 @@ def main(config, max_backup_age=0, max_backup_count=0):
         # list all backups to purge based on count conditions
         backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
         # purge all candidate backups
-        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn)
+        (nb_objects_purged, total_purged_size, total_objects_within_grace) \
+            = purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn)
 
         logging.debug('Emitting metrics')
         tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
         monitoring.send(tags, 0)
+        return (nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups_to_purge))
     except Exception as e:
         traceback.print_exc()
         tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -74,13 +76,6 @@ def backups_to_purge_by_count(backups, max_backup_count):
         backups_to_remove_count = len(sorted_node_backups) - max_backup_count
         return sorted_node_backups[:backups_to_remove_count]
     return list()
-
-# def backups_to_purge_by_name(backups, backup_name):
-#     """
-#     Return a list
-#     Returns the list of the backups to delete for a given name (1 name = 1 backup, but on N nodes).
-#     """
-#     return list(filter(lambda backup: backup.name = backup_name, backups)) or list()
 
 
 def purge_backups(storage, backups, backup_grace_period_in_days, local_fqdn):
@@ -121,6 +116,8 @@ def purge_backups(storage, backups, backup_grace_period_in_days, local_fqdn):
             total_objects_within_grace,
             backup_grace_period_in_days
         ))
+
+    return (nb_objects_purged, total_purged_size, total_objects_within_grace)
 
 
 def purge_backup(storage, backup):
