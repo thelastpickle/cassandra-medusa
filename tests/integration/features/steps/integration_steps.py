@@ -22,6 +22,7 @@ import random
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -115,10 +116,16 @@ def cleanup_storage(context, storage_provider):
 
 
 def get_client_encryption_opts(keystore_path, trustore_path):
+    # Python 3.10 has a reduced set of ciphers available. Ensure that a compatible cipher is used for Py310, and
+    # allow older python versions to test older ciphers/TLS versions.
+    if sys.version_info >= (3, 10):
+        cipher_suite = "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+    else:
+        cipher_suite = "TLS_RSA_WITH_AES_256_CBC_SHA"
     return f"""ccm node1 updateconf -y 'client_encryption_options: {{ enabled: true,
         optional: false,keystore: {keystore_path}, keystore_password: testdata1,
         require_client_auth: true,truststore: {trustore_path},  truststore_password: truststorePass1,
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]}}'"""
+        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
 
 
 def tune_ccm_settings(cluster_name):
@@ -1313,6 +1320,8 @@ def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
             connected = True
         except cassandra.cluster.NoHostAvailable:
             attempt += 1
+            if attempt >= 10:
+                raise
             time.sleep(10)
 
     if tls_version is not PROTOCOL_TLS:  # other TLS versions used for testing, close the session

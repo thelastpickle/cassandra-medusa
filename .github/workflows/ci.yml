@@ -12,7 +12,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8, 3.9, "3.10"]
         include:
           - python-version: 3.7
             tox-py: py37
@@ -22,6 +22,8 @@ jobs:
             tox-py: py38
           - python-version: 3.9
             tox-py: py39
+          - python-version: "3.10"
+            tox-py: py310
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
@@ -105,7 +107,7 @@ jobs:
         fail-fast: false
         matrix:
           #python-version: [3.6]
-          python-version: [3.6, 3.9]
+          python-version: [3.6, "3.10"]
           it-backend: [local, s3, gcs, minio, azure]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -126,25 +128,25 @@ jobs:
             - it-backend: s3
               cassandra-version: 'github:apache/trunk'
             - it-backend: s3
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: gcs
               cassandra-version: 2.2.19
             - it-backend: gcs
               cassandra-version: 'github:apache/trunk'
             - it-backend: gcs
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: minio
               cassandra-version: 2.2.19
             - it-backend: minio
               cassandra-version: 'github:apache/trunk'
             - it-backend: minio
-              python-version: 3.9
+              python-version: "3.10"
             - it-backend: azure
               cassandra-version: 2.2.19
             - it-backend: azure
               cassandra-version: 'github:apache/trunk'
             - it-backend: azure
-              python-version: 3.9
+              python-version: "3.10"
             
     runs-on: ubuntu-18.04
     services:
