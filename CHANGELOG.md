@@ -1,5 +1,8 @@
 ## Change Log
 
+### v0.13.1 (2022/05/13 09:25 +00:00)
+- Fix restore in K8ssandra with GHA runners (@adejanovski)
+
 ### v0.13.0 (2022/05/12 09:11 +00:00)
 - Allow remote restore in Kubernetes (@adejanovski)
 - Build medusa cli in docker files (#460) (@Dutchy-)
