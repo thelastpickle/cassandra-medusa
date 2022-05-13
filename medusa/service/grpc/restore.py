@@ -71,13 +71,17 @@ if __name__ == '__main__':
             # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1,
             # which will be different for each pod.
             # If hostname resolving is turned on, we're looking for the localhost key instead.
+            print(f"Mapping: {mapping}")
             if "localhost" in mapping["host_map"].keys():
                 os.environ["POD_IP"] = mapping["host_map"]["localhost"]["source"][0]
             elif "127.0.0.1" in mapping["host_map"].keys():
                 os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
-            else:
+            elif "::1" in mapping["host_map"].keys():
                 os.environ["POD_IP"] = mapping["host_map"]["::1"]["source"][0]
             in_place = mapping["in_place"]
+            if not in_place and "POD_IP" not in os.environ.keys():
+                print("Could not find target node mapping for this pod while performing remote restore. Exiting.")
+                sys.exit(1)
 
     config = create_config(config_file_path)
     configure_console_logging(config.logging)
