@@ -49,6 +49,8 @@ RUN apt-get update \
         devscripts \
         equivs \
         libevent-dev \
+        zlib1g-dev \
+        libssl-dev \
         wget $EXTRA_PACKAGES
 
 RUN cd /tmp && \
