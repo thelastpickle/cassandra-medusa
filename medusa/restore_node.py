@@ -177,7 +177,8 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
         download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
-        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port)
+        invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port,
+                             cassandra.native_port)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
     # Clean the restored data from local temporary folder
@@ -187,7 +188,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
     return node_backup
 
 
-def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port):
+def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, storage_port, native_port):
     hostname_resolver = HostnameResolver(medusa.utils.evaluate_boolean(config.cassandra.resolve_ip_addresses),
                                          medusa.utils.evaluate_boolean(
                                              config.kubernetes.enabled if config.kubernetes else False))
@@ -210,6 +211,7 @@ def invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, stor
                                           '--username', cql_username,
                                           '--password', cql_password,
                                           '--no-progress',
+                                          '--port', str(native_port),
                                           os.path.join(ks_path, table)]
                     if storage_port != 7000:
                         sstableloader_args.append("--storage-port")
