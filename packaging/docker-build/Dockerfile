@@ -33,6 +33,8 @@ RUN apt-get update && \
 # install dependencies
 RUN apt-get update \
     && apt-get install -y \
+        libffi-dev \   
+        libssl-dev \  
         debhelper \
         gdebi-core \
         gcc \
