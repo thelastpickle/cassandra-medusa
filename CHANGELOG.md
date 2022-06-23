@@ -1,5 +1,13 @@
 ## Change Log
 
+### 0.13.2 (2022/06/23 12:40 +00:00)
+- Fix a crash when restoring materialized views (#471) (@Dutchy-)
+- Invoke sstableloader with the transport port that is specified in the cassandra config (@Dutchy-)
+- Add dependecie libraries (@andre-prata)
+- Support python 3.10 (#469) (@andyfoston)
+- Fix debian Focal builds (#475) (@andyfoston)
+- Allow overriding resolve_ip_addresses with an env variable (@adejanovski)
+
 ### v0.13.1 (2022/05/13 09:25 +00:00)
 - Fix restore in K8ssandra with GHA runners (@adejanovski)
 
