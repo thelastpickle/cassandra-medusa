@@ -57,7 +57,7 @@ setuptools.setup(
         'ssh2-python==0.27.0',
         'ssh-python>=0.8.0',
         'requests==2.22.0',
-        'protobuf>=3.12.0',
+        'protobuf>=3.12.0,<=3.20.1',
         'grpcio>=1.29.0',
         'grpcio-health-checking>=1.29.0',
         'grpcio-tools>=1.29.0',
