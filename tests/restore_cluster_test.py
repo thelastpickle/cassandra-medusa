@@ -21,12 +21,13 @@ import tempfile
 import unittest
 from unittest import mock
 from unittest.mock import MagicMock
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 from medusa.config import (MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig, GrpcConfig,
                            KubernetesConfig, parse_config)
 from medusa.restore_cluster import RestoreJob, expand_repeatable_option
 from medusa.utils import evaluate_boolean
+from medusa.cassandra_utils import CqlSession
 
 
 class RestoreClusterTest(unittest.TestCase):
@@ -335,6 +336,49 @@ class RestoreClusterTest(unittest.TestCase):
         assert evaluate_boolean(medusa_config.kubernetes.enabled if medusa_config.kubernetes else False)
         assert 'sudo' not in cmd, 'Kubernetes mode should not generate command line with sudo'
         assert str(medusa_config_file) in cmd
+
+    def test_create_or_recreate_schema_objects(self):
+        session = CqlSession(MagicMock())
+        session.execute = Mock()
+        session._session.cluster.metadata.keyspaces = {}
+
+        # Simplified schema as created by `parse_schema`
+        schema = {
+            "tlp_stress2": {
+                "create_statement": "CREATE KEYSPACE tlp_stress2",
+                "indices": {
+                    "value_index": "CREATE INDEX value_index ON tlp_stress2.random_access (value) ..."
+                },
+                "materialized_views": {
+                    "random_access_by_value": "CREATE MATERIALIZED VIEW tlp_stress2.random_access_by_value ..."
+                },
+                "tables": {
+                    "random_access": "CREATE TABLE tlp_stress2.random_access ..."
+                },
+                "uda": {},
+                "udt": {
+                    "custom_type": "CREATE TYPE tlp_stress2.custom_type ( id int, value1 text, value2 text ) ...",
+                    "custom_type2": "CREATE TYPE tlp_stress2.custom_type2 ( id int, value1 text, value2 text ) ...",
+                },
+            }
+        }
+
+        self.default_restore_job._create_or_recreate_schema_objects(session, "tlp_stress2", schema["tlp_stress2"])
+
+        calls = [
+            call('CREATE KEYSPACE tlp_stress2'),
+            call('DROP MATERIALIZED VIEW IF EXISTS tlp_stress2.random_access_by_value'),
+            call('DROP TABLE IF EXISTS tlp_stress2.random_access'),
+            call('DROP TYPE IF EXISTS tlp_stress2.custom_type'),
+            call('CREATE TYPE tlp_stress2.custom_type ( id int, value1 text, value2 text ) ...'),
+            call('DROP TYPE IF EXISTS tlp_stress2.custom_type2'),
+            call('CREATE TYPE tlp_stress2.custom_type2 ( id int, value1 text, value2 text ) ...'),
+            call('CREATE TABLE tlp_stress2.random_access ...'),
+            call('CREATE INDEX value_index ON tlp_stress2.random_access (value) ...'),
+            call('CREATE MATERIALIZED VIEW tlp_stress2.random_access_by_value ...')
+        ]
+
+        session.execute.assert_has_calls(calls)
 
 
 if __name__ == '__main__':

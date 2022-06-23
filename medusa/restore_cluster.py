@@ -420,7 +420,7 @@ class RestoreJob(object):
         if keyspace not in session.cluster.metadata.keyspaces:
             # Keyspace doesn't exist on the target cluster. Got to create it and all the tables as well.
             session.execute(keyspace_schema['create_statement'])
-        for mv in keyspace_schema['materialized_views']:
+        for mv in keyspace_schema['materialized_views'].items():
             # MVs need to be dropped before we drop the tables
             logging.debug("Dropping MV {}.{}".format(keyspace, mv[0]))
             session.execute("DROP MATERIALIZED VIEW IF EXISTS {}.{}".format(keyspace, mv[0]))
@@ -440,7 +440,7 @@ class RestoreJob(object):
             # indices were dropped with their base tables
             logging.debug("Creating index {}.{}".format(keyspace, index[0]))
             session.execute(index[1])
-        for mv in keyspace_schema['materialized_views']:
+        for mv in keyspace_schema['materialized_views'].items():
             # Base tables are created now, we can create the MVs
             logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
             session.execute(mv[1])
