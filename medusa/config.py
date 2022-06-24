@@ -210,17 +210,10 @@ def parse_config(args, config_file):
         if "POD_IP" in os.environ:
             config['storage']['fqdn'] = os.environ["POD_IP"]
 
-    resolve_ip_addresses = evaluate_boolean(config['cassandra']['resolve_ip_addresses'])
-    config.set('cassandra', 'resolve_ip_addresses', 'True' if resolve_ip_addresses else 'False')
+    config.set('cassandra', 'resolve_ip_addresses', 'True' \
+        if evaluate_boolean(config['cassandra']['resolve_ip_addresses']) else 'False')
     kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
-    hostname_resolver = HostnameResolver(resolve_ip_addresses, kubernetes_enabled)
-    if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
-        # Use the ip address instead of the fqdn when DNS resolving is turned off
-        config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
-    elif config['storage']['fqdn'] == socket.getfqdn():
-        # The FQDN for the local node should comply with the hostname resolving rules.
-        config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
-
+    
     for config_property in ['cql_username', 'cql_password']:
         config_property_upper_old = config_property.upper()
         config_property_upper_new = "MEDUSA_{}".format(config_property.upper())
@@ -230,18 +223,27 @@ def parse_config(args, config_file):
                             .format(config_property_upper_old, config_property_upper_new))
         if config_property_upper_new in os.environ:
             config['cassandra'][config_property] = os.environ[config_property_upper_new]
-            logging.warning('Both {0} and {1} are defined in the environment; using the value set in {1}'
-                            .format(config_property_upper_old, config_property_upper_new))
 
     for config_property in [
         'nodetool_username',
         'nodetool_password',
         'sstableloader_tspw',
-        'sstableloader_kspw'
+        'sstableloader_kspw',
+        'resolve_ip_addresses'
     ]:
         config_property_upper = "MEDUSA_{}".format(config_property.upper())
         if config_property_upper in os.environ:
-            config['cassandra'][config_property] = os.environ[config_property_upper]
+            config.set('cassandra',config_property, os.environ[config_property_upper])
+
+    resolve_ip_addresses = config['cassandra']['resolve_ip_addresses']
+    hostname_resolver = HostnameResolver(resolve_ip_addresses, kubernetes_enabled)
+    if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
+        # Use the ip address instead of the fqdn when DNS resolving is turned off
+        config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
+    elif config['storage']['fqdn'] == socket.getfqdn():
+        # The FQDN for the local node should comply with the hostname resolving rules.
+        config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
+
 
     return config
 
