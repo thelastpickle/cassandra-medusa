@@ -930,3 +930,20 @@ Feature: Integration tests
         Examples: Local storage
         | storage                    | client encryption |
         | local_backup_gc_grace      |  with_client_encryption |
+    
+    @24
+    Scenario Outline: Run purge with nodes sharing the same prefix as fqdn
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When node "127.0.0.10" fakes a complete backup named "backup1" on "2019-04-15 12:12:00"
+        And node "127.0.0.101" fakes a complete backup named "backup1" on "2019-04-15 12:14:00"
+        And node "127.0.0.102" fakes a complete backup named "backup1" on "2019-04-15 12:14:00"
+        And node "127.0.0.10" fakes a complete backup named "backup2" on "2019-04-01 12:14:00"
+        And node "127.0.0.101" fakes a complete backup named "backup2" on "2019-04-01 12:14:00"
+        And node "127.0.0.102" fakes a complete backup named "backup2" on "2019-04-01 12:14:00"
+        Then listing backups for node "127.0.0.10" returns 2 backups
+        
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
