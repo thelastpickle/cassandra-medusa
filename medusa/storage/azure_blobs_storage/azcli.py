@@ -8,8 +8,6 @@ import uuid
 
 from retrying import retry
 
-from medusa.storage.abstract_storage import AbstractStorage
-
 
 class AzCli(object):
 
@@ -54,7 +52,7 @@ class AzCli(object):
         # Az cli expects the client to provide the MD5 hash of the upload
         for src in srcs:
             cmd = self._az_cli_cmd + ["storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
-                                      "--content-md5", AbstractStorage.generate_md5_hash(src)]
+                                      "--overwrite", "--validate-content"]
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
