@@ -323,6 +323,50 @@ class RestoreNodeTest(unittest.TestCase):
             self.storage.get_timestamp_from_blob_name('index/bi/third_backup/finished_localhost_1574343029.timestamp')
         )
 
+    def test_parse_backup_index_common_prefix(self):
+        file_content = "content of the test file"
+        # SSTables for node1 and backup1
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup1/data/ks1/sstable1.db".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup1/data/ks1/sstable2.db".format(self.storage.prefix_path), file_content)
+        # Metadata for node1 and backup1
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup1/meta/tokenmap.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup1/meta/manifest.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup1/meta/schema.cql".format(self.storage.prefix_path), file_content)
+        # SSTables for node2 and backup1
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup1/data/ks1/sstable1.db".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup1/data/ks1/sstable2.db".format(self.storage.prefix_path), file_content)
+        # Metadata for node2 and backup1
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup1/meta/tokenmap.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup1/meta/manifest.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup1/meta/schema.cql".format(self.storage.prefix_path), file_content)
+        # SSTables for node1 and backup2
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup2/data/ks1/sstable1.db".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.101/backup2/data/ks1/sstable2.db".format(self.storage.prefix_path), file_content)
+        # Metadata for node1 and backup2
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup2/meta/tokenmap.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup2/meta/manifest.json".format(self.storage.prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}127.0.0.10/backup2/meta/schema.cql".format(self.storage.prefix_path), file_content)
+        build_indices(self.config, False)
+        path = '{}index/backup_index'.format(self.storage.prefix_path)
+        backup_index = self.storage.storage_driver.list_objects(path)
+        backups = self.storage.list_node_backups(fqdn="127.0.0.10", backup_index_blobs=backup_index)
+        self.assertEquals(2, len(list(backups)))
+
 
 if __name__ == '__main__':
     unittest.main()

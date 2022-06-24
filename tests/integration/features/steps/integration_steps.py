@@ -1010,6 +1010,14 @@ def _the_latest_cluster_backup_is(context, expected_backup_name):
     assert expected_backup_name == backup.name
 
 
+@then(r'listing backups for node "{fqdn}" returns {nb_backups} backups')
+def _listing_backups_for_node_returns(context, fqdn, nb_backups):
+    storage = Storage(config=context.medusa_config.storage)
+    backup_index = storage.list_backup_index_blobs()
+    backups = list(storage.list_node_backups(fqdn=fqdn, backup_index_blobs=backup_index))
+    assert int(nb_backups) == len(backups)
+
+
 @then(r"there is no latest complete backup")
 def _there_is_no_latest_complete_backup(context):
     storage = Storage(config=context.medusa_config.storage)

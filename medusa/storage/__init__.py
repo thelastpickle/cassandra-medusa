@@ -174,7 +174,7 @@ class Storage(object):
             return list(map(get_blob_name, all_backup_blobs))
 
         def get_blobs_for_fqdn(blobs, fqdn):
-            return list(filter(lambda b: fqdn in b, blobs))
+            return list(filter(lambda b: f'_{fqdn}.' in b, blobs))
 
         if backup_index_blobs is None:
             backup_index_blobs = self.list_backup_index_blobs()
