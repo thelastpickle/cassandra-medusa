@@ -87,7 +87,8 @@ if __name__ == '__main__':
     configure_console_logging(config.logging)
 
     backup_name = os.environ["BACKUP_NAME"]
-    tmp_dir = Path("/tmp")
+    tmp_dir = Path("/tmp") if "MEDUSA_TMP_DIR" not in os.environ else Path(os.environ["MEDUSA_TMP_DIR"])
+    print(f"Downloading backup {backup_name} to {tmp_dir}")
     keep_auth = False if in_place else True
     seeds = None
     verify = False
