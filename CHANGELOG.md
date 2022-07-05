@@ -1,5 +1,9 @@
 ## Change Log
 
+### v0.13.3 (2022/07/05 15:03 +00:00)
+- fix purge confusion when nodes have the same name prefix (@adejanovski)
+- Add MEDUSA_TMP_DIR env variable for setting the tmp directory in k8s mode (@adejanovski)
+
 ### 0.13.2 (2022/06/23 12:40 +00:00)
 - Fix a crash when restoring materialized views (#471) (@Dutchy-)
 - Invoke sstableloader with the transport port that is specified in the cassandra config (@Dutchy-)
