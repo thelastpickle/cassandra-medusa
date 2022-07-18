@@ -83,7 +83,13 @@ class AwsCli(object):
         objects = []
         for src in srcs:
             cmd = self._create_s3_cmd()
-            cmd.extend(["s3", "cp", str(src), "s3://{}/{}".format(bucket_name, dest)])
+            cmd.extend(["s3", "cp"])
+
+            if self._config.kms_id is not None:
+                cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
+
+            cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
+
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
@@ -93,7 +99,12 @@ class AwsCli(object):
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
         objects = []
         cmd = self._create_s3_cmd()
-        cmd.extend(["s3", "cp", "s3://{}/{}".format(bucket_name, src), dest])
+        cmd.extend(["s3", "cp"])
+
+        if self._config.kms_id is not None:
+            cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
+
+        cmd.extend(["s3://{}/{}".format(bucket_name, src), dest])
         self.download_file(cmd, dest, awscli_output)
 
         return objects

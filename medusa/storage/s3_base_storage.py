@@ -64,6 +64,11 @@ class S3BaseStorage(AbstractStorage):
             ))
             self.session.set_config_variable('credentials_file', config.key_file)
 
+        if config.kms_id:
+            logging.debug("Using KMS key {}".format(
+                config.kms_id,
+            ))
+
         super().__init__(config)
 
     def connect_storage(self):
@@ -217,6 +222,16 @@ class S3BaseStorage(AbstractStorage):
                 "512MB/s",
             ]
         )
+
+    def additional_upload_headers(self):
+        headers = {}
+        if self.config.kms_id:
+            headers.update({
+                "x-amz-server-side-encryption": "aws:kms",
+                "x-amz-server-side-encryption-aws-kms-key-id": self.config.kms_id
+            })
+
+        return headers
 
 
 def _group_by_parent(paths):

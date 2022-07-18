@@ -50,6 +50,9 @@ region = <Region hosting the storage>
 ; Name of the bucket used for storing backups
 bucket_name = cassandra_backups
 
+; storage_provider should be "s3"
+kms_id = <ARN of KMS key used for server-side bucket encryption>
+
 ; JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)
 key_file = /etc/medusa/credentials
 
