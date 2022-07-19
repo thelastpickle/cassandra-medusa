@@ -27,6 +27,7 @@ from retrying import retry
 
 import medusa.index
 
+from medusa.utils import evaluate_boolean
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
@@ -67,6 +68,8 @@ def format_bytes_str(value):
 class Storage(object):
     def __init__(self, *, config):
         self._config = config
+        # Used to bypass dependency checks when running in Kubernetes
+        self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
         self._prefix = pathlib.Path(config.prefix or '.')
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
         self.storage_driver = self._connect_storage()
@@ -76,27 +79,32 @@ class Storage(object):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
             google_storage = GoogleStorage(self._config)
-            google_storage.check_dependencies()
+            if not self._k8s_mode:
+                google_storage.check_dependencies()
             return google_storage
         elif self._config.storage_provider == Provider.AZURE_BLOBS:
             azure_storage = AzureStorage(self._config)
-            azure_storage.check_dependencies()
+            if not self._k8s_mode:
+                azure_storage.check_dependencies()
             return azure_storage
         elif self._config.storage_provider == Provider.S3_RGW:
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.lower() == "s3_compatible":
             s3_storage = S3BaseStorage(self._config)
-            s3_storage.check_dependencies()
+            if not self._k8s_mode:
+                s3_storage.check_dependencies()
             return s3_storage
         elif self._config.storage_provider.startswith(Provider.S3):
             s3_storage = S3Storage(self._config)
-            s3_storage.check_dependencies()
+            if not self._k8s_mode:
+                s3_storage.check_dependencies()
             return s3_storage
         elif self._config.storage_provider == Provider.LOCAL:
             return LocalStorage(self._config)
         elif self._config.storage_provider.lower() == "ibm_storage":
             s3_storage = S3BaseStorage(self._config)
-            s3_storage.check_dependencies()
+            if not self._k8s_mode:
+                s3_storage.check_dependencies()
             return s3_storage
 
         raise NotImplementedError("Unsupported storage provider")
