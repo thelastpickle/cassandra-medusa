@@ -52,7 +52,7 @@ class AzCli(object):
         # Az cli expects the client to provide the MD5 hash of the upload
         for src in srcs:
             cmd = self._az_cli_cmd + ["storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
-                                      "--overwrite", "--validate-content"]
+                                      "--overwrite"]
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
