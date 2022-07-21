@@ -1,5 +1,10 @@
 ## Change Log
 
+### 0.13.4 (2022/07/21 18:50 +00:00)
+- Remove --validate-content flag on azcli uploads (@adejanovski)
+- Disable dependency checks when running in Kubernetes (@adejanovski)
+- Enable overwriting blobs on retries and remove md5 hash computation on azcli uploads (@adejanovski)
+
 ### v0.13.3 (2022/07/05 15:03 +00:00)
 - fix purge confusion when nodes have the same name prefix (@adejanovski)
 - Add MEDUSA_TMP_DIR env variable for setting the tmp directory in k8s mode (@adejanovski)
