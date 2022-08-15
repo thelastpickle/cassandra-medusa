@@ -15,7 +15,7 @@
 import logging
 import subprocess
 
-from medusa.nodetool import Nodetool
+from medusa.novatool import Novatool
 from medusa.service.snapshot.abstract_snapshot_service import AbstractSnapshotService
 
 
@@ -23,7 +23,7 @@ class NodetoolSnapshotService(AbstractSnapshotService):
 
     def __init__(self, config):
         super().__init__(config)
-        self._nodetool = Nodetool(self.config)
+        self._nodetool = Novatool()
 
     def create_snapshot(self, *, tag):
         # create the Nodetool command

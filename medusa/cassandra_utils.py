@@ -36,7 +36,7 @@ from cassandra.connection import UnixSocketEndPoint
 from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from medusa.network.hostname_resolver import HostnameResolver
 from medusa.service.snapshot import SnapshotService
-from medusa.nodetool import Nodetool
+from medusa.novatool import Novatool
 import medusa.config
 
 
@@ -313,7 +313,7 @@ class Cassandra(object):
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
         self._os_has_systemd = self._has_systemd()
-        self._nodetool = Nodetool(cassandra_config)
+        self._nodetool = Novatool()
         logging.warning('is ccm : {}'.format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
