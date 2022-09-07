@@ -53,7 +53,7 @@ Feature: Integration tests
         Examples: S3 storage
         | storage           | client encryption |
         | s3_us_west_oregon     | without_client_encryption |
-        #        | s3_us_west_oregon_encrypted     | without_client_encryption |
+        | s3_us_west_oregon_encrypted     | without_client_encryption |
 
         @gcs
         Examples: Google Cloud Storage
