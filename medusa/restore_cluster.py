@@ -34,8 +34,8 @@ from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
 
 
-def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                verify, keyspaces, tables, parallel_restores, use_sstableloader=False, version_target=None):
+def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify, keyspaces,
+                tables, parallel_restores, use_sstableloader=False, version_target=None, match_racks=False):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -67,7 +67,8 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             raise RuntimeError(err_msg)
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target)
+                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target,
+                             match_racks)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -102,8 +103,7 @@ class RestoreJob(object):
 
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
                  parallel_restores, keyspaces=None, tables=None, bypass_checks=False, use_sstableloader=False,
-                 version_target=None):
-
+                 version_target=None, match_racks=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -128,7 +128,7 @@ class RestoreJob(object):
         k8s_mode = medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False)
         self.fqdn_resolver = HostnameResolver(fqdn_resolver, k8s_mode)
         self._version_target = version_target
-        self.rack_aware = False
+        self.match_racks = match_racks
 
     def prepare_restore(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -154,8 +154,23 @@ class RestoreJob(object):
         self.prepare_restore()
         self._restore_data()
 
-    @staticmethod
-    def _validate_ringmap(tokenmap, target_tokenmap):
+    def _validate_ringmap(self, tokenmap, target_tokenmap):
+        def _tokenmap_to_rack_topology(ringmap):
+            rack_topology = dict()
+            nodes_per_rack = self._tokenmap_to_nodes_per_rack(ringmap)
+            count = 0
+            for i in sorted(nodes_per_rack, key=lambda k: len(nodes_per_rack[k]), reverse=True):
+                rack_topology[count] = len(nodes_per_rack[i])
+                count += 1
+            return rack_topology
+
+        if self.match_racks:
+            topology_backup = _tokenmap_to_rack_topology(tokenmap)
+            topology_target = _tokenmap_to_rack_topology(target_tokenmap)
+            if topology_backup != topology_target:
+                logging.error("Rack aware cluster topology of the backup cluster does not match the target")
+                return False
+
         for host, ring_item in target_tokenmap.items():
             if not ring_item.get('is_up'):
                 raise RuntimeError('Target {host} is not up!'.format(host=host))
@@ -227,22 +242,21 @@ class RestoreJob(object):
                 topology_matches = False
 
         if topology_matches:
-            if self.rack_aware:
+            if self.match_racks:
                 # restore data from the same backup rack into a single rack with same node count
-                # 
                 backup_nodes_per_rack = self._tokenmap_to_nodes_per_rack(tokenmap)
                 target_nodes_per_rack = self._tokenmap_to_nodes_per_rack(target_tokenmap)
-                for i in sorted(backup_nodes_per_rack, key= lambda k: len(backup_nodes_per_rack[k]), reverse=True):
+                for i in sorted(backup_nodes_per_rack, key=lambda k: len(backup_nodes_per_rack[k]), reverse=True):
                     backup_rack = backup_nodes_per_rack[i]
-                    target_rack_max=max(target_nodes_per_rack, key=lambda k: len(target_nodes_per_rack[k]))
+                    target_rack_max = max(target_nodes_per_rack, key=lambda k: len(target_nodes_per_rack[k]))
                     target_rack = target_nodes_per_rack.pop(target_rack_max)
                     if len(backup_rack) != len(target_rack):
                         logging.error("Rack aware cluster topology of the backup cluster does not match the target")
                         break
                     for j in range(len(backup_rack)):
-                        backup_host = list(backup_rack[j].keys())[0]
-                        restore_host = list(target_rack[j].keys())[0]
-                        is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
+                        backup_host = backup_rack[j][0]
+                        restore_host = target_rack[j][0]
+                        is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
                         self.host_map[restore_host] = {'source': backup_host, 'seed': is_seed}
             else:
                 # backup and restore nodes are ordered by smallest token and associated one by one
@@ -252,7 +266,7 @@ class RestoreJob(object):
                     restore_host = sorted_target_nodes[i][0]
                     is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
                     self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
-                
+
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
             self.use_sstableloader = True
@@ -273,14 +287,14 @@ class RestoreJob(object):
         return sorted(nodes.items(), key=operator.itemgetter(1))
 
     def _tokenmap_to_nodes_per_rack(self, tokenmap):
-        # _tokenmap_to_sorted_nodes returns tuples, should do the same here
-        nodes_per_rack = dict ()
+        nodes_per_rack = dict()
         for node in tokenmap.keys():
-            rack = "" 
-            token_0 = ""
-            rack = tokenmap[node]['rack']  ## safe get with default? what if rack is missing in backup
-            token_0 = tokenmap[node]['tokens'][0]
-            nodes_per_rack.setdefault(rack, []).append({node: token_0})
+            rack = tokenmap[node].get('rack', "")
+            token_0 = tokenmap[node].get('tokens', [""])[0]
+            nodes_per_rack.setdefault(rack, []).append((node, token_0))
+        for rack, nodes in nodes_per_rack.items():
+            sorted_nodes = sorted(nodes, key=operator.itemgetter(1))
+            nodes_per_rack[rack] = sorted_nodes
         return nodes_per_rack
 
     @staticmethod
