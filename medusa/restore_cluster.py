@@ -257,7 +257,7 @@ class RestoreJob(object):
                         backup_host = backup_rack[j][0]
                         restore_host = target_rack[j][0]
                         is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
-                        self.host_map[restore_host] = {'source': backup_host, 'seed': is_seed}
+                        self.host_map[restore_host] = {'source': [backup_host], 'seed': is_seed}
             else:
                 # backup and restore nodes are ordered by smallest token and associated one by one
                 sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
