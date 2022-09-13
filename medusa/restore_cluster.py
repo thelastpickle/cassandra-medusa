@@ -155,6 +155,7 @@ class RestoreJob(object):
         self._restore_data()
 
     def _validate_ringmap(self, tokenmap, target_tokenmap):
+
         def _tokenmap_to_rack_topology(ringmap):
             rack_topology = dict()
             nodes_per_rack = self._tokenmap_to_nodes_per_rack(ringmap)
@@ -164,6 +165,12 @@ class RestoreJob(object):
                 count += 1
             return rack_topology
 
+        for host, ring_item in target_tokenmap.items():
+            if not ring_item.get('is_up'):
+                raise RuntimeError('Target {host} is not up!'.format(host=host))
+        if len(target_tokenmap) != len(tokenmap):
+            return False
+
         if self.match_racks:
             topology_backup = _tokenmap_to_rack_topology(tokenmap)
             topology_target = _tokenmap_to_rack_topology(target_tokenmap)
@@ -171,11 +178,6 @@ class RestoreJob(object):
                 logging.error("Rack aware cluster topology of the backup cluster does not match the target")
                 return False
 
-        for host, ring_item in target_tokenmap.items():
-            if not ring_item.get('is_up'):
-                raise RuntimeError('Target {host} is not up!'.format(host=host))
-        if len(target_tokenmap) != len(tokenmap):
-            return False
         return True
 
     def _populate_ringmap(self, tokenmap, target_tokenmap):
@@ -241,31 +243,28 @@ class RestoreJob(object):
                 logging.info('Tokenmap is differently distributed. Extra items: {}'.format(extras))
                 topology_matches = False
 
-        if topology_matches:
-            if self.match_racks:
-                # restore data from the same backup rack into a single rack with same node count
-                backup_nodes_per_rack = self._tokenmap_to_nodes_per_rack(tokenmap)
-                target_nodes_per_rack = self._tokenmap_to_nodes_per_rack(target_tokenmap)
-                for i in sorted(backup_nodes_per_rack, key=lambda k: len(backup_nodes_per_rack[k]), reverse=True):
-                    backup_rack = backup_nodes_per_rack[i]
-                    target_rack_max = max(target_nodes_per_rack, key=lambda k: len(target_nodes_per_rack[k]))
-                    target_rack = target_nodes_per_rack.pop(target_rack_max)
-                    if len(backup_rack) != len(target_rack):
-                        logging.error("Rack aware cluster topology of the backup cluster does not match the target")
-                        break
-                    for j in range(len(backup_rack)):
-                        backup_host = backup_rack[j][0]
-                        restore_host = target_rack[j][0]
-                        is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
-                        self.host_map[restore_host] = {'source': [backup_host], 'seed': is_seed}
-            else:
-                # backup and restore nodes are ordered by smallest token and associated one by one
-                sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
-                sorted_target_nodes = self._tokenmap_to_sorted_nodes(target_tokenmap)
-                for i in range(len(sorted_backup_nodes)):
-                    restore_host = sorted_target_nodes[i][0]
-                    is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
-                    self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
+        if topology_matches and not self.match_racks:
+            # backup and restore nodes are ordered by smallest token and associated one by one
+            sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
+            sorted_target_nodes = self._tokenmap_to_sorted_nodes(target_tokenmap)
+            for i in range(len(sorted_backup_nodes)):
+                restore_host = sorted_target_nodes[i][0]
+                is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
+                self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
+
+        elif topology_matches and self.match_racks:
+            # restore data from the same backup rack into a single rack with matching node count
+            backup_nodes_per_rack = self._tokenmap_to_nodes_per_rack(tokenmap)
+            target_nodes_per_rack = self._tokenmap_to_nodes_per_rack(target_tokenmap)
+            for i in sorted(backup_nodes_per_rack, key=lambda k: len(backup_nodes_per_rack[k]), reverse=True):
+                backup_rack = backup_nodes_per_rack[i]
+                target_rack_max = max(target_nodes_per_rack, key=lambda k: len(target_nodes_per_rack[k]))
+                target_rack = target_nodes_per_rack.pop(target_rack_max)
+                for j in range(len(backup_rack)):
+                    backup_host = backup_rack[j][0]
+                    restore_host = target_rack[j][0]
+                    is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
+                    self.host_map[restore_host] = {'source': [backup_host], 'seed': is_seed}
 
         else:
             # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
