@@ -110,15 +110,18 @@ class RestoreClusterTest(unittest.TestCase):
             assert restore_job.host_map["node2.mydomain.net"]['source'] == ["node2.mydomain.net"]
             assert restore_job.host_map["node3.mydomain.net"]['source'] == ["node4.mydomain.net"]
 
-    # Test that we can properly associate source and target nodes for restore using a token map
+    # Test that we can properly associate source and target nodes for restore using a token map and rack matching
     @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
     def test_populate_ringmap(self, resolver_mock):
 
         # resolver checks for seed target w/ resolve as well.
         seed_target = "node1.mydomain.net"
-        resolver_mock.side_effect = ['node4.mydomain.net', seed_target, 'node1.mydomain.net',
-                                     'node5.mydomain.net', seed_target, 'node2.mydomain.net',
-                                     'node6.mydomain.net', seed_target, 'node3.mydomain.net']
+        resolver_mock.side_effect = ['node7.mydomain.net', seed_target, 'node1.mydomain.net',
+                                     'node8.mydomain.net', seed_target, 'node2.mydomain.net',
+                                     'node9.mydomain.net', seed_target, 'node3.mydomain.net',
+                                     'node10.mydomain.net', seed_target, 'node4.mydomain.net',
+                                     'node11.mydomain.net', seed_target, 'node5.mydomain.net',
+                                     'node12.mydomain.net', seed_target, 'node6.mydomain.net']
 
         node_backups = list()
         node_backups.append(Mock())
@@ -137,15 +140,18 @@ class RestoreClusterTest(unittest.TestCase):
                     None,
                     bypass_checks=True,
                     version_target="4.0.0",
-                    match_racks=False)
+                    ignore_racks=False)
 
                 target_tokenmap = json.loads(f_target.read())
                 restore_job._populate_ringmap(tokenmap, target_tokenmap)
                 assert restore_job.use_sstableloader is False
 
-        assert restore_job.host_map["node4.mydomain.net"]['source'] == ["node1.mydomain.net"]
-        assert restore_job.host_map["node5.mydomain.net"]['source'] == ["node2.mydomain.net"]
-        assert restore_job.host_map["node6.mydomain.net"]['source'] == ["node3.mydomain.net"]
+        assert restore_job.host_map["node7.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restore_job.host_map["node8.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restore_job.host_map["node9.mydomain.net"]['source'] == ["node3.mydomain.net"]
+        assert restore_job.host_map["node10.mydomain.net"]['source'] == ["node4.mydomain.net"]
+        assert restore_job.host_map["node11.mydomain.net"]['source'] == ["node5.mydomain.net"]
+        assert restore_job.host_map["node12.mydomain.net"]['source'] == ["node6.mydomain.net"]
 
     # Test that we can't restore the cluster if the source and target topology have different sizes
     def test_populate_tokenmap_fail(self):
@@ -165,7 +171,73 @@ class RestoreClusterTest(unittest.TestCase):
                     False,
                     None,
                     bypass_checks=True,
-                    version_target="4.0.0"
+                    version_target="4.0.0",
+                    ignore_racks=False
+                )
+
+                target_tokenmap = json.loads(f_target.read())
+                restore_job._populate_ringmap(tokenmap, target_tokenmap)
+                # topologies are different, which forces the use of the sstableloader
+                assert restore_job.use_sstableloader is True
+
+
+    # Test that we can properly associate source and target nodes for restore using a token map
+    @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
+    def test_populate_ringmap_ignore_racks(self, resolver_mock):
+
+        # resolver checks for seed target w/ resolve as well.
+        seed_target = "node1.mydomain.net"
+        resolver_mock.side_effect = ['node4.mydomain.net', seed_target, 'node1.mydomain.net',
+                                     'node5.mydomain.net', seed_target, 'node2.mydomain.net',
+                                     'node6.mydomain.net', seed_target, 'node3.mydomain.net']
+
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap_ignore_racks.json", 'r') as f:
+            with open("tests/resources/restore_cluster_tokenmap_ignore_racks.target.json", 'r') as f_target:
+                tokenmap = json.loads(f.read())
+                cluster_backup = MagicMock()
+                restore_job = RestoreJob(
+                    cluster_backup,
+                    self.medusa_config,
+                    self.tmp_dir,
+                    None,
+                    seed_target,
+                    False,
+                    False,
+                    None,
+                    bypass_checks=True,
+                    version_target="4.0.0",
+                    ignore_racks=True)
+
+                target_tokenmap = json.loads(f_target.read())
+                restore_job._populate_ringmap(tokenmap, target_tokenmap)
+                assert restore_job.use_sstableloader is False
+
+        assert restore_job.host_map["node4.mydomain.net"]['source'] == ["node1.mydomain.net"]
+        assert restore_job.host_map["node5.mydomain.net"]['source'] == ["node2.mydomain.net"]
+        assert restore_job.host_map["node6.mydomain.net"]['source'] == ["node3.mydomain.net"]
+
+    # Test that we can't restore the cluster if the source and target topology have different sizes
+    def test_populate_tokenmap_ignore_racks_fail(self):
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap_ignore_racks.json", 'r') as f:
+            with open("tests/resources/restore_cluster_tokenmap_ignore_racks_fail.json", 'r') as f_target:
+                tokenmap = json.loads(f.read())
+                cluster_backup = MagicMock()
+                restore_job = RestoreJob(
+                    cluster_backup,
+                    self.medusa_config,
+                    self.tmp_dir,
+                    None,
+                    "node1.mydomain.net",
+                    False,
+                    False,
+                    None,
+                    bypass_checks=True,
+                    version_target="4.0.0",
+                    ignore_racks=True
                 )
 
                 target_tokenmap = json.loads(f_target.read())
@@ -201,76 +273,6 @@ class RestoreClusterTest(unittest.TestCase):
                 restore_job = RestoreJob(
                     cluster_backup, self.medusa_config, self.tmp_dir, None, "node1.mydomain.net", False, False, None,
                     version_target="4.0.0")
-                target_tokenmap = json.loads(f_target.read())
-                restore_job._populate_ringmap(tokenmap, target_tokenmap)
-                # topologies are different, which forces the use of the sstableloader
-                assert restore_job.use_sstableloader is True
-
-    # Test that we can properly associate source and target nodes for restore using a token map and rack matching
-    @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
-    def test_populate_ringmap_match_racks(self, resolver_mock):
-
-        # resolver checks for seed target w/ resolve as well.
-        seed_target = "node1.mydomain.net"
-        resolver_mock.side_effect = ['node7.mydomain.net', seed_target, 'node1.mydomain.net',
-                                     'node8.mydomain.net', seed_target, 'node2.mydomain.net',
-                                     'node9.mydomain.net', seed_target, 'node3.mydomain.net',
-                                     'node10.mydomain.net', seed_target, 'node4.mydomain.net',
-                                     'node11.mydomain.net', seed_target, 'node5.mydomain.net',
-                                     'node12.mydomain.net', seed_target, 'node6.mydomain.net']
-
-        node_backups = list()
-        node_backups.append(Mock())
-        with open("tests/resources/restore_cluster_tokenmap_match_racks.json", 'r') as f:
-            with open("tests/resources/restore_cluster_tokenmap.target_match_racks.json", 'r') as f_target:
-                tokenmap = json.loads(f.read())
-                cluster_backup = MagicMock()
-                restore_job = RestoreJob(
-                    cluster_backup,
-                    self.medusa_config,
-                    self.tmp_dir,
-                    None,
-                    seed_target,
-                    False,
-                    False,
-                    None,
-                    bypass_checks=True,
-                    version_target="4.0.0",
-                    match_racks=True)
-
-                target_tokenmap = json.loads(f_target.read())
-                restore_job._populate_ringmap(tokenmap, target_tokenmap)
-                assert restore_job.use_sstableloader is False
-
-        assert restore_job.host_map["node7.mydomain.net"]['source'] == ["node5.mydomain.net"]
-        assert restore_job.host_map["node8.mydomain.net"]['source'] == ["node6.mydomain.net"]
-        assert restore_job.host_map["node9.mydomain.net"]['source'] == ["node4.mydomain.net"]
-        assert restore_job.host_map["node10.mydomain.net"]['source'] == ["node2.mydomain.net"]
-        assert restore_job.host_map["node11.mydomain.net"]['source'] == ["node3.mydomain.net"]
-        assert restore_job.host_map["node12.mydomain.net"]['source'] == ["node1.mydomain.net"]
-
-    # Test that we can't restore the cluster if the source and target topology have different sizes
-    def test_populate_tokenmap_match_racks_fail(self):
-        node_backups = list()
-        node_backups.append(Mock())
-        with open("tests/resources/restore_cluster_tokenmap_match_racks.json", 'r') as f:
-            with open("tests/resources/restore_cluster_tokenmap_match_racks.fail.json", 'r') as f_target:
-                tokenmap = json.loads(f.read())
-                cluster_backup = MagicMock()
-                restore_job = RestoreJob(
-                    cluster_backup,
-                    self.medusa_config,
-                    self.tmp_dir,
-                    None,
-                    "node1.mydomain.net",
-                    False,
-                    False,
-                    None,
-                    bypass_checks=True,
-                    version_target="4.0.0",
-                    match_racks=True
-                )
-
                 target_tokenmap = json.loads(f_target.read())
                 restore_job._populate_ringmap(tokenmap, target_tokenmap)
                 # topologies are different, which forces the use of the sstableloader
