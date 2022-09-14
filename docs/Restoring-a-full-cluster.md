@@ -25,6 +25,7 @@ Options:
   --table TEXT                    Restore only this table, use --table ks.t1 [--table ks.t2]
   --use-sstableloader             Use the sstableloader to load the backup
                                   into the cluster
+  --ignore-racks                  Disable matching nodes based on rack topology
 
   --pssh-pool-size INTEGER        Number of concurrent ssh sessions started by
                                   pssh
