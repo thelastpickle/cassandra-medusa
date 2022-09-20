@@ -180,7 +180,6 @@ class RestoreClusterTest(unittest.TestCase):
                 # topologies are different, which forces the use of the sstableloader
                 assert restore_job.use_sstableloader is True
 
-
     # Test that we can properly associate source and target nodes for restore using a token map
     @mock.patch("medusa.network.hostname_resolver.HostnameResolver.resolve_fqdn")
     def test_populate_ringmap_ignore_racks(self, resolver_mock):
