@@ -286,11 +286,8 @@ class RestoreJob(object):
         nodes_per_rack = dict()
         for node in tokenmap.keys():
             rack = tokenmap[node].get('rack', "")
-            token_0 = tokenmap[node].get('tokens', [""])[0]
-            nodes_per_rack.setdefault(rack, []).append((node, token_0))
-        for rack, nodes in nodes_per_rack.items():
-            sorted_nodes = sorted(nodes, key=operator.itemgetter(1))
-            nodes_per_rack[rack] = sorted_nodes
+            first_token = tokenmap[node].get('tokens', [""])[0]
+            nodes_per_rack.setdefault(rack, []).append((node, first_token))
         return sorted(nodes_per_rack.items())
 
     @staticmethod
