@@ -1,14 +1,38 @@
 {
-    "node4.mydomain.net": {
-    "tokens": [-3074457345618258400],
-    "is_up": true
+    "node7.mydomain.net": {
+    "tokens": [-1094266504216117253],
+    "is_up": true,
+    "rack": "RACK_A",
+    "dc": "DC01"
     },
-    "node5.mydomain.net": {
-    "tokens": [-9223372036854776000],
-    "is_up": true
+    "node8.mydomain.net": {
+    "tokens": [-100632362979327778],
+    "is_up": true,
+    "rack": "RACK_B",
+    "dc": "DC01"
     },
-    "node6.mydomain.net": {
-    "tokens": [3074457345618258400],
-    "is_up": true
+    "node9.mydomain.net": {
+    "tokens": [-1016266367849665824],
+    "is_up": true,
+    "rack": "RACK_B",
+    "dc": "DC01"
+    },
+    "node10.mydomain.net": {
+    "tokens": [-1013637874707310406],
+    "is_up": true,
+    "rack": "RACK_C",
+    "dc": "DC01"
+    },
+    "node11.mydomain.net": {
+    "tokens": [-1047700702544826849],
+    "is_up": true,
+    "rack": "RACK_C",
+    "dc": "DC01"
+    },
+    "node12.mydomain.net": {
+    "tokens": [-117316388655868695],
+    "is_up": true,
+    "rack": "RACK_C",
+    "dc": "DC01"
     }
 }

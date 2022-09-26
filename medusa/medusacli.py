@@ -222,9 +222,11 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
 @click.option('--parallel-restores', '-pr', help="Number of concurrent synchronous (blocking) "
                                                  "ssh sessions started by pssh", default=500)
 @click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
+@click.option('--ignore-racks', help='Disable matching nodes based on rack topology', required=False, default=False,
+              is_flag=True)
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                    verify, keyspaces, tables, parallel_restores, use_sstableloader, version_target):
+                    verify, keyspaces, tables, parallel_restores, use_sstableloader, version_target, ignore_racks):
     """
     Restore Cassandra cluster
     """
@@ -240,7 +242,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        set(tables),
                                        int(parallel_restores),
                                        use_sstableloader,
-                                       version_target)
+                                       version_target,
+                                       ignore_racks)
 
 
 @cli.command(name='restore-node')
