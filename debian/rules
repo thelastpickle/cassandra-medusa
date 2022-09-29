@@ -30,8 +30,9 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	--python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
-	--preinstall=poetry==1.6.1 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
+	  --extra-pip-arg "--no-cache-dir" \
+	  --python /usr/bin/python3 --preinstall=setuptools==52.0.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	  --preinstall=poetry==1.6.1 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym -X libssh2 -X libssh -X libgssapi_krb5 -X libcrypto -X libkrb5 -X libk5crypto
