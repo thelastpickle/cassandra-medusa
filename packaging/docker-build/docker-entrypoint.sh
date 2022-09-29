@@ -21,6 +21,7 @@ export SSH2_LIBS_SUFFIX
 # copy built packages into a mounted volume
 
 cd ${WORKDIR}/cassandra-medusa
+mk-build-deps --install --tool "apt-get -y --no-install-recommends" debian/control
 dpkg-buildpackage -us -uc -b
 mv ../*.deb ${WORKDIR}/packages
 cd ${WORKDIR}
