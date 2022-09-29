@@ -3,7 +3,7 @@
 set -e
 
 case $1 in
-  ""|bionic|buster|jammy)
+  ""|bionic|buster|focal|bullseye)
     suites=("${1:-bionic}")
     ;;
   all)

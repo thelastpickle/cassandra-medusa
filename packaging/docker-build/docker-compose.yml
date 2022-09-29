@@ -18,7 +18,7 @@ services:
   cassandra-medusa-builder-jammy:
     build:
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu
       args:
         - BUILD_IMAGE=ubuntu:22.04
         - EXTRA_PACKAGES=""
@@ -26,12 +26,32 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-builder-bionic:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu
+      args:
+        - BUILD_IMAGE=ubuntu:18.04
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-buster:
     build:
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-debian
       args:
         - BUILD_IMAGE=debian:buster
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-builder-bullseye:
+    build:
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian
+      args:
+        - BUILD_IMAGE=debian:bullseye
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
