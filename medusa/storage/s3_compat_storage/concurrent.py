@@ -123,15 +123,16 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
         obj = _upload_multi_part(storage, connection, src, bucket, full_object_name)
     else:
         logging.debug("Uploading {} as single part".format(full_object_name))
-        obj = _upload_single_part(connection, src, bucket, full_object_name)
+        obj = _upload_single_part(storage, connection, src, bucket, full_object_name)
 
     return medusa.storage.ManifestObject(obj.name, int(obj.size), obj.hash)
 
 
 @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-def _upload_single_part(connection, src, bucket, object_name):
+def _upload_single_part(storage, connection, src, bucket, object_name):
+    headers = storage.additional_upload_headers()
     obj = connection.upload_object(
-        str(src), container=bucket, object_name=object_name
+        str(src), container=bucket, object_name=object_name, headers=headers
     )
 
     return obj

@@ -80,12 +80,12 @@ def upload_blobs(storage, src, dest, bucket, max_workers=None):
     :return: A list of ManifestObject describing all the uploaded files
     """
     job = StorageJob(storage,
-                     lambda connection, src_file: __upload_file(connection, src_file, dest, bucket),
+                     lambda connection, src_file: __upload_file(storage, connection, src_file, dest, bucket),
                      max_workers)
     return job.execute(list(src))
 
 
-def __upload_file(connection, src, dest, bucket):
+def __upload_file(storage, connection, src, dest, bucket):
     """
     This function is called by StorageJob. It may be called concurrently by multiple threads.
 
@@ -103,18 +103,20 @@ def __upload_file(connection, src, dest, bucket):
     # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
     obj_name = '{}/{}'.format(src.parent.name, src.name) if src.parent.name.startswith('.') else src.name
     full_object_name = str("{}/{}".format(dest, obj_name))
-    obj = _upload_single_part(connection, src, bucket, full_object_name)
+    obj = _upload_single_part(storage, connection, src, bucket, full_object_name)
 
     return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"', ''))
 
 
 @retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
-def _upload_single_part(connection, src, bucket, object_name):
+def _upload_single_part(storage, connection, src, bucket, object_name):
+    headers = storage.additional_upload_headers()
     with open(str(src), 'rb') as iterator:
         obj = connection.upload_object_via_stream(
             iterator,
             container=bucket,
-            object_name=object_name
+            object_name=object_name,
+            headers=headers
         )
 
     return obj

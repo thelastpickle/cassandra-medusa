@@ -58,11 +58,14 @@ class AbstractStorage(abc.ABC):
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
+        headers = self.additional_upload_headers()
+
         # Upload a string content to the provided path in the bucket
         obj = self.driver.upload_object_via_stream(
             io.BytesIO(bytes(content, encoding)),
             container=self.bucket,
-            object_name=str(path)
+            object_name=str(path),
+            headers=headers,
         )
         return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
 
@@ -251,3 +254,10 @@ class AbstractStorage(abc.ABC):
     def prepare_download(self):
         # Override for each child class
         pass
+
+    def additional_upload_headers(self):
+        """
+        Additional HTTP headers to be passed to libcloud during upload operations. To be overriden by
+        child classes.
+        """
+        return {}
