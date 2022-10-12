@@ -110,7 +110,9 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
     )
     full_object_name = str("{}/{}".format(dest, obj_name))
 
-    if file_size >= multi_part_upload_threshold:
+    # if file is empty, uploading with libcloud azure storage driver (_upload_single_part) will fail with 403 error
+    # thus, we need to use az cli command (_upload_multi_part) to upload empty files
+    if file_size == 0 or file_size >= multi_part_upload_threshold:
         # Files larger than the configured threshold should be uploaded as multi part
         logging.debug("Uploading {} as multi part".format(full_object_name))
         obj = _upload_multi_part(storage, connection, src, bucket, full_object_name)
