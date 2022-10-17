@@ -20,6 +20,9 @@ if test -f pid; then
     done
     exit $(cat status)
 fi
+if [ -f /etc/default/cassandra-medusa ]; then
+    . /etc/default/cassandra-medusa
+fi
 $@ >stdout 2>stderr &
 echo $! >pid
 wait $!
