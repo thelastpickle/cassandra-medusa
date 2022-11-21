@@ -18,6 +18,7 @@ import pathlib
 import unittest
 from unittest.mock import patch
 import socket
+import tempfile
 
 import medusa.config
 import medusa.utils
@@ -97,6 +98,44 @@ class ConfigTest(unittest.TestCase):
         config = medusa.config.load_config(args, self.medusa_config_file)
         assert config.cassandra.cql_username == 'new_cql_username'
         assert config.cassandra.cql_password == 'new_cql_password'
+
+    def test_cql_k8s_secrets_path_override(self):
+        """
+        Ensure that CQL credentials stored in a path following k8s convention override the default vars.
+        """
+        tmpdir = tempfile.mkdtemp()
+        os.environ['MEDUSA_CQL_K8S_SECRETS_PATH'] = tmpdir
+        # Write k8s_username and k8s_password in /tmpdir/username and /tmpdir/password
+        for k8s_cred in ['username', 'password']:
+            with open(os.path.join(tmpdir, k8s_cred), 'w') as f:
+                f.write('k8s_{}'.format(k8s_cred))
+
+        args = {}
+        config = medusa.config.load_config(args, self.medusa_config_file)
+        assert config.cassandra.cql_username == 'k8s_username'
+        assert config.cassandra.cql_password == 'k8s_password'
+
+        # Cleanup
+        os.environ.pop('MEDUSA_CQL_K8S_SECRETS_PATH', None)
+
+    def test_nodetool_k8s_secrets_path_override(self):
+        """
+        Ensure that nodetool credentials stored in a path following k8s convention override the default vars.
+        """
+        tmpdir = tempfile.mkdtemp()
+        os.environ['MEDUSA_NODETOOL_K8S_SECRETS_PATH'] = tmpdir
+        # Write nodetool_username and nodetool_password in /tmpdir/username and /tmpdir/password
+        for k8s_cred in ['username', 'password']:
+            with open(os.path.join(tmpdir, k8s_cred), 'w') as f:
+                f.write('k8s_{}'.format(k8s_cred))
+
+        args = {}
+        config = medusa.config.load_config(args, self.medusa_config_file)
+        assert config.cassandra.nodetool_username == 'k8s_username'
+        assert config.cassandra.nodetool_password == 'k8s_password'
+
+        # Cleanup
+        os.environ.pop('MEDUSA_NODETOOL_K8S_SECRETS_PATH', None)
 
     def test_args_settings_override(self):
         """Ensure that each config file's section settings can be overridden with command line options"""
