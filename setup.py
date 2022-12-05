@@ -50,7 +50,8 @@ setuptools.setup(
         'ffwd>=0.0.2',
         'apache-libcloud<3.4.0,>=3.3.0',
         'lockfile>=0.12.2',
-        'cryptography<=3.3.2,>=2.5',
+        'pyOpenSSL==22.0.0',
+        'cryptography<=35.0,>=2.5',
         'pycryptodome>=3.9.9',
         'retrying>=1.3.3',
         'parallel-ssh==2.2.0',
@@ -58,9 +59,9 @@ setuptools.setup(
         'ssh-python>=0.8.0',
         'requests==2.22.0',
         'protobuf>=3.12.0,<=3.20.1',
-        'grpcio>=1.29.0',
-        'grpcio-health-checking>=1.29.0',
-        'grpcio-tools>=1.29.0',
+        'grpcio>=1.29.0,<=1.48.2',
+        'grpcio-health-checking>=1.29.0,<=1.48.2',
+        'grpcio-tools>=1.29.0,<=1.48.2',
         'gevent',
         'greenlet',
         'fasteners==0.16',
@@ -70,7 +71,7 @@ setuptools.setup(
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
-        'AZURE': ["azure-cli>=2.24.0"]
+        'AZURE': ["azure-cli==2.34.1"]
     },
     entry_points={
         'console_scripts': [
