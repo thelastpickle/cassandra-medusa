@@ -1,5 +1,10 @@
 ## Change Log
 
+
+### 0.14.0 (2022/12/05 05:51 +00:00)
+- Support for specifying KMS key for encrypting backups server-side on S3 (@justinmir)
+- Rack aware cluster restore (@anclrii)
+
 ### 0.13.4 (2022/07/21 18:50 +00:00)
 - Remove --validate-content flag on azcli uploads (@adejanovski)
 - Disable dependency checks when running in Kubernetes (@adejanovski)
