@@ -71,7 +71,7 @@ setuptools.setup(
     ],
     extras_require={
         'S3': ["awscli>=1.16.291"],
-        'AZURE': ["azure-cli==2.34.1"]
+        'AZURE': ["azure-cli==2.40.0"]
     },
     entry_points={
         'console_scripts': [
