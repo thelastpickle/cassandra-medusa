@@ -55,6 +55,8 @@ RUN apt-get update \
         libssl-dev \
         wget $EXTRA_PACKAGES
 
+RUN pip3 install --upgrade pip
+
 RUN cd /tmp && \
     wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.0-1_all.deb && \
     gdebi -n dh-virtualenv*.deb && \
