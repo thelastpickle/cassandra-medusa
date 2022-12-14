@@ -12,9 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from libcloud.storage.providers import get_driver, Provider
+from libcloud.storage.providers import get_driver
 
 from medusa.storage.s3_base_storage import S3BaseStorage
+from medusa.storage.storage_provider import StorageProvider
 
 
 class S3Storage(S3BaseStorage):
@@ -28,7 +29,7 @@ class S3Storage(S3BaseStorage):
 
         credentials = self.session.get_credentials()
 
-        cls = get_driver(Provider.S3)
+        cls = get_driver(StorageProvider.S3)
         driver = cls(
             credentials.access_key,
             credentials.secret_key,

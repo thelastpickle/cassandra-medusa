@@ -22,7 +22,6 @@ import time
 import traceback
 import psutil
 
-from libcloud.storage.providers import Provider
 from retrying import retry
 
 import medusa.utils
@@ -32,6 +31,7 @@ from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, 
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str, ManifestObject, divide_chunks
 from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.storage.storage_provider import StorageProvider
 
 
 class NodeBackupCache(object):
@@ -92,7 +92,7 @@ class NodeBackupCache(object):
             else:
                 fqtn = (keyspace, columnfamily)
                 cached_item = None
-                if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
+                if self._storage_provider == StorageProvider.GOOGLE_STORAGE or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(self._sanitize_file_path(src))
 
                 threshold = self._storage_config.multi_part_upload_threshold

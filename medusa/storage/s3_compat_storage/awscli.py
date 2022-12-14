@@ -22,7 +22,7 @@ import sys
 
 from retrying import retry
 
-from libcloud.storage.providers import get_driver, Provider
+from libcloud.storage.providers import get_driver
 from medusa import utils
 from medusa.storage.storage_provider import StorageProvider
 
@@ -50,7 +50,8 @@ class AwsCli(object):
 
         if self._config.region and self._config.region != "default":
             self._env['AWS_REGION'] = self._config.region
-        elif self._config.storage_provider not in [Provider.S3, "s3_compatible"] and self._config.region == "default":
+        elif self._config.storage_provider not in [StorageProvider.S3, StorageProvider.S3_COMPATIBLE] and \
+                self._config.region == "default":
             # Legacy libcloud S3 providers that were tied to a specific region such as s3_us_west_oregon
             self._env['AWS_REGION'] = get_driver(self._config.storage_provider).region_name
 

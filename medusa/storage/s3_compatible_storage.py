@@ -18,13 +18,12 @@ import logging
 import libcloud.security
 
 from medusa import utils
-from medusa.storage.storage_provider import StorageProvider
 from medusa.storage.s3_base_storage import S3BaseStorage
 
 
 class S3CompatibleStorage(S3BaseStorage):
     def __init__(self, config):
-        if utils.evaluate_boolean(config.secure) and config.storage_provider == StorageProvider.S3_COMPATIBLE:
+        if utils.evaluate_boolean(config.secure):
             if config.cert_file:
                 libcloud.security.CA_CERTS_PATH = config.cert_file
             else:

@@ -22,13 +22,14 @@ from dateutil import parser
 from pathlib import Path
 
 import botocore.session
-from libcloud.storage.providers import get_driver, Provider
+from libcloud.storage.providers import get_driver
 
 from medusa import utils
 from medusa.libcloud.storage.drivers.s3_base_driver import S3BaseStorageDriver
 from medusa.storage.abstract_storage import AbstractStorage
 import medusa.storage.s3_compat_storage.concurrent
 from medusa.storage.s3_compat_storage.awscli import AwsCli
+from medusa.storage.storage_provider import StorageProvider
 
 import medusa
 
@@ -55,7 +56,8 @@ class S3BaseStorage(AbstractStorage):
 
         if config.region and config.region != "default":
             self.session.set_config_variable('region', config.region)
-        elif config.storage_provider not in [Provider.S3, "s3_compatible"] and config.region == "default":
+        elif config.storage_provider not in [StorageProvider.S3, StorageProvider.S3_COMPATIBLE] and \
+                config.region == "default":
             self.session.set_config_variable('region', get_driver(config.storage_provider).region_name)
 
         if config.key_file:

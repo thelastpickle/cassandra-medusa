@@ -56,6 +56,9 @@ class S3BaseStorageDriver(BaseS3StorageDriver):
         if region is not None:
             self.region_name = region
 
+        # Disable multipart upload in the libcloud driver as we handle multipart uploads elsewhere based on the size
+        # of a file (multi_part_upload_threshold).
+        self.supports_s3_multipart_upload = False
         super(S3BaseStorageDriver, self).__init__(key=key,
                                                   secret=secret,
                                                   secure=secure,
