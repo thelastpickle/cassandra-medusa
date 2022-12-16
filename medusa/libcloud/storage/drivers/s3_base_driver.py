@@ -48,13 +48,16 @@ class S3BaseStorageDriver(BaseS3StorageDriver):
     connectionCls = BaseS3ConnectionAWS4
     region_name = ""
 
-    def __init__(self, key, secret=None, secure=True, host=None, port=None, region=None):
+    def __init__(self, key, secret=None, secure=True, host=None, port=None, region=None, namespace=None):
         if host is None:
             raise LibcloudError('host argument is required', driver=self)
 
         self.connectionCls.host = host
         if region is not None:
             self.region_name = region
+
+        if namespace is not None:
+            self.namespace = namespace
 
         # Disable multipart upload in the libcloud driver as we handle multipart uploads elsewhere based on the size
         # of a file (multi_part_upload_threshold).

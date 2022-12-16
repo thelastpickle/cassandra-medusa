@@ -20,3 +20,4 @@ import libcloud.storage.types
 class StorageProvider(libcloud.storage.types.Provider):
     S3_COMPATIBLE = "s3_compatible"
     IBM_CLOUD_STORAGE = "ibm_storage"
+    HITACHI_CLOUD_STORAGE = "hitachi_storage"

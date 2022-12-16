@@ -79,34 +79,39 @@ class Storage(object):
     def _connect_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider == StorageProvider.GOOGLE_STORAGE:
-            google_storage = GoogleStorage(self._config)
+            google_cloud_storage = GoogleStorage(self._config)
             if not self._k8s_mode:
-                google_storage.check_dependencies()
-            return google_storage
+                google_cloud_storage.check_dependencies()
+            return google_cloud_storage
         elif self._config.storage_provider == StorageProvider.AZURE_BLOBS:
-            azure_storage = AzureStorage(self._config)
+            azure_cloud_storage = AzureStorage(self._config)
             if not self._k8s_mode:
-                azure_storage.check_dependencies()
-            return azure_storage
+                azure_cloud_storage.check_dependencies()
+            return azure_cloud_storage
         elif self._config.storage_provider == StorageProvider.S3_RGW:
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.lower() == StorageProvider.S3_COMPATIBLE:
-            s3_storage = S3CompatibleStorage(self._config)
+            s3_cloud_compatible_storage = S3CompatibleStorage(self._config)
             if not self._k8s_mode:
-                s3_storage.check_dependencies()
-            return s3_storage
+                s3_cloud_compatible_storage.check_dependencies()
+            return s3_cloud_compatible_storage
         elif self._config.storage_provider.startswith(StorageProvider.S3):
-            s3_storage = S3Storage(self._config)
+            s3_cloud_storage = S3Storage(self._config)
             if not self._k8s_mode:
-                s3_storage.check_dependencies()
-            return s3_storage
+                s3_cloud_storage.check_dependencies()
+            return s3_cloud_storage
         elif self._config.storage_provider == StorageProvider.LOCAL:
             return LocalStorage(self._config)
         elif self._config.storage_provider == StorageProvider.IBM_CLOUD_STORAGE:
-            s3_storage = S3BaseStorage(self._config)
+            ibm_cloud_storage = S3BaseStorage(self._config)
             if not self._k8s_mode:
-                s3_storage.check_dependencies()
-            return s3_storage
+                ibm_cloud_storage.check_dependencies()
+            return ibm_cloud_storage
+        elif self._config.storage_provider == StorageProvider.HITACHI_CLOUD_STORAGE:
+            hitachi_cloud_storage = S3CompatibleStorage(self._config)
+            if not self._k8s_mode:
+                hitachi_cloud_storage.check_dependencies()
+            return hitachi_cloud_storage
 
         raise NotImplementedError("Unsupported storage provider")
 

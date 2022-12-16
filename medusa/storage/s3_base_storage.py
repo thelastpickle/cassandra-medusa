@@ -56,7 +56,8 @@ class S3BaseStorage(AbstractStorage):
 
         if config.region and config.region != "default":
             self.session.set_config_variable('region', config.region)
-        elif config.storage_provider not in [StorageProvider.S3, StorageProvider.S3_COMPATIBLE] and \
+        elif config.storage_provider not in \
+                [StorageProvider.S3, StorageProvider.S3_COMPATIBLE, StorageProvider.HITACHI_CLOUD_STORAGE] and \
                 config.region == "default":
             self.session.set_config_variable('region', get_driver(config.storage_provider).region_name)
 
@@ -80,6 +81,14 @@ class S3BaseStorage(AbstractStorage):
         if self.config.secure:
             secure = utils.evaluate_boolean(self.config.secure)
 
+        # For Hitachi S3 Cloud Storage, we need to set the namespace to an empty string otherwise libcloud fails. This
+        # is because it omits the S3 namespace in the XML result body that is returned. When the Document Object Model
+        # (DOM) is created from the XML result body, the elements contain no namespace. When libcloud performs an xpath
+        # search on the DOM it includes the S3 namespace and as a result it never finds the element it is searching for.
+        namespace = None
+        if self.config.storage_provider == StorageProvider.HITACHI_CLOUD_STORAGE:
+            namespace = ""
+
         driver = S3BaseStorageDriver(
             host=self.config.host,
             port=self.config.port,
@@ -87,6 +96,7 @@ class S3BaseStorage(AbstractStorage):
             secret=credentials.secret_key,
             secure=secure,
             region=self.session.get_config_variable('region'),
+            namespace=namespace
         )
 
         return driver
