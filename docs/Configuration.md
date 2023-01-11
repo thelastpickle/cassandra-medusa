@@ -10,9 +10,14 @@ Modify it to match your requirements:
 ;config_file = <path to cassandra.yaml. Defaults to /etc/cassandra/cassandra.yaml>
 ;cql_username = <username>
 ;cql_password = <password>
+; When using the following setting there must be files in:
+; - `<cql_k8s_secrets_path>/username` containing username
+; - `<cql_k8s_secrets_path>/password` containing password
+;cql_k8s_secrets_path = <path to kubernetes secrets folder>
 ;nodetool_username =  <my nodetool username>
 ;nodetool_password =  <my nodetool password>
 ;nodetool_password_file_path = <path to nodetool password file>
+;nodetool_k8s_secrets_path = <path to nodetool kubernetes secrets folder>
 ;nodetool_host = <host name or IP to use for nodetool>
 ;nodetool_port = <port number to use for nodetool>
 ;certfile= <Client SSL: path to rootCa certificate>
@@ -153,12 +158,14 @@ backup_grace_period_in_days = 10
 
 Some config settings can be overriden through environment variables prefixed with `MEDUSA_`:
 
-| Setting                | Env Variable                  |
-|------------------------|-------------------------------|
-| `cql_username`         | `MEDUSA_CQL_USERNAME`         |
-| `cql_password`         | `MEDUSA_CQL_PASSWORD`         |
-| `nodetool_username`    | `MEDUSA_NODETOOL_USERNAME`    |
-| `nodetool_password`    | `MEDUSA_NODETOOL_PASSWORD`    |
-| `sstableloader_tspw`   | `MEDUSA_SSTABLELOADER_TSPW`   |
-| `sstableloader_kspw`   | `MEDUSA_SSTABLELOADER_KSPW`   |
-| `resolve_ip_addresses` | `MEDUSA_RESOLVE_IP_ADDRESSES` |
+| Setting                     | Env Variable                       |
+|-----------------------------|------------------------------------|
+| `cql_username`              | `MEDUSA_CQL_USERNAME`              |
+| `cql_password`              | `MEDUSA_CQL_PASSWORD`              |
+| `cql_k8s_secrets_path`      | `MEDUSA_CQL_K8S_SECRETS_PATH`      |
+| `nodetool_username`         | `MEDUSA_NODETOOL_USERNAME`         |
+| `nodetool_password`         | `MEDUSA_NODETOOL_PASSWORD`         |
+| `nodetool_k8s_secrets_path` | `MEDUSA_NODETOOL_K8S_SECRETS_PATH` |
+| `sstableloader_tspw`        | `MEDUSA_SSTABLELOADER_TSPW`        |
+| `sstableloader_kspw`        | `MEDUSA_SSTABLELOADER_KSPW`        |
+| `resolve_ip_addresses`      | `MEDUSA_RESOLVE_IP_ADDRESSES`      |

@@ -39,7 +39,8 @@ CassandraConfig = collections.namedtuple(
     ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts', 'sstableloader_tspw',
-     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'use_sudo', 'nodetool_flags']
+     'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'use_sudo', 'nodetool_flags',
+     'cql_k8s_secrets_path', 'nodetool_k8s_secrets_path']
 )
 
 SSHConfig = collections.namedtuple(
@@ -229,11 +230,29 @@ def parse_config(args, config_file):
         'nodetool_password',
         'sstableloader_tspw',
         'sstableloader_kspw',
-        'resolve_ip_addresses'
+        'resolve_ip_addresses',
+        'cql_k8s_secrets_path',
+        'nodetool_k8s_secrets_path'
     ]:
         config_property_upper = "MEDUSA_{}".format(config_property.upper())
         if config_property_upper in os.environ:
             config.set('cassandra', config_property, os.environ[config_property_upper])
+
+    if config.has_option('cassandra', 'cql_k8s_secrets_path'):
+        cql_k8s_secrets_path = config.get('cassandra', 'cql_k8s_secrets_path')
+        if cql_k8s_secrets_path:
+            logging.debug('Using cql_k8s_secrets_path (path="{}")'.format(cql_k8s_secrets_path))
+            cql_k8s_username, cql_k8s_password = _load_k8s_secrets(cql_k8s_secrets_path)
+            config.set('cassandra', 'cql_username', cql_k8s_username)
+            config.set('cassandra', 'cql_password', cql_k8s_password)
+
+    if config.has_option('cassandra', 'nodetool_k8s_secrets_path'):
+        nodetool_k8s_secrets_path = config.get('cassandra', 'nodetool_k8s_secrets_path')
+        if nodetool_k8s_secrets_path:
+            logging.debug('Using nodetool_k8s_secrets_path (path="{}")'.format(nodetool_k8s_secrets_path))
+            nodetool_k8s_username, nodetool_k8s_password = _load_k8s_secrets(nodetool_k8s_secrets_path)
+            config.set('cassandra', 'nodetool_username', nodetool_k8s_username)
+            config.set('cassandra', 'nodetool_password', nodetool_k8s_password)
 
     resolve_ip_addresses = config['cassandra']['resolve_ip_addresses']
     hostname_resolver = HostnameResolver(resolve_ip_addresses, kubernetes_enabled)
@@ -247,6 +266,27 @@ def parse_config(args, config_file):
     config.set('storage', 'k8s_mode', str(kubernetes_enabled))
 
     return config
+
+
+def _load_k8s_secrets(k8s_secrets_path):
+    """Load username and password from files following the k8s secrets convention.
+
+    :param str k8s_secrets_path: folder path containing the secrets
+    :return str, str: username and password contained in files
+    """
+    # By default, username and password are available in path/username and path/password.
+    # They could be in other places if overridden, this is not supported for now. Refs:
+    # https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets-as-files-from-a-pod
+    # https://kubernetes.io/docs/concepts/configuration/secret/#consuming-secret-values-from-volumes
+    k8s_username_file = os.path.join(k8s_secrets_path, 'username')
+    logging.debug('Loading k8s username from "{}"'.format(k8s_username_file))
+    with open(k8s_username_file, 'r') as f:
+        k8s_username = f.read().strip()
+    k8s_password_file = os.path.join(k8s_secrets_path, 'password')
+    logging.debug('Loading k8s password from "{}"'.format(k8s_password_file))
+    with open(k8s_password_file, 'r') as f:
+        k8s_password = f.read().strip()
+    return k8s_username, k8s_password
 
 
 def load_config(args, config_file):
