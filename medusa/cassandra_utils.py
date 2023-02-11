@@ -37,6 +37,7 @@ from retrying import retry
 
 from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
+from medusa.network.hostname_resolver import resolve_name
 from medusa.nodetool import Nodetool
 from medusa.service.snapshot import SnapshotService
 from medusa.utils import null_if_empty, evaluate_boolean
@@ -157,7 +158,7 @@ class CqlSession(object):
 
     def placement(self):
         logging.debug('Checking placement using dc and rack...')
-        listen_address = socket.gethostbyname(self.cluster.contact_points[0])
+        listen_address = resolve_name(self.cluster.contact_points[0])
         token_map = self.cluster.metadata.token_map
 
         for host in token_map.token_to_host_owner.values():
@@ -254,7 +255,7 @@ class CassandraConfigReader(object):
         if 'listen_address' in self._config and self._config['listen_address']:
             return self._config['listen_address']
 
-        return socket.gethostbyname(socket.getfqdn())
+        return resolve_name(socket.getfqdn())
 
     @property
     def storage_port(self):
