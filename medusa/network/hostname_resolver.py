@@ -20,6 +20,16 @@ import logging
 import socket
 
 
+def resolve_name(name):
+    try:
+        return socket.gethostbyname(name)
+    except Exception as e:
+        try:
+            return socket.getaddrinfo(name, None)[0][4][0]
+        except Exception:
+            raise e
+
+
 class HostnameResolver:
     def __init__(self, resolve_addresses, k8s_mode):
         self.resolve_addresses = resolve_addresses
@@ -27,7 +37,7 @@ class HostnameResolver:
 
     def resolve_fqdn(self, ip_address=''):
         logging.info(f"Resolving ip address {ip_address}")
-        ip_address_to_resolve = ip_address if ip_address != '' else socket.gethostbyname(socket.getfqdn())
+        ip_address_to_resolve = ip_address if ip_address != '' else resolve_name(socket.getfqdn())
         logging.info(f"ip address to resolve {ip_address_to_resolve}")
         if str(self.resolve_addresses) == "False":
             logging.debug("Not resolving {} as requested".format(ip_address_to_resolve))
