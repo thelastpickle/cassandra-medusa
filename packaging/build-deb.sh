@@ -7,10 +7,10 @@ case $1 in
     suites=("${1:-bionic}")
     ;;
   all)
-    suites=(jammy bionic buster)
+    suites=(focal bionic buster bullseye)
     ;;
   *)
-    echo "Unknown distribution suite - allowed values: 'all', 'bionic', 'buster'"
+    echo "Unknown distribution suite - allowed values: 'all', 'bionic', 'buster', 'focal', 'bullseye'"
     exit 1
     ;;
 esac
