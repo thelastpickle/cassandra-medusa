@@ -261,3 +261,9 @@ class AbstractStorage(abc.ABC):
         child classes.
         """
         return {}
+
+    def get_storage_class(self):
+        if self.config.storage_class is not None:
+            return self.config.storage_class
+        else:
+            return None
