@@ -111,15 +111,13 @@ def __upload_file(storage, connection, src, dest, bucket):
 @retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(storage, connection, src, bucket, object_name):
     headers = storage.additional_upload_headers()
-    storage_class = storage.get_storage_class()
 
     with open(str(src), 'rb') as iterator:
         obj = connection.upload_object_via_stream(
             iterator,
             container=bucket,
             object_name=object_name,
-            headers=headers,
-            ex_storage_class=storage_class
+            headers=headers
         )
 
     return obj

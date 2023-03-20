@@ -125,11 +125,8 @@ def __upload_file(storage, connection, src, dest, bucket, multi_part_upload_thre
 
 @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(storage, connection, src, bucket, object_name):
-
-    storage_class = storage.get_storage_class()
-
     _ = connection.upload_object(
-        str(src), container=bucket, object_name=object_name, ex_storage_class=storage_class
+        str(src), container=bucket, object_name=object_name
     )
     # Returning object from upload doesn't have md5_hash property
     # That's why we need to retrieve it again.
