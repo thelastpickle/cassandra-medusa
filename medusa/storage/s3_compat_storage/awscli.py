@@ -91,7 +91,7 @@ class AwsCli(object):
             cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
 
             if self._config.storage_class is not None:
-                cmd.extend(["--storage-class",  self._config.storage_class])
+                cmd.extend(["--storage-class", self._config.storage_class])
 
             objects.append(self.upload_file(cmd, dest, awscli_output))
 

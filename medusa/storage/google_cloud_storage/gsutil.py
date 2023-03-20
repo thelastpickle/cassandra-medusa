@@ -91,12 +91,12 @@ class GSUtil(object):
         if self._config.storage_class is None:
             storage_class_options = []
         else:
-            storage_class_options = ["-s",  self._config.storage_class]
+            storage_class_options = ["-s", self._config.storage_class]
 
         cmd = ['gsutil',
-               *parallel_options, 
+               *parallel_options,
                'cp', '-c',
-               *storage_class_options, 
+               *storage_class_options,
                '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
