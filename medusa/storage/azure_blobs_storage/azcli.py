@@ -53,6 +53,10 @@ class AzCli(object):
         for src in srcs:
             cmd = self._az_cli_cmd + ["storage", "blob", "upload", "-f", str(src), "-c", bucket_name, "-n", dest,
                                       "--overwrite"]
+
+            if self._config.storage_class is not None:
+                cmd.extend(["--tier",  self._config.storage_class])
+
             objects.append(self.upload_file(cmd, dest, azcli_output))
 
         return objects
