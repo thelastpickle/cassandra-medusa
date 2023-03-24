@@ -263,4 +263,8 @@ class AbstractStorage(abc.ABC):
         return {}
 
     def get_storage_class(self):
-        return self.config.storage_class
+        if self.config.storage_class is not None:
+            return self.config.storage_class.lower()
+        else:
+            return None
+            
