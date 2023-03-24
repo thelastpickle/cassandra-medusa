@@ -169,3 +169,9 @@ Some config settings can be overriden through environment variables prefixed wit
 | `sstableloader_tspw`        | `MEDUSA_SSTABLELOADER_TSPW`        |
 | `sstableloader_kspw`        | `MEDUSA_SSTABLELOADER_KSPW`        |
 | `resolve_ip_addresses`      | `MEDUSA_RESOLVE_IP_ADDRESSES`      |
+
+### Sourcing environment variables
+
+If you are using environment variables to override some settings, you can source a file containing the environment variables before running Medusa commands. For example, if you have a file named `/etc/default/cassandra-medusa` containing exported environment variables.
+
+These variables will also be available when running Medusa cluster commands, e.g. backup-cluster.
