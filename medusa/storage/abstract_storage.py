@@ -267,4 +267,3 @@ class AbstractStorage(abc.ABC):
             return self.config.storage_class.lower()
         else:
             return None
-            

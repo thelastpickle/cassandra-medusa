@@ -88,10 +88,12 @@ class GSUtil(object):
                 '-o', '\"GSUtil:parallel_process_count={}\"'.format(parallel_process_count),
             ]
 
-        if self._config.storage_class is None:
-            storage_class_options = []
-        else:
-            storage_class_options = ["-s", self._config.storage_class]
+        storage_class_options = []
+
+        # storage class option works with cp upload only
+        if dst.startswith('gs://'):
+            if self._config.storage_class is not None:
+                storage_class_options = ["-s", self._config.storage_class]
 
         cmd = ['gsutil',
                *parallel_options,
