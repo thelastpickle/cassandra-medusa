@@ -255,6 +255,10 @@ class AbstractStorage(abc.ABC):
         # Override for each child class
         pass
 
+    def prepare_upload(self):
+        # Override for each child class
+        pass
+
     def additional_upload_headers(self):
         """
         Additional HTTP headers to be passed to libcloud during upload operations. To be overriden by
