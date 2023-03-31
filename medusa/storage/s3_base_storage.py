@@ -200,16 +200,17 @@ class S3BaseStorage(AbstractStorage):
 
         return sizes_match and hashes_match
 
-    def set_upload_bandwidth(self):
-        subprocess.check_call(
-            [
-                "aws",
-                "configure",
-                "set",
-                "default.s3.max_bandwidth",
-                self.config.transfer_max_bandwidth,
-            ]
-        )
+    def prepare_upload(self):
+        if self.config.transfer_max_bandwidth is not None:
+            subprocess.check_call(
+                [
+                    "aws",
+                    "configure",
+                    "set",
+                    "default.s3.max_bandwidth",
+                    self.config.transfer_max_bandwidth,
+                ]
+            )
 
     def prepare_download(self):
         # Unthrottle downloads to speed up restores

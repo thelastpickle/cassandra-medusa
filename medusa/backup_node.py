@@ -177,6 +177,8 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
         logging.debug("Starting backup preparations with Mode: {}".format(mode))
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config)
+        
+        storage.storage_driver.prepare_upload()
 
         differential_mode = False
         if mode == "differential":
