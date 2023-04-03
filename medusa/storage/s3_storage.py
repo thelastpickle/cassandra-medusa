@@ -36,7 +36,4 @@ class S3Storage(S3BaseStorage):
             region=self.session.get_config_variable('region'),
         )
 
-        if self.config.transfer_max_bandwidth is not None:
-            self.set_upload_bandwidth()
-
         return driver
