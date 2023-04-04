@@ -91,7 +91,7 @@ class GSUtil(object):
         storage_class_options = []
 
         # storage class option works with cp upload only
-        if dst.startswith('gs://'):
+        if str(dst).startswith('gs://'):
             if self._config.storage_class is not None:
                 storage_class_options = ["-s", self._config.storage_class]
 
