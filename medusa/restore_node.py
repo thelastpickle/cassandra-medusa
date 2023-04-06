@@ -181,10 +181,10 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
                              cassandra.native_port)
         logging.info('Finished loading backup from {}'.format(fqdn))
 
-    # Clean the restored data from local temporary folder
-    if download_dir:
+        # Clean the restored data from local temporary folder
         use_sudo = medusa.utils.evaluate_boolean(config.cassandra.use_sudo)
         clean_path(download_dir, use_sudo, keep_folder=False)
+
     return node_backup
 
 
