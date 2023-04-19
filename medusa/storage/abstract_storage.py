@@ -25,6 +25,8 @@ from retrying import retry
 import medusa.storage
 import medusa.storage.concurrent
 
+import libcloud.security
+libcloud.security.VERIFY_SSL_CERT = False
 
 BLOCK_SIZE_BYTES = 65536
 MULTIPART_PART_SIZE_IN_MB = 8
