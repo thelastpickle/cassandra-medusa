@@ -61,11 +61,9 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bionic]
+        suite: [focal]
         include:
           - suite: focal
-            os-version: ubuntu-20.04
-          - suite: bionic
             os-version: ubuntu-20.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
@@ -308,11 +306,9 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal, bionic]
+        suite: [focal]
         include:
           - suite: focal
-            os-version: ubuntu-20.04
-          - suite: bionic
             os-version: ubuntu-20.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
