@@ -25,7 +25,7 @@ jobs:
             tox-py: py39
           - python-version: "3.10"
             tox-py: py310
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -61,12 +61,10 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bionic]
+        suite: [focal]
         include:
           - suite: focal
             os-version: ubuntu-20.04
-          - suite: bionic
-            os-version: ubuntu-18.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -149,7 +147,7 @@ jobs:
             - it-backend: azure
               python-version: "3.10"
             
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     services:
       minio:
         image: lazybit/minio
@@ -284,7 +282,7 @@ jobs:
     strategy:
       matrix:
         storage-provider: ["", "-s3", "-azure", "-gcs"]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - name: Publish Beta Docker Image
@@ -308,12 +306,10 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal, bionic]
+        suite: [focal]
         include:
           - suite: focal
             os-version: ubuntu-20.04
-          - suite: bionic
-            os-version: ubuntu-18.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -351,7 +347,7 @@ jobs:
     strategy:
       matrix:
         storage-provider: ["", "-s3", "-azure", "-gcs"]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - name: Publish Docker Image
@@ -370,7 +366,7 @@ jobs:
     # We can only release if the build above succeeded first
     needs: [publish-docker]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.6
