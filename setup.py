@@ -45,7 +45,7 @@ setuptools.setup(
         'Click>=8.0.1',
         'click-aliases>=1.0.1',
         'PyYAML>=5.1',
-        'cassandra-driver>=3.25.0',
+        'cassandra-driver>=3.27.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
         'apache-libcloud<3.4.0,>=3.3.0',
