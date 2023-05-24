@@ -551,7 +551,7 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
     BackupMan.register_backup(backup_name, is_async=False)
     (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start, backup_name) = \
         backup_node.handle_backup(context.medusa_config, backup_name, None, str(md5_enabled_str).lower() == "enabled",
-                                  backup_mode)
+                                  backup_mode, None)
     context.latest_backup_cache = node_backup_cache
 
 

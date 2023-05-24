@@ -168,7 +168,7 @@ def stagger(fqdn, storage, tokenmap):
 # Called by async thread for backup, called in main thread as synchronous backup.
 # Kicks off the node backup unit of work and registers for backup queries.
 # No return value for async mode, throws back exception for failed kickoff.
-def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
+def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode, contact_points):
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
@@ -176,7 +176,10 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
     try:
         logging.debug("Starting backup preparations with Mode: {}".format(mode))
         storage = Storage(config=config.storage)
-        cassandra = Cassandra(config)
+        cassandra = Cassandra(
+            config,
+            contact_points=contact_points.split(',') if contact_points is not None else None
+        )
 
         storage.storage_driver.prepare_upload()
 

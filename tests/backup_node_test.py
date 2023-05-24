@@ -68,7 +68,8 @@ class BackupNodeTest(unittest.TestCase):
             BackupMan.register_backup(test_backup_name, is_async=True)
             backup_future = executor.submit(backup_node.handle_backup, config=self.medusa_config,
                                             backup_name_arg=test_backup_name, stagger_time=None,
-                                            enable_md5_checks_flag=False, mode="differential")
+                                            enable_md5_checks_flag=False, mode="differential",
+                                            contact_points=None)
             mock_future_instance = MagicMock()
             mock_callback = MagicMock()
             mock_future_instance.result.return_value = {"foo": "bar"}

@@ -328,7 +328,7 @@ class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
-    def __init__(self, config, contact_point=None, release_version=None):
+    def __init__(self, config, hostname=None, release_version=None, contact_points=None):
         self._release_version = release_version
         cassandra_config = config.cassandra
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
@@ -341,11 +341,12 @@ class Cassandra(object):
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
-        self._hostname = contact_point if contact_point is not None else config_reader.listen_address
+        self._hostname = hostname if hostname is not None else config_reader.listen_address
         self._storage_port = config_reader.storage_port
         self._native_port = config_reader.native_port
+        self._contact_points = contact_points if contact_points is not None else [self._hostname]
         self._cql_session_provider = CqlSessionProvider(
-            [self._hostname],
+            self._contact_points,
             config)
         self._rpc_port = config_reader.rpc_port
         self.seeds = config_reader.seeds

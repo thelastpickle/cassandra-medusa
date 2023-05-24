@@ -118,7 +118,8 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 BackupMan.register_backup(request.name, is_async=True)
                 backup_future = executor.submit(backup_node.handle_backup, config=self.config,
                                                 backup_name_arg=request.name, stagger_time=None,
-                                                enable_md5_checks_flag=False, mode=mode)
+                                                enable_md5_checks_flag=False, mode=mode,
+                                                contact_points=None)
 
                 backup_future.add_done_callback(record_backup_info)
                 BackupMan.set_backup_future(request.name, backup_future)
@@ -147,7 +148,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             response.backupName = request.name
             BackupMan.register_backup(request.name, is_async=False)
             backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
-                                      enable_md5_checks_flag=False, mode=mode)
+                                      enable_md5_checks_flag=False, mode=mode, contact_points=None)
             record_status_in_response(response, request.name)
             return response
         except Exception as e:
