@@ -184,7 +184,7 @@ class BackupJob(object):
 
         # Use %s placeholders in the below command to have them replaced by pssh using per host command substitution
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper {sudo} medusa {config} -vvv backup-node ' \
-                  '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode}' \
+                  '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode} ' \
                   '--contact-points {contact_points}' \
             .format(work=self.work_dir,
                     sudo='sudo' if medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo) else '',
