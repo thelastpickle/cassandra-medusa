@@ -1304,6 +1304,26 @@ def _i_wait_for_seconds(context, pause_duration):
     time.sleep(int(pause_duration))
 
 
+@then(r'I modify Statistics.db file in the backup in the "{table}" table in keyspace "{keyspace}"')
+def _i_modify_a_statistics_db_file(context, table, keyspace):
+    storage = Storage(config=context.medusa_config.storage)
+    path_root = BUCKET_ROOT
+
+    fqdn = "127.0.0.1"
+    path_sstables = "{}/{}{}/data/{}/{}*".format(
+        path_root, storage.prefix_path, fqdn, keyspace, table
+    )
+    table_path = glob.glob(path_sstables)[0]
+    sstable_files = os.listdir(table_path)
+    statistics_db_files = [file for file in sstable_files if '-Statistics.db' in file]
+    path_statistics_db_file = os.path.join(table_path, statistics_db_files[0])
+    try:
+        with open(path_statistics_db_file, 'a') as file:
+            file.write('Adding some additional characters')
+    finally:
+        if file:
+            file.close()
+
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
