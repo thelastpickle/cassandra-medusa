@@ -110,8 +110,6 @@ class S3BaseStorage(AbstractStorage):
         self.credentials = self._consolidate_credentials(config)
         logging.info('Using credentials {}'.format(self.credentials))
 
-        self.bucket_name: str = config.bucket_name
-
         self.storage_provider = config.storage_provider
 
         self.connection_extra_args = self._make_connection_arguments(config)

@@ -36,8 +36,8 @@ def get_backups(storage, config, show_all):
     return cluster_backups
 
 
-def list_backups(config, show_all):
-    with Storage(config=config.storage) as storage:
+def list_backups(config, show_all, bucket_name=None):
+    with Storage(config=config.storage, bucket_name=bucket_name) as storage:
         list_backups_w_storage(config, show_all, storage)
 
 

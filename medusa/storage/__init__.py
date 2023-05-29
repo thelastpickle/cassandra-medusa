@@ -62,7 +62,7 @@ def format_bytes_str(value):
 
 
 class Storage(object):
-    def __init__(self, *, config):
+    def __init__(self, *, config, bucket_name=None):
         self._config = config
         # Used to bypass dependency checks when running in Kubernetes
         self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
@@ -70,6 +70,7 @@ class Storage(object):
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
         self.storage_driver = self._load_storage()
         self.storage_provider = self._config.storage_provider
+        self._bucket_name = bucket_name
 
     def __enter__(self):
         self.storage_driver.connect()
@@ -81,23 +82,23 @@ class Storage(object):
     def _load_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider.lower() == 'google_storage':
-            google_storage = GoogleStorage(self._config)
+            google_storage = GoogleStorage(self._config, bucket_name=self._bucket_name)
             return google_storage
         elif self._config.storage_provider.lower() == 'azure_blobs':
-            azure_storage = AzureStorage(self._config)
+            azure_storage = AzureStorage(self._config, bucket_name=self._bucket_name)
             return azure_storage
         elif self._config.storage_provider.lower() == 's3_rgw':
-            return S3RGWStorage(self._config)
+            return S3RGWStorage(self._config, bucket_name=self._bucket_name)
         elif self._config.storage_provider.lower() == "s3_compatible":
-            s3_storage = S3BaseStorage(self._config)
+            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
             return s3_storage
         elif self._config.storage_provider.lower().startswith('s3'):
-            s3_storage = S3Storage(self._config)
+            s3_storage = S3Storage(self._config, bucket_name=self._bucket_name)
             return s3_storage
         elif self._config.storage_provider.lower() == 'local':
-            return LocalStorage(self._config)
+            return LocalStorage(self._config, bucket_name=self._bucket_name)
         elif self._config.storage_provider.lower() == "ibm_storage":
-            s3_storage = S3BaseStorage(self._config)
+            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
             return s3_storage
 
         raise NotImplementedError("Unsupported storage provider")

@@ -32,7 +32,6 @@ class LocalStorage(AbstractStorage):
 
     def __init__(self, config):
         self.config = config
-        self.bucket_name = self.config.bucket_name
 
         self.root_dir = Path(config.base_path) / self.bucket_name
         self.root_dir.mkdir(parents=True, exist_ok=True)
@@ -177,7 +176,7 @@ class LocalStorage(AbstractStorage):
 
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
-        return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)
+        return "{}/{}/{}".format(self.config.base_path, self.bucket_name, path)
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):

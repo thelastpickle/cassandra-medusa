@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import json
+import logging
 import pathlib
 import shutil
 import sys
@@ -24,13 +24,12 @@ from medusa.storage.abstract_storage import AbstractStorage
 from medusa.filtering import filter_fqtns
 
 
-def download_data(storageconfig, backup, fqtns_to_restore, destination):
-
+def download_data(storage_config, backup, fqtns_to_restore, destination):
     manifest = json.loads(backup.manifest)
 
     _check_available_space(manifest, destination)
 
-    with Storage(config=storageconfig) as storage:
+    with Storage(config=storage_config) as storage:
 
         for section in manifest:
 
@@ -70,9 +69,10 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
         )
 
 
-def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces):
-
-    with Storage(config=config.storage) as storage:
+def download_cmd(
+        config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces, bucket_name=None
+):
+    with Storage(config=config.storage, bucket_name=bucket_name) as storage:
 
         if not download_destination.is_dir():
             logging.error('{} is not a directory'.format(download_destination))
