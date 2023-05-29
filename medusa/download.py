@@ -13,18 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import json
+import logging
 import pathlib
 import sys
 
+from medusa.filtering import filter_fqtns
 from medusa.storage import Storage, divide_chunks
 from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
-from medusa.filtering import filter_fqtns
 
 
-def download_data(storageconfig, backup, fqtns_to_restore, destination):
-    storage = Storage(config=storageconfig)
+def download_data(storage, backup, fqtns_to_restore, destination):
     manifest = json.loads(backup.manifest)
 
     for section in manifest:
@@ -65,8 +64,9 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
     )
 
 
-def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces):
-    storage = Storage(config=config.storage)
+def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces,
+                 bucket_name=None):
+    storage = Storage(config=config.storage, bucket_name=bucket_name)
 
     if not download_destination.is_dir():
         logging.error('{} is not a directory'.format(download_destination))
@@ -78,4 +78,4 @@ def download_cmd(config, backup_name, download_destination, keyspaces, tables, i
         sys.exit(1)
 
     fqtns_to_download, _ = filter_fqtns(keyspaces, tables, node_backup.manifest, ignore_system_keyspaces)
-    download_data(config.storage, node_backup, fqtns_to_download, download_destination)
+    download_data(storage, node_backup, fqtns_to_download, download_destination)

@@ -26,8 +26,8 @@ class LocalStorage(AbstractStorage):
     def connect_storage(self):
         driver = LocalStorageDriver(key=self.config.base_path)
         containers = list(map(lambda container: container.name, driver.list_containers()))
-        if self.config.bucket_name not in containers:
-            driver.create_container(self.config.bucket_name)
+        if self.bucket_name not in containers:
+            driver.create_container(self.bucket_name)
 
         return driver
 
@@ -48,7 +48,7 @@ class LocalStorage(AbstractStorage):
 
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
-        return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)
+        return "{}/{}/{}".format(self.config.base_path, self.bucket_name, path)
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):

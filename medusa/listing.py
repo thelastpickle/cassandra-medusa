@@ -17,12 +17,11 @@
 from datetime import datetime
 from medusa.storage import Storage
 
-
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def get_backups(config, show_all):
-    storage = Storage(config=config.storage)
+def get_backups(config, show_all, bucket_name=None):
+    storage = Storage(config=config.storage, bucket_name=bucket_name)
 
     cluster_backups = sorted(
         storage.list_cluster_backups(),
@@ -37,8 +36,8 @@ def get_backups(config, show_all):
     return cluster_backups
 
 
-def list_backups(config, show_all):
-    cluster_backups = get_backups(config, show_all)
+def list_backups(config, show_all, bucket_name):
+    cluster_backups = get_backups(config, show_all, bucket_name)
     seen_incomplete_backup = False
     for cluster_backup in cluster_backups:
         finished = cluster_backup.finished

@@ -26,12 +26,13 @@ import medusa.storage
 
 
 class GSUtil(object):
-    def __init__(self, config):
+    def __init__(self, storage, config):
         self._config = config
+        self.storage = storage
 
     @property
     def bucket_name(self):
-        return self._config.bucket_name
+        return self.storage.bucket_name
 
     def __enter__(self):
         self._gcloud_config = tempfile.TemporaryDirectory()

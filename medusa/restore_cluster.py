@@ -35,7 +35,7 @@ from medusa.verify_restore import verify_restore
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify, keyspaces,
-                tables, parallel_restores, use_sstableloader=False, version_target=None, ignore_racks=False):
+                tables, parallel_restores, use_sstableloader=False, version_target=None, ignore_racks=False, bucket_name=None):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -57,7 +57,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise RuntimeError(err_msg)
 
-        storage = Storage(config=config.storage)
+        storage = Storage(config=config.storage, bucket_name=bucket_name)
 
         try:
             cluster_backup = storage.get_cluster_backup(backup_name)

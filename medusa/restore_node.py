@@ -38,12 +38,12 @@ MAX_ATTEMPTS = 60
 
 
 def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                 use_sstableloader=False, version_target=None):
+                 use_sstableloader=False, version_target=None, bucket_name=None):
     if in_place and keep_auth:
         logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
         sys.exit(1)
 
-    storage = Storage(config=config.storage)
+    storage = Storage(config=config.storage, bucket_name=bucket_name)
     capture_release_version(storage, version_target)
 
     if not use_sstableloader:
@@ -88,7 +88,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     # Download the backup
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
     logging.info('Downloading data from backup to {}'.format(download_dir))
-    download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
+    download_data(storage, node_backup, fqtns_to_restore, destination=download_dir)
 
     if not medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False):
         logging.info('Stopping Cassandra')
@@ -176,7 +176,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
         # Download the backup
         download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
-        download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
+        download_data(storage, node_backup, fqtns_to_restore, destination=download_dir)
         invoke_sstableloader(config, download_dir, keep_auth, fqtns_to_restore, cassandra.storage_port,
                              cassandra.native_port)
         logging.info('Finished loading backup from {}'.format(fqdn))

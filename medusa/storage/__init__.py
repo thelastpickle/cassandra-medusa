@@ -66,7 +66,7 @@ def format_bytes_str(value):
 
 
 class Storage(object):
-    def __init__(self, *, config):
+    def __init__(self, *, config, bucket_name=None):
         self._config = config
         # Used to bypass dependency checks when running in Kubernetes
         self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
@@ -74,35 +74,36 @@ class Storage(object):
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
         self.storage_driver = self._connect_storage()
         self.storage_provider = self._config.storage_provider
+        self._bucket_name = bucket_name
 
     def _connect_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
-            google_storage = GoogleStorage(self._config)
+            google_storage = GoogleStorage(self._config, bucket_name=self._bucket_name)
             if not self._k8s_mode:
                 google_storage.check_dependencies()
             return google_storage
         elif self._config.storage_provider == Provider.AZURE_BLOBS:
-            azure_storage = AzureStorage(self._config)
+            azure_storage = AzureStorage(self._config, bucket_name=self._bucket_name)
             if not self._k8s_mode:
                 azure_storage.check_dependencies()
             return azure_storage
         elif self._config.storage_provider == Provider.S3_RGW:
-            return S3RGWStorage(self._config)
+            return S3RGWStorage(self._config, bucket_name=self._bucket_name)
         elif self._config.storage_provider.lower() == "s3_compatible":
-            s3_storage = S3BaseStorage(self._config)
+            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()
             return s3_storage
         elif self._config.storage_provider.startswith(Provider.S3):
-            s3_storage = S3Storage(self._config)
+            s3_storage = S3Storage(self._config, bucket_name=self._bucket_name)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()
             return s3_storage
         elif self._config.storage_provider == Provider.LOCAL:
-            return LocalStorage(self._config)
+            return LocalStorage(self._config, bucket_name=self._bucket_name)
         elif self._config.storage_provider.lower() == "ibm_storage":
-            s3_storage = S3BaseStorage(self._config)
+            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
             if not self._k8s_mode:
                 s3_storage.check_dependencies()
             return s3_storage

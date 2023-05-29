@@ -44,7 +44,7 @@ import medusa
 
 class S3BaseStorage(AbstractStorage):
 
-    def __init__(self, config):
+    def __init__(self, config, bucket_name=None):
         self.session = botocore.session.Session()
 
         if config.api_profile:
@@ -69,7 +69,7 @@ class S3BaseStorage(AbstractStorage):
                 config.kms_id,
             ))
 
-        super().__init__(config)
+        super().__init__(config, bucket_name=bucket_name)
 
     def connect_storage(self):
         credentials = self.session.get_credentials()

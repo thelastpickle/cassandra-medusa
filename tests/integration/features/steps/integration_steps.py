@@ -817,7 +817,8 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
 
     # download_data requires fqtn with table id
     fqtns_to_download, _ = medusa.filtering.filter_fqtns([], [fqtn], backup.manifest, True)
-    medusa.download.download_data(context.medusa_config.storage, backup, fqtns_to_download, Path(download_path))
+    storage = Storage(config=context.medusa_config.storage)
+    medusa.download.download_data(storage, backup, fqtns_to_download, Path(download_path))
 
     # check the keyspace directory has been created
     ks, table = fqtn.split('.')
@@ -1027,7 +1028,7 @@ def _there_is_no_latest_complete_backup(context):
 
 @then(r"I can list and print backups without errors")
 def _can_list_print_backups_without_error(context):
-    medusa.listing.list_backups(config=context.medusa_config, show_all=True)
+    medusa.listing.list_backups(config=context.medusa_config, show_all=True, bucket_name=None)
 
 
 @then(r'the latest complete cluster backup is "{expected_backup_name}"')
@@ -1245,7 +1246,7 @@ def _i_delete_the_manifest_from_the_backup_named_from_the_storage(context, backu
 
 @then(r'the backup named "{backup_name}" is incomplete')
 def _the_backup_named_is_incomplete(context, backup_name):
-    backups = medusa.listing.list_backups(config=context.medusa_config, show_all=True)
+    backups = medusa.listing.list_backups(config=context.medusa_config, show_all=True, bucket_name=None)
     for backup in backups:
         if backup.name == backup_name:
             assert not backup.finished
@@ -1285,7 +1286,7 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
 
 @then(r'I can fetch the tokenmap of the backup named "{backup_name}"')
 def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
-    tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config)
+    tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config, bucket_name=None)
     assert "127.0.0.1" in tokenmap
 
 
