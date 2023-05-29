@@ -35,8 +35,8 @@ class AbstractStorage(abc.ABC):
 
     def __init__(self, config, bucket_name=None):
         self.config = config
-        self.driver = self.connect_storage()
         self.bucket_name = bucket_name if bucket_name is not None else config.bucket_name
+        self.driver = self.connect_storage()
         self.bucket = self.driver.get_container(container_name=self.bucket_name)
 
     @abc.abstractmethod
