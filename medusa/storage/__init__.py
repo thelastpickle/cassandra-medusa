@@ -21,22 +21,20 @@ import operator
 import pathlib
 import re
 
-from libcloud.storage.providers import Provider
 from libcloud.common.types import InvalidCredsError
+from libcloud.storage.providers import Provider
 from retrying import retry
 
 import medusa.index
-
-from medusa.utils import evaluate_boolean
+from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.cluster_backup import ClusterBackup
-from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
-from medusa.storage.s3_storage import S3Storage
-from medusa.storage.s3_rgw import S3RGWStorage
-from medusa.storage.azure_storage import AzureStorage
+from medusa.storage.node_backup import NodeBackup
 from medusa.storage.s3_base_storage import S3BaseStorage
-
+from medusa.storage.s3_rgw import S3RGWStorage
+from medusa.storage.s3_storage import S3Storage
+from medusa.utils import evaluate_boolean
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -72,9 +70,9 @@ class Storage(object):
         self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
         self._prefix = pathlib.Path(config.prefix or '.')
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
+        self._bucket_name = bucket_name
         self.storage_driver = self._connect_storage()
         self.storage_provider = self._config.storage_provider
-        self._bucket_name = bucket_name
 
     def _connect_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
