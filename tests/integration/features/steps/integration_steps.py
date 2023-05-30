@@ -1324,6 +1324,7 @@ def _i_modify_a_statistics_db_file(context, table, keyspace):
         if file:
             file.close()
 
+
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
