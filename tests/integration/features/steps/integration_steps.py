@@ -1263,6 +1263,8 @@ def _i_delete_a_random_sstable(context, backup_name, table, keyspace):
 
     table_path = glob.glob(path_sstables)[0]
     sstable_files = os.listdir(table_path)
+    # Exclude Statistics.db files from sstables_files as they will be ignored by verify.
+    sstable_files = [x for x in sstable_files if '-Statistics.db' not in x]
     random.shuffle(sstable_files)
     os.remove(os.path.join(table_path, sstable_files[0]))
 
