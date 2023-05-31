@@ -1319,12 +1319,8 @@ def _i_modify_a_statistics_db_file(context, table, keyspace):
     sstable_files = os.listdir(table_path)
     statistics_db_files = [file for file in sstable_files if '-Statistics.db' in file]
     path_statistics_db_file = os.path.join(table_path, statistics_db_files[0])
-    try:
-        with open(path_statistics_db_file, 'a') as file:
-            file.write('Adding some additional characters')
-    finally:
-        if file:
-            file.close()
+    with open(path_statistics_db_file, 'a') as file:
+        file.write('Adding some additional characters')
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
