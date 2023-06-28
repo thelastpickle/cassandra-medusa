@@ -69,9 +69,8 @@ def download_data(storage_config, backup, fqtns_to_restore, destination):
         )
 
 
-def download_cmd(
-        config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces, bucket_name=None
-):
+def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces,
+                 bucket_name=None, prefix=None):
     with Storage(config=config.storage, bucket_name=bucket_name) as storage:
 
         if not download_destination.is_dir():

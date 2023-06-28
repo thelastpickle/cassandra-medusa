@@ -1214,7 +1214,7 @@ def _there_is_no_latest_complete_backup(context):
 
 @then(r"I can list and print backups without errors")
 def _can_list_print_backups_without_error(context):
-    medusa.listing.list_backups(config=context.medusa_config, show_all=True, bucket_name=None)
+    medusa.listing.list_backups(config=context.medusa_config, show_all=True, bucket_name=None, prefix=None)
 
 
 @then(r'the latest complete cluster backup is "{expected_backup_name}"')
@@ -1491,7 +1491,8 @@ def _i_delete_the_backup_named(context, backup_name, all_nodes=False):
 
 @then(r'I can fetch the tokenmap of the backup named "{backup_name}"')
 def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
-    tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config, bucket_name=None)
+    tokenmap = medusa.fetch_tokenmap.main(backup_name=backup_name, config=context.medusa_config, bucket_name=None,
+                                          prefix=None)
     assert "127.0.0.1" in tokenmap
 
 

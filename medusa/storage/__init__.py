@@ -64,11 +64,12 @@ def format_bytes_str(value):
 
 
 class Storage(object):
-    def __init__(self, *, config, bucket_name=None):
+    def __init__(self, *, config, bucket_name=None, prefix=None):
         self._config = config
         # Used to bypass dependency checks when running in Kubernetes
         self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
-        self._prefix = pathlib.Path(config.prefix or '.')
+        self._prefix = pathlib.Path(prefix or config.prefix or '.')
+        logging.debug(f'Using prefix {self._prefix}')
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
         self._bucket_name = bucket_name
         self.storage_driver = self._load_storage()
