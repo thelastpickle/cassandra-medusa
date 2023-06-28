@@ -65,8 +65,8 @@ def download_data(storage, backup, fqtns_to_restore, destination):
 
 
 def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces,
-                 bucket_name=None):
-    storage = Storage(config=config.storage, bucket_name=bucket_name)
+                 bucket_name=None, prefix=None):
+    storage = Storage(config=config.storage, bucket_name=bucket_name, prefix=prefix)
 
     if not download_destination.is_dir():
         logging.error('{} is not a directory'.format(download_destination))

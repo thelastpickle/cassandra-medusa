@@ -36,7 +36,7 @@ from medusa.verify_restore import verify_restore
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify, keyspaces,
                 tables, parallel_restores, use_sstableloader=False, version_target=None, ignore_racks=False,
-                bucket_name=None):
+                bucket_name=None, prefix=None):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -58,7 +58,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise RuntimeError(err_msg)
 
-        storage = Storage(config=config.storage, bucket_name=bucket_name)
+        storage = Storage(config=config.storage, bucket_name=bucket_name, prefix=prefix)
 
         try:
             cluster_backup = storage.get_cluster_backup(backup_name)
@@ -69,7 +69,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
 
         restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
                              parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target,
-                             ignore_racks, bucket_name)
+                             ignore_racks, bucket_name, prefix)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -104,7 +104,7 @@ class RestoreJob(object):
 
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
                  parallel_restores, keyspaces=None, tables=None, bypass_checks=False, use_sstableloader=False,
-                 version_target=None, ignore_racks=False, bucket_name=None):
+                 version_target=None, ignore_racks=False, bucket_name=None, prefix=None):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -131,6 +131,7 @@ class RestoreJob(object):
         self._version_target = version_target
         self.ignore_racks = ignore_racks
         self.bucket_name = bucket_name
+        self.prefix = prefix
 
     def prepare_restore(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -429,7 +430,7 @@ class RestoreJob(object):
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper {sudo} medusa {config} ' \
                   '--fqdn=%s -vvv restore-node ' \
                   '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} ' \
-                  '{use_sstableloader} {keyspaces} {tables} {bucket_name}' \
+                  '{use_sstableloader} {keyspaces} {tables} {bucket_name} {prefix}' \
             .format(work=self.work_dir,
                     sudo='sudo' if medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo) else '',
                     config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
@@ -441,7 +442,8 @@ class RestoreJob(object):
                     use_sstableloader='--use-sstableloader' if self.use_sstableloader else '',
                     keyspaces=keyspace_options,
                     tables=table_options,
-                    bucket_name=f'--bucket-name {self.bucket_name}' if self.bucket_name is not None else '')
+                    bucket_name=f'--bucket-name {self.bucket_name}' if self.bucket_name is not None else '',
+                    prefix=f'--prefix {self.prefix}' if self.prefix is not None else '')
 
         logging.debug('Preparing to restore on all nodes with the following command: {}'.format(command))
 
