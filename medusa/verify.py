@@ -75,12 +75,14 @@ def validate_manifest(storage, node_backup, enable_md5_checks):
     objects_in_storage = {
         blob.name: blob
         for blob in storage.storage_driver.list_objects(node_backup.data_path)
+        if '-Statistics.db' not in blob.name
     }
 
     objects_in_manifest = [
         obj
         for columnfamily_manifest in manifest
         for obj in columnfamily_manifest['objects']
+        if '-Statistics.db' not in obj["path"]
     ]
 
     for object_in_manifest in objects_in_manifest:
