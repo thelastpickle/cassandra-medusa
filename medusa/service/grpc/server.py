@@ -43,6 +43,7 @@ TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
 BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
+RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
 
 
 class Server:

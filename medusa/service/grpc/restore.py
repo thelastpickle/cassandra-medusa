@@ -23,7 +23,6 @@ from pathlib import Path
 import medusa.config
 import medusa.restore_node
 import medusa.listing
-from medusa.service.grpc.server import RESTORE_MAPPING_LOCATION
 
 
 def create_config(config_file_path):
@@ -49,43 +48,34 @@ def configure_console_logging(config):
             logging.getLogger(logger_name).setLevel(logging.WARN)
 
 
-if __name__ == '__main__':
-    if len(sys.argv) > 3:
-        config_file_path = sys.argv[2]
-        restore_key = sys.argv[3]
-    else:
-        logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
-        sys.exit(1)
-
+def apply_mapping_env():
+    # By default we consider that we're restoring in place.
     in_place = True
-    if os.path.exists(f"{RESTORE_MAPPING_LOCATION}/{restore_key}"):
-        logging.info(f"Reading mapping file {RESTORE_MAPPING_LOCATION}/{restore_key}")
-        with open(f"{RESTORE_MAPPING_LOCATION}/{restore_key}", 'r') as f:
-            mapping = json.load(f)
-            # Mapping json structure will look like:
-            # {'in_place': true,
-            #  'host_map':
-            #       {'172.24.0.3': {'source': ['172.24.0.3'], 'seed': False},
-            #        '127.0.0.1': {'source': ['172.24.0.4'], 'seed': False},
-            #        '172.24.0.6': {'source': ['172.24.0.6'], 'seed': False}}}
-            # As each mapping is specific to a Cassandra node, we're looking for the node that maps to 127.0.0.1,
-            # which will be different for each pod.
-            # If hostname resolving is turned on, we're looking for the localhost key instead.
+    if "RESTORE_MAPPING" in os.environ.keys():
+        logging.info("Reading restore mapping from environment variable")
+        mapping = json.loads(os.environ["RESTORE_MAPPING"])
+        # Mapping json structure will look like:
+        # {'in_place': true,
+        #  'host_map':
+        #       {'test-dc1-sts-0': {'source': ['172.24.0.3'], 'seed': False},
+        #        'test-dc1-sts-1': {'source': ['172.24.0.4'], 'seed': False},
+        #        'test-dc1-sts-2': {'source': ['172.24.0.6'], 'seed': False}}}
+        # As each mapping is specific to a Cassandra node, we're looking for
+        # the node that maps to the value of the POD_NAME var.
+        in_place = mapping["in_place"]
+        if not in_place:
             print(f"Mapping: {mapping}")
-            if "localhost" in mapping["host_map"].keys():
-                os.environ["POD_IP"] = mapping["host_map"]["localhost"]["source"][0]
-            elif "127.0.0.1" in mapping["host_map"].keys():
-                os.environ["POD_IP"] = mapping["host_map"]["127.0.0.1"]["source"][0]
-            elif "::1" in mapping["host_map"].keys():
-                os.environ["POD_IP"] = mapping["host_map"]["::1"]["source"][0]
-            in_place = mapping["in_place"]
-            if not in_place and "POD_IP" not in os.environ.keys():
-                print("Could not find target node mapping for this pod while performing remote restore. Exiting.")
-                sys.exit(1)
+            # While POD_IP isn't a great name, it's the env variable that is used to enforce the fqdn of the node.
+            # This allows us to specify which node we're restoring from.
+            if os.environ["POD_NAME"] in mapping["host_map"].keys():
+                os.environ["POD_IP"] = mapping["host_map"][os.environ["POD_NAME"]]["source"][0]
+                print(f"Restoring from {os.environ['POD_IP']}")
+            else:
+                return False, f"POD_NAME {os.environ['POD_NAME']} not found in mapping"
+    return in_place, None
 
-    config = create_config(config_file_path)
-    configure_console_logging(config.logging)
 
+def restore_backup(in_place, config):
     backup_name = os.environ["BACKUP_NAME"]
     tmp_dir = Path("/tmp") if "MEDUSA_TMP_DIR" not in os.environ else Path(os.environ["MEDUSA_TMP_DIR"])
     print(f"Downloading backup {backup_name} to {tmp_dir}")
@@ -98,17 +88,33 @@ if __name__ == '__main__':
 
     cluster_backups = list(medusa.listing.get_backups(config, True))
     logging.info(f"Found {len(cluster_backups)} backups in the cluster")
-    backup_found = False
     # Checking if the backup exists for the node we're restoring.
     # Skipping restore if it doesn't exist.
     for cluster_backup in cluster_backups:
         if cluster_backup.name == backup_name:
-            backup_found = True
             logging.info("Starting restore of backup {}".format(backup_name))
             medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth,
                                              seeds, verify, keyspaces, tables, use_sstableloader)
-            logging.info("Finished restore of backup {}".format(backup_name))
-            break
+            return f"Finished restore of backup {backup_name}"
 
-    if not backup_found:
-        logging.info("Skipped restore of missing backup {}".format(backup_name))
+    return f"Skipped restore of missing backup {backup_name}"
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 3:
+        config_file_path = sys.argv[2]
+        restore_key = sys.argv[3]
+    else:
+        logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
+        sys.exit(1)
+
+    (in_place, error_message) = apply_mapping_env()
+    if error_message:
+        print(error_message)
+        sys.exit(1)
+
+    config = create_config(config_file_path)
+    configure_console_logging(config.logging)
+
+    output_message = restore_backup(in_place, config)
+    logging.info(output_message)
