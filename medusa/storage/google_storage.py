@@ -52,14 +52,14 @@ class GoogleStorage(AbstractStorage):
 
     def connect(self):
         self.session = aiohttp.ClientSession(
-            loop=self._get_or_create_event_loop(),
+            loop=self.get_or_create_event_loop(),
         )
 
         self.gcs_storage = Storage(session=self.session, service_file=self.service_file)
 
     def disconnect(self):
         logging.debug('Disconnecting from Google Storage')
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._disconnect())
 
     async def _disconnect(self):

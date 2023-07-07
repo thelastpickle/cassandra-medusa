@@ -38,6 +38,7 @@ from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
+from medusa.storage.abstract_storage import AbstractStorage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
@@ -107,6 +108,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
     def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
         logging.info("Performing ASYNC backup {} (type={})".format(request.name, request.mode))
+        loop = AbstractStorage.get_or_create_event_loop()
         response = medusa_pb2.BackupResponse()
         mode = BACKUP_MODE_DIFFERENTIAL
         if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
@@ -117,10 +119,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
             with ThreadPoolExecutor(max_workers=1, thread_name_prefix=request.name) as executor:
                 BackupMan.register_backup(request.name, is_async=True)
-                backup_future = executor.submit(backup_node.handle_backup, config=self.config,
-                                                backup_name_arg=request.name, stagger_time=None,
-                                                enable_md5_checks_flag=False, mode=mode)
-
+                backup_future = loop.run_in_executor(executor, backup_node.handle_backup, self.config,
+                                                     request.name, None,
+                                                     False, mode)
                 backup_future.add_done_callback(record_backup_info)
                 BackupMan.set_backup_future(request.name, backup_future)
 

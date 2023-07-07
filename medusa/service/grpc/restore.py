@@ -23,6 +23,7 @@ from pathlib import Path
 import medusa.config
 import medusa.restore_node
 import medusa.listing
+from medusa.storage import Storage
 
 
 def create_config(config_file_path):
@@ -71,8 +72,9 @@ def apply_mapping_env():
                 os.environ["POD_IP"] = mapping["host_map"][os.environ["POD_NAME"]]["source"][0]
                 print(f"Restoring from {os.environ['POD_IP']}")
             else:
-                return False, f"POD_NAME {os.environ['POD_NAME']} not found in mapping"
-    return in_place, None
+                print(f"POD_NAME {os.environ['POD_NAME']} not found in mapping")
+                return None
+    return in_place
 
 
 def restore_backup(in_place, config):
@@ -86,16 +88,17 @@ def restore_backup(in_place, config):
     tables = {}
     use_sstableloader = False
 
-    cluster_backups = list(medusa.listing.get_backups(config, True))
-    logging.info(f"Found {len(cluster_backups)} backups in the cluster")
-    # Checking if the backup exists for the node we're restoring.
-    # Skipping restore if it doesn't exist.
-    for cluster_backup in cluster_backups:
-        if cluster_backup.name == backup_name:
-            logging.info("Starting restore of backup {}".format(backup_name))
-            medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth,
-                                             seeds, verify, keyspaces, tables, use_sstableloader)
-            return f"Finished restore of backup {backup_name}"
+    with Storage(config=config.storage) as storage:
+        cluster_backups = list(medusa.listing.get_backups(storage, config, False))
+        logging.info(f"Found {len(cluster_backups)} backups in the cluster")
+        # Checking if the backup exists for the node we're restoring.
+        # Skipping restore if it doesn't exist.
+        for cluster_backup in cluster_backups:
+            if cluster_backup.name == backup_name:
+                logging.info("Starting restore of backup {}".format(backup_name))
+                medusa.restore_node.restore_node(config, tmp_dir, backup_name, in_place, keep_auth,
+                                                 seeds, verify, keyspaces, tables, use_sstableloader)
+                return f"Finished restore of backup {backup_name}"
 
     return f"Skipped restore of missing backup {backup_name}"
 
@@ -108,13 +111,11 @@ if __name__ == '__main__':
         logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
         sys.exit(1)
 
-    (in_place, error_message) = apply_mapping_env()
-    if error_message:
-        print(error_message)
-        sys.exit(1)
+    in_place = apply_mapping_env()
+    # If in_place is None, it means that there's no corresponding backup and we can skip the restore phase.
+    if in_place is not None:
+        config = create_config(config_file_path)
+        configure_console_logging(config.logging)
 
-    config = create_config(config_file_path)
-    configure_console_logging(config.logging)
-
-    output_message = restore_backup(in_place, config)
-    logging.info(output_message)
+        output_message = restore_backup(in_place, config)
+        logging.info(output_message)

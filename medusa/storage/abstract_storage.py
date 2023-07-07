@@ -75,7 +75,7 @@ class AbstractStorage(abc.ABC):
         return objects
 
     def list_blobs(self, prefix=None):
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         objects = loop.run_until_complete(self._list_blobs(prefix))
         return objects
 
@@ -97,7 +97,7 @@ class AbstractStorage(abc.ABC):
         return ManifestObject(obj.name, obj.size, obj.hash)
 
     def upload_object_via_stream(self, data: io.BytesIO, object_name: str, headers: t.Dict[str, str]) -> AbstractBlob:
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         o = loop.run_until_complete(self._upload_object(data, object_name, headers))
         return o
 
@@ -113,7 +113,7 @@ class AbstractStorage(abc.ABC):
         :param dest: the path where to download the objects locally
         :return:
         """
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._download_blobs(srcs, dest))
 
     async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
@@ -135,7 +135,7 @@ class AbstractStorage(abc.ABC):
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
         """
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
         return manifest_objects
 
@@ -162,7 +162,7 @@ class AbstractStorage(abc.ABC):
     def get_object(self, object_key: t.Union[Path, str]):
         # Doesn't actually read the contents, just lists the thing
         try:
-            loop = self._get_or_create_event_loop()
+            loop = self.get_or_create_event_loop()
             o = loop.run_until_complete(self._get_object(object_key))
             return o
         except ObjectDoesNotExistError:
@@ -189,7 +189,7 @@ class AbstractStorage(abc.ABC):
 
     def read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
         logging.debug("[Storage] Reading blob {}...".format(blob.name))
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         b = loop.run_until_complete(self._read_blob_as_bytes(blob))
         return b
 
@@ -220,11 +220,11 @@ class AbstractStorage(abc.ABC):
         return path
 
     def delete_object(self, object: AbstractBlob):
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._delete_object(object))
 
     def delete_objects(self, objects: t.List[AbstractBlob]):
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._delete_objects(objects))
 
     async def _delete_objects(self, objects: t.List[AbstractBlob]):
@@ -241,12 +241,12 @@ class AbstractStorage(abc.ABC):
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def get_blobs_metadata(self, blob_keys):
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         return loop.run_until_complete(self._get_blobs_metadata(blob_keys))
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         return loop.run_until_complete(self._get_blob_metadata(blob_key))
 
     async def _get_blobs_metadata(self, blob_keys: t.List[str]) -> t.List[AbstractBlobMetadata]:
@@ -309,7 +309,7 @@ class AbstractStorage(abc.ABC):
         return hash_md5.digest(), eof
 
     @staticmethod
-    def _get_or_create_event_loop() -> asyncio.AbstractEventLoop:
+    def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
         try:
             loop = asyncio.get_event_loop()
         except Exception:
