@@ -77,6 +77,11 @@ class AwsCli(object):
     def cmd():
         return [sys.executable, '-m', 'awscli']
 
+    # method to get current file size
+    @staticmethod
+    def get_file_size(file_path):
+        return os.stat(file_path).st_size
+
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
@@ -84,6 +89,16 @@ class AwsCli(object):
         for src in srcs:
             cmd = self._create_s3_cmd()
             cmd.extend(["s3", "cp"])
+
+            # if size of the src is > threshold
+            # then add --expexted-size parameter to cmd
+
+            size = self.get_file_size(str(src))
+            chunk_limit = 10000
+            threshold_size = chunk_limit * 8 * 1024 * 1024  # size in bytes for 10000 chunks of 8MB each
+
+            if size > threshold_size:
+                cmd.extend(["--expected-size", str(size)])
 
             if self._config.kms_id is not None:
                 cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
