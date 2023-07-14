@@ -93,8 +93,10 @@ class RestoreNodeTest(unittest.TestCase):
     def test_list_objects(self):
         file1_content = "content of the test file1"
         file2_content = "content of the test file2"
+        file3_content = ""
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs2/file2.txt", file2_content)
+        self.storage.storage_driver.upload_blob_from_string("test_download_blobs3/file3.txt", file3_content)
         objects = self.storage.storage_driver.list_objects()
         self.assertEqual(len(objects), 2)
         one_object = self.storage.storage_driver.list_objects("test_download_blobs2")
