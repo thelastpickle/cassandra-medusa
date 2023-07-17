@@ -286,6 +286,34 @@ class RestoreNodeTest(unittest.TestCase):
         self.assertTrue("node1" in blobs_by_backup["backup2"])
         self.assertFalse("node2" in blobs_by_backup["backup2"])
 
+    def test_parse_backup_index_with_wrong_names(self):
+        file_content = "content of the test file"
+        prefix_path = self.storage.prefix_path
+
+        # Index files for a backup
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/backup3/tokenmap_node1.json".format(prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/backup3/schema_node1.cql".format(prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/backup3/started_node1_1689598370.timestamp".format(prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/backup3/finished_node1_1689598370.timestamp".format(prefix_path), file_content)
+        # Files that we want to see filtered out
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/extra_folder/backup3/tokenmap_node2.json".format(prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/missing_folder/tokenmap_node2.json".format(prefix_path), file_content)
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}index/backup_index/missing_file".format(prefix_path), file_content)
+
+        path = '{}index/backup_index'.format(prefix_path)
+        backup_index = self.storage.storage_driver.list_objects(path)
+        blobs_by_backup = self.storage.group_backup_index_by_backup_and_node(backup_index)
+        self.assertEqual(1, len(blobs_by_backup.keys()))
+        self.assertEqual(1, len(blobs_by_backup['backup3'].keys()))
+        self.assertEqual(4, len(blobs_by_backup['backup3']['node1']))
+
     def test_remove_extension(self):
         self.assertEqual(
             'localhost',
