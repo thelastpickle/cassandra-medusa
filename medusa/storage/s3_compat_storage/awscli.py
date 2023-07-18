@@ -93,7 +93,7 @@ class AwsCli(object):
             # if size of the src is > threshold
             # then add --expexted-size parameter to cmd
 
-            size = self.get_file_size(str(src))
+            size = self.get_file_size(src)
             chunk_limit = 10000
             threshold_size = chunk_limit * 8 * 1024 * 1024  # size in bytes for 10000 chunks of 8MB each
 
