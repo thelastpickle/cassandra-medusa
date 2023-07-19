@@ -9,48 +9,67 @@ class StorageMock:
     def __init__(self):
         self.config = MagicMock()
         self.config.kms_id = None
-        self.config.secure = True  # Set the secure attribute to return a boolean
+        self.config.secure = True
+        self.config.expected_size_threshold = 83751862272
 
 
 class TestAwsCli(unittest.TestCase):
 
+    def create_small_test_file(self):
+        with open('small_file.txt', 'w') as small_file:
+            small_file.write('a' * 800)
+        return 'small_file.txt'
+
+    def create_big_test_file(self):
+        with open('big_file.txt', 'w') as big_file:
+            big_file.write('a' * 5001)
+        return 'big_file.txt'
+
     def test_get_file_size(self):
         # Arrange
-        with open('small_file.txt', 'w') as small_file:
-            small_file.write('a' * 83886080)
-        with open('big_file.txt', 'w') as big_file:
-            big_file.write('a' * 8388608080)
         instance = AwsCli(StorageMock())
 
         # Act
-        small_file_size = instance.get_file_size('small_file.txt')
-        big_file_size = instance.get_file_size('big_file.txt')
+        small_file_size = instance.get_file_size(self.create_small_test_file())
+        big_file_size = instance.get_file_size(self.create_big_test_file())
 
         # Assert
-        self.assertEqual(small_file_size, 83886080)
-        self.assertEqual(big_file_size, 8388608080)
+        self.assertEqual(small_file_size, 800)
+        self.assertEqual(big_file_size, 5001)
 
-    @mock.patch.object(AwsCli, '_create_s3_cmd',
-                       return_value=['s3', 'cp', 'small_file.txt', 's3://my_bucket/my_dest',
-                                     '--expected-size', '83886080'])
-    @mock.patch.object(AwsCli, '_env', new_callable=mock.PropertyMock, return_value='whatever you want')
-    def test_cp_upload(self, mock_create_s3_cmd):
+    @mock.patch.object(AwsCli, '_create_s3_cmd')
+    def test_make_cp_cmd_for_small_file(self, mock_create_s3_cmd):
         # Arrange
         instance = AwsCli(StorageMock())
-        with open('small_file.txt', 'w') as small_file:
-            small_file.write('a' * 83886080)
-        small_file_size = 83886080
-        bucket_name = 'my_bucket'
-        dest = 'my_dest'
-        srcs = ['small_file.txt']
-        expected_small_file_cmd = ['s3', 'cp', 'small_file.txt', 's3://my_bucket/my_dest',
-                                   '--expected-size', str(small_file_size)]
+        instance._config.expected_size_threshold = 5000
+        mock_create_s3_cmd.return_value = ['awscli']
+        src = self.create_small_test_file()
+        bucket_name = "test_bucket"
+        dest = "test_dest"
 
+        expected_cmd = ['awscli', 's3', 'cp', 'small_file.txt', 's3://test_bucket/test_dest']
         # Act
-        instance.cp_upload(srcs=srcs, bucket_name=bucket_name, dest=dest, max_retries=5)
-
+        actual_cmd = instance._make_cp_cmd(src, bucket_name, dest)
         # Assert
-        self.assertEqual(mock_create_s3_cmd.return_value, expected_small_file_cmd)
+        self.assertEqual(expected_cmd, actual_cmd)
+
+    @mock.patch.object(AwsCli, '_create_s3_cmd')
+    def test_make_cp_cmd_for_big_file(self, mock_create_s3_cmd):
+        # Arrange
+        instance = AwsCli(StorageMock())
+        instance._config.expected_size_threshold = 5000
+        mock_create_s3_cmd.return_value = ['awscli']
+        src = self.create_big_test_file()
+        bucket_name = "test_bucket"
+        dest = "test_dest"
+        actual_size = instance.get_file_size(src)
+
+        expected_cmd = ['awscli', 's3', 'cp', '--expected-size',
+                        str(actual_size), 'big_file.txt', 's3://test_bucket/test_dest']
+        # Act
+        actual_cmd = instance._make_cp_cmd(src, bucket_name, dest)
+        # Assert
+        self.assertEqual(expected_cmd, actual_cmd)
 
     def tearDown(self):
         if os.path.exists('small_file.txt'):

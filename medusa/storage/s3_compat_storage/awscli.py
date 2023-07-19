@@ -82,29 +82,32 @@ class AwsCli(object):
     def get_file_size(file_path):
         return os.stat(file_path).st_size
 
+    def _make_cp_cmd(self, src, bucket_name, dest):
+
+        cmd = self._create_s3_cmd()
+        cmd.extend(["s3", "cp"])
+
+        actual_size = self.get_file_size(src)
+        print("actual_size: {}".format(actual_size))
+        print("expected_size_threshold: {}".format(self._config.expected_size_threshold))
+        if int(actual_size) > int(self._config.expected_size_threshold):
+            cmd.extend(["--expected-size", str(actual_size)])
+
+        if self._config.kms_id is not None:
+            cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
+
+        cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
+
+        print(cmd)
+        return cmd
+
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
+
         objects = []
         for src in srcs:
-            cmd = self._create_s3_cmd()
-            cmd.extend(["s3", "cp"])
-
-            # if size of the src is > threshold
-            # then add --expexted-size parameter to cmd
-
-            size = self.get_file_size(src)
-            chunk_limit = 10000
-            threshold_size = chunk_limit * 8 * 1024 * 1024  # size in bytes for 10000 chunks of 8MB each
-
-            if size > threshold_size:
-                cmd.extend(["--expected-size", str(size)])
-
-            if self._config.kms_id is not None:
-                cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
-
-            cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
-
+            cmd = self._make_cp_cmd(src, bucket_name, dest)
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
