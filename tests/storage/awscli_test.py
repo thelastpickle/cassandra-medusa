@@ -10,7 +10,6 @@ class StorageMock:
         self.config = MagicMock()
         self.config.kms_id = None
         self.config.secure = True
-        self.config.expected_size_threshold = 83751862272
 
 
 class TestAwsCli(unittest.TestCase):

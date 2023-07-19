@@ -88,8 +88,7 @@ class AwsCli(object):
         cmd.extend(["s3", "cp"])
 
         actual_size = self.get_file_size(src)
-        print("actual_size: {}".format(actual_size))
-        print("expected_size_threshold: {}".format(self._config.expected_size_threshold))
+
         if int(actual_size) > int(self._config.expected_size_threshold):
             cmd.extend(["--expected-size", str(actual_size)])
 
@@ -98,7 +97,6 @@ class AwsCli(object):
 
         cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
 
-        print(cmd)
         return cmd
 
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
