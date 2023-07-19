@@ -31,7 +31,7 @@ class LocalStorage(AbstractStorage):
 
         return driver
 
-    def list_objects(self, path=None, keep_empty=False):
+    def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         objects = self.driver.list_container_objects(self.bucket)
 
@@ -41,8 +41,7 @@ class LocalStorage(AbstractStorage):
         if path is not None:
             objects = list(filter(lambda blob: blob.name.startswith(path), objects))
 
-        if not keep_empty:
-            objects = list(filter(lambda blob: blob.size > 0, objects))
+        objects = list(filter(lambda blob: blob.size > 0, objects))
 
         return objects
 

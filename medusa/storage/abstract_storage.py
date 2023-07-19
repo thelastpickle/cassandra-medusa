@@ -45,7 +45,7 @@ class AbstractStorage(abc.ABC):
         pass
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def list_objects(self, path=None, keep_empty=False):
+    def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
 
@@ -54,8 +54,7 @@ class AbstractStorage(abc.ABC):
         else:
             objects = self.driver.list_container_objects(self.bucket, ex_prefix=str(path))
 
-        if not keep_empty:
-            objects = list(filter(lambda blob: blob.size > 0, objects))
+        objects = list(filter(lambda blob: blob.size > 0, objects))
 
         return objects
 
