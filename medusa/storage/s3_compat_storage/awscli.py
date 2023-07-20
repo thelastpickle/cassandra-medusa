@@ -89,8 +89,7 @@ class AwsCli(object):
 
         actual_size = self.get_file_size(src)
 
-        if int(actual_size) > int(self._config.expected_size_threshold):
-            cmd.extend(["--expected-size", str(actual_size)])
+        cmd.extend(["--expected-size", str(actual_size)])
 
         if self._config.kms_id is not None:
             cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])

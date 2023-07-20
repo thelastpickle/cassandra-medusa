@@ -84,9 +84,6 @@ concurrent_transfers = 1
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
 multi_part_upload_threshold = 104857600
 
-; Size over which S3 downloads will be using the awscli with file uploads. Defaults to 78GB.
-expected_size_threshold = 83751862272
-
 ; GC grace period for backed up files. Prevents race conditions between purge and running backups
 backup_grace_period_in_days = 10
 
