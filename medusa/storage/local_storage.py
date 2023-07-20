@@ -41,6 +41,8 @@ class LocalStorage(AbstractStorage):
         if path is not None:
             objects = list(filter(lambda blob: blob.name.startswith(path), objects))
 
+        objects = list(filter(lambda blob: blob.size > 0, objects))
+
         return objects
 
     def get_object_datetime(self, blob):

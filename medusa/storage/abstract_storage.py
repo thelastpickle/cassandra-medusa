@@ -54,6 +54,8 @@ class AbstractStorage(abc.ABC):
         else:
             objects = self.driver.list_container_objects(self.bucket, ex_prefix=str(path))
 
+        objects = list(filter(lambda blob: blob.size > 0, objects))
+
         return objects
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)

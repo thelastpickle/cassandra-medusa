@@ -281,7 +281,8 @@ class Storage(object):
     def group_backup_index_by_backup_and_node(self, backup_index_blobs):
 
         def get_backup_name(blob):
-            return blob.name.split('/')[2] if len(str(self.prefix_path)) <= 1 else blob.name.split('/')[3]
+            blob_name_chunks = blob.name.split('/')
+            return blob_name_chunks[2] if len(str(self.prefix_path)) <= 1 else blob_name_chunks[3]
 
         def name_and_fqdn(blob):
             return get_backup_name(blob), Storage.get_fqdn_from_any_index_blob(blob)
@@ -292,9 +293,20 @@ class Storage(object):
         def group_by_fqdn(blobs):
             return itertools.groupby(blobs, Storage.get_fqdn_from_any_index_blob)
 
+        def has_proper_name(blob):
+            blob_name_chunks = blob.name.split('/')
+            is_proper = len(blob_name_chunks) == 4 if len(str(self.prefix_path)) <= 1 else len(blob_name_chunks) == 5
+            if not is_proper:
+                logging.warning('File {} in backup index has improper name'.format(blob.name))
+            return is_proper
+
         blobs_by_backup = {}
+        properly_named_index_blobs = filter(
+            has_proper_name,
+            backup_index_blobs
+        )
         sorted_backup_index_blobs = sorted(
-            backup_index_blobs,
+            properly_named_index_blobs,
             key=name_and_fqdn
         )
 

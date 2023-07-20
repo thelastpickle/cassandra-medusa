@@ -107,7 +107,7 @@ jobs:
         matrix:
           #python-version: [3.6]
           python-version: [3.6, "3.10"]
-          it-backend: [local, s3, gcs, minio, azure]
+          it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
@@ -146,7 +146,15 @@ jobs:
               cassandra-version: 'github:apache/trunk'
             - it-backend: azure
               python-version: "3.10"
-            
+            - it-backend: azure-hierarchical
+              cassandra-version: 2.2.19
+            - it-backend: azure-hierarchical
+              cassandra-version: 3.11.11
+            - it-backend: azure-hierarchical
+              cassandra-version: 'github:apache/trunk'
+            - it-backend: azure-hierarchical
+              python-version: "3.10"
+
     runs-on: ubuntu-20.04
     services:
       minio:
@@ -180,7 +188,7 @@ jobs:
         pip install -r requirements-test.txt
         pip install ccm
         case '${{ matrix.it-backend }}' in
-          'azure')
+          'azure'|'azure-hierarchical')
             pip install -r requirements-azure.txt
             ;;
           'ibm'|'minio'|'s3')
@@ -198,7 +206,8 @@ jobs:
           || ( "${{ matrix.it-backend }}" == "minio" ) \
           || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) \
           || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) \
-          || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) ]];
+          || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) \
+          || ( -n '${{ secrets.MEDUSA_AZURE_HIERARCHICAL_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure-hierarchical" ) ]];
         then
           echo "IT_CAN_RUN=yes" >> $GITHUB_ENV
         else
@@ -262,6 +271,11 @@ jobs:
         then
           # Azure Blob Storage tests
           printf "%s" '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' > ~/medusa_azure_credentials.json
+          ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
+        elif [ "${{ matrix.it-backend }}" == "azure-hierarchical" ]
+        then
+          # Azure Blob Storage with hierarchical namespace tests
+          printf "%s" '${{ secrets.MEDUSA_AZURE_HIERARCHICAL_CREDENTIALS }}' > ~/medusa_azure_credentials.json
           ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         else
         # Local storage tests
