@@ -77,19 +77,34 @@ class AwsCli(object):
     def cmd():
         return [sys.executable, '-m', 'awscli']
 
+    # method to get current file size
+    @staticmethod
+    def get_file_size(file_path):
+        return os.stat(file_path).st_size
+
+    def _make_cp_cmd(self, src, bucket_name, dest):
+
+        cmd = self._create_s3_cmd()
+        cmd.extend(["s3", "cp"])
+
+        actual_size = self.get_file_size(src)
+
+        cmd.extend(["--expected-size", str(actual_size)])
+
+        if self._config.kms_id is not None:
+            cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
+
+        cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
+
+        return cmd
+
     def cp_upload(self, *, srcs, bucket_name, dest, max_retries=5):
         job_id = str(uuid.uuid4())
         awscli_output = "/tmp/awscli_{0}.output".format(job_id)
+
         objects = []
         for src in srcs:
-            cmd = self._create_s3_cmd()
-            cmd.extend(["s3", "cp"])
-
-            if self._config.kms_id is not None:
-                cmd.extend(["--sse", "aws:kms", "--sse-kms-key-id", self._config.kms_id])
-
-            cmd.extend([str(src), "s3://{}/{}".format(bucket_name, dest)])
-
+            cmd = self._make_cp_cmd(src, bucket_name, dest)
             objects.append(self.upload_file(cmd, dest, awscli_output))
 
         return objects
