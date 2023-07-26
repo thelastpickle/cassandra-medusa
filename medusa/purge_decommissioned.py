@@ -21,7 +21,7 @@ def main(config):
 
         # Get decommissioned nodes
         decommissioned_nodes = get_decommissioned_nodes(all_backups, latest_backup)
-        
+
         for node in decommissioned_nodes:
             logging.info('Decommissioned node backups to purge: {}'.format(node))
             backups = storage.list_node_backups(fqdn=node)
@@ -47,4 +47,3 @@ def get_decommissioned_nodes(all_backups, latest_backup):
     latest_nodes_backed_up = get_nodes(latest_backup)
     decommisioned_nodes = all_nodes_backed_up - latest_nodes_backed_up
     return decommisioned_nodes
-    
