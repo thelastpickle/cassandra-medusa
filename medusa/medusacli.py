@@ -49,6 +49,7 @@ import medusa.restore_node
 import medusa.status
 import medusa.verify
 import medusa.fetch_tokenmap
+import medusa.purge_decommissioned
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
@@ -340,6 +341,17 @@ def purge(medusaconfig):
     medusa.purge.main(medusaconfig,
                       max_backup_age=int(medusaconfig.storage.max_backup_age),
                       max_backup_count=int(medusaconfig.storage.max_backup_count))
+
+
+@cli.command(name='purge-decommissioned')
+@pass_MedusaConfig
+def purge_decommissioned(medusaconfig):
+    """
+    Delete obsolete backups of decommissioned nodes
+    """
+    medusa.purge_decommissioned.main(medusaconfig,
+                                     max_backup_age=int(medusaconfig.storage.max_backup_age),
+                                     max_backup_count=int(medusaconfig.storage.max_backup_count))
 
 
 @cli.command(name='delete-backup')
