@@ -322,7 +322,7 @@ jobs:
       with:
         file: k8s/Dockerfile
         context: .
-        push: false
+        push: true
         tags: k8ssandra/medusa:${{ steps.vars.outputs.sha_short}},k8ssandra/medusa:master
         platforms: linux/amd64,linux/arm64
         cache-from: type=local,src=/tmp/.buildx-cache
