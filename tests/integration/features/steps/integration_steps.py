@@ -45,6 +45,7 @@ import medusa.fetch_tokenmap
 import medusa.index
 import medusa.listing
 import medusa.purge
+import medusa.purge_decommissioned
 import medusa.report_latest
 import medusa.restore_node
 import medusa.service.grpc.client
@@ -1153,6 +1154,11 @@ def _verify_fails_on_the_backup_named(context, backup_name):
 @when(r"I purge the backup history to retain only {backup_count} backups")
 def _i_purge_the_backup_history_to_retain_only_nb_backups(context, backup_count):
     medusa.purge.main(context.medusa_config, max_backup_count=int(backup_count))
+
+
+@when(r"I purge the decommissioned node backup history to retain only {backup_count} backups")
+def _i_purge_decommissioned_the_backup_history_to_retain_only_nb_backups(context, backup_count):
+    medusa.purge_decommissioned(context.medusa_config, max_backup_count=int(backup_count))
 
 
 @then(r"I see {metrics_count} metrics emitted")
