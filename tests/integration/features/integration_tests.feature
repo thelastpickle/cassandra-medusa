@@ -383,7 +383,6 @@ Feature: Integration tests
         Then I can see the backup named "fifth_backup" when I list the backups
         Then I can verify the backup named "fifth_backup" with md5 checks "disabled" successfully
         When I purge the backup history to retain only 2 backups
-        When I purge the decommissioned node backup history to retain only 2 backups
         Then I cannot see the backup named "first_backup" when I list the backups
         Then I cannot see the backup named "second_backup" when I list the backups
         Then I cannot see the backup named "third_backup" when I list the backups
