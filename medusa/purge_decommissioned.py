@@ -25,13 +25,18 @@ def main(config):
         for node in decommissioned_nodes:
             logging.info('Decommissioned node backups to purge: {}'.format(node))
             backups = storage.list_node_backups(fqdn=node)
-            purge_backups(storage, backups, config.storage.backup_grace_period_in_days, config.storage.fqdn)
+            (nb_objects_purged, total_purged_size, total_objects_within_grace) \
+                = purge_backups(storage, backups, config.storage.backup_grace_period_in_days, config.storage.fqdn)
 
+        logging.debug('Emitting metrics')
+        tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']
+        monitoring.send(tags, 0)
+        return (nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups))
     except Exception as e:
         traceback.print_exc()
-        tags = ['medusa-node-backup', 'purge-decommissioned-node-error', 'PURGE-DECOMMISSIONED-ERROR']
+        tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']
         monitoring.send(tags, 1)
-        logging.error('This error happened during the decommissioned node backup purge: {}'.format(str(e)))
+        logging.error('This error happened during the purge of decommissioned nodes: {}'.format(str(e)))
         sys.exit(1)
 
 
