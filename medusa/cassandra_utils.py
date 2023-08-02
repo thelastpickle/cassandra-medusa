@@ -54,6 +54,9 @@ class SnapshotPath(object):
         # important to use the _r_glob() to recursively descend into subdirs if there are any
         return filter(lambda p: p.is_file(), self.path.rglob('*'))
 
+    def __repr__(self):
+        return "SnapshotPath(path={}, keyspace={}, table={})".format(self.path, self.keyspace, self.columnfamily)
+
 
 class CqlSessionProvider(object):
 

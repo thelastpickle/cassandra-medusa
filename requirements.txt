@@ -22,3 +22,6 @@ fasteners==0.16
 datadog
 botocore>=1.13.27
 dnspython>=2.2.1
+asyncio==3.4.3
+aiohttp==3.8.5
+aiohttp-s3-client==0.8.17

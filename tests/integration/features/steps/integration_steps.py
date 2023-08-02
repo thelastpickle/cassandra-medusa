@@ -111,8 +111,7 @@ def cleanup_storage(context, storage_provider):
     else:
         storage = Storage(config=context.medusa_config.storage)
         objects = storage.storage_driver.list_objects(storage._prefix)
-        for obj in objects:
-            storage.storage_driver.delete_object(obj)
+        storage.delete_objects(objects)
 
 
 def get_client_encryption_opts(keystore_path, trustore_path):
@@ -1234,8 +1233,10 @@ def _i_delete_the_manifest_from_the_backup_named_from_the_storage(context, backu
         storage.prefix_path, fqdn, backup_name
     )
 
-    storage.storage_driver.get_blob(path_manifest_backup).delete()
-    storage.storage_driver.get_blob(path_manifest_index_latest).delete()
+    blob = storage.storage_driver.get_blob(path_manifest_backup)
+    storage.storage_driver.delete_object(blob)
+    blob = storage.storage_driver.get_blob(path_manifest_index_latest)
+    storage.storage_driver.delete_object(blob)
 
     meta_files = storage.storage_driver.list_objects(path_backup_index)
     for meta_file in meta_files:

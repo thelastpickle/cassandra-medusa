@@ -109,7 +109,7 @@ def _build_default_config():
         'api_profile': '',
         'transfer_max_bandwidth': '50MB/s',
         'concurrent_transfers': '1',
-        'multi_part_upload_threshold': str(100 * 1024 * 1024),
+        'multi_part_upload_threshold': str(20 * 1024 * 1024),
         'secure': 'True',
         'aws_cli_path': 'aws',
         'fqdn': socket.getfqdn(),
