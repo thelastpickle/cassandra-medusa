@@ -76,9 +76,9 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
 
         logging.debug('Emitting metrics')
 
-        logging.info('Restore duration: {}'.format(restore_duration.seconds))
+        logging.info('Restore duration: {}'.format(restore_duration.total_seconds()))
         tags = ['medusa-cluster-restore', 'restore-duration', backup_name]
-        monitoring.send(tags, restore_duration.seconds)
+        monitoring.send(tags, restore_duration.total_seconds())
 
         tags = ['medusa-cluster-restore', 'restore-error', backup_name]
         monitoring.send(tags, 0)

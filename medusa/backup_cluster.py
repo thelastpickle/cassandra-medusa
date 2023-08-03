@@ -68,9 +68,9 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
         logging.debug('Emitting metrics')
 
-        logging.info('Backup duration: {}'.format(backup_duration.seconds))
+        logging.info('Backup duration: {}'.format(backup_duration.total_seconds()))
         tags = ['medusa-cluster-backup', 'cluster-backup-duration', backup_name]
-        monitoring.send(tags, backup_duration.seconds)
+        monitoring.send(tags, backup_duration.total_seconds())
 
         tags = ['medusa-cluster-backup', 'cluster-backup-error', backup_name]
         monitoring.send(tags, 0)
