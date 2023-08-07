@@ -349,9 +349,7 @@ def purge_decommissioned(medusaconfig):
     """
     Delete obsolete backups of decommissioned nodes
     """
-    medusa.purge_decommissioned.main(medusaconfig,
-                                     max_backup_age=int(medusaconfig.storage.max_backup_age),
-                                     max_backup_count=int(medusaconfig.storage.max_backup_count))
+    medusa.purge_decommissioned.main(medusaconfig)
 
 
 @cli.command(name='delete-backup')
