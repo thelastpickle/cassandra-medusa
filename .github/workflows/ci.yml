@@ -291,8 +291,8 @@ jobs:
   
 
   publish-docker-master:
-#    needs: [debian-build, build, integration-tests]
-#    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [debian-build, build, integration-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
