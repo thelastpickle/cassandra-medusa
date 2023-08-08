@@ -30,4 +30,3 @@ debian/cassandra-medusa/
 coverage.xml
 pytest.ini
 .python-version
-gcs-medusa-credentials.json

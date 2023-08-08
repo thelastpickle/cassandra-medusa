@@ -5,6 +5,7 @@ import traceback
 from medusa.monitoring import Monitoring
 from medusa.purge import purge_backups
 from medusa.storage import Storage
+from medusa.cassandra_utils import Cassandra
 
 
 def main(config):
@@ -13,14 +14,16 @@ def main(config):
     try:
         logging.info('Starting decommissioned purge')
         storage = Storage(config=config.storage)
-        # Get all nodes for cluster backups
-        all_backups = list(storage.list_cluster_backups())
+        cassandra = Cassandra(config=config.cassandra)
+        # Get all nodes having backups
+        blobs = storage.list_root_blobs()
+        all_nodes = get_all_nodes(blobs)
 
-        # Get all nodes for latest cluster backup
-        latest_backup = [storage.latest_cluster_backup()]
+        # Get live nodes
+        live_nodes = get_live_nodes(cassandra)
 
         # Get decommissioned nodes
-        decommissioned_nodes = get_decommissioned_nodes(all_backups, latest_backup)
+        decommissioned_nodes = all_nodes - live_nodes
 
         for node in decommissioned_nodes:
             logging.info('Decommissioned node backups to purge: {}'.format(node))
@@ -40,15 +43,13 @@ def main(config):
         sys.exit(1)
 
 
-def get_nodes(backups):
-    nodes = set()
-    for backup in backups:
-        nodes.update(backup.node_backups.keys())
+def get_all_nodes(blobs):
+    nodes = {blob.rstrip('/') for blob in blobs if not blob.startswith('index')}
     return nodes
 
 
-def get_decommissioned_nodes(all_backups, latest_backup):
-    all_nodes_backed_up = get_nodes(all_backups)
-    latest_nodes_backed_up = get_nodes(latest_backup)
-    decommisioned_nodes = all_nodes_backed_up - latest_nodes_backed_up
-    return decommisioned_nodes
+def get_live_nodes(cassandra):
+    nodes = set()
+    for host in cassandra.tokenmap.items():
+        nodes.add(host)
+    return nodes
