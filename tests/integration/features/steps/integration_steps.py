@@ -45,6 +45,7 @@ import medusa.fetch_tokenmap
 import medusa.index
 import medusa.listing
 import medusa.purge
+import medusa.purge_decommissioned
 import medusa.report_latest
 import medusa.restore_node
 import medusa.service.grpc.client
@@ -69,6 +70,7 @@ from medusa.config import _namedtuple_from_dict
 from medusa.monitoring import LocalMonitoring
 from medusa.service.grpc import medusa_pb2
 from medusa.storage import Storage
+from medusa.cassandra_utils import Cassandra
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
 os.chdir("..")
@@ -1321,6 +1323,54 @@ def _i_modify_a_statistics_db_file(context, table, keyspace):
     path_statistics_db_file = os.path.join(table_path, statistics_db_files[0])
     with open(path_statistics_db_file, 'a') as file:
         file.write('Adding some additional characters')
+
+
+@then(r'checking the list of decommissioned nodes returns "{expected_node}"')
+def _checking_list_of_decommissioned_nodes(context, expected_node):
+    # Get all nodes having backups
+    storage = Storage(config=context.medusa_config.storage)
+    blobs = storage.list_root_blobs()
+    all_nodes = medusa.purge_decommissioned.get_all_nodes(blobs)
+
+    # Get live nodes
+    cassandra = Cassandra(config=context.medusa_config.cassandra)
+    live_nodes = medusa.purge_decommissioned.get_live_nodes(cassandra)
+
+    # Get decommissioned nodes
+    decommissioned_nodes = medusa.purge_decommissioned.get_decommissioned_nodes(all_nodes, live_nodes)
+
+    assert expected_node in decommissioned_nodes
+
+
+@when(r'I run a purge on decommissioned nodes')
+def _run_purge_on_decommissioned_nodes(context):
+    try:
+        logging.info('Starting decommissioned purge')
+        storage = Storage(config=context.medusa_config.storage)
+        cassandra = Cassandra(config=context.medusa_config.cassandra)
+
+        # Get all nodes having backups
+        blobs = storage.list_root_blobs()
+        all_nodes = medusa.purge_decommissioned.get_all_nodes(blobs)
+
+        # Get live nodes
+        live_nodes = medusa.purge_decommissioned.get_live_nodes(cassandra)
+
+        # Get decommissioned nodes
+        decommissioned_nodes = medusa.purge_decommissioned.get_decommissioned_nodes(all_nodes, live_nodes)
+
+        for node in decommissioned_nodes:
+            logging.info('Decommissioned node backups to purge: {}'.format(node))
+            backups = storage.list_node_backups(fqdn=node)
+            (nb_objects_purged, total_purged_size, total_objects_within_grace) \
+                = medusa.purge.purge_backups(storage,
+                                             backups,
+                                             context.medusa_config.storage.backup_grace_period_in_days,
+                                             node)
+
+    except Exception as e:
+        logging.error('This error happened during the purge of decommissioned nodes: {}'.format(str(e)))
+        raise e
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

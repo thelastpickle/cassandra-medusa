@@ -23,13 +23,13 @@ def main(config):
         live_nodes = get_live_nodes(cassandra)
 
         # Get decommissioned nodes
-        decommissioned_nodes = all_nodes - live_nodes
+        decommissioned_nodes = get_decommissioned_nodes(all_nodes, live_nodes)
 
         for node in decommissioned_nodes:
             logging.info('Decommissioned node backups to purge: {}'.format(node))
             backups = storage.list_node_backups(fqdn=node)
             (nb_objects_purged, total_purged_size, total_objects_within_grace) \
-                = purge_backups(storage, backups, config.storage.backup_grace_period_in_days, config.storage.fqdn)
+                = purge_backups(storage, backups, config.storage.backup_grace_period_in_days, node)
 
         logging.debug('Emitting metrics')
         tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -53,3 +53,7 @@ def get_live_nodes(cassandra):
     for host in cassandra.tokenmap.items():
         nodes.add(host)
     return nodes
+
+
+def get_decommissioned_nodes(all_nodes, live_nodes):
+    return all_nodes.difference(live_nodes)
