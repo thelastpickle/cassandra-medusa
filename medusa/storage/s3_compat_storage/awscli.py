@@ -17,12 +17,12 @@
 import logging
 import os
 import subprocess
-import uuid
 import sys
-
-from retrying import retry
+import uuid
 
 from libcloud.storage.providers import get_driver, Provider
+from retrying import retry
+
 from medusa import utils
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
@@ -36,7 +36,7 @@ class AwsCli(object):
 
     @property
     def bucket_name(self):
-        return self._config.bucket_name
+        return self.storage.bucket_name
 
     def __enter__(self):
         self._env = os.environ.copy()

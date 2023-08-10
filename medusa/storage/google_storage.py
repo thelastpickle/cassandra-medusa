@@ -67,7 +67,7 @@ class GoogleStorage(AbstractStorage):
         return list(itertools.chain(*generators))
 
     def _upload_blobs(self, srcs, dest):
-        with GSUtil(self.config) as gsutil:
+        with GSUtil(self, config=self.config) as gsutil:
             for parent, src_paths in _group_by_parent(srcs):
                 yield self._upload_paths(gsutil, parent, src_paths, dest)
 
@@ -96,7 +96,7 @@ class GoogleStorage(AbstractStorage):
         return list(itertools.chain(*generators))
 
     def _download_blobs(self, srcs, dest):
-        with GSUtil(self.config) as gsutil:
+        with GSUtil(self, config=self.config) as gsutil:
             for parent, src_paths in _group_by_parent(srcs):
                 yield self._download_paths(gsutil, parent, src_paths, dest)
 

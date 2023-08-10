@@ -25,7 +25,6 @@ from retrying import retry
 import medusa.storage
 import medusa.storage.concurrent
 
-
 BLOCK_SIZE_BYTES = 65536
 MULTIPART_PART_SIZE_IN_MB = 8
 MULTIPART_BLOCK_SIZE_BYTES = 65536
@@ -34,10 +33,11 @@ MULTIPART_BLOCKS_PER_MB = 16
 
 class AbstractStorage(abc.ABC):
 
-    def __init__(self, config):
+    def __init__(self, config, bucket_name=None):
         self.config = config
+        self.bucket_name = bucket_name if bucket_name is not None else config.bucket_name
         self.driver = self.connect_storage()
-        self.bucket = self.driver.get_container(container_name=config.bucket_name)
+        self.bucket = self.driver.get_container(container_name=self.bucket_name)
 
     @abc.abstractmethod
     def connect_storage(self):

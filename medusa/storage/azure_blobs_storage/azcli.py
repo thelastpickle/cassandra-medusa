@@ -17,7 +17,7 @@ class AzCli(object):
 
     @property
     def bucket_name(self):
-        return self._config.bucket_name
+        return self.storage.bucket_name
 
     def __enter__(self):
         with io.open(os.path.expanduser(self._config.key_file), 'r', encoding='utf-8') as json_fi:
