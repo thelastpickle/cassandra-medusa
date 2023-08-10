@@ -71,8 +71,9 @@ def apply_mapping_env():
                 os.environ["POD_IP"] = mapping["host_map"][os.environ["POD_NAME"]]["source"][0]
                 print(f"Restoring from {os.environ['POD_IP']}")
             else:
-                return False, f"POD_NAME {os.environ['POD_NAME']} not found in mapping"
-    return in_place, None
+                print(f"POD_NAME {os.environ['POD_NAME']} not found in mapping")
+                return None
+    return in_place
 
 
 def restore_backup(in_place, config):
@@ -108,13 +109,11 @@ if __name__ == '__main__':
         logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
         sys.exit(1)
 
-    (in_place, error_message) = apply_mapping_env()
-    if error_message:
-        print(error_message)
-        sys.exit(1)
+    in_place = apply_mapping_env()
+    # If in_place is None, it means that there's no corresponding backup and we can skip the restore phase.
+    if in_place is not None:
+        config = create_config(config_file_path)
+        configure_console_logging(config.logging)
 
-    config = create_config(config_file_path)
-    configure_console_logging(config.logging)
-
-    output_message = restore_backup(in_place, config)
-    logging.info(output_message)
+        output_message = restore_backup(in_place, config)
+        logging.info(output_message)

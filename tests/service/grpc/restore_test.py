@@ -34,10 +34,9 @@ class ServiceRestoreTest(unittest.TestCase):
             + '"test-dc1-sts-0": {"source": ["test-dc1-sts-0"], "seed": false},' \
             + '"test-dc1-sts-1": {"source": ["test-dc1-sts-1"], "seed": false},' \
             + '"test-dc1-sts-2": {"source": "prod-dc1-sts-2", "seed": false}}}'
-        (in_place, error_message) = apply_mapping_env()
+        in_place = apply_mapping_env()
 
         assert in_place is True
-        assert error_message is None
         assert "POD_IP" not in os.environ.keys()
 
     def test_restore_remote(self):
@@ -46,10 +45,9 @@ class ServiceRestoreTest(unittest.TestCase):
             + '"test-dc1-sts-0": {"source": ["prod-dc1-sts-3"], "seed": false},' \
             + '"test-dc1-sts-1": {"source": ["prod-dc1-sts-1"], "seed": false},' \
             + '"test-dc1-sts-2": {"source": "prod-dc1-sts-2", "seed": false}}}'
-        (in_place, error_message) = apply_mapping_env()
+        in_place = apply_mapping_env()
 
         assert in_place is False
-        assert error_message is None
         assert "POD_IP" in os.environ.keys()
         assert os.environ['POD_IP'] == 'prod-dc1-sts-3'
 
@@ -59,10 +57,9 @@ class ServiceRestoreTest(unittest.TestCase):
             + '"test-dc1-sts-3": {"source": ["prod-dc1-sts-3"], "seed": false},' \
             + '"test-dc1-sts-1": {"source": ["prod-dc1-sts-1"], "seed": false},' \
             + '"test-dc1-sts-2": {"source": "prod-dc1-sts-2", "seed": false}}}'
-        (in_place, error_message) = apply_mapping_env()
+        in_place = apply_mapping_env()
 
-        assert in_place is False
-        assert error_message is not None
+        assert in_place is None
         assert "POD_IP" not in os.environ.keys()
 
     def test_success_restore_backup(self):
