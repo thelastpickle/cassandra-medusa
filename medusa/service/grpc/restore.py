@@ -80,8 +80,11 @@ if __name__ == '__main__':
                 os.environ["POD_IP"] = mapping["host_map"]["::1"]["source"][0]
             in_place = mapping["in_place"]
             if not in_place and "POD_IP" not in os.environ.keys():
-                print("Could not find target node mapping for this pod while performing remote restore. Exiting.")
-                sys.exit(1)
+                print("Could not find node mapping for this pod while performing remote restore. Skipping.")
+                sys.exit(0)
+    else:
+        print("Could not find restore mapping file. Skipping restore.")
+        sys.exit(0)
 
     config = create_config(config_file_path)
     configure_console_logging(config.logging)
