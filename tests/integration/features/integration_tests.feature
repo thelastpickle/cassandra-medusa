@@ -965,9 +965,9 @@ Feature: Integration tests
         
 
         @local
-            Examples: Local storage
-            | storage           | client encryption |
-            | local      |  with_client_encryption |
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
 
     @26
     Scenario Outline: Test purge of decommissioned nodes
@@ -984,9 +984,9 @@ Feature: Integration tests
 
 
         @local
-            Examples: Local storage
-            | storage           | client encryption |
-            | local      |  with_client_encryption |
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
 
         @s3
         Examples: S3 storage

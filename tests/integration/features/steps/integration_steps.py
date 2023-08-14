@@ -70,7 +70,6 @@ from medusa.config import _namedtuple_from_dict
 from medusa.monitoring import LocalMonitoring
 from medusa.service.grpc import medusa_pb2
 from medusa.storage import Storage
-from medusa.cassandra_utils import Cassandra
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
 os.chdir("..")
@@ -1333,8 +1332,7 @@ def _checking_list_of_decommissioned_nodes(context, expected_node):
     all_nodes = medusa.purge_decommissioned.get_all_nodes(blobs)
 
     # Get live nodes
-    cassandra = Cassandra(config=context.medusa_config.cassandra)
-    live_nodes = medusa.purge_decommissioned.get_live_nodes(cassandra)
+    live_nodes = medusa.purge_decommissioned.get_live_nodes(context.medusa_config)
 
     # Get decommissioned nodes
     decommissioned_nodes = medusa.purge_decommissioned.get_decommissioned_nodes(all_nodes, live_nodes)
@@ -1347,14 +1345,13 @@ def _run_purge_on_decommissioned_nodes(context):
     try:
         logging.info('Starting decommissioned purge')
         storage = Storage(config=context.medusa_config.storage)
-        cassandra = Cassandra(config=context.medusa_config.cassandra)
 
         # Get all nodes having backups
         blobs = storage.list_root_blobs()
         all_nodes = medusa.purge_decommissioned.get_all_nodes(blobs)
 
         # Get live nodes
-        live_nodes = medusa.purge_decommissioned.get_live_nodes(cassandra)
+        live_nodes = medusa.purge_decommissioned.get_live_nodes(context.medusa_config)
 
         # Get decommissioned nodes
         decommissioned_nodes = medusa.purge_decommissioned.get_decommissioned_nodes(all_nodes, live_nodes)
