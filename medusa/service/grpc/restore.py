@@ -87,7 +87,7 @@ def restore_backup(in_place, config):
     tables = {}
     use_sstableloader = False
 
-    cluster_backups = list(medusa.listing.get_backups(config, True))
+    cluster_backups = list(medusa.listing.get_backups(config, False))
     logging.info(f"Found {len(cluster_backups)} backups in the cluster")
     # Checking if the backup exists for the node we're restoring.
     # Skipping restore if it doesn't exist.
