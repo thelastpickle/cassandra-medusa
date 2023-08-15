@@ -1,11 +1,10 @@
 import logging
-import socket
 import sys
 import traceback
 from medusa.cassandra_utils import CqlSessionProvider
 
 from medusa.monitoring import Monitoring
-from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, purge_backups
+from medusa.purge import purge_backups
 from medusa.storage import Storage
 
 
@@ -28,7 +27,7 @@ def main(config):
             logging.info('Decommissioned node backups to purge: {}'.format(node))
             backups = set(storage.list_node_backups(fqdn=node))
             (nb_objects_purged, total_purged_size, total_objects_within_grace) \
-                = purge_backups(storage, backups, config.storage.backup_grace_period_in_days, fdqn=node)
+                = purge_backups(storage, backups, config.storage.backup_grace_period_in_days, node)
 
         logging.debug('Emitting metrics')
         tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -43,7 +42,6 @@ def main(config):
 
 
 def get_all_nodes(blobs):
-    nodes = blobs
     nodes = {blob.name.split('/')[1] for blob in blobs if '/index/' not in blob.name}
     return nodes
 

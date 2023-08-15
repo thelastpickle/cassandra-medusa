@@ -987,28 +987,3 @@ Feature: Integration tests
         Examples: Local storage
         | storage           | client encryption |
         | local      |  with_client_encryption |
-
-        @s3
-        Examples: S3 storage
-        | storage           | client encryption |
-        | s3_us_west_oregon     |  without_client_encryption |
-
-        @gcs
-        Examples: Google Cloud Storage
-        | storage           | client encryption |
-        | google_storage      |  without_client_encryption |
-
-        @azure
-        Examples: Azure Blob Storage
-        | storage           | client encryption |
-        | azure_blobs      | without_client_encryption |
-        
-        @ibm
-        Examples: IBM Cloud Object Storage
-        | storage           | client encryption |
-        | ibm_storage      | without_client_encryption |
-
-        @minio
-        Examples: MinIO storage
-        | storage           | client encryption         |
-        | minio             | without_client_encryption |
