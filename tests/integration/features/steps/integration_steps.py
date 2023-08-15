@@ -1358,7 +1358,7 @@ def _run_purge_on_decommissioned_nodes(context):
 
         for node in decommissioned_nodes:
             logging.info('Decommissioned node backups to purge: {}'.format(node))
-            backups = storage.list_node_backups(fqdn=node)
+            backups = set(storage.list_node_backups(fqdn=node))
             (nb_objects_purged, total_purged_size, total_objects_within_grace) \
                 = medusa.purge.purge_backups(storage,
                                              backups,

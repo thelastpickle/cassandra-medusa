@@ -352,6 +352,7 @@ def purge_decommissioned(medusaconfig):
     medusa.purge_decommissioned.main(medusaconfig)
 
 
+
 @cli.command(name='delete-backup')
 @click.option('--backup-name', help='Backup name (repeat for multiple names)', required=True, multiple=True)
 @click.option('-a/-c', '--all-nodes/--current-node',
