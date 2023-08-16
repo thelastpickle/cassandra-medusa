@@ -3,7 +3,7 @@ from ecies import encrypt, decrypt
 import logging
 import medusa.utils
 
-
+ENCRYPTED_FILE_PATH_SUFFIX = ".ecdh_enc"
 def encrypt(pk: str, data: bytes) -> bytes:
     """Encrypt data with public key."""
     return encrypt(pk, data)
@@ -14,16 +14,21 @@ def decrypt(sk: str, data: bytes) -> bytes:
     return decrypt(sk, data)
 
 
-def encrypt_file(pk: str, file_path: str) -> None:
+def get_enc_file_path(file_path: str) -> str:
+    return file_path + ENCRYPTED_FILE_PATH_SUFFIX
+def encrypt_file(pk: str, file_path: str) -> str:
     """Encrypt file with public key."""
     logging.debug("encrypting file: {}".format(file_path))
     with open(file_path, "rb") as f:
         data = f.read()
     f.close()
 
-    with open(file_path, "wb") as f:
+    new_file_path = get_enc_file_path(file_path)
+    with open(new_file_path, "wb") as f:
         f.write(encrypt(pk, data))
     f.close()
+
+    return new_file_path
 
 
 def decrypt_file(sk: str, file_path: str) -> None:

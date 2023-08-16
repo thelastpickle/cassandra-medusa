@@ -374,8 +374,8 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
                         encryptors.append(
                             lambda: medusa.ecdh.encrypt_file(storage.config.ecdh_public_key, p))
                     medusa.utils.batch_executor(encryptors)
-
-                    manifest_objects += storage.storage_driver.upload_blobs(src_batch, dst_path)
+                    new_files = [medusa.ecdh.get_enc_file_path(i) for i in src_batch]
+                    manifest_objects += storage.storage_driver.upload_blobs(new_files, dst_path)
 
             # Reintroducing already backed up objects in the manifest in differential
             for obj in already_backed_up:
