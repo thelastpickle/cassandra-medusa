@@ -1,5 +1,6 @@
 from ecies import encrypt, decrypt
 
+import logging
 import medusa.utils
 
 
@@ -15,6 +16,7 @@ def decrypt(sk: str, data: bytes) -> bytes:
 
 def encrypt_file(pk: str, file_path: str) -> None:
     """Encrypt file with public key."""
+    logging.debug("encrypting file: {}".format(file_path))
     with open(file_path, "rb") as f:
         data = f.read()
     f.close()
@@ -26,6 +28,7 @@ def encrypt_file(pk: str, file_path: str) -> None:
 
 def decrypt_file(sk: str, file_path: str) -> None:
     """Decrypt file with private key."""
+    logging.debug("decrypting file: {}".format(file_path))
     with open(file_path, "rb") as f:
         data = f.read()
     f.close()
