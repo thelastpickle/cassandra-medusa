@@ -17,6 +17,7 @@ import logging
 import sys
 import traceback
 import threading
+import os
 
 
 def evaluate_boolean(value):
