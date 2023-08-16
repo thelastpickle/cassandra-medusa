@@ -14,17 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import medusa.fetch_tokenmap
+import medusa.verify
+import medusa.status
+import medusa.restore_node
+import medusa.restore_cluster
+import medusa.report_latest
+import medusa.purge
+import medusa.listing
+import medusa.index
+import medusa.download
+import medusa.config
+import medusa.backup_cluster
+from medusa.backup_manager import BackupMan
+from medusa import backup_node
+from pathlib import Path
+from collections import defaultdict
+import sys
+from click_aliases import ClickAliasedGroup
+import click
+import logging.handlers
+import logging
+import datetime
 from gevent import monkey
 
 import medusa.utils
 
 monkey.patch_all()
-import datetime
-import logging
-import logging.handlers
-import click
-from click_aliases import ClickAliasedGroup
-import sys
 
 # Need to get rid of the annoying pssh warning about paramiko
 if not sys.warnoptions:
@@ -32,23 +48,6 @@ if not sys.warnoptions:
 
     warnings.simplefilter("ignore")
 
-from collections import defaultdict
-from pathlib import Path
-
-from medusa import backup_node
-from medusa.backup_manager import BackupMan
-import medusa.backup_cluster
-import medusa.config
-import medusa.download
-import medusa.index
-import medusa.listing
-import medusa.purge
-import medusa.report_latest
-import medusa.restore_cluster
-import medusa.restore_node
-import medusa.status
-import medusa.verify
-import medusa.fetch_tokenmap
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
@@ -115,8 +114,14 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
     configure_file_logging(ctx.obj.logging)
 
 
+def validate_backup_name(ctx, param, value):
+    if '/' in value:
+        raise click.BadParameter('Backup name cannot contain "/". Please use a valid name.')
+    return value
+
+
 @cli.command(aliases=['backup', 'backup-node'])
-@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--backup-name', help='Custom name for the backup', callback=validate_backup_name, required=True)
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
 @click.option('--enable-md5-checks',
               help='During backups and verify, use md5 calculations to determine file integrity '
@@ -134,7 +139,9 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
 
 
 @cli.command(name='backup-cluster')
-@click.option('--backup-name', help='Backup name of the backup, defaults to current datetime (formatted "%Y%m%dT%H%M")')
+@click.option('--backup-name',
+              help='Backup name of the backup, defaults to current datetime (formatted "%Y%m%dT%H%M")',
+              callback=validate_backup_name)
 @click.option('--seed-target', help='Seed of the target hosts. If not provided, \
     will default to the node where the command is triggered', required=False)
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
@@ -166,7 +173,7 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
 
 
 @cli.command(name='fetch-tokenmap')
-@click.option('--backup-name', help='backup name', required=True)
+@click.option('--backup-name', help='backup name', required=True, callback=validate_backup_name)
 @pass_MedusaConfig
 def fetch_tokenmap(medusaconfig, backup_name):
     """
@@ -186,7 +193,7 @@ def list_backups(medusaconfig, show_all):
 
 
 @cli.command(name='download')
-@click.option('--backup-name', help='Custom name for the backup', required=True)
+@click.option('--backup-name', help='Custom name for the backup', required=True, callback=validate_backup_name)
 @click.option('--download-destination', help='Download destination', required=True)
 @click.option('--keyspace', 'keyspaces', help="Restore tables from this keyspace, use --keyspace ks1 [--keyspace ks2]",
               multiple=True, default={})
@@ -204,7 +211,7 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
 
 
 @cli.command(name='restore-cluster')
-@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--backup-name', help='Backup name', required=True, callback=validate_backup_name)
 @click.option('--seed-target', help='Seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--host-list', help='List of nodes to restore with the associated target host', required=False)
@@ -248,7 +255,7 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
 
 @cli.command(name='restore-node')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
-@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--backup-name', help='Backup name', required=True, callback=validate_backup_name)
 @click.option('--in-place/--remote', help='Indicates if the restore happens on the node the backup was done on.',
               default=True, is_flag=True)
 @click.option('--keep-auth', help='Keep system_auth keyspace as found on the node',
@@ -275,7 +282,7 @@ def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds
 
 
 @cli.command(name='status')
-@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--backup-name', help='Backup name', required=True, callback=validate_backup_name)
 @pass_MedusaConfig
 def status(medusaconfig, backup_name):
     """
@@ -343,7 +350,11 @@ def purge(medusaconfig):
 
 
 @cli.command(name='delete-backup')
-@click.option('--backup-name', help='Backup name (repeat for multiple names)', required=True, multiple=True)
+@click.option('--backup-name',
+              help='Backup name (repeat for multiple names)',
+              required=True,
+              multiple=True,
+              callback=validate_backup_name)
 @click.option('-a/-c', '--all-nodes/--current-node',
               help='Delete backups on all nodes (Default is current node only)',
               default=False, is_flag=True)
