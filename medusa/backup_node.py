@@ -26,6 +26,7 @@ from libcloud.storage.providers import Provider
 from retrying import retry
 
 import medusa.utils
+import medusa.ecdh
 from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
@@ -368,6 +369,12 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
                 # splitted to batches due to 'gsutil cp' which
                 # can't handle too much source files via STDIN.
                 for src_batch in divide_chunks(needs_backup, GSUTIL_MAX_FILES_PER_CHUNK):
+                    encryptors = []
+                    for p in src_batch:
+                        encryptors.append(
+                            lambda: medusa.ecdh.encrypt_file(storage.config.ecdh_public_key, p))
+                    medusa.utils.batch_executor(encryptors)
+
                     manifest_objects += storage.storage_driver.upload_blobs(src_batch, dst_path)
 
             # Reintroducing already backed up objects in the manifest in differential

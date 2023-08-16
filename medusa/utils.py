@@ -16,6 +16,7 @@
 import logging
 import sys
 import traceback
+import threading
 
 
 def evaluate_boolean(value):
@@ -45,3 +46,27 @@ def null_if_empty(value):
     if (str(value) == ''):
         return None
     return value
+
+
+def find_all(path:str):
+    """
+    return all files of path recursively
+    """
+    path, dirs, files = next(os.walk(path))
+    ans = []
+    for file in files:
+        ans.append(os.path.join(path, file))
+    for dir in dirs:
+        ans += find_all(os.path.join(path, dir))
+    return ans
+def batch_executor(funcs) -> None:
+    """
+    A simple thread pool executor.
+    """
+    threads = []
+    for f in funcs:
+        t = threading.Thread(target=f)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()

@@ -24,6 +24,7 @@ import time
 import uuid
 
 import medusa.config
+import medusa.ecdh
 import medusa.utils
 from medusa.cassandra_utils import Cassandra, is_node_up, wait_for_node_to_go_down
 from medusa.download import download_data
@@ -89,6 +90,7 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
     logging.info('Downloading data from backup to {}'.format(download_dir))
     download_data(config.storage, node_backup, fqtns_to_restore, destination=download_dir)
+    medusa.ecdh.decrypt_dir(config.storage.config.ecdh_private_, download_dir)
 
     if not medusa.utils.evaluate_boolean(config.kubernetes.enabled if config.kubernetes else False):
         logging.info('Stopping Cassandra')

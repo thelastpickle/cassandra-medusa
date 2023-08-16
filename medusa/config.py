@@ -31,7 +31,9 @@ StorageConfig = collections.namedtuple(
     ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider',
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
      'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'aws_cli_path',
-     'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode']
+     'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode',
+     'ecdh_private_key', 'ecdh_public_key'
+     ]
 )
 
 CassandraConfig = collections.namedtuple(
@@ -115,7 +117,9 @@ def _build_default_config():
         'fqdn': socket.getfqdn(),
         'region': 'default',
         'backup_grace_period_in_days': 10,
-        'use_sudo_for_restore': 'True'
+        'use_sudo_for_restore': 'True',
+        'ecdh_public_key': '',
+        'ecdh_private_key': '',
     }
 
     config['logging'] = {
