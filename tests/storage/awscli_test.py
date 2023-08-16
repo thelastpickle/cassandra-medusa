@@ -2,6 +2,9 @@ import os
 import unittest
 from unittest import mock
 from unittest.mock import MagicMock
+
+import click
+from medusa.medusacli import validate_backup_name
 from medusa.storage.s3_compat_storage.awscli import AwsCli
 
 
@@ -49,6 +52,30 @@ class TestAwsCli(unittest.TestCase):
     def tearDown(self):
         if os.path.exists('test_file.txt'):
             os.remove('test_file.txt')
+
+    def test_validate_backup_name_with_slash(self):
+        """
+        Test that validate_backup_name raises an error when the value contains a "/"
+        """
+        ctx = None
+        param = None
+        value = "invalid/name"
+
+        with self.assertRaises(click.BadParameter) as context:
+            validate_backup_name(ctx, param, value)
+
+        self.assertEqual(str(context.exception), 'Backup name cannot contain "/". Please use a valid name.')
+
+    def test_validate_backup_name_without_slash(self):
+        """
+        Test that validate_backup_name returns the value unchanged when it does not contain a "/"
+        """
+        ctx = None
+        param = None
+        value = "validname"
+
+        result = validate_backup_name(ctx, param, value)
+        self.assertEqual(result, "validname")
 
 
 if __name__ == '__main__':
