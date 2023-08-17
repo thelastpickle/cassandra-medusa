@@ -325,6 +325,11 @@ def load_config(args, config_file):
             logging.error('Required configuration "{}" is missing in [ssh] section.'.format(field))
             sys.exit(2)
 
+    for field in ['bucket_name', 'prefix']:
+        if '/' in getattr(medusa_config.storage, field):
+            logging.error('Required configuration "{}" cannot contain a slash ("/")'.format(field))
+            sys.exit(2)
+
     return medusa_config
 
 
