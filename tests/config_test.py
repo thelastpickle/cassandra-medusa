@@ -215,6 +215,43 @@ class ConfigTest(unittest.TestCase):
         config = medusa.config.parse_config(args, self.medusa_config_file)
         assert config['storage']['fqdn'] == socket.gethostbyname(socket.getfqdn())
 
+    @patch('medusa.config.logging.error')
+    def test_slash_in_bucket_name(self, mock_log_error):
+        args = {
+            'bucket_name': 'bucket/name',
+            'cql_username': 'Priam',
+            'enabled': 'True',
+            'file': 'hera.log',
+            'monitoring_provider': 'local',
+            'query': 'SELECT * FROM greek_mythology',
+            'use_mgmt_api': 'True',
+            'username': 'Zeus',
+            'fqdn': 'localhost',
+        }
+        with self.assertRaises(SystemExit) as cm:
+            medusa.config.load_config(args, self.medusa_config_file)
+        self.assertEqual(cm.exception.code, 2)
+        mock_log_error.assert_called_with('Required configuration "bucket_name" cannot contain a slash ("/")')
+
+    @patch('medusa.config.logging.error')
+    def test_slash_in_prefix(self, mock_log_error):
+        args = {
+            'bucket_name': 'Hector',
+            'prefix': 'pre/fix',
+            'cql_username': 'Priam',
+            'enabled': 'True',
+            'file': 'hera.log',
+            'monitoring_provider': 'local',
+            'query': 'SELECT * FROM greek_mythology',
+            'use_mgmt_api': 'True',
+            'username': 'Zeus',
+            'fqdn': 'localhost',
+        }
+        with self.assertRaises(SystemExit) as cm:
+            medusa.config.load_config(args, self.medusa_config_file)
+        self.assertEqual(cm.exception.code, 2)
+        mock_log_error.assert_called_with('Required configuration "prefix" cannot contain a slash ("/")')
+
 
 if __name__ == '__main__':
     unittest.main()
