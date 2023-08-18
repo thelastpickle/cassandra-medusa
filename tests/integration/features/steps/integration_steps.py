@@ -1343,27 +1343,7 @@ def _checking_list_of_decommissioned_nodes(context, expected_node):
 @when(r'I run a purge on decommissioned nodes')
 def _run_purge_on_decommissioned_nodes(context):
     try:
-        logging.info('Starting decommissioned purge')
-        storage = Storage(config=context.medusa_config.storage)
-
-        # Get all nodes having backups
-        blobs = storage.list_root_blobs()
-        all_nodes = medusa.purge_decommissioned.get_all_nodes(blobs)
-
-        # Get live nodes
-        live_nodes = medusa.purge_decommissioned.get_live_nodes(context.medusa_config)
-
-        # Get decommissioned nodes
-        decommissioned_nodes = medusa.purge_decommissioned.get_decommissioned_nodes(all_nodes, live_nodes)
-
-        for node in decommissioned_nodes:
-            logging.info('Decommissioned node backups to purge: {}'.format(node))
-            backups = set(storage.list_node_backups(fqdn=node))
-            (nb_objects_purged, total_purged_size, total_objects_within_grace) \
-                = medusa.purge.purge_backups(storage,
-                                             backups,
-                                             context.medusa_config.storage.backup_grace_period_in_days,
-                                             node)
+        medusa.purge_decommissioned.main(context.medusa_config)
 
     except Exception as e:
         logging.error('This error happened during the purge of decommissioned nodes: {}'.format(str(e)))

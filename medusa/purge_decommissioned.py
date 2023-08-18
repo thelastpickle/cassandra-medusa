@@ -32,7 +32,7 @@ def main(config):
         logging.debug('Emitting metrics')
         tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']
         monitoring.send(tags, 0)
-        return (nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups))
+        return decommissioned_nodes, (nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups))
     except Exception as e:
         traceback.print_exc()
         tags = ['medusa-decommissioned-node-backup', 'purge-error', 'PURGE-ERROR']

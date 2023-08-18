@@ -14,34 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import medusa.purge_decommissioned
-import medusa.fetch_tokenmap
-import medusa.verify
-import medusa.status
-import medusa.restore_node
-import medusa.restore_cluster
-import medusa.report_latest
-import medusa.purge
-import medusa.listing
-import medusa.index
-import medusa.download
-import medusa.config
-import medusa.backup_cluster
-from medusa.backup_manager import BackupMan
-from medusa import backup_node
-from pathlib import Path
-from collections import defaultdict
-import sys
-from click_aliases import ClickAliasedGroup
-import click
-import logging.handlers
-import logging
-import datetime
 from gevent import monkey
 
 import medusa.utils
 
 monkey.patch_all()
+import datetime
+import logging
+import logging.handlers
+import click
+from click_aliases import ClickAliasedGroup
+import sys
 
 # Need to get rid of the annoying pssh warning about paramiko
 if not sys.warnoptions:
@@ -49,6 +32,23 @@ if not sys.warnoptions:
 
     warnings.simplefilter("ignore")
 
+from collections import defaultdict
+from pathlib import Path
+
+from medusa import backup_node
+from medusa.backup_manager import BackupMan
+import medusa.backup_cluster
+import medusa.config
+import medusa.download
+import medusa.index
+import medusa.listing
+import medusa.purge
+import medusa.report_latest
+import medusa.restore_cluster
+import medusa.restore_node
+import medusa.status
+import medusa.verify
+import medusa.fetch_tokenmap
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
