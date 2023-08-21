@@ -265,11 +265,6 @@ jobs:
     - uses: codecov/codecov-action@v1
       name: Report code coverage
 
-#    - name: Setup tmate session
-#      if: "failure()"
-#      uses: mxschmitt/action-tmate@v3
-#      timeout-minutes: 30
-
   publish-docker-master:
     needs: [debian-build, build, integration-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
