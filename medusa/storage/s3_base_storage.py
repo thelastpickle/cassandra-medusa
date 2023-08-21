@@ -70,7 +70,7 @@ class S3BaseStorage(AbstractStorage):
 
     def __init__(self, config):
 
-        s3_region = 'us-west-2' if config.region == 'default' else config.region
+        s3_region = 'us-east-1' if config.region == 'default' else config.region
 
         s3_profile = 'default'
         if config.api_profile:
