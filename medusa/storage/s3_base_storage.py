@@ -66,9 +66,9 @@ class CensoredCredentials(StaticCredentials):
 
 class S3BaseStorage(AbstractStorage):
 
-    def __init__(self, config):
+    api_version = '2006-03-01'
 
-        self.api_version = '2006-03-01'
+    def __init__(self, config):
 
         s3_region = 'us-west-2' if config.region == 'default' else config.region
 
