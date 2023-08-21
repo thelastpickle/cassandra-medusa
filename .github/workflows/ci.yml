@@ -13,12 +13,10 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.7, 3.8, 3.9, "3.10"]
         include:
           - python-version: 3.7
             tox-py: py37
-          - python-version: 3.6
-            tox-py: py36
           - python-version: 3.8
             tox-py: py38
           - python-version: 3.9
@@ -105,8 +103,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          #python-version: [3.6]
-          python-version: [3.6, "3.10"]
+          python-version: [3.9]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -122,38 +119,17 @@ jobs:
               experimental: true
           exclude:
             # excludes unnecessary combinations
+            - cassandra-version: 'github:apache/trunk'
             - it-backend: s3
-              cassandra-version: 2.2.19
-            - it-backend: s3
-              cassandra-version: 'github:apache/trunk'
-            - it-backend: s3
-              python-version: "3.10"
+              cassandra-version: 3.11.11
             - it-backend: gcs
-              cassandra-version: 2.2.19
-            - it-backend: gcs
-              cassandra-version: 'github:apache/trunk'
-            - it-backend: gcs
-              python-version: "3.10"
+              cassandra-version: 3.11.11
             - it-backend: minio
-              cassandra-version: 2.2.19
-            - it-backend: minio
-              cassandra-version: 'github:apache/trunk'
-            - it-backend: minio
-              python-version: "3.10"
+              cassandra-version: 3.11.11
             - it-backend: azure
-              cassandra-version: 2.2.19
-            - it-backend: azure
-              cassandra-version: 'github:apache/trunk'
-            - it-backend: azure
-              python-version: "3.10"
-            - it-backend: azure-hierarchical
-              cassandra-version: 2.2.19
-            - it-backend: azure-hierarchical
               cassandra-version: 3.11.11
             - it-backend: azure-hierarchical
-              cassandra-version: 'github:apache/trunk'
-            - it-backend: azure-hierarchical
-              python-version: "3.10"
+              cassandra-version: 3.11.11
 
     runs-on: ubuntu-20.04
     services:
@@ -192,7 +168,7 @@ jobs:
             pip install -r requirements-azure.txt
             ;;
           'ibm'|'minio'|'s3')
-            pip install -r requirements-s3.txt
+            echo "No extra requirements for now."
             ;;
         esac
 
@@ -288,7 +264,6 @@ jobs:
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
-  
 
   publish-docker-master:
     needs: [debian-build, build, integration-tests]
@@ -414,10 +389,10 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.6
+    - name: Set up Python 3.7
       uses: actions/setup-python@v1
       with:
-        python-version: 3.6
+        python-version: 3.7
     - name: Install dependencies
       run: |
         python -m venv venv

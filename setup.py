@@ -34,11 +34,11 @@ setuptools.setup(
         'Environment :: Console',
         'Intended Audience :: System Administrators',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Database',
         'Topic :: System :: Archiving :: Backup'
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.7',
     packages=setuptools.find_packages(),
     install_requires=[
         'python-dateutil<2.8.1,>=2.1',
@@ -68,9 +68,11 @@ setuptools.setup(
         'datadog',
         'botocore>=1.13.27',
         'dnspython>=2.2.1',
+        'asyncio==3.4.3',
+        'aiohttp==3.8.5',
+        'aiohttp-s3-client==0.8.17'
     ],
     extras_require={
-        'S3': ["awscli>=1.16.291"],
         'AZURE': ["azure-cli==2.34.1"]
     },
     entry_points={

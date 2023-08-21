@@ -447,3 +447,6 @@ class Storage(object):
         markers = self.storage_driver.list_objects('{}index/latest_backup/{}/'.format(self.prefix_path, fqdn))
         for marker in markers:
             self.storage_driver.delete_object(marker)
+
+    def delete_objects(self, objects):
+        self.storage_driver.delete_objects(objects)

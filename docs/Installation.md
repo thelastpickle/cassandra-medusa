@@ -27,11 +27,11 @@ Running the installation using `sudo` is necessary to have the `/usr/local/bin/m
 If your Cassandra servers do not have internet access:  
 
 - on a machine with the same target os and python version, clone the cassandra-medusa repo and cd into the root directory
-- run `mkdir pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory (do the same thing with either requirements-s3.txt or requirements-azure.txt depending on your storage)
-- run `cp requirements.txt medusa_dependencies/` (plus either requirements-s3.txt or requirements-azure.txt)
+- run `mkdir pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory (do the same thing with requirements-azure.txt if that's your storage backend)
+- run `cp requirements.txt medusa_dependencies/` (plus requirements-azure.txt)
 - run `tar -zcf medusa_dependencies.tar.gz medusa_dependencies` to compress the dependencies
 - Upload the archive to all Cassandra nodes and decompress it
-- run `pip install -r medusa_dependencies/requirements.txt --no-index --find-links` to install the dependencies on the nodes (do the same thing with either requirements-s3.txt or requirements-azure.txt depending on your storage)
+- run `pip install -r medusa_dependencies/requirements.txt --no-index --find-links` to install the dependencies on the nodes (do the same thing with requirements-azure.txt depending on your storage)
 - install Medusa using `python setup.py install` from the cassandra-medusa source directory
 
 #### Example of Offline installation using pipenv on RHEL, centos 7
@@ -67,6 +67,5 @@ sudo apt-get install cassandra-medusa
 
 4/ (optional) Install the storage dependencies
 
-* if your backups are to be stored in AWS S3 and all S3 compatible backends, run `sudo apt-get install awscli`
 * if your backups are to be stored in Azure Blob Storage, run `sudo apt-get install azure-cli`
 * if your backups are to be stored in Google Cloud Storage, [follow this quickstart guide from Google](https://cloud.google.com/sdk/docs/quickstart-debian-ubuntu).

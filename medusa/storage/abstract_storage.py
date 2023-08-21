@@ -15,6 +15,7 @@
 
 import abc
 import base64
+import collections
 import hashlib
 import io
 import logging
@@ -30,6 +31,9 @@ BLOCK_SIZE_BYTES = 65536
 MULTIPART_PART_SIZE_IN_MB = 8
 MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
+
+
+AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified'])
 
 
 class AbstractStorage(abc.ABC):
@@ -148,6 +152,10 @@ class AbstractStorage(abc.ABC):
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def delete_object(self, object):
         self.driver.delete_object(object)
+
+    def delete_objects(self, objects):
+        for o in objects:
+            self.delete_object(o)
 
     def check_dependencies(self):
         """

@@ -37,9 +37,6 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
     -r /build/requirements.txt \
     -r /build/requirements-grpc-runtime.txt
 
-# Amazon S3
-RUN pip3 install --ignore-installed --user -r /build/requirements-s3.txt
-
 # Azure
 RUN pip3 install --ignore-installed --user -r /build/requirements-azure.txt \
      && pip3 install --ignore-installed --user azure-cli
