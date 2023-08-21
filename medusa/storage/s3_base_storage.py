@@ -183,9 +183,6 @@ class S3BaseStorage(AbstractStorage):
         async with self.http_client.get(blob.name) as resp:
             return await resp.read()
 
-    # def list_objects(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
-    #     return self.list_blobs(prefix)
-
     def list_blobs(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
         loop = self._get_or_create_event_loop()
         objects = loop.run_until_complete(self._list_blobs(prefix))
