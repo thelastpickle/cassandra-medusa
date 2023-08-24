@@ -32,6 +32,9 @@ MULTIPART_PART_SIZE_IN_MB = 8
 MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
 
+DEFAULT_MULTIPART_PART_SIZE = 5 * 1024 * 1024   # 5 MB
+DEFAULT_MULTIPART_PARTS_COUNT = 9500            # 47.5 GB
+
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified'])
 
@@ -42,11 +45,21 @@ class AbstractStorage(abc.ABC):
         self.config = config
         self.driver = self.connect_storage()
         self.bucket = self.driver.get_container(container_name=config.bucket_name)
+        self.MULTIPART_PART_SIZE = DEFAULT_MULTIPART_PART_SIZE
+        self.MULTIPART_PARTS_COUNT = DEFAULT_MULTIPART_PARTS_COUNT
 
     @abc.abstractmethod
     def connect_storage(self):
         # Override for each child class
         pass
+
+    def set_multipart_thresholds(
+            self,
+            part_size=DEFAULT_MULTIPART_PART_SIZE,
+            max_parts_count=DEFAULT_MULTIPART_PARTS_COUNT
+    ):
+        self.MULTIPART_PART_SIZE = part_size
+        self.MULTIPART_PARTS_COUNT = max_parts_count
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def list_objects(self, path=None):

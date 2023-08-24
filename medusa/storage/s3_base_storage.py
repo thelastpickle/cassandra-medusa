@@ -21,9 +21,10 @@ import base64
 import botocore.session
 import collections
 import datetime
-import logging
 import io
 import itertools
+import math
+import logging
 import os
 import subprocess
 import typing as t
@@ -36,8 +37,12 @@ from retrying import retry
 from aiohttp_s3_client import S3Client
 from aiohttp_s3_client.credentials import StaticCredentials
 
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob
-
+from medusa.storage.abstract_storage import (
+    AbstractStorage,
+    AbstractBlob,
+    DEFAULT_MULTIPART_PART_SIZE,
+    DEFAULT_MULTIPART_PARTS_COUNT
+)
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -285,17 +290,52 @@ class S3BaseStorage(AbstractStorage):
         await asyncio.sleep(0.001)
 
     async def _upload_big_blob(self, src: str, object_key: str, file_size: int):
+
+        part_size, parts_count = self.calculate_part_size(
+            file_size,
+            self.MULTIPART_PART_SIZE,
+            self.MULTIPART_PARTS_COUNT
+        )
+
+        sizes_string = 'file_size={}, part_size={}, parts_count={}'.format(
+            _human_readable_size(file_size), _human_readable_size(part_size), parts_count
+        )
         logging.debug(
             '[Storage] Uploading multi-part {} ({}) -> s3://{}/{}'.format(
-                src, _human_readable_size(file_size), self.config.bucket_name, object_key
+                src, sizes_string, self.config.bucket_name, object_key
             )
         )
         await self.http_client.put_file_multipart(
             file_path=src,
             object_name=object_key,
             headers=self.additional_upload_headers(),
+            part_size=part_size,
             workers_count=2
         )
+
+    @staticmethod
+    def calculate_part_size(
+            file_size: int,
+            min_part_size: int = DEFAULT_MULTIPART_PART_SIZE,
+            max_parts_count: int = DEFAULT_MULTIPART_PARTS_COUNT
+    ) -> t.Tuple[int, int]:
+
+        logging.info(f'Calculating part size for file size {file_size} with max parts count {max_parts_count}')
+
+        # check if we fit into the parts limit with the default part size
+        num_parts_with_min_part_size = int(math.ceil(file_size / min_part_size))
+        if num_parts_with_min_part_size < max_parts_count:
+            part_size, parts_count = min_part_size, num_parts_with_min_part_size
+        else:
+            # if not, calculate the part size that will fit into the parts limit
+            part_size = int(math.ceil(file_size / max_parts_count))
+            parts_count = max_parts_count
+
+        size_5gb = 5 * 1024 * 1024 * 1024
+        if part_size > size_5gb:
+            raise ValueError('Part size cannot be greater than 5GB')
+
+        return part_size, parts_count
 
     def upload_object_via_stream(self, data: io.BytesIO, container, object_name: str, headers) -> AbstractBlob:
         loop = self._get_or_create_event_loop()

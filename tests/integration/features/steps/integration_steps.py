@@ -15,6 +15,7 @@
 
 import datetime
 import glob
+import humanfriendly
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -1305,6 +1307,76 @@ def _backup_has_been_purged(context, nb_purged_backups):
 @then(r'I wait for {pause_duration} seconds')
 def _i_wait_for_seconds(context, pause_duration):
     time.sleep(int(pause_duration))
+
+
+@given(r'I configure the storage to allow max "{parts}" parts per multipart upload')
+def _i_configure_the_storage_to_allow_some_parts_per_multipart_upload(context, parts):
+    storage = Storage(config=context.medusa_config.storage)
+    storage.storage_driver.set_multipart_thresholds(max_parts_count=int(parts))
+    context.storage = storage
+
+
+# a log record handler that remembers the last logged record
+class LastLogRecordHandler(logging.Handler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_record = None
+
+    def emit(self, record):
+        self.last_record = record
+
+
+@when(r'I upload a "{human_size}" file named "{file_name}" to path "{object_path_prefix}"')
+def _i_upload_a_file_to_path(context, human_size, file_name, object_path_prefix):
+    size = humanfriendly.parse_size(human_size)
+
+    # add the custom handler
+    handler = LastLogRecordHandler()
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    # remember the handler for later use
+    context.handler = handler
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with open(os.path.join(temp_dir, file_name), 'wb') as temp_file:
+            # write size bytes of random content
+            temp_file.write(os.urandom(size))
+            temp_file.flush()
+            srcs = [temp_file.name]
+            dest = object_path_prefix
+            context.storage.storage_driver.upload_blobs(srcs, dest)
+
+
+@then(r'I can see the upload happened in "{parts}" parts of size "{part_size}" each')
+def _i_can_see_the_upload_happened_in_parts_of_size(context, parts, part_size):
+    assert context.handler is not None
+    assert f'parts_count={int(parts)}' in str(context.handler.last_record.msg)
+    assert f'part_size={str(part_size)}' in str(context.handler.last_record.msg)
+
+
+@then(r'I can see the file "{object_path}" exists in the storage')
+def _i_can_see_the_file_exists_in_the_storage(context, object_path):
+    blobs = context.storage.storage_driver.list_blobs(prefix=object_path)
+    logging.info(f'Listed blobs: {blobs}')
+    assert len(blobs) == 1
+
+
+@then(r'I can download the file "{object_path}" of size "{expected_size}" from the storage')
+def _i_can_download_the_file_from_the_storage(context, object_path, expected_size):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_name = object_path.split("/")[-1]
+        dest_dir = temp_dir
+        dest_file = os.path.join(dest_dir, file_name)
+        context.storage.storage_driver.download_blobs([object_path], dest_dir)
+        assert os.path.exists(dest_file)
+        assert os.path.getsize(dest_file) == humanfriendly.parse_size(expected_size)
+
+
+@then(r'I clean up the multipart files in the storage')
+def _i_clean_up_the_multipart_files_in_the_storage(context):
+    objects = context.storage.storage_driver.list_objects("multipart-test")
+    context.storage.storage_driver.delete_objects(objects)
 
 
 @then(r'I modify Statistics.db file in the backup in the "{table}" table in keyspace "{keyspace}"')

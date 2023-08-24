@@ -968,3 +968,29 @@ Feature: Integration tests
         Examples: Local storage
         | storage           | client encryption |
         | local      |  with_client_encryption |     
+
+
+    @26
+    Scenario Outline: Initialise a storage, do a multipart upload and verify it happened correctly
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        Given I configure the storage to allow max "5" parts per multipart upload
+        When I upload a "20 MiB" file named "file1.db" to path "multipart-test"
+        Then I can see the upload happened in "4" parts of size "5.000MiB" each
+        And I can see the file "multipart-test/file1.db" exists in the storage
+        And I can download the file "multipart-test/file1.db" of size "20 Mib" from the storage
+        When I upload a "40 MiB" file named "file2.db" to path "multipart-test"
+        Then I can see the upload happened in "5" parts of size "8.000MiB" each
+        And I can see the file "multipart-test/file2.db" exists in the storage
+        And I can download the file "multipart-test/file2.db" of size "40 Mib" from the storage
+        Then I clean up the multipart files in the storage
+
+
+        @s3
+        Examples: S3 storage
+        | storage           | client encryption         |
+        | s3_us_west_oregon | without_client_encryption |
+
+        @minio
+        Examples: MinIO storage
+        | storage           | client encryption         |
+        | minio             | without_client_encryption |
