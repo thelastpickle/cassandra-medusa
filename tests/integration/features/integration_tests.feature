@@ -29,9 +29,11 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
+        And all files of "medusa.test" in "first_backup" were uploaded with KMS key as configured in "<storage>"
         Then I can download the backup named "first_backup" for all tables
         Then I can download the backup named "first_backup" for "medusa.test"
         And I can fetch the tokenmap of the backup named "first_backup"
+        And the schema of the backup named "first_backup" was uploaded with KMS key according to "<storage>"
         Then I can see the backup status for "first_backup" when I run the status command
         Then backup named "first_backup" has 32 files in the manifest for the "test" table in keyspace "medusa"
         Then the backup index exists

@@ -37,7 +37,7 @@ from aiohttp_s3_client import S3Client
 from aiohttp_s3_client.credentials import ConfigCredentials, StaticCredentials, EnvironmentCredentials
 from aiohttp_s3_client.credentials import merge_credentials
 
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -275,10 +275,10 @@ class S3BaseStorage(AbstractStorage):
 
     def upload_object_via_stream(self, data: io.BytesIO, container, object_name: str, headers) -> AbstractBlob:
         loop = self._get_or_create_event_loop()
-        o = loop.run_until_complete(self._upload_object(data, object_name))
+        o = loop.run_until_complete(self._upload_object(data, object_name, headers))
         return o
 
-    async def _upload_object(self, data: io.BytesIO, object_key: str) -> AbstractBlob:
+    async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         logging.debug(
             '[Storage] Uploading object from stream -> s3://{}/{}'.format(
                 self.config.bucket_name, object_key
@@ -287,7 +287,7 @@ class S3BaseStorage(AbstractStorage):
         await self.http_client.put(
             object_key,
             data=data.getvalue(),
-            headers=self.additional_upload_headers()
+            headers=headers
         )
         blob = await self._stat_blob(object_key)
         return blob
@@ -321,6 +321,38 @@ class S3BaseStorage(AbstractStorage):
 
     async def _delete_object(self, obj: AbstractBlob):
         await self.http_client.delete(obj.name)
+
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
+        loop = self._get_or_create_event_loop()
+        return loop.run_until_complete(self._get_blob_metadata(blob_key))
+
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    def get_blobs_metadata(self, blob_keys: t.List[str]) -> t.List[AbstractBlobMetadata]:
+        loop = self._get_or_create_event_loop()
+        return loop.run_until_complete(self._get_blobs_metadata(blob_keys))
+
+    async def _get_blobs_metadata(self, blob_keys: t.List[str]) -> t.List[AbstractBlobMetadata]:
+        coros = [self._get_blob_metadata(blob_key) for blob_key in blob_keys]
+        return await asyncio.gather(*coros)
+
+    async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
+        async with self.http_client.head(blob_key) as resp:
+            # the headers come as some non-default dict, so we need to re-package them
+            blob_metadata = dict(**resp.headers)
+
+            sse_algo = blob_metadata.get('x-amz-server-side-encryption', None)
+            if sse_algo == 'AES256':
+                sse_enabled, sse_key_id = False, None
+            elif sse_algo == 'aws:kms':
+                sse_enabled = True
+                # the metadata returns the entire ARN, so we just return the last part ~ the actual ID
+                sse_key_id = blob_metadata['x-amz-server-side-encryption-aws-kms-key-id'].split('/')[-1]
+            else:
+                logging.warning('No SSE info found in blob {} metadata'.format(blob_key))
+                sse_enabled, sse_key_id = False, None
+
+            return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
@@ -366,7 +398,6 @@ class S3BaseStorage(AbstractStorage):
             await self.http_client.get_file_parallel(
                 object_name=object_key,
                 file_path=file_path,
-                headers=self.additional_upload_headers(),
                 workers_count=workers
             )
         except Exception as e:
@@ -487,12 +518,11 @@ class S3BaseStorage(AbstractStorage):
 
     def additional_upload_headers(self):
         headers = {}
-        # TODO seems like adding these is counterproductive, it breaks things
-        # if self.config.kms_id:
-        #     headers.update({
-        #         "x-amz-server-side-encryption": "aws:kms",
-        #         "x-amz-server-side-encryption-aws-kms-key-id": self.config.kms_id
-        #     })
+        if self.config.kms_id:
+            headers.update({
+                "x-amz-server-side-encryption": "aws:kms",
+                "x-amz-server-side-encryption-aws-kms-key-id": self.config.kms_id
+            })
         return headers
 
 
