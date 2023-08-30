@@ -13,11 +13,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import tempfile
 
 import aiohttp
+import aiohttp_s3_client
 import asyncio
 import base64
+import botocore.session
 import collections
 import datetime
 import logging
@@ -27,15 +28,13 @@ import os
 import subprocess
 import typing as t
 
-import aiohttp_s3_client
 from http import HTTPStatus
 from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
 from retrying import retry
 
 from aiohttp_s3_client import S3Client
-from aiohttp_s3_client.credentials import ConfigCredentials, StaticCredentials, EnvironmentCredentials
-from aiohttp_s3_client.credentials import merge_credentials
+from aiohttp_s3_client.credentials import StaticCredentials
 
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob
 
@@ -64,59 +63,46 @@ class CensoredCredentials(StaticCredentials):
         return f"CensoredCredentials(access_key_id={key}, secret_access_key={secret}, region={self.region})"
 
 
+LIBCLOUD_REGION_NAME_MAP = {
+    'S3_US_EAST': 'us-east-1',
+    'S3_US_EAST1': 'us-east-1',
+    'S3_US_EAST2': 'us-east-2',
+    'S3_US_WEST': 'us-west-1',
+    'S3_US_WEST2': 'us-west-2',
+    'S3_US_WEST_OREGON': 'us-west-2',
+    'S3_US_GOV_EAST': 'us-gov-east-1',
+    'S3_US_GOV_WEST': 'us-gov-west-1',
+    'S3_EU_WEST': 'eu-west-1',
+    'S3_EU_WEST2': 'eu-west-2',
+    'S3_EU_CENTRAL': 'eu-central-1',
+    'S3_EU_NORTH1': 'eu-north-1',
+    'S3_AP_SOUTH': 'ap-south-1',
+    'S3_AP_SOUTHEAST': 'ap-southeast-1',
+    'S3_AP_SOUTHEAST2': 'ap-southeast-2',
+    'S3_AP_NORTHEAST': 'ap-northeast-1',
+    'S3_AP_NORTHEAST1': 'ap-northeast-1',
+    'S3_AP_NORTHEAST2': 'ap-northeast-2',
+    'S3_SA_EAST': 'sa-east-1',
+    'S3_SA_EAST2': 'sa-east-2',
+    'S3_CA_CENTRAL': 'ca-central-1',
+    'S3_CN_NORTH': 'cn-north-1',
+    'S3_CN_NORTHWEST': 'cn-northwest-1',
+    'S3_AF_SOUTH': 'af-south-1',
+    'S3_ME_SOUTH': 'me-south-1',
+}
+
+
 class S3BaseStorage(AbstractStorage):
 
     api_version = '2006-03-01'
 
     def __init__(self, config):
 
-        s3_region = 'us-east-1' if config.region == 'default' else config.region
-
-        s3_profile = 'default'
-        if config.api_profile:
-            logging.debug("Using AWS profile {}".format(
-                config.api_profile,
-            ))
-            s3_profile = config.api_profile
-
-        if config.key_file:
-            # pathlib could not properly expand the ~, so need to expanduser()
-            credentials_path = Path(config.key_file).expanduser().absolute()
-            logging.info("Setting AWS credentials file to {}".format(credentials_path))
-
-            # fake aws config file if the default one does not exist
-            # we're doing this because the s3 client needs that file in order to load credentials properly
-            with tempfile.NamedTemporaryFile() as temp_file:
-                default_config_path = Path('~').expanduser() / '.aws' / 'config'
-                config_path = str(default_config_path.absolute()) if default_config_path.exists() else temp_file.name
-                config_credentials = ConfigCredentials(
-                    credentials_path=credentials_path,
-                    config_path=config_path,
-                    profile=s3_profile,
-                )
-        else:
-            raise ValueError('No storage.key_file specified, cannot authenticate to S3')
-
         if config.kms_id:
-            logging.debug("Using KMS key {}".format(
-                config.kms_id,
-            ))
+            logging.debug("Using KMS key {}".format(config.kms_id))
 
-        # ordering of credentials is important, earlier ones take precedence
-        merged_credentials = merge_credentials(
-            EnvironmentCredentials(region=s3_region), config_credentials
-        )
+        self.credentials = self._consolidate_credentials(config)
 
-        censored_credentials = CensoredCredentials(
-            access_key_id=merged_credentials.access_key_id,
-            secret_access_key=merged_credentials.secret_access_key,
-            # setting this statically because the s3 client can't work this out properly
-            region=s3_region,
-            service=merged_credentials.service
-        )
-        self.credentials = censored_credentials
-
-        logging.info('Using S3 region {}'.format(self.credentials.region))
         logging.info('Using credentials {}'.format(self.credentials))
 
         self.bucket_name: str = config.bucket_name
@@ -147,6 +133,44 @@ class S3BaseStorage(AbstractStorage):
         logging.getLogger('charset_normalizer').setLevel(logging.WARNING)
 
         super().__init__(config)
+
+    @staticmethod
+    def _consolidate_credentials(config) -> CensoredCredentials:
+
+        session = botocore.session.Session()
+
+        if config.api_profile:
+            logging.debug("Using AWS profile {}".format(
+                config.api_profile,
+            ))
+            session.set_config_variable('profile', config.api_profile)
+
+        if config.region and config.region != "default":
+            session.set_config_variable('region', config.region)
+        elif config.storage_provider not in ['s3', 's3_compatible'] and config.region == "default":
+            session.set_config_variable('region', S3BaseStorage._region_from_provider_name(config.storage_provider))
+        else:
+            session.set_config_variable('region', "us-east-1")
+
+        if config.key_file:
+            logging.debug("Setting AWS credentials file to {}".format(
+                config.key_file,
+            ))
+            session.set_config_variable('credentials_file', config.key_file)
+
+        boto_credentials = session.get_credentials()
+        return CensoredCredentials(
+            access_key_id=boto_credentials.access_key,
+            secret_access_key=boto_credentials.secret_key,
+            region=session.get_config_variable('region'),
+        )
+
+    @staticmethod
+    def _region_from_provider_name(provider_name: str) -> str:
+        if provider_name.upper() in LIBCLOUD_REGION_NAME_MAP.keys():
+            return LIBCLOUD_REGION_NAME_MAP[provider_name.upper()]
+        else:
+            raise ValueError("Unknown provider name {}".format(provider_name))
 
     def connect_storage(self):
         # TODO
