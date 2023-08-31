@@ -25,3 +25,4 @@ boto3>=1.28.38
 dnspython>=2.2.1
 asyncio==3.4.3
 aiohttp==3.8.5
+gcloud-aio-storage==8.3.0

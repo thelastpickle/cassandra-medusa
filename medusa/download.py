@@ -19,7 +19,7 @@ import pathlib
 import sys
 
 from medusa.storage import Storage, divide_chunks
-from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.storage.google_storage import GOOGLE_MAX_FILES_PER_CHUNK
 from medusa.filtering import filter_fqtns
 
 
@@ -48,7 +48,7 @@ def download_data(storageconfig, backup, fqtns_to_restore, destination):
             for subfolder in dst_subfolders:
                 subfolder.mkdir(parents=False)
 
-            for src_batch in divide_chunks(srcs, GSUTIL_MAX_FILES_PER_CHUNK):
+            for src_batch in divide_chunks(srcs, GOOGLE_MAX_FILES_PER_CHUNK):
                 storage.storage_driver.download_blobs(src_batch, dst)
         elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
             logging.debug('There is nothing to download for {}'.format(fqtn))

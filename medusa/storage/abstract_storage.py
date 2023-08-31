@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import abc
+import asyncio
 import base64
 import collections
 import hashlib
@@ -35,8 +36,9 @@ MULTIPART_BLOCKS_PER_MB = 16
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified'])
 
-
 AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata', ['name', 'sse_enabled', 'sse_key_id'])
+
+ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 
 class AbstractStorage(abc.ABC):
@@ -218,6 +220,19 @@ class AbstractStorage(abc.ABC):
                 break
             hash_md5.update(chunk)
         return hash_md5.digest(), eof
+
+    @staticmethod
+    def _get_or_create_event_loop() -> asyncio.AbstractEventLoop:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            logging.warning("Having to make a new event loop unexpectedly")
+            new_loop = asyncio.new_event_loop()
+            if new_loop.is_closed():
+                logging.error("Even the new event loop was not running, bailing out")
+                raise RuntimeError("Could not create a new event loop")
+            asyncio.set_event_loop(new_loop)
+            return new_loop
+        return loop
 
     @staticmethod
     @abc.abstractmethod

@@ -18,7 +18,6 @@ import asyncio
 import base64
 import boto3
 import botocore.session
-import collections
 import datetime
 import logging
 import io
@@ -32,10 +31,8 @@ from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
 from retrying import retry
 
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject
 
-
-ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
@@ -454,18 +451,6 @@ class S3BaseStorage(AbstractStorage):
     def get_cache_path(self, path: str) -> str:
         # Full path for files that will be taken from previous backups
         return path
-
-    def _get_or_create_event_loop(self) -> asyncio.AbstractEventLoop:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            logging.warning("Having to make a new event loop unexpectedly")
-            new_loop = asyncio.new_event_loop()
-            if new_loop.is_closed():
-                logging.error("Even the new event loop was not running, bailing out")
-                raise RuntimeError("Could not create a new event loop")
-            asyncio.set_event_loop(new_loop)
-            return new_loop
-        return loop
 
     @staticmethod
     def blob_matches_manifest(blob: AbstractBlob, object_in_manifest: dict, enable_md5_checks=False):
