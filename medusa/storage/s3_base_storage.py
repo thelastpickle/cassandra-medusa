@@ -21,6 +21,8 @@ import base64
 import botocore.session
 import boto3
 from boto3.s3.transfer import TransferConfig
+from boto3.exceptions import ClientError
+import os
 import collections
 import datetime
 import logging
@@ -132,7 +134,7 @@ class S3BaseStorage(AbstractStorage):
         # disable aiohttp_s3_client's debug logging, it's just too noisy
         logging.getLogger('aiohttp_s3_client').setLevel(logging.WARNING)
         logging.getLogger('charset_normalizer').setLevel(logging.WARNING)
-
+        os.environ['AWS_SHARED_CREDENTIALS_FILE'] = config.key_file
         self.s3_client = boto3.client('s3')
 
         super().__init__(config)
@@ -318,18 +320,18 @@ class S3BaseStorage(AbstractStorage):
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
         for _ in range(5):
-            async with self.http_client.head(object_key) as resp:
-                if resp.status == HTTPStatus.OK:
-                    page = self.http_client.list_objects_v2(prefix=object_key)
-                    async for items in page:
-                        for item in items:
-                            # need to remove double quotes from the etags. libclud does this too
-                            item_hash = item.etag.replace('"', '')
-                            return AbstractBlob(item.key, int(item.size), item_hash, item.last_modified)
+            try:
+                resp = self.s3_client.head_object(Bucket=self.config.bucket_name, Key=object_key)
+                item_hash = resp['ETag'].replace('"', '')
+                return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'])
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'NoSuchKey':
+                    logging.info("Object not found:", e)
                 else:
-                    logging.error('Error getting object from s3://{}/{}: {}'.format(
-                        self.config.bucket_name, object_key, resp))
-                    await asyncio.sleep(5)
+                    # Handle other exceptions if needed
+                    logging.error("An error occurred:", e)
+                logging.error('Error getting object from s3://{}/{}'.format(
+                    self.config.bucket_name, object_key))
         raise ObjectDoesNotExistError(
             value='Object {} does not exist'.format(object_key),
             driver=self,
