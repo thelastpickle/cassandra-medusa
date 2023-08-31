@@ -334,7 +334,7 @@ def update_monitoring(actual_backup_duration, backup_name, monitoring, node_back
     logging.debug('Emitting metrics')
 
     tags = ['medusa-node-backup', 'backup-duration', backup_name]
-    monitoring.send(tags, actual_backup_duration.seconds)
+    monitoring.send(tags, actual_backup_duration.total_seconds())
 
     tags = ['medusa-node-backup', 'backup-size', backup_name]
     monitoring.send(tags, node_backup.size())
