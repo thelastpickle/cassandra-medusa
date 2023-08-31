@@ -19,12 +19,13 @@ import aiohttp_s3_client
 import asyncio
 import base64
 import botocore.session
+import boto3
+from boto3.s3.transfer import TransferConfig
 import collections
 import datetime
 import logging
 import io
 import itertools
-import os
 import subprocess
 import typing as t
 
@@ -132,6 +133,8 @@ class S3BaseStorage(AbstractStorage):
         logging.getLogger('aiohttp_s3_client').setLevel(logging.WARNING)
         logging.getLogger('charset_normalizer').setLevel(logging.WARNING)
 
+        self.s3_client = boto3.client('s3')
+
         super().__init__(config)
 
     @staticmethod
@@ -234,7 +237,6 @@ class S3BaseStorage(AbstractStorage):
         blob = await self._stat_blob(object_key)
         return blob
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         loop = self._get_or_create_event_loop()
         manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
@@ -259,11 +261,9 @@ class S3BaseStorage(AbstractStorage):
             else "{}/{}".format(dest, file_name)
         )
 
-        file_size = os.stat(src).st_size
-        if file_size < int(self.config.multi_part_upload_threshold):
-            await self._upload_small_blob(src, object_key)
-        else:
-            await self._upload_big_blob(src, object_key, file_size)
+        # file_size = os.stat(src).st_size
+        config = TransferConfig(max_concurrency=5)
+        self.s3_client.upload_file(src, self.bucket_name, object_key, Config=config)
 
         blob = await self._stat_blob(object_key)
         mo = ManifestObject(blob.name, blob.size, blob.hash)
@@ -317,19 +317,24 @@ class S3BaseStorage(AbstractStorage):
         return blob
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
-        async with self.http_client.head(object_key) as resp:
-            if not resp.status == HTTPStatus.OK:
-                raise ObjectDoesNotExistError(
-                    value='Object {} does not exist'.format(object_key),
-                    driver=self,
-                    object_name=object_key
-                )
-        page = self.http_client.list_objects_v2(prefix=object_key)
-        async for items in page:
-            for item in items:
-                # need to remove double quotes from the etags. libclud does this too
-                item_hash = item.etag.replace('"', '')
-                return AbstractBlob(item.key, int(item.size), item_hash, item.last_modified)
+        for _ in range(5):
+            async with self.http_client.head(object_key) as resp:
+                if resp.status == HTTPStatus.OK:
+                    page = self.http_client.list_objects_v2(prefix=object_key)
+                    async for items in page:
+                        for item in items:
+                            # need to remove double quotes from the etags. libclud does this too
+                            item_hash = item.etag.replace('"', '')
+                            return AbstractBlob(item.key, int(item.size), item_hash, item.last_modified)
+                else:
+                    logging.error('Error getting object from s3://{}/{}: {}'.format(
+                        self.config.bucket_name, object_key, resp))
+                    await asyncio.sleep(5)
+        raise ObjectDoesNotExistError(
+            value='Object {} does not exist'.format(object_key),
+            driver=self,
+            object_name=object_key
+        )
 
     def delete_object(self, obj: AbstractBlob):
         loop = self._get_or_create_event_loop()
@@ -517,28 +522,11 @@ class S3BaseStorage(AbstractStorage):
         return sizes_match and hashes_match
 
     def prepare_upload(self):
-        if self.config.transfer_max_bandwidth is not None:
-            subprocess.check_call(
-                [
-                    "aws",
-                    "configure",
-                    "set",
-                    "default.s3.max_bandwidth",
-                    self.config.transfer_max_bandwidth,
-                ]
-            )
+        pass
 
     def prepare_download(self):
         # Unthrottle downloads to speed up restores
-        subprocess.check_call(
-            [
-                "aws",
-                "configure",
-                "set",
-                "default.s3.max_bandwidth",
-                "512MB/s",
-            ]
-        )
+        pass
 
     def additional_upload_headers(self):
         headers = {}
