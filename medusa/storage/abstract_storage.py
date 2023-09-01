@@ -36,6 +36,9 @@ MULTIPART_BLOCKS_PER_MB = 16
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified'])
 
 
+AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata', ['name', 'sse_enabled', 'sse_key_id'])
+
+
 class AbstractStorage(abc.ABC):
 
     def __init__(self, config):
@@ -156,6 +159,14 @@ class AbstractStorage(abc.ABC):
     def delete_objects(self, objects):
         for o in objects:
             self.delete_object(o)
+
+    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    def get_blob_metadata(self, blob_key: str):
+        return AbstractBlobMetadata(blob_key, False, None)
+
+    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    def get_blobs_metadata(self, blob_keys):
+        return [AbstractBlobMetadata(blob_key, False, None) for blob_key in blob_keys]
 
     def check_dependencies(self):
         """

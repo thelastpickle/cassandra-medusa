@@ -1292,6 +1292,84 @@ def _i_can_fecth_tokenmap_of_backup_named(context, backup_name):
     assert "127.0.0.1" in tokenmap
 
 
+@then(r'the schema of the backup named "{backup_name}" was uploaded with KMS key according to "{storage_provider}"')
+def _the_schema_was_uploaded_with_kms_key_according_to_storage(context, backup_name, storage_provider):
+
+    # testing server-side encryption is not irrelevant when running with local storage
+    if storage_provider == 'local':
+        return
+
+    # we're testing the schema blob, because that one is written from a string
+    # which is a different code path than actual SSTables
+
+    # initialise storage with (or without) KMS according to the config
+    context.storage_provider = storage_provider
+    context.client_encryption = 'without_client_encryption'
+    context.medusa_config = get_medusa_config(context, storage_provider, context.client_encryption, None)
+    storage = Storage(config=context.medusa_config.storage)
+
+    # pick a sample blob, in this case the schema one
+    index_bobs = storage.list_backup_index_blobs()
+    blobs_by_backup = storage.group_backup_index_by_backup_and_node(index_bobs)
+    schema_blob = storage.lookup_blob(blobs_by_backup, backup_name, context.medusa_config.storage.fqdn, 'schema')
+    schema_blob_metadata = storage.storage_driver.get_blob_metadata(schema_blob.name)
+
+    # assert situation when the server-side encryption is not enabled
+    if context.medusa_config.storage.kms_id is not None:
+        # assert the kms is enabled for the blob
+        assert True is schema_blob_metadata.sse_enabled
+        # assert the KMS key is present and that it equals the one from the config
+        assert None is not schema_blob_metadata.sse_key_id
+        assert context.medusa_config.storage.kms_id == schema_blob_metadata.sse_key_id
+    else:
+        # if the KMS is not enabled, we check for SSE being disabled and the key being absent
+        assert False is schema_blob_metadata.sse_enabled
+        assert None is schema_blob_metadata.sse_key_id
+
+
+@then(
+    r'all files of "{fqtn}" in "{backup_name}" were uploaded with KMS key as configured in "{storage_provider}"'
+)
+def _all_files_of_table_in_backup_were_uploaded_with_key_configured_in_storage_config(
+        context, fqtn, backup_name, storage_provider
+):
+    # testing server-side encryption is not irrelevant when running with local storage
+    if storage_provider == 'local':
+        return
+
+    # in this step we're testing the code path that uploads actual files (not just stuff written directly)
+
+    # initialise storage with (or without) KMS according to the config
+    context.storage_provider = storage_provider
+    context.client_encryption = 'without_client_encryption'
+    context.medusa_config = get_medusa_config(context, storage_provider, context.client_encryption, None)
+    storage = Storage(config=context.medusa_config.storage)
+
+    node_backup = storage.get_node_backup(fqdn=context.medusa_config.storage.fqdn, name=backup_name)
+    manifest = json.loads(node_backup.manifest)
+    for section in manifest:
+
+        if fqtn != "{}.{}".format(section['keyspace'], section['columnfamily']):
+            continue
+
+        srcs = [
+            '{}{}'.format(storage.storage_driver.get_path_prefix(node_backup.data_path), obj['path'])
+            for obj in section['objects']
+        ]
+        for blob_metadata in storage.storage_driver.get_blobs_metadata(srcs):
+            # assert situation when the server-side encryption is not enabled
+            if context.medusa_config.storage.kms_id is not None:
+                # assert the kms is enabled for the blob
+                assert True is blob_metadata.sse_enabled
+                # assert the KMS key is present and that it equals the one from the config
+                assert None is not blob_metadata.sse_key_id
+                assert context.medusa_config.storage.kms_id is blob_metadata.sse_key_id
+            else:
+                # if the KMS is not enabled, we check for SSE being disabled and the key being absent
+                assert False is blob_metadata.sse_enabled
+                assert None is blob_metadata.sse_key_id
+
+
 @when(r'I perform a purge over gRPC')
 def _i_perform_a_purge_over_grpc_with_a_max_backup_count(context):
     context.purge_result = context.grpc_client.purge_backups()
