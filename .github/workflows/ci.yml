@@ -289,9 +289,93 @@ jobs:
     - uses: codecov/codecov-action@v1
       name: Report code coverage
   
+  k8ssandra-e2e-tests:
+    needs: [build, integration-tests]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        e2e_test:
+          - CreateSingleMedusaJob
+          - UpgradeOperatorImage
+      fail-fast: false
+    name: ${{ matrix.e2e_test }}
+    env:
+      CGO_ENABLED: 0
+      KUBECONFIG_FILE: "./build/kind-kubeconfig"
+      CONTROL_PLANE: kind-k8ssandra-0
+      DATA_PLANES: kind-k8ssandra-0
+    steps:
+      - name: Raise open files limit
+        run: |
+          echo fs.file-max=1000000 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+          echo fs.inotify.max_user_instances=1280 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+          echo fs.inotify.max_user_watches=655360 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+          ulimit -a
+      - name: Free diskspace by removing unused packages
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+      - uses: actions/checkout@v3
+      - name: Build Medusa
+        run: |
+          echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          python setup.py build
+      - name: Build image and push
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          file: k8s/Dockerfile
+          context: .
+          push: true
+          tags: k8ssandra/medusa:${{ env.short_sha }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+      - uses: actions/checkout@v3
+        with:
+          repository: k8ssandra/k8ssandra-operator
+          ref: add-medusa-non-regression-test
+          path: k8ssandra-operator
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - name: Install Kind
+        run: go get sigs.k8s.io/kind
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Setup kind cluster
+        working-directory: k8ssandra-operator
+        run: |
+          make single-create
+          kind load docker-image --name k8ssandra-0 k8ssandra/medusa:${{ env.short_sha }}
+      - name: Run e2e test ( ${{ matrix.e2e_test }} )
+        working-directory: k8ssandra-operator
+        run: |
+          e2e_test="TestOperator/${{ matrix.e2e_test }}"
+          args="-kubeconfigFile '${{ env.KUBECONFIG_FILE }}'"
+          args="$args -controlPlane '${{ env.CONTROL_PLANE }}'"
+          args="$args -dataPlanes '${{ env.DATA_PLANES }}'"
+          args="$args -medusaImageTag ${{ env.short_sha }}"
+          make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
+      - name: Get artefact upload directory
+        if: ${{ failure() }}
+        working-directory: k8ssandra-operator
+        run: |
+          uploaddir_name=$(echo ${{ matrix.e2e_test }}| sed 's/\//__/g')
+          echo 'setting uploaddir_name to' $uploaddir_name
+          echo "uploaddir_name=$uploaddir_name" >> $GITHUB_ENV
+      - name: Archive k8s logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: k8s-logs-${{ env.uploaddir_name }}
+          path: ./k8ssandra-operator/build/test
 
   publish-docker-master:
-    needs: [debian-build, build, integration-tests]
+    needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-20.04
     steps:
@@ -330,7 +414,7 @@ jobs:
     
   publish-debian:
     # We can only release if the build above succeeded first
-    needs: [debian-build, build, integration-tests]
+    needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
