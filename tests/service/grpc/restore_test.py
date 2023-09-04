@@ -89,7 +89,7 @@ class ServiceRestoreTest(unittest.TestCase):
 
                 # Assertions
                 assert result == expected_output
-                mock_get_backups.assert_called_once_with(config, True)
+                mock_get_backups.assert_called_once_with(config, False)
                 mock_restore_node.assert_called_once_with(config, PosixPath('/tmp'),
                                                           'test_backup', True, False, None, False, {}, {}, False)
 
@@ -118,7 +118,7 @@ class ServiceRestoreTest(unittest.TestCase):
                 result = restore_backup(in_place, config)
 
                 assert result == expected_output
-                mock_get_backups.assert_called_once_with(config, True)
+                mock_get_backups.assert_called_once_with(config, False)
                 mock_restore_node.assert_not_called()
 
 
