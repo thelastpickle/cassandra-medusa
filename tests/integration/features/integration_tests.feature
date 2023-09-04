@@ -966,7 +966,26 @@ Feature: Integration tests
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
         
 
-	@local
+        @local
         Examples: Local storage
         | storage           | client encryption |
-        | local      |  with_client_encryption |     
+        | local      |  with_client_encryption |
+
+    @26
+    Scenario Outline: Test purge of decommissioned nodes
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario26"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When node "127.0.0.2" fakes a complete backup named "backup1" on "2019-04-15 12:12:00"
+        Then I can see the backup named "backup1" when I list the backups
+        When I create the "test" table in keyspace "medusa"
+        When I perform a backup in "differential" mode of the node named "backup2" with md5 checks "disabled"
+        Then checking the list of decommissioned nodes returns "127.0.0.2"
+        When I run a purge on decommissioned nodes
+        Then I cannot see the backup named "backup1" when I list the backups
+        Then I can see the backup named "backup2" when I list the backups
+
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |

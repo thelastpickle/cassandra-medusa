@@ -278,6 +278,9 @@ class Storage(object):
         path = '{}index/backup_index'.format(self.prefix_path)
         return self.storage_driver.list_objects(path)
 
+    def list_root_blobs(self):
+        return self.storage_driver.list_objects(self.prefix_path)
+
     def group_backup_index_by_backup_and_node(self, backup_index_blobs):
 
         def get_backup_name(blob):
