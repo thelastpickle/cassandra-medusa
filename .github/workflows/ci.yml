@@ -329,8 +329,6 @@ jobs:
           context: .
           tags: k8ssandra/medusa:${{ env.short_sha }}
           platforms: linux/amd64
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
