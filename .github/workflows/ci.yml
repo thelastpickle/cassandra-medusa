@@ -316,7 +316,21 @@ jobs:
         run: |
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
       - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          repository: k8ssandra/k8ssandra-operator
+          ref: add-medusa-non-regression-test
+          path: ./k8ssandra-operator
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.20'
+          cache: true
+      - name: Install Kind
+        run: go get sigs.k8s.io/kind
       - name: Build Medusa
         run: |
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -329,20 +343,6 @@ jobs:
           context: .
           tags: k8ssandra/medusa:${{ env.short_sha }}
           platforms: linux/amd64
-      - uses: actions/checkout@v3
-        with:
-          repository: k8ssandra/k8ssandra-operator
-          ref: add-medusa-non-regression-test
-          path: k8ssandra-operator
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: 'go.mod'
-          cache: true
-      - name: Install Kind
-        run: go get sigs.k8s.io/kind
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
       - name: Setup kind cluster
         working-directory: k8ssandra-operator
         run: |
@@ -357,6 +357,9 @@ jobs:
           args="$args -dataPlanes '${{ env.DATA_PLANES }}'"
           args="$args -medusaImageTag ${{ env.short_sha }}"
           make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
       - name: Get artefact upload directory
         if: ${{ failure() }}
         working-directory: k8ssandra-operator
