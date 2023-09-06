@@ -350,14 +350,13 @@ jobs:
         with:
           file: cassandra-medusa/k8s/Dockerfile
           context: ./cassandra-medusa
-          tags: k8ssandra/medusa:${{ env.short_sha }}
+          tags: k8ssandra/medusa:${{ env.short_sha }}-tmp
           platforms: linux/amd64
-          load: true
+          push: true
       - name: Setup kind cluster
         working-directory: k8ssandra-operator
         run: |
           make single-create
-          kind load docker-image --name k8ssandra-0 k8ssandra/medusa:${{ env.short_sha }}
       - name: Run e2e test ( ${{ matrix.e2e_test }} )
         working-directory: k8ssandra-operator
         run: |
@@ -365,7 +364,7 @@ jobs:
           args="-kubeconfigFile '${{ env.KUBECONFIG_FILE }}'"
           args="$args -controlPlane '${{ env.CONTROL_PLANE }}'"
           args="$args -dataPlanes '${{ env.DATA_PLANES }}'"
-          args="$args -medusaImageTag ${{ env.short_sha }}"
+          args="$args -medusaImageTag ${{ env.short_sha }}-tmp"
           make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
       - name: Setup tmate session
         if: ${{ failure() }}
