@@ -151,7 +151,6 @@ class GoogleStorage(AbstractStorage):
             datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         loop = self._get_or_create_event_loop()
         manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
@@ -165,6 +164,7 @@ class GoogleStorage(AbstractStorage):
             manifest_objects += await asyncio.gather(*chunk)
         return manifest_objects
 
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_chunks = src.split('/')
         parent_name, file_name = src_chunks[-2], src_chunks[-1]
