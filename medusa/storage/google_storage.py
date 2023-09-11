@@ -93,8 +93,7 @@ class GoogleStorage(AbstractStorage):
             bucket=self.bucket_name,
             object_name=blob.name,
             session=self.session,
-            # disabling the timeout now because for small files we ought not to hit it
-            # timeout=-1
+            timeout=-1
         )
         return content
 
@@ -187,16 +186,18 @@ class GoogleStorage(AbstractStorage):
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
                 destination_bucket=self.bucket_name,
                 new_name=object_key,
+                timeout=-1,
             )
             resp = resp['resource']
         else:
-            resp = await self.gcs_storage.upload_from_filename(
-                bucket=self.bucket_name,
-                object_name=object_key,
-                filename=src,
-                # this is ~ to forcing s3 multipart upload, unsure if we wanna do it
-                # force_resumable_upload=True
-            )
+            with open(src, 'rb') as src_file:
+                resp = await self.gcs_storage.upload(
+                    bucket=self.bucket_name,
+                    object_name=object_key,
+                    file_data=src_file,
+                    force_resumable_upload=True,
+                    timeout=-1,
+                )
         mo = ManifestObject(resp['name'], int(resp['size']), resp['md5Hash'])
         return mo
 
@@ -214,7 +215,9 @@ class GoogleStorage(AbstractStorage):
         resp = await self.gcs_storage.upload(
             bucket=self.bucket_name,
             object_name=object_key,
-            file_data=data
+            file_data=data,
+            force_resumable_upload=True,
+            timeout=-1,
         )
         return AbstractBlob(resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'])
 
@@ -233,7 +236,8 @@ class GoogleStorage(AbstractStorage):
     async def _delete_object(self, obj: AbstractBlob):
         await self.gcs_storage.delete(
             bucket=self.bucket_name,
-            object_name=obj.name
+            object_name=obj.name,
+            timeout=-1,
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -268,7 +272,8 @@ class GoogleStorage(AbstractStorage):
             await self.gcs_storage.download_to_filename(
                 bucket=self.bucket_name,
                 object_name=object_key,
-                filename=file_path
+                filename=file_path,
+                timeout=-1,
             )
 
         except aiohttp.client_exceptions.ClientResponseError as cre:
