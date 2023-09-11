@@ -240,7 +240,6 @@ class GoogleStorage(AbstractStorage):
             timeout=-1,
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         loop = self._get_or_create_event_loop()
         loop.run_until_complete(self._download_blobs(srcs, dest))
@@ -249,6 +248,7 @@ class GoogleStorage(AbstractStorage):
         coros = [self._download_blob(src, dest) for src in map(str, srcs)]
         await asyncio.gather(*coros)
 
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
         blob = await self._stat_blob(src)
         object_key = blob.name
