@@ -70,7 +70,7 @@ setuptools.setup(
         'dnspython>=2.2.1',
         'asyncio==3.4.3',
         'aiohttp==3.8.5',
-        'aiohttp-s3-client==0.8.17'
+        'boto3>=1.28.38'
     ],
     extras_require={
         'AZURE': ["azure-cli==2.34.1"]
