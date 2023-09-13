@@ -70,7 +70,11 @@ setuptools.setup(
         'dnspython>=2.2.1',
         'asyncio==3.4.3',
         'aiohttp==3.8.5',
-        'boto3>=1.28.38'
+        'boto3>=1.28.38',
+        'gcloud-aio-storage==8.3.0',
+        'azure-core==1.29.4',
+        'azure-identity==1.14.0',
+        'azure-storage-blob==12.17.0',
     ],
     extras_require={
         'AZURE': ["azure-cli==2.34.1"]
