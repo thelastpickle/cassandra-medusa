@@ -14,27 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import aiohttp
-import aiohttp_s3_client
 import asyncio
 import base64
+import boto3
 import botocore.session
 import collections
 import datetime
 import logging
 import io
 import itertools
-import os
-import subprocess
 import typing as t
 
-from http import HTTPStatus
+from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
+from botocore.exceptions import ClientError
 from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
 from retrying import retry
-
-from aiohttp_s3_client import S3Client
-from aiohttp_s3_client.credentials import StaticCredentials
 
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata
 
@@ -52,7 +48,16 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 """
 
 
-class CensoredCredentials(StaticCredentials):
+class CensoredCredentials:
+
+    access_key_id = None
+    secret_access_key = None
+    region = None
+
+    def __init__(self, access_key_id, secret_access_key, region):
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self.region = region
 
     def __repr__(self):
         if len(self.access_key_id) > 0:
@@ -91,6 +96,11 @@ LIBCLOUD_REGION_NAME_MAP = {
     'S3_ME_SOUTH': 'me-south-1',
 }
 
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('botocore.hooks').setLevel(logging.WARNING)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+logging.getLogger('s3transfer').setLevel(logging.WARNING)
+
 
 class S3BaseStorage(AbstractStorage):
 
@@ -114,23 +124,28 @@ class S3BaseStorage(AbstractStorage):
             # we're dealing with a custom s3 compatible storage, so we need to craft the URL
             protocol = 'https' if config.secure.lower() == 'true' else 'http'
             port = '' if config.port is None else str(config.port)
-            s3_url = '{}://{}:{}/{}'.format(protocol, config.host, port, self.bucket_name)
+            s3_url = '{}://{}:{}'.format(protocol, config.host, port)
 
         logging.info('Using S3 URL {}'.format(s3_url))
 
-        self.http_session: aiohttp.ClientSession = aiohttp.ClientSession(
-            loop=self._get_or_create_event_loop(),
-        )
-        self.http_client: aiohttp_s3_client.S3Client = S3Client(
-            url=s3_url,
-            session=self.http_session,
-            credentials=self.credentials,
-            region=self.credentials.region,
+        extra_args = {}
+        if config.storage_provider == 's3_compatible':
+            extra_args['endpoint_url'] = s3_url
+            extra_args['verify'] = False
+
+        self.boto_config = Config(
+            region_name=self.credentials.region,
+            signature_version='v4',
+            tcp_keepalive=True
         )
 
-        # disable aiohttp_s3_client's debug logging, it's just too noisy
-        logging.getLogger('aiohttp_s3_client').setLevel(logging.WARNING)
-        logging.getLogger('charset_normalizer').setLevel(logging.WARNING)
+        self.s3_client = boto3.client(
+            's3',
+            config=self.boto_config,
+            aws_access_key_id=self.credentials.access_key_id,
+            aws_secret_access_key=self.credentials.secret_access_key,
+            **extra_args
+        )
 
         super().__init__(config)
 
@@ -198,14 +213,13 @@ class S3BaseStorage(AbstractStorage):
         return self.read_blob_as_bytes(blob).decode(encoding)
 
     def read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        logging.debug("[Storage] Reading blob {}...".format(blob.name))
+        logging.debug("[S3 Storage] Reading blob {}...".format(blob.name))
         loop = self._get_or_create_event_loop()
         b = loop.run_until_complete(self._read_blob_as_bytes(blob))
         return b
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        async with self.http_client.get(blob.name) as resp:
-            return await resp.read()
+        return self.s3_client.get_object(Bucket=self.bucket_name, Key=blob.name)['Body'].read()
 
     def list_blobs(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
         loop = self._get_or_create_event_loop()
@@ -213,12 +227,10 @@ class S3BaseStorage(AbstractStorage):
         return objects
 
     async def _list_blobs(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
-        pages = self.http_client.list_objects_v2(prefix=prefix)
         blobs = []
-        async for page in pages:
-            for obj in page:
-                obj_hash = obj.etag.replace('"', '')
-                blobs.append(AbstractBlob(obj.key, obj.size, obj_hash, obj.last_modified))
+        for o in self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix).get('Contents', []):
+            obj_hash = o['ETag'].replace('"', '')
+            blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified']))
         return blobs
 
     def get_object(self, bucket_name, object_key: str) -> t.Optional[AbstractBlob]:
@@ -234,7 +246,6 @@ class S3BaseStorage(AbstractStorage):
         blob = await self._stat_blob(object_key)
         return blob
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         loop = self._get_or_create_event_loop()
         manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
@@ -259,43 +270,25 @@ class S3BaseStorage(AbstractStorage):
             else "{}/{}".format(dest, file_name)
         )
 
-        file_size = os.stat(src).st_size
-        if file_size < int(self.config.multi_part_upload_threshold):
-            await self._upload_small_blob(src, object_key)
-        else:
-            await self._upload_big_blob(src, object_key, file_size)
+        kms_args = {}
+        if self.config.kms_id is not None:
+            kms_args['ServerSideEncryption'] = 'aws:kms'
+            kms_args['SSEKMSKeyId'] = self.config.kms_id
+
+        logging.debug('[S3 Storage] Uploading {} -> {}'.format(src, object_key))
+
+        config = TransferConfig(max_concurrency=5)
+        self.s3_client.upload_file(
+            Filename=src,
+            Bucket=self.bucket_name,
+            Key=object_key,
+            Config=config,
+            ExtraArgs=kms_args,
+        )
 
         blob = await self._stat_blob(object_key)
         mo = ManifestObject(blob.name, blob.size, blob.hash)
         return mo
-
-    async def _upload_small_blob(self, src: str, object_key: str):
-        logging.debug(
-            '[Storage] Uploading single-part {} -> s3://{}/{}'.format(
-                src, self.config.bucket_name, object_key
-            )
-        )
-        await self.http_client.put_file(
-            file_path=src,
-            object_name=object_key,
-            headers=self.additional_upload_headers()
-        )
-        # arbitrary wait to prevent server disconnection
-        # see https://github.com/aio-libs/aiohttp/issues/4549#issuecomment-1514524289
-        await asyncio.sleep(0.001)
-
-    async def _upload_big_blob(self, src: str, object_key: str, file_size: int):
-        logging.debug(
-            '[Storage] Uploading multi-part {} ({}) -> s3://{}/{}'.format(
-                src, _human_readable_size(file_size), self.config.bucket_name, object_key
-            )
-        )
-        await self.http_client.put_file_multipart(
-            file_path=src,
-            object_name=object_key,
-            headers=self.additional_upload_headers(),
-            workers_count=2
-        )
 
     def upload_object_via_stream(self, data: io.BytesIO, container, object_name: str, headers) -> AbstractBlob:
         loop = self._get_or_create_event_loop()
@@ -303,33 +296,48 @@ class S3BaseStorage(AbstractStorage):
         return o
 
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
+
+        kms_args = {}
+        if self.config.kms_id is not None:
+            kms_args['ServerSideEncryption'] = 'aws:kms'
+            kms_args['SSEKMSKeyId'] = self.config.kms_id
+
         logging.debug(
-            '[Storage] Uploading object from stream -> s3://{}/{}'.format(
+            '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
                 self.config.bucket_name, object_key
             )
         )
-        await self.http_client.put(
-            object_key,
-            data=data.getvalue(),
-            headers=headers
-        )
+
+        try:
+            self.s3_client.put_object(
+                Bucket=self.config.bucket_name,
+                Key=object_key,
+                Body=data,
+                **kms_args,
+            )
+        except Exception as e:
+            logging.error(e)
+            raise e
         blob = await self._stat_blob(object_key)
         return blob
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
-        async with self.http_client.head(object_key) as resp:
-            if not resp.status == HTTPStatus.OK:
+        try:
+            resp = self.s3_client.head_object(Bucket=self.config.bucket_name, Key=object_key)
+            item_hash = resp['ETag'].replace('"', '')
+            return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'])
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchKey' or e.response['Error']['Code'] == '404':
+                logging.debug("[S3 Storage] Object {} not found".format(object_key))
                 raise ObjectDoesNotExistError(
                     value='Object {} does not exist'.format(object_key),
                     driver=self,
                     object_name=object_key
                 )
-        page = self.http_client.list_objects_v2(prefix=object_key)
-        async for items in page:
-            for item in items:
-                # need to remove double quotes from the etags. libclud does this too
-                item_hash = item.etag.replace('"', '')
-                return AbstractBlob(item.key, int(item.size), item_hash, item.last_modified)
+            else:
+                # Handle other exceptions if needed
+                logging.error("An error occurred:", e)
+                logging.error('Error getting object from s3://{}/{}'.format(self.config.bucket_name, object_key))
 
     def delete_object(self, obj: AbstractBlob):
         loop = self._get_or_create_event_loop()
@@ -344,7 +352,10 @@ class S3BaseStorage(AbstractStorage):
         await asyncio.gather(*coros)
 
     async def _delete_object(self, obj: AbstractBlob):
-        await self.http_client.delete(obj.name)
+        self.s3_client.delete_object(
+            Bucket=self.config.bucket_name,
+            Key=obj.name
+        )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
@@ -361,22 +372,26 @@ class S3BaseStorage(AbstractStorage):
         return await asyncio.gather(*coros)
 
     async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
-        async with self.http_client.head(blob_key) as resp:
-            # the headers come as some non-default dict, so we need to re-package them
-            blob_metadata = dict(**resp.headers)
+        resp = self.s3_client.head_object(Bucket=self.config.bucket_name, Key=blob_key)
 
-            sse_algo = blob_metadata.get('x-amz-server-side-encryption', None)
-            if sse_algo == 'AES256':
-                sse_enabled, sse_key_id = False, None
-            elif sse_algo == 'aws:kms':
-                sse_enabled = True
-                # the metadata returns the entire ARN, so we just return the last part ~ the actual ID
-                sse_key_id = blob_metadata['x-amz-server-side-encryption-aws-kms-key-id'].split('/')[-1]
-            else:
-                logging.warning('No SSE info found in blob {} metadata'.format(blob_key))
-                sse_enabled, sse_key_id = False, None
+        # the headers come as some non-default dict, so we need to re-package them
+        blob_metadata = resp.get('ResponseMetadata', {}).get('HTTPHeaders', {})
 
-            return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
+        if len(blob_metadata.keys()) == 0:
+            raise ValueError('No metadata found for blob {}'.format(blob_key))
+
+        sse_algo = blob_metadata.get('x-amz-server-side-encryption', None)
+        if sse_algo == 'AES256':
+            sse_enabled, sse_key_id = False, None
+        elif sse_algo == 'aws:kms':
+            sse_enabled = True
+            # the metadata returns the entire ARN, so we just return the last part ~ the actual ID
+            sse_key_id = blob_metadata['x-amz-server-side-encryption-aws-kms-key-id'].split('/')[-1]
+        else:
+            logging.warning('No SSE info found in blob {} metadata'.format(blob_key))
+            sse_enabled, sse_key_id = False, None
+
+        return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
@@ -407,22 +422,18 @@ class S3BaseStorage(AbstractStorage):
             else "{}/{}".format(dest, src_path.name)
         )
 
-        if blob.size < int(self.config.multi_part_upload_threshold):
-            workers = 1
-        else:
-            workers = int(self.config.concurrent_transfers)
-
+        # print also object size
         logging.debug(
-            '[Storage] Downloading with {} workers: {} -> {}/{}'.format(
-                workers, object_key, self.config.bucket_name, object_key
+            '[S3 Storage] Downloading {} -> {}/{}'.format(
+                object_key, self.config.bucket_name, object_key
             )
         )
 
         try:
-            await self.http_client.get_file_parallel(
-                object_name=object_key,
-                file_path=file_path,
-                workers_count=workers
+            self.s3_client.download_file(
+                Bucket=self.config.bucket_name,
+                Key=object_key,
+                Filename=file_path,
             )
         except Exception as e:
             logging.error('Error downloading file from s3://{}/{}: {}'.format(self.config.bucket_name, object_key, e))
@@ -517,37 +528,11 @@ class S3BaseStorage(AbstractStorage):
         return sizes_match and hashes_match
 
     def prepare_upload(self):
-        if self.config.transfer_max_bandwidth is not None:
-            subprocess.check_call(
-                [
-                    "aws",
-                    "configure",
-                    "set",
-                    "default.s3.max_bandwidth",
-                    self.config.transfer_max_bandwidth,
-                ]
-            )
+        pass
 
     def prepare_download(self):
         # Unthrottle downloads to speed up restores
-        subprocess.check_call(
-            [
-                "aws",
-                "configure",
-                "set",
-                "default.s3.max_bandwidth",
-                "512MB/s",
-            ]
-        )
-
-    def additional_upload_headers(self):
-        headers = {}
-        if self.config.kms_id:
-            headers.update({
-                "x-amz-server-side-encryption": "aws:kms",
-                "x-amz-server-side-encryption-aws-kms-key-id": self.config.kms_id
-            })
-        return headers
+        pass
 
 
 def _group_by_parent(paths):

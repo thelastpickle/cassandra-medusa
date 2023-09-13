@@ -360,7 +360,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
 
             dst_path = str(node_backup.datapath(keyspace=snapshot_path.keyspace,
                                                 columnfamily=snapshot_path.columnfamily))
-            logging.debug("destination path: {}".format(dst_path))
+            logging.debug("Snapshot destination path: {}".format(dst_path))
 
             manifest_objects = list()
             if len(needs_backup) > 0:
