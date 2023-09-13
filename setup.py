@@ -75,6 +75,7 @@ setuptools.setup(
         'azure-core==1.29.4',
         'azure-identity==1.14.0',
         'azure-storage-blob==12.17.0',
+        'boto3>=1.28.38'
     ],
     extras_require={
         'AZURE': ["azure-cli==2.34.1"]
