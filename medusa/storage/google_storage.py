@@ -32,6 +32,7 @@ from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, Manif
 from medusa.storage.s3_base_storage import S3BaseStorage
 
 
+DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE = 1024 * 1024 * 5
 GOOGLE_MAX_FILES_PER_CHUNK = 64
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
@@ -269,12 +270,17 @@ class GoogleStorage(AbstractStorage):
         )
 
         try:
-            await self.gcs_storage.download_to_filename(
+            stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
-                filename=file_path,
                 timeout=-1,
             )
+            with open(file_path, 'wb') as f:
+                while True:
+                    chunk = await stream.read(DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    f.write(chunk)
 
         except aiohttp.client_exceptions.ClientResponseError as cre:
             logging.error('Error downloading file from gs://{}/{}: {}'.format(self.config.bucket_name, object_key, cre))
