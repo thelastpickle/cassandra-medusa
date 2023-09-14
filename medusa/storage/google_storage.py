@@ -231,8 +231,13 @@ class GoogleStorage(AbstractStorage):
         loop.run_until_complete(self._delete_objects(objects))
 
     async def _delete_objects(self, objects: t.List[AbstractBlob]):
-        coros = [self._delete_object(obj) for obj in objects]
-        await asyncio.gather(*coros)
+        # TODO: move this to abstract storage, we need chunking for all drivers
+        chunk_size = int(self.config.concurrent_transfers)
+        # split objects into chunk-sized chunks
+        chunks = [objects[i:i + chunk_size] for i in range(0, len(objects), chunk_size)]
+        for chunk in chunks:
+            coros = [self._delete_object(obj) for obj in chunk]
+            await asyncio.gather(*coros)
 
     async def _delete_object(self, obj: AbstractBlob):
         await self.gcs_storage.delete(
@@ -246,8 +251,13 @@ class GoogleStorage(AbstractStorage):
         loop.run_until_complete(self._download_blobs(srcs, dest))
 
     async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
-        coros = [self._download_blob(src, dest) for src in map(str, srcs)]
-        await asyncio.gather(*coros)
+        # TODO: move this to abstract storage, we need chunking for all drivers
+        chunk_size = int(self.config.concurrent_transfers)
+        # split srcs into chunk-sized chunks
+        chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
+        for chunk in chunks:
+            coros = [self._download_blob(src, dest) for src in map(str, chunk)]
+            await asyncio.gather(*coros)
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
