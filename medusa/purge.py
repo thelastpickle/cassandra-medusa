@@ -33,23 +33,27 @@ def main(config, max_backup_age=0, max_backup_count=0):
 
     try:
         logging.info('Starting purge')
-        storage = Storage(config=config.storage)
-        # Get all backups for the local node
-        logging.info('Listing backups for {}'.format(config.storage.fqdn))
-        backup_index = storage.list_backup_index_blobs()
-        backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
-        # list all backups to purge based on date conditions
-        backups_to_purge |= set(backups_to_purge_by_age(backups, max_backup_age))
-        # list all backups to purge based on count conditions
-        backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
-        # purge all candidate backups
-        (nb_objects_purged, total_purged_size, total_objects_within_grace) \
-            = purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn)
+        with Storage(config=config.storage) as storage:
+            # Get all backups for the local node
+            logging.info('Listing backups for {}'.format(config.storage.fqdn))
+            backup_index = storage.list_backup_index_blobs()
+            backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
+            # list all backups to purge based on date conditions
+            backups_to_purge |= set(backups_to_purge_by_age(backups, max_backup_age))
+            # list all backups to purge based on count conditions
+            backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
+            # purge all candidate backups
+            object_counts = purge_backups(
+                storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
+            )
+            nb_objects_purged, total_purged_size, total_objects_within_grace = object_counts
 
-        logging.debug('Emitting metrics')
-        tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
-        monitoring.send(tags, 0)
-        return (nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups_to_purge))
+            logging.debug('Emitting metrics')
+            tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
+            monitoring.send(tags, 0)
+
+        return nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups_to_purge)
+
     except Exception as e:
         traceback.print_exc()
         tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -240,16 +244,16 @@ def delete_backup(config, backup_names, all_nodes):
     monitoring = Monitoring(config=config.monitoring)
 
     try:
-        storage = Storage(config=config.storage)
-        cluster_backups = storage.list_cluster_backups()
-        backups_to_purge = backups_to_purge_by_name(storage, cluster_backups, backup_names, all_nodes)
+        with Storage(config=config.storage) as storage:
+            cluster_backups = storage.list_cluster_backups()
+            backups_to_purge = backups_to_purge_by_name(storage, cluster_backups, backup_names, all_nodes)
 
-        logging.info('Deleting Backup(s) {}...'.format(",".join(backup_names)))
-        purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, storage.config.fqdn)
+            logging.info('Deleting Backup(s) {}...'.format(",".join(backup_names)))
+            purge_backups(storage, backups_to_purge, config.storage.backup_grace_period_in_days, storage.config.fqdn)
 
-        logging.debug('Emitting metrics')
-        tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
-        monitoring.send(tags, 0)
+            logging.debug('Emitting metrics')
+            tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
+            monitoring.send(tags, 0)
     except Exception as e:
         tags = ['medusa-node-backup', 'delete-error', 'DELETE-ERROR']
         monitoring.send(tags, 1)

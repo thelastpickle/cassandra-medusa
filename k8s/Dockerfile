@@ -37,10 +37,6 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
     -r /build/requirements.txt \
     -r /build/requirements-grpc-runtime.txt
 
-# Azure
-RUN pip3 install --ignore-installed --user -r /build/requirements-azure.txt \
-     && pip3 install --ignore-installed --user azure-cli
-
 # Build medusa itself so we can add the executables in the final image
 RUN pip3 install --ignore-installed --user /build
 

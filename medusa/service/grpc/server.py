@@ -102,7 +102,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
     def __init__(self, config):
         logging.info("Init service")
         self.config = config
-        self.storage = Storage(config=self.config.storage)
+        self.storage_config = config.storage
 
     def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
@@ -166,20 +166,21 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
         response = medusa_pb2.BackupStatusResponse()
         try:
-            backup = self.storage.get_cluster_backup(request.backupName)
+            with Storage(config=self.storage_config) as storage:
+                backup = storage.get_cluster_backup(request.backupName)
 
-            # TODO how is the startTime determined?
-            response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
-            response.finishedNodes.extend([node.fqdn for node in backup.complete_nodes()])
-            response.unfinishedNodes.extend([node.fqdn for node in backup.incomplete_nodes()])
-            response.missingNodes.extend([node.fqdn for node in backup.missing_nodes()])
+                # TODO how is the startTime determined?
+                response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
+                response.finishedNodes.extend([node.fqdn for node in backup.complete_nodes()])
+                response.unfinishedNodes.extend([node.fqdn for node in backup.incomplete_nodes()])
+                response.missingNodes.extend([node.fqdn for node in backup.missing_nodes()])
 
-            if backup.finished:
-                response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
-            else:
-                response.finishTime = ""
+                if backup.finished:
+                    response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
+                else:
+                    response.finishTime = ""
 
-            record_status_in_response(response, request.backupName)
+                record_status_in_response(response, request.backupName)
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
@@ -191,32 +192,33 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         last_status = medusa_pb2.StatusType.UNKNOWN
         try:
             # cluster backups
-            backups = get_backups(self.config, True)
-            for backup in backups:
-                summary = medusa_pb2.BackupSummary()
-                summary.backupName = backup.name
-                if backup.started is None:
-                    summary.startTime = 0
-                else:
-                    summary.startTime = backup.started
+            with Storage(config=self.storage_config) as connected_storage:
+                backups = get_backups(connected_storage, self.config, True)
+                for backup in backups:
+                    summary = medusa_pb2.BackupSummary()
+                    summary.backupName = backup.name
+                    if backup.started is None:
+                        summary.startTime = 0
+                    else:
+                        summary.startTime = backup.started
 
-                if backup.finished is None:
-                    summary.finishTime = 0
-                    summary.status = medusa_pb2.StatusType.IN_PROGRESS
-                    last_status = medusa_pb2.StatusType.IN_PROGRESS
-                else:
-                    summary.finishTime = backup.finished
-                    if last_status != medusa_pb2.StatusType.IN_PROGRESS:
-                        summary.status = medusa_pb2.StatusType.SUCCESS
+                    if backup.finished is None:
+                        summary.finishTime = 0
+                        summary.status = medusa_pb2.StatusType.IN_PROGRESS
+                        last_status = medusa_pb2.StatusType.IN_PROGRESS
+                    else:
+                        summary.finishTime = backup.finished
+                        if last_status != medusa_pb2.StatusType.IN_PROGRESS:
+                            summary.status = medusa_pb2.StatusType.SUCCESS
 
-                summary.totalNodes = len(backup.tokenmap)
-                summary.finishedNodes = len(backup.complete_nodes())
+                    summary.totalNodes = len(backup.tokenmap)
+                    summary.finishedNodes = len(backup.complete_nodes())
 
-                for node in backup.tokenmap:
-                    summary.nodes.append(create_token_map_node(backup, node))
+                    for node in backup.tokenmap:
+                        summary.nodes.append(create_token_map_node(backup, node))
 
-                summary.backupType = backup.backup_type
-                response.backups.append(summary)
+                    summary.backupType = backup.backup_type
+                    response.backups.append(summary)
 
         except Exception as e:
             context.set_details("Failed to get backups due to error: {}".format(e))
@@ -262,21 +264,22 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         logging.info("Preparing restore {} for backup {}".format(request.restoreKey, request.backupName))
         response = medusa_pb2.PrepareRestoreResponse()
         try:
-            backups = get_backups(self.config, True)
-            for cluster_backup in backups:
-                if cluster_backup.name == request.backupName:
-                    restore_job = RestoreJob(cluster_backup,
-                                             self.config, Path("/tmp"),
-                                             None,
-                                             "127.0.0.1",
-                                             True,
-                                             False,
-                                             1,
-                                             bypass_checks=True)
-                    restore_job.prepare_restore()
-                    os.makedirs(RESTORE_MAPPING_LOCATION, exist_ok=True)
-                    with open(f"{RESTORE_MAPPING_LOCATION}/{request.restoreKey}", "w") as f:
-                        f.write(json.dumps({'in_place': restore_job.in_place, 'host_map': restore_job.host_map}))
+            with Storage(config=self.storage_config) as connected_storage:
+                backups = get_backups(connected_storage, self.config, True)
+                for cluster_backup in backups:
+                    if cluster_backup.name == request.backupName:
+                        restore_job = RestoreJob(cluster_backup,
+                                                 self.config, Path("/tmp"),
+                                                 None,
+                                                 "127.0.0.1",
+                                                 True,
+                                                 False,
+                                                 1,
+                                                 bypass_checks=True)
+                        restore_job.prepare_restore()
+                        os.makedirs(RESTORE_MAPPING_LOCATION, exist_ok=True)
+                        with open(f"{RESTORE_MAPPING_LOCATION}/{request.restoreKey}", "w") as f:
+                            f.write(json.dumps({'in_place': restore_job.in_place, 'host_map': restore_job.host_map}))
         except Exception as e:
             context.set_details("Failed to prepare restore: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)

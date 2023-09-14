@@ -57,34 +57,34 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise RuntimeError(err_msg)
 
-        storage = Storage(config=config.storage)
+        with Storage(config=config.storage) as storage:
 
-        try:
-            cluster_backup = storage.get_cluster_backup(backup_name)
-        except KeyError:
-            err_msg = 'No such backup --> {}'.format(backup_name)
-            logging.error(err_msg)
-            raise RuntimeError(err_msg)
+            try:
+                cluster_backup = storage.get_cluster_backup(backup_name)
+            except KeyError:
+                err_msg = 'No such backup --> {}'.format(backup_name)
+                logging.error(err_msg)
+                raise RuntimeError(err_msg)
 
-        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                             parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target,
-                             ignore_racks)
-        restore.execute()
+            restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
+                                 parallel_restores, keyspaces, tables, bypass_checks, use_sstableloader, version_target,
+                                 ignore_racks)
+            restore.execute()
 
-        restore_end_time = datetime.datetime.now()
-        restore_duration = restore_end_time - restore_start_time
+            restore_end_time = datetime.datetime.now()
+            restore_duration = restore_end_time - restore_start_time
 
-        logging.debug('Emitting metrics')
+            logging.debug('Emitting metrics')
 
-        logging.info('Restore duration: {}'.format(restore_duration.total_seconds()))
-        tags = ['medusa-cluster-restore', 'restore-duration', backup_name]
-        monitoring.send(tags, restore_duration.total_seconds())
+            logging.info('Restore duration: {}'.format(restore_duration.total_seconds()))
+            tags = ['medusa-cluster-restore', 'restore-duration', backup_name]
+            monitoring.send(tags, restore_duration.total_seconds())
 
-        tags = ['medusa-cluster-restore', 'restore-error', backup_name]
-        monitoring.send(tags, 0)
+            tags = ['medusa-cluster-restore', 'restore-error', backup_name]
+            monitoring.send(tags, 0)
 
-        logging.debug('Done emitting metrics')
-        logging.info('Successfully restored the cluster')
+            logging.debug('Done emitting metrics')
+            logging.info('Successfully restored the cluster')
 
     except Exception as e:
         tags = ['medusa-cluster-restore', 'restore-error', backup_name]

@@ -23,58 +23,59 @@ from medusa.filtering import filter_fqtns
 
 
 def download_data(storageconfig, backup, fqtns_to_restore, destination):
-    storage = Storage(config=storageconfig)
-    manifest = json.loads(backup.manifest)
+    with Storage(config=storageconfig) as storage:
+        manifest = json.loads(backup.manifest)
 
-    for section in manifest:
+        for section in manifest:
 
-        fqtn = "{}.{}".format(section['keyspace'], section['columnfamily'])
-        dst = destination / section['keyspace'] / section['columnfamily']
-        srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
-                for obj in section['objects']]
+            fqtn = "{}.{}".format(section['keyspace'], section['columnfamily'])
+            dst = destination / section['keyspace'] / section['columnfamily']
+            srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
+                    for obj in section['objects']]
 
-        if len(srcs) > 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
-            logging.debug('Downloading  %s files to %s', len(srcs), dst)
+            if len(srcs) > 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
+                logging.debug('Downloading  %s files to %s', len(srcs), dst)
 
-            dst.mkdir(parents=True)
+                dst.mkdir(parents=True)
 
-            # check for hidden sub-folders in the table directory
-            # (e.g. secondary indices which live in table/.table_idx)
-            dst_subfolders = {dst / src.parent.name
-                              for src in map(pathlib.Path, srcs)
-                              if src.parent.name.startswith('.')}
-            # create the sub-folders so the downloads actually work
-            for subfolder in dst_subfolders:
-                subfolder.mkdir(parents=False)
+                # check for hidden sub-folders in the table directory
+                # (e.g. secondary indices which live in table/.table_idx)
+                dst_subfolders = {dst / src.parent.name
+                                  for src in map(pathlib.Path, srcs)
+                                  if src.parent.name.startswith('.')}
+                # create the sub-folders so the downloads actually work
+                for subfolder in dst_subfolders:
+                    subfolder.mkdir(parents=False)
 
-            storage.storage_driver.download_blobs(srcs, dst)
+                storage.storage_driver.download_blobs(srcs, dst)
 
-        elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
-            logging.debug('There is nothing to download for {}'.format(fqtn))
-        else:
-            logging.debug('Download of {} was not requested, skipping'.format(fqtn))
+            elif len(srcs) == 0 and (len(fqtns_to_restore) == 0 or fqtn in fqtns_to_restore):
+                logging.debug('There is nothing to download for {}'.format(fqtn))
+            else:
+                logging.debug('Download of {} was not requested, skipping'.format(fqtn))
 
-    logging.info('Downloading backup metadata...')
-    storage.storage_driver.download_blobs(
-        srcs=['{}'.format(path)
-              for path in [backup.manifest_path,
-                           backup.schema_path,
-                           backup.tokenmap_path]],
-        dest=destination
-    )
+        logging.info('Downloading backup metadata...')
+        storage.storage_driver.download_blobs(
+            srcs=['{}'.format(path)
+                  for path in [backup.manifest_path,
+                               backup.schema_path,
+                               backup.tokenmap_path]],
+            dest=destination
+        )
 
 
 def download_cmd(config, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces):
-    storage = Storage(config=config.storage)
 
-    if not download_destination.is_dir():
-        logging.error('{} is not a directory'.format(download_destination))
-        sys.exit(1)
+    with Storage(config=config.storage) as storage:
 
-    node_backup = storage.get_node_backup(fqdn=storage.config.fqdn, name=backup_name)
-    if not node_backup.exists():
-        logging.error('No such backup')
-        sys.exit(1)
+        if not download_destination.is_dir():
+            logging.error('{} is not a directory'.format(download_destination))
+            sys.exit(1)
 
-    fqtns_to_download, _ = filter_fqtns(keyspaces, tables, node_backup.manifest, ignore_system_keyspaces)
-    download_data(config.storage, node_backup, fqtns_to_download, download_destination)
+        node_backup = storage.get_node_backup(fqdn=storage.config.fqdn, name=backup_name)
+        if not node_backup.exists():
+            logging.error('No such backup')
+            sys.exit(1)
+
+        fqtns_to_download, _ = filter_fqtns(keyspaces, tables, node_backup.manifest, ignore_system_keyspaces)
+        download_data(config.storage, node_backup, fqtns_to_download, download_destination)

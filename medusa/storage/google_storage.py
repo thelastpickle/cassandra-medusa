@@ -14,22 +14,20 @@
 # limitations under the License.
 
 import aiohttp
-import asyncio
 import base64
 import datetime
 import io
 import itertools
 import logging
+import os
 import typing as t
 
-from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
 from retrying import retry
 
 from gcloud.aio.storage import Storage
 
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject
-from medusa.storage.s3_base_storage import S3BaseStorage
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject, ObjectDoesNotExistError
 
 
 DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE = 1024 * 1024 * 5
@@ -39,74 +37,42 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 
 class GoogleStorage(AbstractStorage):
 
-    # no clue what these are used for
-    api_version = '2006-03-01'
-
     def __init__(self, config):
 
-        service_file = str(Path(config.key_file).expanduser())
-        logging.info("Using service file: {}".format(service_file))
+        self.service_file = str(Path(config.key_file).expanduser())
+        logging.info("Using service file: {}".format(self.service_file))
 
         self.bucket_name = config.bucket_name
 
-        self.session = aiohttp.ClientSession(
-            # TODO: will become shared from the base class
-            loop=S3BaseStorage._get_or_create_event_loop(),
-        )
+        logging.debug('Connecting to Google Storage')
 
-        self.gcs_storage = Storage(session=self.session, service_file=service_file)
+        logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
         super().__init__(config)
 
-    def connect_storage(self):
-        # TODO
-        # Until we get rid of libcloud from the other providers, we need to pretend to be a driver
-        return self
-
-    def get_container(self, container_name):
-        # TODO
-        # Another libcloud compatibility method
-        return self
-
-    def name(self):
-        # TODO
-        # needed for libcloud compatibility, will trash later
-        return 'google_storage'
-
-    def list_container_objects(self, container_name, ex_prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
-        blobs = self.list_blobs(prefix=ex_prefix)
-        return blobs
-
-    def check_dependencies(self):
-        pass
-
-    def read_blob_as_string(self, blob: AbstractBlob, encoding: t.Optional[str] = 'utf-8') -> str:
-        return self.read_blob_as_bytes(blob).decode(encoding)
-
-    def read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        logging.debug("[Storage] Reading blob {}...".format(blob.name))
-        loop = self._get_or_create_event_loop()
-        b = loop.run_until_complete(self._read_blob_as_bytes(blob))
-        return b
-
-    async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        content = await self.gcs_storage.download(
-            bucket=self.bucket_name,
-            object_name=blob.name,
-            session=self.session,
-            timeout=-1
+    def connect(self):
+        self.session = aiohttp.ClientSession(
+            loop=self._get_or_create_event_loop(),
         )
-        return content
 
-    def list_blobs(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
-        loop = S3BaseStorage._get_or_create_event_loop()
-        objects = loop.run_until_complete(self._list_blobs(prefix))
-        return objects
+        self.gcs_storage = Storage(session=self.session, service_file=self.service_file)
 
-    async def _list_blobs(self, prefix: t.Optional[str] = None) -> t.List[AbstractBlob]:
+    def disconnect(self):
+        logging.debug('Disconnecting from Google Storage')
+        loop = self._get_or_create_event_loop()
+        loop.run_until_complete(self._disconnect())
+
+    async def _disconnect(self):
+        try:
+            await self.gcs_storage.close()
+            await self.session.close()
+        except Exception as e:
+            logging.error('Error disconnecting from Google Storage: {}'.format(e))
+
+    async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
         objects = await self.gcs_storage.list_objects(
             bucket=self.bucket_name,
-            params={'prefix': prefix}
+            params={'prefix': str(prefix)}
         )
 
         if objects.get('items') is None:
@@ -123,91 +89,8 @@ class GoogleStorage(AbstractStorage):
             for o in objects.get('items')
         ]
 
-    def get_object(self, bucket_name, object_key: str) -> t.Optional[AbstractBlob]:
-        # Doesn't actually read the contents, just lists the thing
-        try:
-            loop = self._get_or_create_event_loop()
-            o = loop.run_until_complete(self._get_object(object_key))
-            return o
-        except aiohttp.client_exceptions.ClientResponseError as cre:
-            if cre.status == 404:
-                return None
-            raise cre
-
-    async def _get_object(self, object_key: str) -> AbstractBlob:
-        blob = await self._stat_blob(object_key)
-        return blob
-
-    async def _stat_blob(self, object_key: str) -> AbstractBlob:
-        blob = await self.gcs_storage.download_metadata(
-            bucket=self.bucket_name,
-            object_name=object_key,
-        )
-        return AbstractBlob(
-            blob['name'],
-            int(blob['size']),
-            blob['md5Hash'],
-            # datetime comes as a string like 2023-08-31T14:23:24.957Z
-            datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
-        )
-
-    def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
-        loop = self._get_or_create_event_loop()
-        manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
-        return manifest_objects
-
-    async def _upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
-        coros = [self._upload_blob(src, dest) for src in map(str, srcs)]
-        manifest_objects = []
-        n = int(self.config.concurrent_transfers)
-        for chunk in [coros[i:i + n] for i in range(0, len(coros), n)]:
-            manifest_objects += await asyncio.gather(*chunk)
-        return manifest_objects
-
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
-    async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
-        src_chunks = src.split('/')
-        parent_name, file_name = src_chunks[-2], src_chunks[-1]
-
-        # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
-        object_key = (
-            "{}/{}/{}".format(dest, parent_name, file_name)
-            if parent_name.startswith(".")
-            else "{}/{}".format(dest, file_name)
-        )
-
-        logging.debug(
-            '[Storage] Uploading {} -> gs://{}/{}'.format(
-                src, self.config.bucket_name, object_key
-            )
-        )
-        if src.startswith("gs"):
-            resp = await self.gcs_storage.copy(
-                bucket=self.bucket_name,
-                object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
-                destination_bucket=self.bucket_name,
-                new_name=object_key,
-                timeout=-1,
-            )
-            resp = resp['resource']
-        else:
-            with open(src, 'rb') as src_file:
-                resp = await self.gcs_storage.upload(
-                    bucket=self.bucket_name,
-                    object_name=object_key,
-                    file_data=src_file,
-                    force_resumable_upload=True,
-                    timeout=-1,
-                )
-        mo = ManifestObject(resp['name'], int(resp['size']), resp['md5Hash'])
-        return mo
-
-    def upload_object_via_stream(self, data: io.BytesIO, container, object_name: str, headers) -> AbstractBlob:
-        loop = self._get_or_create_event_loop()
-        o = loop.run_until_complete(self._upload_object(data, object_name))
-        return o
-
-    async def _upload_object(self, data: io.BytesIO, object_key: str) -> AbstractBlob:
+    async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         logging.debug(
             '[Storage] Uploading object from stream -> gcs://{}/{}'.format(
                 self.config.bucket_name, object_key
@@ -221,43 +104,6 @@ class GoogleStorage(AbstractStorage):
             timeout=-1,
         )
         return AbstractBlob(resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'])
-
-    def delete_object(self, obj: AbstractBlob):
-        loop = self._get_or_create_event_loop()
-        loop.run_until_complete(self._delete_object(obj))
-
-    def delete_objects(self, objects: t.List[AbstractBlob]):
-        loop = self._get_or_create_event_loop()
-        loop.run_until_complete(self._delete_objects(objects))
-
-    async def _delete_objects(self, objects: t.List[AbstractBlob]):
-        # TODO: move this to abstract storage, we need chunking for all drivers
-        chunk_size = int(self.config.concurrent_transfers)
-        # split objects into chunk-sized chunks
-        chunks = [objects[i:i + chunk_size] for i in range(0, len(objects), chunk_size)]
-        for chunk in chunks:
-            coros = [self._delete_object(obj) for obj in chunk]
-            await asyncio.gather(*coros)
-
-    async def _delete_object(self, obj: AbstractBlob):
-        await self.gcs_storage.delete(
-            bucket=self.bucket_name,
-            object_name=obj.name,
-            timeout=-1,
-        )
-
-    def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
-        loop = self._get_or_create_event_loop()
-        loop.run_until_complete(self._download_blobs(srcs, dest))
-
-    async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
-        # TODO: move this to abstract storage, we need chunking for all drivers
-        chunk_size = int(self.config.concurrent_transfers)
-        # split srcs into chunk-sized chunks
-        chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
-        for chunk in chunks:
-            coros = [self._download_blob(src, dest) for src in map(str, chunk)]
-            await asyncio.gather(*coros)
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
@@ -295,34 +141,90 @@ class GoogleStorage(AbstractStorage):
         except aiohttp.client_exceptions.ClientResponseError as cre:
             logging.error('Error downloading file from gs://{}/{}: {}'.format(self.config.bucket_name, object_key, cre))
             if cre.status == 404:
-                raise ObjectDoesNotExistError(
-                    value='Object {} does not exist'.format(object_key),
-                    driver=self,
-                    object_name=object_key
-                )
+                raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
             raise cre
 
-    def get_object_datetime(self, blob: AbstractBlob) -> datetime.datetime:
-        logging.debug(
-            "Blob {} last modification time is {}".format(
-                blob.name, blob.last_modified
-            )
+    async def _stat_blob(self, object_key: str) -> AbstractBlob:
+        blob = await self.gcs_storage.download_metadata(
+            bucket=self.bucket_name,
+            object_name=object_key,
         )
-        return blob.last_modified
+        return AbstractBlob(
+            blob['name'],
+            int(blob['size']),
+            blob['md5Hash'],
+            # datetime comes as a string like 2023-08-31T14:23:24.957Z
+            datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
+        )
 
-    def get_path_prefix(self, path):
-        return ""
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
+        src_chunks = src.split('/')
+        parent_name, file_name = src_chunks[-2], src_chunks[-1]
 
-    def get_download_path(self, path):
-        if "gs://" in path:
-            return path
+        # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
+        object_key = (
+            "{}/{}/{}".format(dest, parent_name, file_name)
+            if parent_name.startswith(".")
+            else "{}/{}".format(dest, file_name)
+        )
+
+        if src.startswith("gs"):
+            logging.debug(
+                '[GCS Storage] Copying {} -> gs://{}/{}'.format(
+                    src, self.config.bucket_name, object_key
+                )
+            )
+            resp = await self.gcs_storage.copy(
+                bucket=self.bucket_name,
+                object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
+                destination_bucket=self.bucket_name,
+                new_name=object_key,
+                timeout=-1,
+            )
+            resp = resp['resource']
         else:
-            return "gs://{}/{}".format(self.bucket_name, path)
+            file_size = os.stat(src).st_size
+            logging.debug(
+                '[GCS Storage] Uploading {} ({}) -> gs://{}/{}'.format(
+                    src, self._human_readable_size(file_size), self.config.bucket_name, object_key
+                )
+            )
+            with open(src, 'rb') as src_file:
+                resp = await self.gcs_storage.upload(
+                    bucket=self.bucket_name,
+                    object_name=object_key,
+                    file_data=src_file,
+                    force_resumable_upload=True,
+                    timeout=-1,
+                )
+        mo = ManifestObject(resp['name'], int(resp['size']), resp['md5Hash'])
+        return mo
 
-    def get_cache_path(self, path):
-        # Full path for files that will be taken from previous backups
-        return self.get_download_path(path)
-        # return path
+    async def _get_object(self, object_key: str) -> AbstractBlob:
+        try:
+            blob = await self._stat_blob(object_key)
+            return blob
+        except aiohttp.client_exceptions.ClientResponseError as cre:
+            if cre.status == 404:
+                raise ObjectDoesNotExistError
+            raise cre
+
+    async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        content = await self.gcs_storage.download(
+            bucket=self.bucket_name,
+            object_name=blob.name,
+            session=self.session,
+            timeout=-1
+        )
+        return content
+
+    async def _delete_object(self, obj: AbstractBlob):
+        await self.gcs_storage.delete(
+            bucket=self.bucket_name,
+            object_name=obj.name,
+            timeout=-1,
+        )
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
@@ -358,6 +260,17 @@ class GoogleStorage(AbstractStorage):
         )
 
         return sizes_match and hashes_match
+
+    def get_download_path(self, path):
+        if "gs://" in path:
+            return path
+        else:
+            return "gs://{}/{}".format(self.bucket_name, path)
+
+    def get_cache_path(self, path):
+        # Full path for files that will be taken from previous backups
+        return self.get_download_path(path)
+        # return path
 
 
 def _is_in_folder(file_path, folder_path):

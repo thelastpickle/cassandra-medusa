@@ -22,7 +22,6 @@ import time
 import traceback
 import psutil
 
-from libcloud.storage.providers import Provider
 from retrying import retry
 
 import medusa.utils
@@ -30,7 +29,8 @@ from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
-from medusa.storage import Storage, format_bytes_str, ManifestObject
+from medusa.storage import Storage, format_bytes_str
+from medusa.storage.abstract_storage import ManifestObject
 
 
 class NodeBackupCache(object):
@@ -91,7 +91,7 @@ class NodeBackupCache(object):
             else:
                 fqtn = (keyspace, columnfamily)
                 cached_item = None
-                if self._storage_provider == Provider.GOOGLE_STORAGE or self._differential_mode is True:
+                if self._storage_provider.lower() == 'google_storage' or self._differential_mode is True:
                     cached_item = self._cached_objects.get(fqtn, {}).get(self._sanitize_file_path(src))
 
                 threshold = self._storage_config.multi_part_upload_threshold
@@ -172,48 +172,46 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
 
-    try:
-        logging.debug("Starting backup preparations with Mode: {}".format(mode))
-        storage = Storage(config=config.storage)
-        cassandra = Cassandra(config)
+    with Storage(config=config.storage) as storage:
+        try:
+            logging.debug("Starting backup preparations with Mode: {}".format(mode))
+            cassandra = Cassandra(config)
 
-        storage.storage_driver.prepare_upload()
+            differential_mode = False
+            if mode == "differential":
+                differential_mode = True
 
-        differential_mode = False
-        if mode == "differential":
-            differential_mode = True
+            node_backup = storage.get_node_backup(
+                fqdn=config.storage.fqdn,
+                name=backup_name,
+                differential_mode=differential_mode
+            )
+            if node_backup.exists():
+                raise IOError('Error: Backup {} already exists'.format(backup_name))
 
-        node_backup = storage.get_node_backup(
-            fqdn=config.storage.fqdn,
-            name=backup_name,
-            differential_mode=differential_mode
-        )
-        if node_backup.exists():
-            raise IOError('Error: Backup {} already exists'.format(backup_name))
+            # Starting the backup
+            logging.info("Starting backup using Stagger: {} Mode: {} Name: {}".format(stagger_time, mode, backup_name))
+            BackupMan.update_backup_status(backup_name, BackupMan.STATUS_IN_PROGRESS)
+            info = start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
+                                enable_md5_checks_flag, backup_name, config, monitoring)
+            BackupMan.update_backup_status(backup_name, BackupMan.STATUS_SUCCESS)
 
-        # Starting the backup
-        logging.info("Starting backup using Stagger: {} Mode: {} Name: {}".format(stagger_time, mode, backup_name))
-        BackupMan.update_backup_status(backup_name, BackupMan.STATUS_IN_PROGRESS)
-        info = start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
-                            enable_md5_checks_flag, backup_name, config, monitoring)
-        BackupMan.update_backup_status(backup_name, BackupMan.STATUS_SUCCESS)
+            logging.debug("Done with backup, returning backup result information")
+            return (info["actual_backup_duration"], info["actual_start_time"], info["end_time"],
+                    info["node_backup"], info["node_backup_cache"], info["num_files"],
+                    info["start_time"], info["backup_name"])
 
-        logging.debug("Done with backup, returning backup result information")
-        return (info["actual_backup_duration"], info["actual_start_time"], info["end_time"],
-                info["node_backup"], info["node_backup_cache"], info["num_files"],
-                info["start_time"], info["backup_name"])
+        except Exception as e:
+            logging.error("Issue occurred inside handle_backup Name: {} Error: {}".format(backup_name, str(e)))
+            BackupMan.update_backup_status(backup_name, BackupMan.STATUS_FAILED)
 
-    except Exception as e:
-        logging.error("Issue occurred inside handle_backup Name: {} Error: {}".format(backup_name, str(e)))
-        BackupMan.update_backup_status(backup_name, BackupMan.STATUS_FAILED)
-
-        tags = ['medusa-node-backup', 'backup-error', backup_name]
-        monitoring.send(tags, 1)
-        medusa.utils.handle_exception(
-            e,
-            "Error occurred during backup: {}".format(str(e)),
-            config
-        )
+            tags = ['medusa-node-backup', 'backup-error', backup_name]
+            monitoring.send(tags, 1)
+            medusa.utils.handle_exception(
+                e,
+                "Error occurred during backup: {}".format(str(e)),
+                config
+            )
 
 
 def start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,

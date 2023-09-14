@@ -21,40 +21,40 @@ from medusa.storage import Storage
 
 
 def verify(config, backup_name, enable_md5_checks_flag):
-    storage = Storage(config=config.storage)
-    enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
+    with Storage(config=config.storage) as storage:
+        enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
 
-    try:
-        cluster_backup = storage.get_cluster_backup(backup_name)
-    except KeyError:
-        logging.error('No such backup')
-        raise RuntimeError("Manifest validation failed")
+        try:
+            cluster_backup = storage.get_cluster_backup(backup_name)
+        except KeyError:
+            logging.error('No such backup')
+            raise RuntimeError("Manifest validation failed")
 
-    print('Validating {0.name} ...'.format(cluster_backup))
+        print('Validating {0.name} ...'.format(cluster_backup))
 
-    if cluster_backup.is_complete():
-        print('- Completion: OK!')
-    else:
-        print('- Completion: Not complete!')
-        for incomplete_node in cluster_backup.incomplete_nodes():
-            print('  - [{0.fqdn}] Backup started at {0.started}, but not finished yet'.format(incomplete_node))
-        for fqdn in cluster_backup.missing_nodes():
-            print('  - [{}] Backup missing'.format(fqdn))
-        raise RuntimeError("Backup is incomplete")
+        if cluster_backup.is_complete():
+            print('- Completion: OK!')
+        else:
+            print('- Completion: Not complete!')
+            for incomplete_node in cluster_backup.incomplete_nodes():
+                print('  - [{0.fqdn}] Backup started at {0.started}, but not finished yet'.format(incomplete_node))
+            for fqdn in cluster_backup.missing_nodes():
+                print('  - [{}] Backup missing'.format(fqdn))
+            raise RuntimeError("Backup is incomplete")
 
-    consistency_errors = [
-        consistency_error
-        for node_backup in cluster_backup.node_backups.values()
-        for consistency_error in validate_manifest(storage, node_backup, enable_md5)
-    ]
+        consistency_errors = [
+            consistency_error
+            for node_backup in cluster_backup.node_backups.values()
+            for consistency_error in validate_manifest(storage, node_backup, enable_md5)
+        ]
 
-    if consistency_errors:
-        print("- Manifest validation: Failed!")
-        for error in consistency_errors:
-            print(error)
-        raise RuntimeError("Manifest validation failed")
-    else:
-        print("- Manifest validated: OK!!")
+        if consistency_errors:
+            print("- Manifest validation: Failed!")
+            for error in consistency_errors:
+                print(error)
+            raise RuntimeError("Manifest validation failed")
+        else:
+            print("- Manifest validated: OK!!")
 
 
 def validate_manifest(storage, node_backup, enable_md5_checks):

@@ -19,14 +19,14 @@ from medusa.storage import Storage
 
 
 def main(config, backup_name):
-    storage = Storage(config=config.storage)
-    backup = storage.get_cluster_backup(backup_name)
-    if not backup:
-        logging.error('No such backup')
-        sys.exit(1)
+    with Storage(config=config.storage) as storage:
+        backup = storage.get_cluster_backup(backup_name)
+        if not backup:
+            logging.error('No such backup')
+            sys.exit(1)
 
-    for hostname, ringitem in backup.tokenmap.items():
-        print(hostname)
-        print(ringitem['tokens'])
+        for hostname, ringitem in backup.tokenmap.items():
+            print(hostname)
+            print(ringitem['tokens'])
 
-    return backup.tokenmap
+        return backup.tokenmap

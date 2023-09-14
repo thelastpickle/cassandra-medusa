@@ -29,7 +29,7 @@ secure = False
 ```
 
 Medusa should now be able to access the bucket and perform all required operations.
-*Note: By default, MinIO and other self hosted S3 compatible storage systems can only be used in unsecured (non SSL) mode with Medusa due to limitations in Apache Libcloud. To enable SSL access to self hosted S3 compatible storage systems, you will need to set the environment variable `SSL_CERT_FILE` to the path of a valid certificate file containing trusted CA certificates of your S3 service. In order to get cluster wide commands working properly, you will need to set this in the `/etc/default/cassandra-medusa` file on all nodes running Medusa containing:*
+*Note: By default, MinIO and other self hosted S3 compatible storage systems might work with secured (SSL) connections. To enable SSL access to self hosted S3 compatible storage systems, you will need to set the environment variable `SSL_CERT_FILE` to the path of a valid certificate file containing trusted CA certificates of your S3 service. In order to get cluster wide commands working properly, you will need to set this in the `/etc/default/cassandra-medusa` file on all nodes running Medusa containing:*
 
 ```bash
 export SSL_CERT_FILE=/path/to/certfile

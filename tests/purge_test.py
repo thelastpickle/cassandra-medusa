@@ -19,11 +19,11 @@ import os
 import unittest
 
 from datetime import datetime, timedelta
-from libcloud.storage.base import Object
 from random import randrange
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import NodeBackup, Storage, ClusterBackup
+from medusa.storage.abstract_storage import AbstractBlob
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 
@@ -170,23 +170,9 @@ class PurgeTest(unittest.TestCase):
         return ClusterBackup(name, node_backups)
 
     def make_blob(self, blob_name, blob_date):
-        extra = {
-            'creation_time': blob_date,
-            'access_time': blob_date,
-            'modify_time': blob_date
-        }
         checksum = hashlib.md5()
         checksum.update(os.urandom(4))
-
-        return Object(
-            name=blob_name,
-            size=randrange(100),
-            extra=extra,
-            driver=self,
-            container=None,
-            hash=checksum.hexdigest(),
-            meta_data=None
-        )
+        return AbstractBlob(blob_name, randrange(100), checksum.hexdigest(), datetime.fromtimestamp(blob_date))
 
 
 if __name__ == '__main__':

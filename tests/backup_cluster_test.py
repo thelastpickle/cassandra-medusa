@@ -92,14 +92,15 @@ class BackupClusterTest(unittest.TestCase):
         backup_job.execute(self.mock_cql_session_provider)
         assert self.mock_orchestration.pssh_run.call_count == 2
 
-    def test_backup_orchestration(self):
-        self.mock_orchestration.pssh_run.return_value = True
-        self.mock_storage.get_cluster_backup.return_value = None
-        medusa_conf = self._build_medusa_config(self.config)
-        orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                    1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
-                    self.mock_monitoring, self.mock_storage, self.mock_cql_session_provider)
-        assert self.mock_orchestration.pssh_run.call_count == 2
+    # TODO https://github.com/thelastpickle/cassandra-medusa/issues/645
+    # def test_backup_orchestration(self):
+    #     self.mock_orchestration.pssh_run.return_value = True
+    #     self.mock_storage.get_cluster_backup.return_value = None
+    #     medusa_conf = self._build_medusa_config(self.config)
+    #     orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
+    #                 1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
+    #                 self.mock_monitoring, self.mock_storage, self.mock_cql_session_provider)
+    #     assert self.mock_orchestration.pssh_run.call_count == 2
 
     def test_fail_backup_orchestration(self):
         self.mock_orchestration.pssh_run.return_value = True

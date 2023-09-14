@@ -165,7 +165,7 @@ jobs:
         pip install ccm
         case '${{ matrix.it-backend }}' in
           'azure'|'azure-hierarchical')
-            pip install -r requirements-azure.txt
+            echo "No extra requirements for now."
             ;;
           'ibm'|'minio'|'s3')
             echo "No extra requirements for now."
