@@ -30,8 +30,7 @@ from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
-from medusa.storage import Storage, format_bytes_str, ManifestObject, divide_chunks
-from medusa.storage.google_storage import GSUTIL_MAX_FILES_PER_CHUNK
+from medusa.storage import Storage, format_bytes_str, ManifestObject
 
 
 class NodeBackupCache(object):
@@ -364,11 +363,7 @@ def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot
 
             manifest_objects = list()
             if len(needs_backup) > 0:
-                # If there is a plenty of files to upload it should be
-                # splitted to batches due to 'gsutil cp' which
-                # can't handle too much source files via STDIN.
-                for src_batch in divide_chunks(needs_backup, GSUTIL_MAX_FILES_PER_CHUNK):
-                    manifest_objects += storage.storage_driver.upload_blobs(src_batch, dst_path)
+                manifest_objects += storage.storage_driver.upload_blobs(needs_backup, dst_path)
 
             # Reintroducing already backed up objects in the manifest in differential
             for obj in already_backed_up:
