@@ -180,7 +180,7 @@ class AzureStorage(AbstractStorage):
                 name=object_key,
                 data=data,
                 overwrite=True,
-                max_concurrency=4,
+                max_concurrency=16,
             )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(
