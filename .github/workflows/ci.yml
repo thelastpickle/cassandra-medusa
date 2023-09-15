@@ -264,6 +264,38 @@ jobs:
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
+  
+  build-docker:
+    runs-on: ubuntu-20.04
+    needs: build
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+    - name: Set git parsed values
+      id: vars
+      shell: bash
+      run: |
+        echo "sha_short=$(git rev-parse --short=8 ${{ github.sha }})" >> $GITHUB_OUTPUT
+    - name: Build Medusa
+      run: |
+        python setup.py build
+    - name: Build image no push
+      id: docker_build
+      uses: docker/build-push-action@v4
+      with:
+        file: k8s/Dockerfile
+        context: .
+        push: false
+        tags: k8ssandra/medusa:${{ steps.vars.outputs.sha_short}}
+        platforms: linux/amd64
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache
 
   publish-docker-master:
     needs: [debian-build, build, integration-tests]

@@ -22,7 +22,6 @@ import threading
 import time
 
 from libcloud.storage.types import ObjectDoesNotExistError
-from retrying import retry
 
 import medusa
 
@@ -108,7 +107,6 @@ def __upload_file(storage, connection, src, dest, bucket):
     return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash.replace('"', ''))
 
 
-@retry(stop_max_attempt_number=MAX_UPLOAD_RETRIES, wait_fixed=5000)
 def _upload_single_part(storage, connection, src, bucket, object_name):
     headers = storage.additional_upload_headers()
     with open(str(src), 'rb') as iterator:
