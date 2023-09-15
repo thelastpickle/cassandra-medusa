@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import logging
 import os
@@ -104,8 +105,28 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         self.config = config
         self.storage = Storage(config=self.config.storage)
 
+    @staticmethod
+    def _get_or_create_event_loop() -> asyncio.AbstractEventLoop:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                logging.warning("Having to make a new event loop unexpectedly")
+                new_loop = asyncio.new_event_loop()
+                if new_loop.is_closed():
+                    logging.error("Even the new event loop was not running, bailing out")
+                    raise RuntimeError("Could not create a new event loop")
+                asyncio.set_event_loop(new_loop)
+                return new_loop
+            return loop
+        except RuntimeError:
+            logging.warning("No event loop found, creating a new one")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
     def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
+        loop = self._get_or_create_event_loop()
         logging.info("Performing ASYNC backup {} (type={})".format(request.name, request.mode))
         response = medusa_pb2.BackupResponse()
         mode = BACKUP_MODE_DIFFERENTIAL
@@ -117,15 +138,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
             with ThreadPoolExecutor(max_workers=1, thread_name_prefix=request.name) as executor:
                 BackupMan.register_backup(request.name, is_async=True)
-                backup_future = executor.submit(backup_node.handle_backup, config=self.config,
-                                                backup_name_arg=request.name, stagger_time=None,
-                                                enable_md5_checks_flag=False, mode=mode)
+                backup_future = loop.run_in_executor(executor, backup_node.handle_backup, self.config,
+                                                     request.name, None,
+                                                     False, mode)
 
                 backup_future.add_done_callback(record_backup_info)
                 BackupMan.set_backup_future(request.name, backup_future)
 
         except Exception as e:
-
             response.status = medusa_pb2.StatusType.FAILED
             if request.name:
                 BackupMan.update_backup_status(request.name, BackupMan.STATUS_FAILED)
@@ -163,7 +183,6 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return response
 
     def BackupStatus(self, request, context):
-
         response = medusa_pb2.BackupStatusResponse()
         try:
             backup = self.storage.get_cluster_backup(request.backupName)

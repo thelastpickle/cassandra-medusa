@@ -29,7 +29,6 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
-from retrying import retry
 
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject
 
@@ -354,12 +353,10 @@ class S3BaseStorage(AbstractStorage):
             Key=obj.name
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
         loop = self._get_or_create_event_loop()
         return loop.run_until_complete(self._get_blob_metadata(blob_key))
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def get_blobs_metadata(self, blob_keys: t.List[str]) -> t.List[AbstractBlobMetadata]:
         loop = self._get_or_create_event_loop()
         return loop.run_until_complete(self._get_blobs_metadata(blob_keys))
@@ -390,7 +387,6 @@ class S3BaseStorage(AbstractStorage):
 
         return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         """
         Downloads a list of files from the remote storage system to the local storage

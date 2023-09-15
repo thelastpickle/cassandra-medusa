@@ -24,7 +24,6 @@ import typing as t
 
 from libcloud.storage.types import ObjectDoesNotExistError
 from pathlib import Path
-from retrying import retry
 
 from gcloud.aio.storage import Storage
 
@@ -164,7 +163,6 @@ class GoogleStorage(AbstractStorage):
             manifest_objects += await asyncio.gather(*chunk)
         return manifest_objects
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_chunks = src.split('/')
         parent_name, file_name = src_chunks[-2], src_chunks[-1]
@@ -259,7 +257,6 @@ class GoogleStorage(AbstractStorage):
             coros = [self._download_blob(src, dest) for src in map(str, chunk)]
             await asyncio.gather(*coros)
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
         blob = await self._stat_blob(src)
         object_key = blob.name

@@ -23,7 +23,6 @@ import re
 
 from libcloud.storage.providers import Provider
 from libcloud.common.types import InvalidCredsError
-from retrying import retry
 
 import medusa.index
 
@@ -113,7 +112,6 @@ class Storage(object):
     def config(self):
         return self._config
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_node_backup(self, *, fqdn, name, differential_mode=False):
         return NodeBackup(
             storage=self,

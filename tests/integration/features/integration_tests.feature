@@ -744,6 +744,12 @@ Feature: Integration tests
         Examples: Local storage
         | storage           | client encryption |
         | local      |  with_client_encryption |
+    
+        @s3
+        Examples: S3 storage
+        | storage               |  client encryption         |
+        | s3_us_west_oregon     |  without_client_encryption |
+
 
     @18 @skip-cassandra-2
     Scenario Outline: Perform differential backups over gRPC , verify its index, then delete it over gRPC with management API

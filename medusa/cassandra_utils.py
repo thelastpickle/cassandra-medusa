@@ -33,7 +33,6 @@ from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.util import Version
-from retrying import retry
 
 from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
@@ -588,7 +587,6 @@ class Cassandra(object):
                 cassandra_yaml.write('\nauto_bootstrap: false')
 
 
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=5000, wait_exponential_max=120000)
 def wait_for_node_to_come_up(config, host):
     logging.info('Waiting for Cassandra to come up on {}'.format(host))
 
@@ -599,7 +597,6 @@ def wait_for_node_to_come_up(config, host):
         return True
 
 
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=5000, wait_exponential_max=120000)
 def wait_for_node_to_go_down(config, host):
     logging.info('Waiting for Cassandra to go down on {}'.format(host))
 
@@ -737,7 +734,6 @@ def is_open(host, port):
     return is_accessible
 
 
-@retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000, wait_exponential_max=120000)
 def is_cassandra_up(host, port):
     if is_open(host, port):
         return True

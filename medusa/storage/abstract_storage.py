@@ -22,7 +22,6 @@ import io
 import logging
 
 from libcloud.storage.types import ObjectDoesNotExistError
-from retrying import retry
 
 import medusa.storage
 import medusa.storage.concurrent
@@ -53,7 +52,6 @@ class AbstractStorage(abc.ABC):
         # Override for each child class
         pass
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
@@ -67,7 +65,6 @@ class AbstractStorage(abc.ABC):
 
         return objects
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         headers = self.additional_upload_headers()
 
@@ -101,7 +98,6 @@ class AbstractStorage(abc.ABC):
         return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket,
                                                       max_workers=self.config.concurrent_transfers)
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, path):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
@@ -109,7 +105,6 @@ class AbstractStorage(abc.ABC):
         except ObjectDoesNotExistError:
             return None
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob_content_as_string(self, path):
         blob = self.get_blob(str(path))
         if blob is None:
@@ -154,7 +149,6 @@ class AbstractStorage(abc.ABC):
     def get_download_path(self, path):
         return path
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def delete_object(self, object):
         self.driver.delete_object(object)
 
@@ -162,11 +156,9 @@ class AbstractStorage(abc.ABC):
         for o in objects:
             self.delete_object(o)
 
-    @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def get_blob_metadata(self, blob_key: str):
         return AbstractBlobMetadata(blob_key, False, None)
 
-    @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def get_blobs_metadata(self, blob_keys):
         return [AbstractBlobMetadata(blob_key, False, None) for blob_key in blob_keys]
 
