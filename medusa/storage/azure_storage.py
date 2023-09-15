@@ -30,7 +30,7 @@ from azure.storage.blob import BlobProperties
 from libcloud.storage.types import ObjectDoesNotExistError
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata
 from pathlib import Path
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -143,7 +143,6 @@ class AzureStorage(AbstractStorage):
         blob = await self._stat_blob(object_key)
         return blob
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         loop = self._get_or_create_event_loop()
         manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
@@ -157,6 +156,7 @@ class AzureStorage(AbstractStorage):
             manifest_objects += await asyncio.gather(*chunk)
         return manifest_objects
 
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_chunks = src.split('/')
         parent_name, file_name = src_chunks[-2], src_chunks[-1]
@@ -248,7 +248,7 @@ class AzureStorage(AbstractStorage):
     async def _delete_object(self, obj: AbstractBlob):
         await self.azure_container_client.delete_blob(obj.name, delete_snapshots='include')
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
         loop = self._get_or_create_event_loop()
         return loop.run_until_complete(self._get_blob_metadata(blob_key))
@@ -265,7 +265,6 @@ class AzureStorage(AbstractStorage):
         sse_key_id = None
         return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     def download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         loop = self._get_or_create_event_loop()
         loop.run_until_complete(self._download_blobs(srcs, dest))
@@ -274,6 +273,7 @@ class AzureStorage(AbstractStorage):
         coros = [self._download_blob(src, dest) for src in map(str, srcs)]
         await asyncio.gather(*coros)
 
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _download_blob(self, src: str, dest: str):
 
         # _stat_blob throws if the blob does not exist
@@ -319,18 +319,6 @@ class AzureStorage(AbstractStorage):
             "My cache path is {}".format(path)
         )
         return path
-
-    def _get_or_create_event_loop(self) -> asyncio.AbstractEventLoop:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            logging.warning("Having to make a new event loop unexpectedly")
-            new_loop = asyncio.new_event_loop()
-            if new_loop.is_closed():
-                logging.error("Even the new event loop was not running, bailing out")
-                raise RuntimeError("Could not create a new event loop")
-            asyncio.set_event_loop(new_loop)
-            return new_loop
-        return loop
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
