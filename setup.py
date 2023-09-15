@@ -53,7 +53,6 @@ setuptools.setup(
         'pyOpenSSL==22.0.0',
         'cryptography<=35.0,>=2.5',
         'pycryptodome>=3.9.9',
-        'retrying>=1.3.3',
         'parallel-ssh==2.2.0',
         'ssh2-python==0.27.0',
         'ssh-python>=0.8.0',
@@ -75,7 +74,8 @@ setuptools.setup(
         'azure-core==1.29.4',
         'azure-identity==1.14.0',
         'azure-storage-blob==12.17.0',
-        'boto3>=1.28.38'
+        'boto3>=1.28.38',
+        'tenacity>=8.0.1',
     ],
     extras_require={
         'AZURE': ["azure-cli==2.34.1"]
