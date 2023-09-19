@@ -1,5 +1,18 @@
 ## Change Log
 
+### 0.16.0 (2023/09/19 19:50 +00:00)
+- [S3 Storage] Obey throughput limit configuration (#647) (@rzvoncek)
+- Upgrade docker image to ubuntu 22.04 (#643) (@adejanovski)
+- [Storage] Consolidate storage implementations + drop libcloud dependency (#640) (@rzvoncek)
+- [Storage] Replace Azure CLI with python SDK (#638) (@rzvoncek)
+- [Storage] Replace gsutil with an aio library (#631) (@rzvoncek)
+- Use Boto3 for S3 communications (#630) (@adejanovski)
+- purge decommissioned nodes backups (#603) (@RachanKaur)
+- Fix reported time in seconds in metrics when backup are >24h (#608) (@Skunnyk)
+- [#619](https://github.com/thelastpickle/cassandra-medusa/pull/619) added check for bucket name validation (#619) (@RachanKaur)
+- [#601](https://github.com/thelastpickle/cassandra-medusa/pull/601) Use docker buildx for building multi arch images (#601) (@adejanovski)
+- [#596](https://github.com/thelastpickle/cassandra-medusa/pull/596) Added --expected-size <size> in AwsCli file upload cmd command. (#596) (@RachanKaur)
+- [#597](https://github.com/thelastpickle/cassandra-medusa/pull/597) Skip 0-sized blobs when listing storage. Fixes #595. (#597) (@rzvoncek)
 
 ### 0.15.0 (2023/07/07 12:03 +00:00)
 - Ignore Statistics.db files as they can be rewritten at runtime and break verify (#587) (@VenkataNaladala94)
