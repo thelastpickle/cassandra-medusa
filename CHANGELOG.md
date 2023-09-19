@@ -1,6 +1,18 @@
 ## Change Log
 
 
+### 0.15.0 (2023/07/07 12:03 +00:00)
+- Ignore Statistics.db files as they can be rewritten at runtime and break verify (#587) (@VenkataNaladala94)
+- Read the restore mapping from an env variable in k8s restore mode (#592) (@adejanovski)
+- Upgrade cassandra-driver version (#582) (@azarnovdaniil)
+- Switch GHA runners to Ubuntu 20.04 (#578) (@adejanovski)
+- Correct clean_path execution in restore_node_sstableloader function. (#573) (@cmvelo)
+- Concurrent calls of set_upload_bandwidth cause duplication in ".aws/config" (#571) (@mohammad-aburadeh)
+- enable sourcing environment file within wrapper (#536) (@rtib)
+- upload empty files with az cli command (#535) (@WentingWu666666)
+- improve ipv6 compatibility (#562) (@tom-code)
+- [k8s] supporting k8s-style secrets stored in a folder (#552) (@ufoot)
+
 ### 0.14.0 (2022/12/05 05:51 +00:00)
 - Support for specifying KMS key for encrypting backups server-side on S3 (@justinmir)
 - Rack aware cluster restore (@anclrii)

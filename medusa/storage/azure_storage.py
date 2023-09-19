@@ -64,7 +64,7 @@ class AzureStorage(AbstractStorage):
 
     def disconnect(self):
         logging.debug('Disconnecting from Azure Storage')
-        loop = self._get_or_create_event_loop()
+        loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._disconnect())
 
     async def _disconnect(self):

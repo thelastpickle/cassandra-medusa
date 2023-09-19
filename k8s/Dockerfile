@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 as base
+FROM ubuntu:22.04 as base
 
 RUN mkdir /install
 WORKDIR /install
@@ -6,23 +6,17 @@ WORKDIR /install
 RUN apt-get update && \
     apt-get install -y software-properties-common curl gnupg
 
-RUN add-apt-repository ppa:kalon33/gamesgiroll -y
-
 RUN apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
         debhelper \
-        dh-python \
         python3-all \
         python3-all-dev \
         python3-dev \
-        python-dev \
-        python-pip \
         python3-pip \
         python3-setuptools \
         python3-venv \
         build-essential \
         devscripts \
-        dh-virtualenv \
         equivs \
         wget \
         apt-transport-https \
@@ -41,7 +35,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
 RUN pip3 install --ignore-installed --user /build
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 ## add user
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
@@ -59,12 +53,6 @@ RUN GRPC_HEALTH_PROBE_VERSION=v0.3.2 && \
 USER cassandra
 WORKDIR /home/cassandra
 
-# GCP sdk
-COPY --chown=cassandra:cassandra k8s/clean-cloud-sdk.sh /home/cassandra/clean-cloud-sdk.sh
-RUN wget -q https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz \
-    && tar -zxvf google-cloud-sdk.tar.gz \
-    && google-cloud-sdk/install.sh --quiet \
-    && chmod +x clean-cloud-sdk.sh && ./clean-cloud-sdk.sh
 ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
 ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:$PATH
