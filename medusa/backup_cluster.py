@@ -30,77 +30,84 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                 parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
-                cassandra_config=None, monitoring=None, storage=None, cql_session_provider=None):
+                cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None):
     backup = None
     backup_name = backup_name_arg or datetime.datetime.now().strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring) if monitoring is None else monitoring
-    try:
-        backup_start_time = datetime.datetime.now()
-        if not config.storage.fqdn:
-            err_msg = "The fqdn was not provided nor calculated properly."
-            logging.error(err_msg)
-            raise Exception(err_msg)
 
-        if not temp_dir.is_dir():
-            err_msg = '{} is not a directory'.format(temp_dir)
-            logging.error(err_msg)
-            raise Exception(err_msg)
+    if existing_storage is None:
+        storage = Storage(config=config.storage)
+    else:
+        storage = existing_storage
+
+    with storage as storage:
 
         try:
-            # Try to get a backup with backup_name. If it exists then we cannot take another backup with that name
-            storage = Storage(config=config.storage) if storage is None else storage
-            cluster_backup = storage.get_cluster_backup(backup_name)
-            if cluster_backup:
-                err_msg = 'Backup named {} already exists.'.format(backup_name)
+            backup_start_time = datetime.datetime.now()
+            if not config.storage.fqdn:
+                err_msg = "The fqdn was not provided nor calculated properly."
                 logging.error(err_msg)
                 raise Exception(err_msg)
-        except KeyError:
-            info_msg = 'Starting backup {}'.format(backup_name)
-            logging.info(info_msg)
 
-        backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                           parallel_snapshots, parallel_uploads, orchestration_snapshots, orchestration_uploads,
-                           cassandra_config)
-        backup.execute(cql_session_provider)
+            if not temp_dir.is_dir():
+                err_msg = '{} is not a directory'.format(temp_dir)
+                logging.error(err_msg)
+                raise Exception(err_msg)
 
-        backup_end_time = datetime.datetime.now()
-        backup_duration = backup_end_time - backup_start_time
-
-        logging.debug('Emitting metrics')
-
-        logging.info('Backup duration: {}'.format(backup_duration.total_seconds()))
-        tags = ['medusa-cluster-backup', 'cluster-backup-duration', backup_name]
-        monitoring.send(tags, backup_duration.total_seconds())
-
-        tags = ['medusa-cluster-backup', 'cluster-backup-error', backup_name]
-        monitoring.send(tags, 0)
-
-        logging.debug('Done emitting metrics.')
-        logging.info('Backup of the cluster done.')
-
-    except Exception as e:
-        tags = ['medusa-cluster-backup', 'cluster-backup-error', backup_name]
-        monitoring.send(tags, 1)
-
-        logging.error('This error happened during the cluster backup: {}'.format(str(e)))
-        traceback.print_exc()
-
-        if backup is not None:
-            err_msg = 'Something went wrong! Attempting to clean snapshots and exit.'
-            logging.error(err_msg)
-
-            delete_snapshot_command = ' '.join(backup.cassandra.delete_snapshot_command(backup.snapshot_tag))
-            pssh_run_success_cleanup = backup.orchestration_uploads\
-                .pssh_run(backup.hosts,
-                          delete_snapshot_command,
-                          hosts_variables={})
-            if pssh_run_success_cleanup:
-                info_msg = 'All nodes successfully cleared their snapshot.'
+            try:
+                # Try to get a backup with backup_name. If it exists then we cannot take another backup with that name
+                cluster_backup = storage.get_cluster_backup(backup_name)
+                if cluster_backup:
+                    err_msg = 'Backup named {} already exists.'.format(backup_name)
+                    logging.error(err_msg)
+                    raise Exception(err_msg)
+            except KeyError:
+                info_msg = 'Starting backup {}'.format(backup_name)
                 logging.info(info_msg)
-            else:
-                err_msg_cleanup = 'Some nodes failed to clear the snapshot. Cleaning snapshots manually is recommended'
-                logging.error(err_msg_cleanup)
-        sys.exit(1)
+
+            backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
+                               parallel_snapshots, parallel_uploads, orchestration_snapshots, orchestration_uploads,
+                               cassandra_config)
+            backup.execute(cql_session_provider)
+
+            backup_end_time = datetime.datetime.now()
+            backup_duration = backup_end_time - backup_start_time
+
+            logging.debug('Emitting metrics')
+
+            logging.info('Backup duration: {}'.format(backup_duration.total_seconds()))
+            tags = ['medusa-cluster-backup', 'cluster-backup-duration', backup_name]
+            monitoring.send(tags, backup_duration.total_seconds())
+
+            tags = ['medusa-cluster-backup', 'cluster-backup-error', backup_name]
+            monitoring.send(tags, 0)
+
+            logging.debug('Done emitting metrics.')
+            logging.info('Backup of the cluster done.')
+
+        except Exception as e:
+            tags = ['medusa-cluster-backup', 'cluster-backup-error', backup_name]
+            monitoring.send(tags, 1)
+
+            logging.error('This error happened during the cluster backup: {}'.format(str(e)))
+            traceback.print_exc()
+
+            if backup is not None:
+                err_msg = 'Something went wrong! Attempting to clean snapshots and exit.'
+                logging.error(err_msg)
+
+                delete_snapshot_command = ' '.join(backup.cassandra.delete_snapshot_command(backup.snapshot_tag))
+                pssh_run_success_cleanup = backup.orchestration_uploads\
+                    .pssh_run(backup.hosts,
+                              delete_snapshot_command,
+                              hosts_variables={})
+                if pssh_run_success_cleanup:
+                    info_msg = 'All nodes successfully cleared their snapshot.'
+                    logging.info(info_msg)
+                else:
+                    err_msg_cleanup = 'Some nodes failed to clear the snapshot. Please clean snapshots manually'
+                    logging.error(err_msg_cleanup)
+            sys.exit(1)
 
 
 class BackupJob(object):

@@ -17,21 +17,21 @@ import abc
 import asyncio
 import base64
 import collections
+import datetime
 import hashlib
 import io
 import logging
+import typing as t
 
-from libcloud.storage.types import ObjectDoesNotExistError
+from pathlib import Path
 from retrying import retry
-
-import medusa.storage
-import medusa.storage.concurrent
 
 
 BLOCK_SIZE_BYTES = 65536
 MULTIPART_PART_SIZE_IN_MB = 8
 MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
+MAX_UP_DOWN_LOAD_RETRIES = 5
 
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified'])
@@ -41,44 +41,69 @@ AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata', ['name', '
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 
+class ObjectDoesNotExistError(Exception):
+    pass
+
+
 class AbstractStorage(abc.ABC):
+
+    # still not certain what precisely this is used for
+    # sometimes we store Cassandra version in this it seems
+    api_version = None
 
     def __init__(self, config):
         self.config = config
-        self.driver = self.connect_storage()
-        self.bucket = self.driver.get_container(container_name=config.bucket_name)
+        self.bucket_name = config.bucket_name
 
     @abc.abstractmethod
-    def connect_storage(self):
-        # Override for each child class
-        pass
+    def connect(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def disconnect(self):
+        raise NotImplementedError
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
 
-        if path is None:
-            objects = self.driver.list_container_objects(self.bucket)
-        else:
-            objects = self.driver.list_container_objects(self.bucket, ex_prefix=str(path))
+        objects = self.list_blobs(prefix=path)
 
         objects = list(filter(lambda blob: blob.size > 0, objects))
 
         return objects
+
+    def list_blobs(self, prefix=None):
+        loop = self._get_or_create_event_loop()
+        objects = loop.run_until_complete(self._list_blobs(prefix))
+        return objects
+
+    @abc.abstractmethod
+    async def _list_blobs(self, prefix=None):
+        raise NotImplementedError()
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         headers = self.additional_upload_headers()
 
         # Upload a string content to the provided path in the bucket
-        obj = self.driver.upload_object_via_stream(
-            io.BytesIO(bytes(content, encoding)),
-            container=self.bucket,
+        obj = self.upload_object_via_stream(
+            data=io.BytesIO(bytes(content, encoding)),
             object_name=str(path),
             headers=headers,
         )
-        return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
+
+        return ManifestObject(obj.name, obj.size, obj.hash)
+
+    def upload_object_via_stream(self, data: io.BytesIO, object_name: str, headers: t.Dict[str, str]) -> AbstractBlob:
+        loop = self._get_or_create_event_loop()
+        o = loop.run_until_complete(self._upload_object(data, object_name, headers))
+        return o
+
+    @abc.abstractmethod
+    async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
+        raise NotImplementedError()
 
     def download_blobs(self, srcs, dest):
         """
@@ -88,94 +113,156 @@ class AbstractStorage(abc.ABC):
         :param dest: the path where to download the objects locally
         :return:
         """
-        medusa.storage.concurrent.download_blobs(self, srcs, dest, self.bucket.name,
-                                                 max_workers=self.config.concurrent_transfers)
+        loop = self._get_or_create_event_loop()
+        loop.run_until_complete(self._download_blobs(srcs, dest))
 
-    def upload_blobs(self, src, dest):
+    async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
+        chunk_size = int(self.config.concurrent_transfers)
+        # split srcs into chunk-sized chunks
+        chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
+        for chunk in chunks:
+            coros = [self._download_blob(src, dest) for src in map(str, chunk)]
+            await asyncio.gather(*coros)
+
+    @abc.abstractmethod
+    async def _download_blob(self, src: str, dest: str):
+        raise NotImplementedError()
+
+    def upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         """
         Uploads a list of files from the local storage into the remote storage system
-        :param src: a list of files to upload
+        :param srcs: a list of files to upload
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
         """
-        return medusa.storage.concurrent.upload_blobs(self, src, dest, self.bucket,
-                                                      max_workers=self.config.concurrent_transfers)
+        loop = self._get_or_create_event_loop()
+        manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
+        return manifest_objects
+
+    async def _upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
+        coros = [self._upload_blob(src, dest) for src in map(str, srcs)]
+        manifest_objects = []
+        n = int(self.config.concurrent_transfers)
+        for chunk in [coros[i:i + n] for i in range(0, len(coros), n)]:
+            manifest_objects += await asyncio.gather(*chunk)
+        return manifest_objects
+
+    @abc.abstractmethod
+    async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
+        raise NotImplementedError()
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def get_blob(self, path):
+    def get_blob(self, path: t.Union[Path, str]):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
-            return self.driver.get_object(self.bucket.name, str(path))
+            return self.get_object(str(path))
         except ObjectDoesNotExistError:
             return None
 
+    def get_object(self, object_key: t.Union[Path, str]):
+        # Doesn't actually read the contents, just lists the thing
+        try:
+            loop = self._get_or_create_event_loop()
+            o = loop.run_until_complete(self._get_object(object_key))
+            return o
+        except ObjectDoesNotExistError:
+            return None
+
+    @abc.abstractmethod
+    async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
+        raise NotImplementedError()
+
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def get_blob_content_as_string(self, path):
+    def get_blob_content_as_string(self, path: t.Union[Path, str]):
         blob = self.get_blob(str(path))
         if blob is None:
             return None
         return self.read_blob_as_string(blob)
 
-    def get_blob_content_as_bytes(self, path):
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    def get_blob_content_as_bytes(self, path: t.Union[Path, str]):
         blob = self.get_blob(str(path))
         return self.read_blob_as_bytes(blob)
 
-    def read_blob_as_string(self, blob, encoding="utf-8"):
-        logging.debug("[Storage] Reading blob {}...".format(blob.name))
+    def read_blob_as_string(self, blob: AbstractBlob, encoding="utf-8") -> str:
         return self.read_blob_as_bytes(blob).decode(encoding)
 
-    @abc.abstractmethod
-    def get_object_datetime(self, blob):
-        pass
-
-    @staticmethod
-    def read_blob_as_bytes(blob):
+    def read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
         logging.debug("[Storage] Reading blob {}...".format(blob.name))
-        buffer = io.BytesIO()
-        stream = blob.as_stream()
+        loop = self._get_or_create_event_loop()
+        b = loop.run_until_complete(self._read_blob_as_bytes(blob))
+        return b
 
-        for chunk in stream:
-            buffer.write(chunk)
+    @abc.abstractmethod
+    async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        raise NotImplementedError()
 
-        return buffer.getvalue()
+    def get_object_datetime(self, blob: AbstractBlob) -> datetime.datetime:
+        logging.debug(
+            "Blob {} last modification time is {}".format(
+                blob.name, blob.last_modified
+            )
+        )
+        return blob.last_modified
 
     @staticmethod
     def hashes_match(manifest_hash, object_hash):
         return base64.b64decode(manifest_hash).hex() == str(object_hash) or manifest_hash == str(object_hash)
 
-    def get_path_prefix(self, path):
+    def get_path_prefix(self, path=None) -> str:
         return ""
 
-    @abc.abstractmethod
-    def get_cache_path(self, path):
+    def get_cache_path(self, path) -> str:
         # Full path for files that will be taken from previous backups
-        pass
-
-    def get_download_path(self, path):
         return path
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def delete_object(self, object):
-        self.driver.delete_object(object)
+    def get_download_path(self, path) -> str:
+        return path
 
-    def delete_objects(self, objects):
-        for o in objects:
-            self.delete_object(o)
+    def delete_object(self, object: AbstractBlob):
+        loop = self._get_or_create_event_loop()
+        loop.run_until_complete(self._delete_object(object))
 
-    @retry(stop_max_attempt_number=5, wait_fixed=5000)
-    def get_blob_metadata(self, blob_key: str):
-        return AbstractBlobMetadata(blob_key, False, None)
+    def delete_objects(self, objects: t.List[AbstractBlob]):
+        loop = self._get_or_create_event_loop()
+        loop.run_until_complete(self._delete_objects(objects))
+
+    async def _delete_objects(self, objects: t.List[AbstractBlob]):
+        chunk_size = int(self.config.concurrent_transfers)
+        # split objects into chunk-sized chunks
+        chunks = [objects[i:i + chunk_size] for i in range(0, len(objects), chunk_size)]
+        for chunk in chunks:
+            coros = [self._delete_object(obj) for obj in chunk]
+            await asyncio.gather(*coros)
+
+    @abc.abstractmethod
+    async def _delete_object(self, obj: AbstractBlob):
+        raise NotImplementedError()
 
     @retry(stop_max_attempt_number=5, wait_fixed=5000)
     def get_blobs_metadata(self, blob_keys):
-        return [AbstractBlobMetadata(blob_key, False, None) for blob_key in blob_keys]
+        loop = self._get_or_create_event_loop()
+        return loop.run_until_complete(self._get_blobs_metadata(blob_keys))
 
-    def check_dependencies(self):
-        """
-        Check that required dependencies are available.
-        Each child class should implement this function if it relies on an optional dependency.
-        """
-        pass
+    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
+        loop = self._get_or_create_event_loop()
+        return loop.run_until_complete(self._get_blob_metadata(blob_key))
+
+    async def _get_blobs_metadata(self, blob_keys: t.List[str]) -> t.List[AbstractBlobMetadata]:
+        chunk_size = self.config.concurrent_transfers
+        # split blob_keys into chunk-sized chunks
+        chunks = [blob_keys[i:i + chunk_size] for i in range(0, len(blob_keys), chunk_size)]
+        r = []
+        for chunk in chunks:
+            coros = [self._get_blob_metadata(blob_key) for blob_key in chunk]
+            r.append(*await asyncio.gather(*coros))
+        return r
+
+    async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
+        # Only S3 really implements this because of the KMS support
+        # Other storage providers don't do that for now
+        return AbstractBlobMetadata(blob_key, False, None)
 
     @staticmethod
     def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
@@ -223,8 +310,11 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     def _get_or_create_event_loop() -> asyncio.AbstractEventLoop:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
+        try:
+            loop = asyncio.get_event_loop()
+        except Exception:
+            loop = None
+        if loop is None or loop.is_closed():
             logging.warning("Having to make a new event loop unexpectedly")
             new_loop = asyncio.new_event_loop()
             if new_loop.is_closed():
@@ -287,17 +377,17 @@ class AbstractStorage(abc.ABC):
         """
         pass
 
-    def prepare_download(self):
-        # Override for each child class
-        pass
-
-    def prepare_upload(self):
-        # Override for each child class
-        pass
-
     def additional_upload_headers(self):
         """
-        Additional HTTP headers to be passed to libcloud during upload operations. To be overriden by
+        Additional HTTP headers to be passed during upload operations. To be overriden by
         child classes.
         """
         return {}
+
+    @staticmethod
+    def _human_readable_size(size, decimal_places=3):
+        for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
+            if size < 1024.0:
+                break
+            size /= 1024.0
+        return '{:.{}f}{}'.format(size, decimal_places, unit)

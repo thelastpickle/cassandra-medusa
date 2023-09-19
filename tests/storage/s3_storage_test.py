@@ -20,8 +20,6 @@ import tempfile
 
 from unittest.mock import patch, MagicMock
 
-from libcloud.storage.providers import get_driver
-
 from medusa.storage.s3_base_storage import S3BaseStorage
 
 
@@ -34,7 +32,7 @@ class AttributeDict(dict):
 class S3StorageTest(unittest.TestCase):
 
     def test_legacy_provider_region_replacement(self):
-        assert get_driver("s3_us_west_oregon").region_name == "us-west-2"
+        assert S3BaseStorage._region_from_provider_name("s3_us_west_oregon") == "us-west-2"
 
     def test_credentials_from_metadata(self):
 

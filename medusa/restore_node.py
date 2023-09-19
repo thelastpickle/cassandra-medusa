@@ -43,25 +43,24 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
         logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
         sys.exit(1)
 
-    storage = Storage(config=config.storage)
-    capture_release_version(storage, version_target)
+    with Storage(config=config.storage) as storage:
+        capture_release_version(storage, version_target)
 
-    if not use_sstableloader:
-        restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
-                             keyspaces, tables)
-    else:
-        restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
-                                   keyspaces, tables)
+        if not use_sstableloader:
+            restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
+                                 keyspaces, tables)
+        else:
+            restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage,
+                                       keyspaces, tables)
 
-    if verify:
-        hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses),
-                                             medusa.utils.evaluate_boolean(
-                                                 config.kubernetes.enabled if config.kubernetes else False))
-        verify_restore([hostname_resolver.resolve_fqdn()], config)
+        if verify:
+            hostname_resolver = HostnameResolver(medusa.config.evaluate_boolean(config.cassandra.resolve_ip_addresses),
+                                                 medusa.utils.evaluate_boolean(
+                                                     config.kubernetes.enabled if config.kubernetes else False))
+            verify_restore([hostname_resolver.resolve_fqdn()], config)
 
 
 def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage, keyspaces, tables):
-    storage.storage_driver.prepare_download()
     differential_blob = storage.storage_driver.get_blob(
         os.path.join(config.storage.fqdn, backup_name, 'meta', 'differential'))
 
@@ -369,8 +368,7 @@ def capture_release_version(storage, version_target):
     # Obtain version via CLI, driver or default.
     if version_target:
         HostMan.set_release_version(version_target)
-    elif storage and storage.storage_driver and storage.storage_driver.driver and \
-            storage.storage_driver.driver.api_version:
-        HostMan.set_release_version(storage.storage_driver.driver.api_version)
+    elif storage and storage.storage_driver and storage.storage_driver.api_version:
+        HostMan.set_release_version(storage.storage_driver.api_version)
     else:
         HostMan.set_release_version(HostMan.DEFAULT_RELEASE_VERSION)

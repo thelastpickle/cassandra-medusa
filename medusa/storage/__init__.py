@@ -13,21 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import collections
 import itertools
 import logging
 import operator
 import pathlib
 import re
 
-from libcloud.storage.providers import Provider
-from libcloud.common.types import InvalidCredsError
 from retrying import retry
 
 import medusa.index
 
-from medusa.utils import evaluate_boolean
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
@@ -36,9 +31,8 @@ from medusa.storage.s3_storage import S3Storage
 from medusa.storage.s3_rgw import S3RGWStorage
 from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.s3_base_storage import S3BaseStorage
+from medusa.utils import evaluate_boolean
 
-
-ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 # pattern meant to match just the blob name, not the entire path
 # the path is covered by the initial .*
@@ -72,39 +66,36 @@ class Storage(object):
         self._k8s_mode = evaluate_boolean(config.k8s_mode) if config.k8s_mode else False
         self._prefix = pathlib.Path(config.prefix or '.')
         self.prefix_path = str(self._prefix) + '/' if len(str(self._prefix)) > 1 else ''
-        self.storage_driver = self._connect_storage()
+        self.storage_driver = self._load_storage()
         self.storage_provider = self._config.storage_provider
 
-    def _connect_storage(self):
+    def __enter__(self):
+        self.storage_driver.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.storage_driver.disconnect()
+
+    def _load_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
-        if self._config.storage_provider == Provider.GOOGLE_STORAGE:
+        if self._config.storage_provider.lower() == 'google_storage':
             google_storage = GoogleStorage(self._config)
-            if not self._k8s_mode:
-                google_storage.check_dependencies()
             return google_storage
-        elif self._config.storage_provider == Provider.AZURE_BLOBS:
+        elif self._config.storage_provider.lower() == 'azure_blobs':
             azure_storage = AzureStorage(self._config)
-            if not self._k8s_mode:
-                azure_storage.check_dependencies()
             return azure_storage
-        elif self._config.storage_provider == Provider.S3_RGW:
+        elif self._config.storage_provider.lower() == 's3_rgw':
             return S3RGWStorage(self._config)
         elif self._config.storage_provider.lower() == "s3_compatible":
             s3_storage = S3BaseStorage(self._config)
-            if not self._k8s_mode:
-                s3_storage.check_dependencies()
             return s3_storage
-        elif self._config.storage_provider.startswith(Provider.S3):
+        elif self._config.storage_provider.lower().startswith('s3'):
             s3_storage = S3Storage(self._config)
-            if not self._k8s_mode:
-                s3_storage.check_dependencies()
             return s3_storage
-        elif self._config.storage_provider == Provider.LOCAL:
+        elif self._config.storage_provider.lower() == 'local':
             return LocalStorage(self._config)
         elif self._config.storage_provider.lower() == "ibm_storage":
             s3_storage = S3BaseStorage(self._config)
-            if not self._k8s_mode:
-                s3_storage.check_dependencies()
             return s3_storage
 
         raise NotImplementedError("Unsupported storage provider")
@@ -267,7 +258,7 @@ class Storage(object):
                 # if a backup doesn't exist, we should remove its entry from the index too
                 try:
                     self.remove_backup_from_index(node_backup)
-                except InvalidCredsError:
+                except Exception:
                     logging.debug(
                         'This account cannot perform the cleanup_storage'
                         '{} for fqdn {} present only in index.'

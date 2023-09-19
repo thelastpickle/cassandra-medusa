@@ -48,7 +48,6 @@ setuptools.setup(
         'cassandra-driver>=3.27.0',
         'psutil>=5.4.7',
         'ffwd>=0.0.2',
-        'apache-libcloud<3.4.0,>=3.3.0',
         'lockfile>=0.12.2',
         'pyOpenSSL==22.0.0',
         'cryptography<=35.0,>=2.5',
@@ -76,9 +75,6 @@ setuptools.setup(
         'azure-identity==1.14.0',
         'azure-storage-blob==12.17.0',
     ],
-    extras_require={
-        'AZURE': ["azure-cli==2.34.1"]
-    },
     entry_points={
         'console_scripts': [
             'medusa=medusa.medusacli:cli',

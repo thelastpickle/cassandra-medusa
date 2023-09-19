@@ -16,10 +16,8 @@
 import configparser
 import unittest
 from unittest import mock
-from unittest.mock import Mock
 
 from cassandra.util import Version
-from libcloud.common.base import BaseDriver
 
 from medusa import restore_node, storage
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
@@ -92,7 +90,7 @@ class RestoreNodeTest(unittest.TestCase):
     @mock.patch.object(storage.Storage, '__init__')
     def test_capture_release_version_from_CLI(self, mock_storage, mock_abstract_storage):
         # WHEN api_version is specified from CLI, and api_version is available from driver.
-        mock_abstract_storage.driver = BaseDriver(key=Mock(), api_version='5.0.0')
+        mock_abstract_storage.api_version = '5.0.0'
         mock_storage.attach_mock(mock_abstract_storage, 'storage_driver')
         restore_node.capture_release_version(mock_storage, '4.0.0')
 
@@ -103,7 +101,7 @@ class RestoreNodeTest(unittest.TestCase):
     @mock.patch.object(storage.Storage, '__init__')
     def test_capture_release_version_from_driver(self, mock_storage, mock_abstract_storage):
         # WHEN api_version from driver is specified and no specified CLI version.
-        mock_abstract_storage.driver = BaseDriver(key=Mock(), api_version='5.0.0')
+        mock_abstract_storage.api_version = '5.0.0'
         mock_storage.attach_mock(mock_abstract_storage, 'storage_driver')
         restore_node.capture_release_version(mock_storage, None)
 
@@ -114,7 +112,7 @@ class RestoreNodeTest(unittest.TestCase):
     @mock.patch.object(storage.Storage, '__init__')
     def test_capture_release_version_from_default(self, mock_storage, mock_abstract_storage):
         # WHEN api_version is not available from either CLI or the driver.
-        mock_abstract_storage.driver = BaseDriver(key=Mock())
+        mock_abstract_storage.api_version = None
         mock_storage.attach_mock(mock_abstract_storage, 'storage_driver')
         restore_node.capture_release_version(mock_storage, None)
 

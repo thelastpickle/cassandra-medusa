@@ -40,43 +40,43 @@ def build_indices(config, noop):
     For all node backups found this way, it will find the latest one per node and update index accordingly.
     """
     try:
-        storage = medusa.storage.Storage(config=config.storage)
-        is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
-        all_backups = []
+        with medusa.storage.Storage(config=config.storage) as storage:
+            is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
+            all_backups = []
 
-        if is_ccm != 1:
-            cassandra = Cassandra(config)
-            with cassandra.new_session() as cql_session:
-                tokenmap = cql_session.tokenmap()
-            for fqdn in tokenmap.keys():
-                logging.info("processing {}".format(fqdn))
-                all_backups = all_backups + list(storage.discover_node_backups(fqdn=fqdn))
-        else:
-            all_backups = list(storage.discover_node_backups())
+            if is_ccm != 1:
+                cassandra = Cassandra(config)
+                with cassandra.new_session() as cql_session:
+                    tokenmap = cql_session.tokenmap()
+                for fqdn in tokenmap.keys():
+                    logging.info("processing {}".format(fqdn))
+                    all_backups = all_backups + list(storage.discover_node_backups(fqdn=fqdn))
+            else:
+                all_backups = list(storage.discover_node_backups())
 
-        latest_node_backups = dict()
+            latest_node_backups = dict()
 
-        if noop:
-            logging.info('--noop was set, will only print the indices')
+            if noop:
+                logging.info('--noop was set, will only print the indices')
 
-        for node_backup in all_backups:
-            # if we are dealing with a complete backup
-            if node_backup.finished is not None:
-                # check if this backup is newer than what was seen so far
-                latest = latest_node_backups.get(node_backup.fqdn, node_backup)
-                if node_backup.finished >= latest.finished:
-                    latest_node_backups[node_backup.fqdn] = node_backup
-                # if requested, add the node backup to the index
-                logging.debug('Found backup {} from {}'.format(node_backup.name, node_backup.fqdn))
+            for node_backup in all_backups:
+                # if we are dealing with a complete backup
+                if node_backup.finished is not None:
+                    # check if this backup is newer than what was seen so far
+                    latest = latest_node_backups.get(node_backup.fqdn, node_backup)
+                    if node_backup.finished >= latest.finished:
+                        latest_node_backups[node_backup.fqdn] = node_backup
+                    # if requested, add the node backup to the index
+                    logging.debug('Found backup {} from {}'.format(node_backup.name, node_backup.fqdn))
+                    if not noop:
+                        add_backup_start_to_index(storage, node_backup)
+                        add_backup_finish_to_index(storage, node_backup)
+
+            # once we have seen all backups, we can set the latest ones as well
+            for fqdn, node_backup in latest_node_backups.items():
+                logging.debug('Latest backup {} is {}'.format(fqdn, node_backup.name))
                 if not noop:
-                    add_backup_start_to_index(storage, node_backup)
-                    add_backup_finish_to_index(storage, node_backup)
-
-        # once we have seen all backups, we can set the latest ones as well
-        for fqdn, node_backup in latest_node_backups.items():
-            logging.debug('Latest backup {} is {}'.format(fqdn, node_backup.name))
-            if not noop:
-                set_latest_backup_in_index(storage, node_backup)
+                    set_latest_backup_in_index(storage, node_backup)
 
     except Exception:
         traceback.print_exc()

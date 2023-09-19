@@ -35,12 +35,12 @@ def report_latest(config, push_metrics):
                 retry + 1,
                 MAX_RETRIES
             ))
-            storage = Storage(config=config.storage)
-            fqdn = config.storage.fqdn
-            backup_index = storage.list_backup_index_blobs()
-            check_node_backup(config, storage, fqdn, push_metrics, monitoring)
-            check_complete_cluster_backup(storage, push_metrics, monitoring, backup_index)
-            check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index)
+            with Storage(config=config.storage) as storage:
+                fqdn = config.storage.fqdn
+                backup_index = storage.list_backup_index_blobs()
+                check_node_backup(config, storage, fqdn, push_metrics, monitoring)
+                check_complete_cluster_backup(storage, push_metrics, monitoring, backup_index)
+                check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index)
             break
         except Exception as e:
             if (retry + 1) < MAX_RETRIES:
@@ -176,5 +176,5 @@ def human_readable_size(num, suffix='B'):
 
 
 def get_latest_complete_cluster_backup(config):
-    storage = Storage(config=config.storage)
-    return storage.latest_complete_cluster_backup()
+    with Storage(config=config.storage) as storage:
+        return storage.latest_complete_cluster_backup()

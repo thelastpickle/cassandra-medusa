@@ -15,7 +15,6 @@
 
 import base64
 import configparser
-import datetime
 import hashlib
 import os
 import shutil
@@ -52,7 +51,8 @@ class RestoreNodeTest(unittest.TestCase):
             'fqdn': '127.0.0.1',
             'api_key_or_username': '',
             'api_secret_or_password': '',
-            'base_path': '/tmp'
+            'base_path': '/tmp',
+            'concurrent_transfers': 1,
         }
         config['cassandra'] = {
             'is_ccm': 1
@@ -186,7 +186,7 @@ class RestoreNodeTest(unittest.TestCase):
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
         self.assertEqual(
-            datetime.datetime.fromtimestamp(int(obj.extra["modify_time"])),
+            obj.last_modified,
             self.storage.storage_driver.get_object_datetime(obj)
         )
 

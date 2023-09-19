@@ -14,39 +14,145 @@
 # limitations under the License.
 
 import datetime
-import pathlib
+import hashlib
+import io
+import logging
+import os
+import typing as t
+from pathlib import Path
 
-from libcloud.storage.drivers.local import LocalStorageDriver
-
-from medusa.storage.abstract_storage import AbstractStorage
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject, ObjectDoesNotExistError
 
 
 class LocalStorage(AbstractStorage):
 
-    def connect_storage(self):
-        driver = LocalStorageDriver(key=self.config.base_path)
-        containers = list(map(lambda container: container.name, driver.list_containers()))
-        if self.config.bucket_name not in containers:
-            driver.create_container(self.config.bucket_name)
+    def __init__(self, config):
+        self.config = config
+        self.bucket_name = self.config.bucket_name
 
-        return driver
+        self.root_dir = Path(config.base_path) / self.bucket_name
+        self.root_dir.mkdir(parents=True, exist_ok=True)
 
-    def list_objects(self, path=None):
-        # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
-        objects = self.driver.list_container_objects(self.bucket)
+        super().__init__(config)
 
-        if isinstance(path, pathlib.Path):
-            path = str(path)
+    def connect(self):
+        pass
 
-        if path is not None:
-            objects = list(filter(lambda blob: blob.name.startswith(path), objects))
+    def disconnect(self):
+        pass
 
-        objects = list(filter(lambda blob: blob.size > 0, objects))
+    async def _list_blobs(self, prefix=None):
+        if prefix is None:
+            paths = [p for p in self.root_dir.glob('**/*')]
+        else:
+            paths = [
+                p for p in self.root_dir.glob('**/*')
+                # relative_to() cuts off the base_path and bucket, so it works just like cloud storages
+                if str(p.relative_to(self.root_dir)).startswith(str(prefix))
+            ]
 
-        return objects
+        return [
+            AbstractBlob(
+                str(p.relative_to(self.root_dir)),
+                os.stat(self.root_dir / p).st_size,
+                self._md5(self.root_dir / p),
+                datetime.datetime.fromtimestamp(os.stat(self.root_dir / p).st_mtime)
+            )
+            for p in paths if not p.is_dir()
+        ]
+
+    def _md5(self, file_path: str) -> str:
+        with open(file_path, 'rb') as f:
+            return hashlib.md5(f.read()).hexdigest()
+
+    async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
+        object_path = self.root_dir / object_key
+        object_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(object_path, 'wb') as f:
+            f.write(data.read())
+        return AbstractBlob(
+            object_key,
+            os.stat(object_path).st_size,
+            self._md5(object_path),
+            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime)
+        )
+
+    async def _download_blob(self, src: str, dest: str):
+        src_file = self.root_dir / src
+
+        src_path = Path(src)
+        dest_file = (
+            "{}/{}/{}".format(dest, src_path.parent.name, src_path.name)
+            if src_path.parent.name.startswith(".")
+            else "{}/{}".format(dest, src_path.name)
+        )
+
+        logging.debug(
+            '[Local Storage] Downloading {} -> {}'.format(
+                src_file, dest_file
+            )
+        )
+
+        with open(src_file, 'rb') as f:
+            with open(dest_file, 'wb') as d:
+                d.write(f.read())
+
+    async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
+
+        src_file = src
+        src_chunks = src.split('/')
+        parent_name, file_name = src_chunks[-2], src_chunks[-1]
+
+        # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
+        dest_file = (
+            self.root_dir / dest / parent_name / file_name
+            if parent_name.startswith(".")
+            else self.root_dir / dest / file_name
+        )
+
+        file_size = os.stat(src_file).st_size
+        logging.debug(
+            '[Local Storage] Uploading {} ({}) -> {}'.format(
+                src_file, self._human_readable_size(file_size), dest_file
+            )
+        )
+        # remove root_dir from dest_file name
+        dest_object_key = str(dest_file.relative_to(str(self.root_dir)))
+
+        with open(src_file, 'rb') as f:
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest_file, 'wb') as d:
+                d.write(f.read())
+        return ManifestObject(
+            dest_object_key,
+            os.stat(dest_file).st_size,
+            self._md5(dest_file),
+        )
+
+    async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
+        object_path = self.root_dir / object_key
+
+        if not object_path.exists():
+            raise ObjectDoesNotExistError(object_key)
+
+        return AbstractBlob(
+            str(object_key),
+            os.stat(object_path).st_size,
+            self._md5(object_path),
+            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime)
+        )
+
+    async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        object_path = self.root_dir / blob.name
+        with open(object_path, 'rb') as f:
+            return f.read()
+
+    async def _delete_object(self, obj: AbstractBlob):
+        object_path = self.root_dir / obj.name
+        os.remove(object_path)
 
     def get_object_datetime(self, blob):
-        return datetime.datetime.fromtimestamp(int(blob.extra["modify_time"]))
+        return blob.last_modified
 
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
