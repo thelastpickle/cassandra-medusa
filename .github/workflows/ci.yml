@@ -273,7 +273,7 @@ jobs:
         e2e_test:
           - CreateSingleMedusaJob
       fail-fast: false
-    name: ${{ matrix.e2e_test }}
+    name: k8ssandra-${{ matrix.e2e_test }}
     env:
       CGO_ENABLED: 0
       KUBECONFIG_FILE: "./build/kind-kubeconfig"
