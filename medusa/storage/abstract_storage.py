@@ -391,3 +391,23 @@ class AbstractStorage(abc.ABC):
                 break
             size /= 1024.0
         return '{:.{}f}{}'.format(size, decimal_places, unit)
+
+    @staticmethod
+    def _human_size_to_bytes(size_str: str) -> int:
+        multipliers = [
+            ('PB', 1024 ** 5),
+            ('TB', 1024 ** 4),
+            ('GB', 1024 ** 3),
+            ('MB', 1024 ** 2),
+            ('KB', 1024),
+            ('B', 1),
+        ]
+
+        cleaned_size_str = size_str.replace(' ', '').replace('/s', '')
+
+        for unit, multiplier in multipliers:
+            if cleaned_size_str.endswith(unit):
+                size = float(cleaned_size_str.rstrip(unit))
+                return int(size * multiplier)
+
+        raise ValueError(f"Invalid human-friendly size format: {size_str}")
