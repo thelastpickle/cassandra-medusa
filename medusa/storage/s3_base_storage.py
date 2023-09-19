@@ -136,6 +136,12 @@ class S3BaseStorage(AbstractStorage):
             tcp_keepalive=True
         )
 
+        self.trasnfer_config = TransferConfig(
+            # we hard-code this one because the parallelism is for now applied to chunking the files
+            max_concurrency=4,
+            max_bandwidth=AbstractStorage._human_size_to_bytes(self.config.transfer_max_bandwidth),
+        )
+
         self.s3_client = boto3.client(
             's3',
             config=boto_config,
@@ -211,6 +217,8 @@ class S3BaseStorage(AbstractStorage):
         )
 
         try:
+            # not passing in the transfer config because that is meant to cap a throughput
+            # here we are uploading a small-ish file so no need to cap
             self.s3_client.put_object(
                 Bucket=self.config.bucket_name,
                 Key=object_key,
@@ -249,6 +257,7 @@ class S3BaseStorage(AbstractStorage):
                 Bucket=self.config.bucket_name,
                 Key=object_key,
                 Filename=file_path,
+                Config=self.trasnfer_config,
             )
         except Exception as e:
             logging.error('Error downloading file from s3://{}/{}: {}'.format(self.config.bucket_name, object_key, e))
@@ -292,12 +301,11 @@ class S3BaseStorage(AbstractStorage):
             )
         )
 
-        config = TransferConfig(max_concurrency=5)
         self.s3_client.upload_file(
             Filename=src,
             Bucket=self.bucket_name,
             Key=object_key,
-            Config=config,
+            Config=self.trasnfer_config,
             ExtraArgs=kms_args,
         )
 
