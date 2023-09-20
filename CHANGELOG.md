@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.16.1 (2023/09/20 05:40 +00:00)
+- re-enable docker push on releases (@adejanovski)
+
 ### 0.16.0 (2023/09/19 19:50 +00:00)
 - [S3 Storage] Obey throughput limit configuration (#647) (@rzvoncek)
 - Upgrade docker image to ubuntu 22.04 (#643) (@adejanovski)
