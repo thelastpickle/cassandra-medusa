@@ -996,3 +996,36 @@ Feature: Integration tests
     #    Examples: Local storage
     #    | storage           | client encryption |
     #    | local      |  with_client_encryption |
+
+    @27
+    Scenario Outline: Write some data, cause empty files, back them up and download them successfully
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario27"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        Then I make TOC.txt files for "medusa.test" table empty
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "enabled"
+        Then I can see the backup named "first_backup" when I list the backups
+        Then I can download the backup named "first_backup" for "medusa.test"
+
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |
+
+        @s3
+        Examples: S3 storage
+        | storage           | client encryption         |
+        | s3_us_west_oregon | without_client_encryption |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage        | client encryption         |
+        | google_storage | without_client_encryption |
+
+        @azure
+        Examples: Azure Blob Storage
+        | storage     | client encryption         |
+        | azure_blobs | without_client_encryption |

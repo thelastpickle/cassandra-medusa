@@ -826,6 +826,11 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
 
         # check tables have been downloaded
         assert list(Path(ks_path).glob('{}-*/*.db'.format(table)))
+
+        # check the TOC is there too
+        toc_file = list(Path(ks_path).glob('{}-*/*.txt'.format(table)))[0]
+        assert Path(toc_file).is_file()
+
         cleanup(download_path)
 
 
@@ -1429,6 +1434,25 @@ def _run_purge_on_decommissioned_nodes(context):
     except Exception as e:
         logging.error('This error happened during the purge of decommissioned nodes: {}'.format(str(e)))
         raise e
+
+
+@then(r'I make TOC.txt files for "{fqtn}" table empty')
+def _i_make_toc_file_empty(context, fqtn):
+    path_root = Path(CCM_DIR).expanduser() / 'scenario27' / 'node1' / 'data0'
+
+    keyspace, table = fqtn.split(".")
+    path_sstables = "{}/{}/{}*".format(
+        path_root, keyspace, table
+    )
+
+    table_path = glob.glob(path_sstables)[0]
+    sstable_files = os.listdir(table_path)
+    toc_files = [file for file in sstable_files if '-TOC.txt' in file]
+    for toc_file in toc_files:
+        path_toc_file = os.path.join(table_path, toc_file)
+        with open(path_toc_file, 'w') as file:
+            # leave the file empty
+            file.flush()
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
