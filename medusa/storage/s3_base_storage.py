@@ -99,55 +99,40 @@ class S3BaseStorage(AbstractStorage):
 
     def __init__(self, config):
 
-        if config.kms_id:
+        self.kms_id = None
+        if config.kms_id is not None:
             logging.debug("Using KMS key {}".format(config.kms_id))
+            self.kms_id = config.kms_id
 
         self.credentials = self._consolidate_credentials(config)
-
         logging.info('Using credentials {}'.format(self.credentials))
 
         self.bucket_name: str = config.bucket_name
-        self.config = config
+
+        self.storage_provider = config.storage_provider
+
+        self.connection_extra_args = self._make_connection_arguments(config)
+        self.transfer_config = self._make_transfer_config(config)
 
         super().__init__(config)
 
     def connect(self):
-
-        if self.config.storage_provider != 's3_compatible':
-            # assuming we're dealing with regular aws
-            s3_url = "https://{}.s3.amazonaws.com".format(self.bucket_name)
-        else:
-            # we're dealing with a custom s3 compatible storage, so we need to craft the URL
-            protocol = 'https' if self.config.secure.lower() == 'true' else 'http'
-            port = '' if self.config.port is None else str(self.config.port)
-            s3_url = '{}://{}:{}'.format(protocol, self.config.host, port)
-
-        logging.info('Using S3 URL {}'.format(s3_url))
-
-        logging.debug('Connecting to S3')
-        extra_args = {}
-        if self.config.storage_provider == 's3_compatible':
-            extra_args['endpoint_url'] = s3_url
-            extra_args['verify'] = False
-
+        logging.info(
+            'Connecting to {} with args {}'.format(
+                self.storage_provider, self.connection_extra_args
+            )
+        )
         boto_config = Config(
             region_name=self.credentials.region,
             signature_version='v4',
             tcp_keepalive=True
         )
-
-        self.trasnfer_config = TransferConfig(
-            # we hard-code this one because the parallelism is for now applied to chunking the files
-            max_concurrency=4,
-            max_bandwidth=AbstractStorage._human_size_to_bytes(self.config.transfer_max_bandwidth),
-        )
-
         self.s3_client = boto3.client(
             's3',
             config=boto_config,
             aws_access_key_id=self.credentials.access_key_id,
             aws_secret_access_key=self.credentials.secret_access_key,
-            **extra_args
+            **self.connection_extra_args
         )
 
     def disconnect(self):
@@ -156,6 +141,39 @@ class S3BaseStorage(AbstractStorage):
             self.s3_client.close()
         except Exception as e:
             logging.error('Error disconnecting from S3: {}'.format(e))
+
+    def _make_connection_arguments(self, config) -> t.Dict[str, str]:
+
+        secure = config.secure or 'True'
+        host = config.host
+        port = config.port
+
+        if self.storage_provider != 's3_compatible':
+            # when we're dealing with regular AWS, we don't need anything extra
+            return {}
+        else:
+            # we're dealing with a custom s3 compatible storage, so we need to craft the URL
+            protocol = 'https' if secure.lower() == 'true' else 'http'
+            port = '' if port is None else str(port)
+            s3_url = '{}://{}:{}'.format(protocol, host, port)
+            return {
+                'endpoint_url': s3_url,
+                'verify': protocol == 'https'
+            }
+
+    def _make_transfer_config(self, config):
+
+        transfer_max_bandwidth = config.transfer_max_bandwidth or None
+
+        # we hard-code this one because the parallelism is for now applied to chunking the files
+        transfer_config = {
+            'max_concurrency': 4
+        }
+
+        if transfer_max_bandwidth is not None:
+            transfer_config['max_bandwidth'] = AbstractStorage._human_size_to_bytes(transfer_max_bandwidth)
+
+        return TransferConfig(**transfer_config)
 
     @staticmethod
     def _consolidate_credentials(config) -> CensoredCredentials:
@@ -206,13 +224,13 @@ class S3BaseStorage(AbstractStorage):
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
 
         kms_args = {}
-        if self.config.kms_id is not None:
+        if self.kms_id is not None:
             kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.config.kms_id
+            kms_args['SSEKMSKeyId'] = self.kms_id
 
         logging.debug(
             '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
-                self.config.bucket_name, object_key
+                self.bucket_name, object_key
             )
         )
 
@@ -220,7 +238,7 @@ class S3BaseStorage(AbstractStorage):
             # not passing in the transfer config because that is meant to cap a throughput
             # here we are uploading a small-ish file so no need to cap
             self.s3_client.put_object(
-                Bucket=self.config.bucket_name,
+                Bucket=self.bucket_name,
                 Key=object_key,
                 Body=data,
                 **kms_args,
@@ -248,24 +266,24 @@ class S3BaseStorage(AbstractStorage):
         # print also object size
         logging.debug(
             '[S3 Storage] Downloading {} -> {}/{}'.format(
-                object_key, self.config.bucket_name, object_key
+                object_key, self.bucket_name, object_key
             )
         )
 
         try:
             self.s3_client.download_file(
-                Bucket=self.config.bucket_name,
+                Bucket=self.bucket_name,
                 Key=object_key,
                 Filename=file_path,
-                Config=self.trasnfer_config,
+                Config=self.transfer_config,
             )
         except Exception as e:
-            logging.error('Error downloading file from s3://{}/{}: {}'.format(self.config.bucket_name, object_key, e))
+            logging.error('Error downloading file from s3://{}/{}: {}'.format(self.bucket_name, object_key, e))
             raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
         try:
-            resp = self.s3_client.head_object(Bucket=self.config.bucket_name, Key=object_key)
+            resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_key)
             item_hash = resp['ETag'].replace('"', '')
             return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'])
         except ClientError as e:
@@ -275,7 +293,7 @@ class S3BaseStorage(AbstractStorage):
             else:
                 # Handle other exceptions if needed
                 logging.error("An error occurred:", e)
-                logging.error('Error getting object from s3://{}/{}'.format(self.config.bucket_name, object_key))
+                logging.error('Error getting object from s3://{}/{}'.format(self.bucket_name, object_key))
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
@@ -290,9 +308,9 @@ class S3BaseStorage(AbstractStorage):
         )
 
         kms_args = {}
-        if self.config.kms_id is not None:
+        if self.kms_id is not None:
             kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.config.kms_id
+            kms_args['SSEKMSKeyId'] = self.kms_id
 
         file_size = os.stat(src).st_size
         logging.debug(
@@ -305,7 +323,7 @@ class S3BaseStorage(AbstractStorage):
             Filename=src,
             Bucket=self.bucket_name,
             Key=object_key,
-            Config=self.trasnfer_config,
+            Config=self.transfer_config,
             ExtraArgs=kms_args,
         )
 
@@ -322,12 +340,12 @@ class S3BaseStorage(AbstractStorage):
 
     async def _delete_object(self, obj: AbstractBlob):
         self.s3_client.delete_object(
-            Bucket=self.config.bucket_name,
+            Bucket=self.bucket_name,
             Key=obj.name
         )
 
     async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
-        resp = self.s3_client.head_object(Bucket=self.config.bucket_name, Key=blob_key)
+        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=blob_key)
 
         # the headers come as some non-default dict, so we need to re-package them
         blob_metadata = resp.get('ResponseMetadata', {}).get('HTTPHeaders', {})
