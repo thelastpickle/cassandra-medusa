@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.7, 3.8, 3.9, "3.10", "3.11"]
         include:
           - python-version: 3.7
             tox-py: py37
@@ -23,6 +23,8 @@ jobs:
             tox-py: py39
           - python-version: "3.10"
             tox-py: py310
+          - python-version: "3.11"
+            tox-py: py311
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
@@ -103,33 +105,58 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.9]
+          python-version: [3.7, 3.8, 3.9, "3.10", "3.11"]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
           include:
+            # tweak the experimental flag for cassandra versions
             - cassandra-version: 2.2.19
               experimental: false
             - cassandra-version: 3.11.11
               experimental: false
             - cassandra-version: 4.0.0
               experimental: false
-            - cassandra-version: 'github:apache/trunk'
-              experimental: true
+            # explicitly include tests against python 3.11 and one version of cassandra
+            - python-version: "3.11"
+              cassandra-version: 4.0.0
+              it-backend: gcs
+              experimental: false
+            # explicitly include tests against python 3.10 and one version of cassandra
+            - python-version: "3.10"
+              cassandra-version: 4.0.0
+              it-backend: gcs
+              experimental: false
+            # explicitly include tests against python 3.8 and one version of cassandra
+            - python-version: 3.8
+              cassandra-version: 4.0.0
+              it-backend: gcs
+              experimental: false
+            # explicitly include tests against python 3.7 and one version of cassandra
+            - python-version: 3.7
+              cassandra-version: 4.0.0
+              it-backend: gcs
+              experimental: false
           exclude:
-            # excludes unnecessary combinations
+            # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
+            # fewer tests against cassandra 3.11.11 (exclude all but local storage backends)
             - it-backend: s3
-              cassandra-version: 3.11.11
+              cassandra-version: "3.11.11"
             - it-backend: gcs
-              cassandra-version: 3.11.11
+              cassandra-version: "3.11.11"
             - it-backend: minio
-              cassandra-version: 3.11.11
+              cassandra-version: "3.11.11"
             - it-backend: azure
-              cassandra-version: 3.11.11
+              cassandra-version: "3.11.11"
             - it-backend: azure-hierarchical
-              cassandra-version: 3.11.11
+              cassandra-version: "3.11.11"
+            # no tests against non-python3.9, except the explicitly allowed combinations
+            - python-version: 3.7
+            - python-version: 3.8
+            - python-version: "3.10"
+            - python-version: "3.11"
 
     runs-on: ubuntu-20.04
     services:
