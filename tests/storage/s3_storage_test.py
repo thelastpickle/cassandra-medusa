@@ -186,6 +186,93 @@ class S3StorageTest(unittest.TestCase):
             # default AWS region
             self.assertEqual('us-east-1', credentials.region)
 
+    def test_make_s3_url(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'host': None,
+                    'port': None,
+                })
+                s3_storage = S3BaseStorage(config)
+                # there are no extra connection args when connecting to regular S3
+                self.assertEqual(
+                    dict(),
+                    s3_storage.connection_extra_args
+                )
+
+    def test_make_s3_url_without_secure(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'False',
+                    'host': None,
+                    'port': None,
+                })
+                s3_storage = S3BaseStorage(config)
+                # again, no extra connection args when connecting to regular S3
+                # we can't even disable HTTPS
+                self.assertEqual(
+                    dict(),
+                    s3_storage.connection_extra_args
+                )
+
+    def test_make_s3_compatible_url(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_compatible',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'host': 's3.example.com',
+                    'port': '443',
+                })
+                s3_storage = S3BaseStorage(config)
+                self.assertEqual(
+                    'https://s3.example.com:443',
+                    s3_storage.connection_extra_args['endpoint_url']
+                )
+
+    def test_make_s3_compatible_url_without_secure(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_compatible',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'False',
+                    'host': 's3.example.com',
+                    'port': '8080',
+                })
+                s3_storage = S3BaseStorage(config)
+                self.assertEqual(
+                    'http://s3.example.com:8080',
+                    s3_storage.connection_extra_args['endpoint_url']
+                )
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
