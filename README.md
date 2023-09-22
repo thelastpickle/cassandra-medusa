@@ -59,3 +59,4 @@ Dependencies
 ------------
 
 For information on the packaged dependencies of Medusa for Apache Cassandra&reg; and their licenses, check out our [open source report](https://app.fossa.com/reports/cac72e73-1214-4e6d-8476-76567e08db21).
+
