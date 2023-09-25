@@ -57,7 +57,7 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
             try:
                 # Try to get a backup with backup_name. If it exists then we cannot take another backup with that name
                 cluster_backup = storage.get_cluster_backup(backup_name)
-                if cluster_backup:
+                if cluster_backup and cluster_backup.name == backup_name:
                     err_msg = 'Backup named {} already exists.'.format(backup_name)
                     logging.error(err_msg)
                     raise Exception(err_msg)
