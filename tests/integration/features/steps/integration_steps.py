@@ -128,18 +128,18 @@ def get_client_encryption_opts(keystore_path, trustore_path):
         protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
 
 
-def tune_ccm_settings(cluster_name):
+def tune_ccm_settings(cluster_name, cassandra_version, is_client_encryption_enabled):
+
+    def change_string(old_string, new_string, file_path):
+        cmd = f"sed -i 's/{old_string}/{new_string}/' ~/.ccm/{cluster_name}/{file_path}"
+        os.popen(cmd).read()
+
     if os.uname().sysname == "Linux":
-        os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
-            + cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
-        os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
-            + cluster_name
-            + """/node1/conf/cassandra-env.sh"""
-        ).read()
+        change_string('#MAX_HEAP_SIZE=\"4G\"', 'MAX_HEAP_SIZE=\"256m\"', "node1/conf/cassandra-env.sh")
+        change_string('#HEAP_NEWSIZE=\"800M\"', 'HEAP_NEWSIZE=\"200M\"', "node1/conf/cassandra-env.sh")
+        # needed mostly to support newer java versions (11 and later)
+        change_string('ThreadPriorityPolicy=42', 'ThreadPriorityPolicy=1', "node1/conf/cassandra-env.sh")
+
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
 
 
@@ -216,7 +216,7 @@ class MgmtApiServer:
 def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption):
     context.session = None
     context.cluster_name = cluster_name
-    is_client_encryption_enable = False
+    is_client_encryption_enabled = False
     subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
     kill_cassandra()
     res = subprocess.run(
@@ -239,12 +239,12 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
     )
 
     if client_encryption == 'with_client_encryption':
-        is_client_encryption_enable = True
+        is_client_encryption_enabled = True
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    tune_ccm_settings(context.cluster_name)
-    context.session = connect_cassandra(is_client_encryption_enable)
+    tune_ccm_settings(context.cluster_name, context.cassandra_version, is_client_encryption_enabled)
+    context.session = connect_cassandra(is_client_encryption_enabled, context.cassandra_version)
 
 
 @given(r'I have a fresh ccm cluster with jolokia "{client_encryption}" running named "{cluster_name}"')
@@ -252,7 +252,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
     context.cassandra_version = "3.11.6"
     context.session = None
     context.cluster_name = cluster_name
-    is_client_encryption_enable = False
+    is_client_encryption_enabled = False
     subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
     kill_cassandra()
     res = subprocess.run(
@@ -275,7 +275,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
     )
 
     if client_encryption == 'with_client_encryption':
-        is_client_encryption_enable = True
+        is_client_encryption_enabled = True
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
@@ -286,15 +286,15 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
         )
     shutil.copyfile("resources/grpc/jolokia-jvm-1.6.2-agent.jar", "/tmp/jolokia-jvm-1.6.2-agent.jar")
 
-    tune_ccm_settings(context.cluster_name)
-    context.session = connect_cassandra(is_client_encryption_enable)
+    tune_ccm_settings(context.cluster_name, context.cassandra_version, is_client_encryption_enabled)
+    context.session = connect_cassandra(is_client_encryption_enabled, context.cassandra_version)
 
 
 @given(r'I have a fresh ccm cluster with mgmt api "{client_encryption}" named "{cluster_name}"')
 def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, client_encryption):
     context.session = None
     context.cluster_name = cluster_name
-    is_client_encryption_enable = False
+    is_client_encryption_enabled = False
     subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
     kill_cassandra()
     res = subprocess.run(
@@ -317,12 +317,12 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     )
 
     if client_encryption == 'with_client_encryption':
-        is_client_encryption_enable = True
+        is_client_encryption_enabled = True
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    tune_ccm_settings(context.cluster_name)
-    context.session = connect_cassandra(is_client_encryption_enable)
+    tune_ccm_settings(context.cluster_name, context.cassandra_version, is_client_encryption_enabled)
+    context.session = connect_cassandra(is_client_encryption_enabled, context.cassandra_version)
     # stop the node via CCM as it needs to be started by the Management API
     os.popen(CCM_STOP).read()
 
@@ -421,7 +421,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         ready_count += 1
         if ready == 200:
             # server is ready, re-establish the session
-            context.session = connect_cassandra(is_client_encryption_enable)
+            context.session = connect_cassandra(is_client_encryption_enable, context.cassandra_version)
             break
         else:
             # wait for Cassandra to be ready
@@ -833,7 +833,7 @@ def _i_can_download_the_backup_single_table_successfully(context, backup_name, f
 def _i_can_connect_using_all_tls_versions(context, client_encryption):
     if client_encryption == 'with_client_encryption':
         for tls_version in [PROTOCOL_TLS, PROTOCOL_TLSv1_2]:
-            connect_cassandra(True, tls_version)
+            connect_cassandra(True, context.cassandra_version, tls_version)
 
 
 @when(r'I restore the backup named "{backup_name}"')
@@ -889,7 +889,7 @@ def _i_have_rows_in_the_table(context, nb_rows, table_name, client_encryption):
     is_client_encryption_enable = False
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
-    context.session = connect_cassandra(is_client_encryption_enable)
+    context.session = connect_cassandra(is_client_encryption_enable, context.cassandra_version)
     rows = context.session.execute("select count(*) as nb from {}".format(table_name))
     assert rows[0][0] == int(nb_rows)
 
@@ -1169,7 +1169,7 @@ def _i_truncate_the_table(context, table_name, client_encryption):
 
     if client_encryption == 'with_client_encryption':
         is_client_encryption_enable = True
-    context.session = connect_cassandra(is_client_encryption_enable)
+    context.session = connect_cassandra(is_client_encryption_enable, context.cassandra_version)
     context.session.execute("truncate {}".format(table_name))
 
 
@@ -1431,7 +1431,7 @@ def _run_purge_on_decommissioned_nodes(context):
         raise e
 
 
-def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
+def connect_cassandra(is_client_encryption_enable, cassandra_version, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
     session = None
@@ -1446,11 +1446,16 @@ def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
             keyfile=userkey)
         _ssl_context = ssl_context
 
+    if cassandra_version.startswith('4.1'):
+        protocol_version = ProtocolVersion.V5
+    else:
+        protocol_version = ProtocolVersion.V4
+
     while not connected and attempt < 10:
         try:
             cluster = Cluster(contact_points=["127.0.0.1"],
                               ssl_context=_ssl_context,
-                              protocol_version=ProtocolVersion.V4)
+                              protocol_version=protocol_version)
             session = cluster.connect()
             connected = True
         except cassandra.cluster.NoHostAvailable:
@@ -1482,7 +1487,7 @@ def write_dummy_file(path, mtime_str, contents=None):
 
 def get_mgmt_api_jars(
         version,
-        url="https://api.github.com/repos/datastax/management-api-for-apache-cassandra/releases/latest"):
+        url="https://api.github.com/repos/k8ssandra/management-api-for-apache-cassandra/releases/latest"):
     # clear out any temp resources that might exist
     remove_temporary_mgmtapi_resources()
 
@@ -1508,20 +1513,32 @@ def get_mgmt_api_jars(
 def symlink_mgmt_api_jar(version):
     management_api_jar_path = '/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar'
     if not Path(management_api_jar_path).is_file():
-        # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
+        # the bundle has split agents (maybe), one for C* 3.x, one for C* 4.x, etc
         # link the C* specific agent to the generic agent file name
         assert False is Path('/tmp/management-api-agent/target/').exists()
         Path('/tmp/management-api-agent/target/').mkdir(parents=True, exist_ok=False)
+
         if str.startswith(version, '3'):
             # C* is version 3.x, use 3.x agent
             assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
             Path(management_api_jar_path).symlink_to(
                 '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
-        elif str.startswith(version, '4') or 'github:apache/trunk' == version:
-            # C* is version 4.x, use 4.x agent
+
+        elif str.startswith(version, '4.0'):
+            # C* is version 4.0.x, use 4.0.x agent
             assert Path('/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
             Path(management_api_jar_path).symlink_to(
                 '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
+
+        elif str.startswith(version, '4.1'):
+            # C* is version 4.1.x, use 4.1.x agent
+            jar_path = '/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-0.1.0-SNAPSHOT.jar'
+            assert Path(jar_path).is_file()
+            Path(management_api_jar_path).symlink_to(jar_path)
+
+        elif 'github:apache/trunk' == version:
+            raise NotImplementedError('Cassandra TRUNK not supported: {}'.format(version))
+
         else:
             raise NotImplementedError('Cassandra version not supported: {}'.format(version))
 
@@ -1538,4 +1555,7 @@ def rm_tree(pth):
 
 def remove_temporary_mgmtapi_resources():
     for tempDir in Path('/tmp').glob('management-api-*'):
-        rm_tree(tempDir)
+        try:
+            rm_tree(tempDir)
+        except NotADirectoryError:
+            pass

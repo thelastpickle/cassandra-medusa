@@ -109,7 +109,8 @@ jobs:
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
+          cassandra-version: [2.2.19, 3.11.11, 4.0.0]
+          java-version: ["8.0.252"]
           include:
             # tweak the experimental flag for cassandra versions
             - cassandra-version: 2.2.19
@@ -121,26 +122,40 @@ jobs:
             # explicitly include tests against python 3.11 and one version of cassandra
             - python-version: "3.11"
               cassandra-version: 4.0.0
-              it-backend: gcs
+              it-backend: azure
               experimental: false
+              java-version: "11.0.19"
             # explicitly include tests against python 3.10 and one version of cassandra
             - python-version: "3.10"
               cassandra-version: 4.0.0
-              it-backend: gcs
+              it-backend: azure
               experimental: false
+              java-version: "11.0.19"
             # explicitly include tests against python 3.8 and one version of cassandra
             - python-version: 3.8
               cassandra-version: 4.0.0
-              it-backend: gcs
+              it-backend: azure
               experimental: false
+              java-version: "11.0.19"
             # explicitly include tests against python 3.7 and one version of cassandra
             - python-version: 3.7
               cassandra-version: 4.0.0
-              it-backend: gcs
+              it-backend: azure
               experimental: false
+              java-version: "11.0.19"
+            # explicitly include two tests against cassandra 4.1 and trunk
+            # we skip local storage because it has some failing scenarios (#544)
+            - python-version: 3.9
+              cassandra-version: 4.1.3
+              it-backend: azure
+              experimental: false
+              java-version: "11.0.19"
+            - python-version: 3.9
+              cassandra-version: "github:apache/trunk"
+              it-backend: azure
+              experimental: true
+              java-version: "11.0.19"
           exclude:
-            # no tests against trunk
-            - cassandra-version: 'github:apache/trunk'
             # fewer tests against cassandra 3.11.11 (exclude all but local storage backends)
             - it-backend: s3
               cassandra-version: "3.11.11"
@@ -179,7 +194,7 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '8.0.252'
+        java-version: ${{ matrix.java-version }}
         architecture: x64
     - name: Install dependencies
       run: |
@@ -240,6 +255,21 @@ jobs:
         ccm node1 updateconf 'concurrent_writes: 4'
         ccm node1 updateconf 'concurrent_counter_writes: 4'
         ccm node1 updateconf 'num_tokens: 4'
+        if [[ "${{ matrix.java-version }}" == "11.0.19" ]];          
+        then
+          sed -i 's/ThreadPriorityPolicy=42/ThreadPriorityPolicy=1/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+UseParNewGC/#-XX:+UseParNewGC/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+PrintGCDateStamps/#-XX:+PrintGCDateStamps/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+PrintHeapAtGC/#-XX:+PrintHeapAtGC/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+PrintTenuringDistribution/#-XX:+PrintTenuringDistribution/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+PrintGCApplicationStoppedTime/#-XX:+PrintGCApplicationStoppedTime/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+PrintPromotionFailure/#-XX:+PrintPromotionFailure/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:+UseGCLogFileRotation/#-XX:+UseGCLogFileRotation/' ~/.ccm/test_cluster/node1/conf/jvm.options          
+          sed -i 's/-XX:NumberOfGCLogFiles/#-XX:NumberOfGCLogFiles/' ~/.ccm/test_cluster/node1/conf/jvm.options
+          sed -i 's/-XX:GCLogFileSize/#-XX:GCLogFileSize/' ~/.ccm/test_cluster/node1/conf/jvm.options
+        fi
         sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         ccm start -v
@@ -291,7 +321,7 @@ jobs:
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
-  
+
   k8ssandra-e2e-tests:
     needs: [build]
     runs-on: ubuntu-latest
