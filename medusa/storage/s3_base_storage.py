@@ -214,10 +214,19 @@ class S3BaseStorage(AbstractStorage):
             raise ValueError("Unknown provider name {}".format(provider_name))
 
     async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
+
         blobs = []
-        for o in self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=str(prefix)).get('Contents', []):
+
+        response = self.s3_client.get_paginator('list_objects_v2').paginate(
+            Bucket=self.bucket_name,
+            Prefix=str(prefix),
+            PaginationConfig={'PageSize': 1000}
+        ).build_full_result()
+
+        for o in response.get('Contents', []):
             obj_hash = o['ETag'].replace('"', '')
             blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified']))
+
         return blobs
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -338,6 +347,7 @@ class S3BaseStorage(AbstractStorage):
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
         return self.s3_client.get_object(Bucket=self.bucket_name, Key=blob.name)['Body'].read()
 
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _delete_object(self, obj: AbstractBlob):
         self.s3_client.delete_object(
             Bucket=self.bucket_name,

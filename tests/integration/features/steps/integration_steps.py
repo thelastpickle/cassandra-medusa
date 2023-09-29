@@ -1431,6 +1431,35 @@ def _run_purge_on_decommissioned_nodes(context):
         raise e
 
 
+@when(r'I write "{file_cnt}" files to storage')
+def _i_write_count_files_to_storage(context, file_cnt):
+    key_content_pairs = [
+        (f'{context.medusa_config.storage.prefix}/key{i}', 'some content')
+        for i in range(int(file_cnt))
+    ]
+    with Storage(config=context.medusa_config.storage) as storage:
+        # upload the blobs all in parallel, disregarding the parallelism in medusa's config
+        # this saves about 2 minutes of the test run time
+        storage.storage_driver.upload_blobs_from_strings(key_content_pairs, concurrent_transfers=len(key_content_pairs))
+
+
+@then(r'I can list all "{file_cnt}" files in the storage')
+def _i_can_list_all_count_files_in_storage(context, file_cnt):
+    with Storage(config=context.medusa_config.storage) as storage:
+        root_blobs = storage.list_root_blobs()
+        logging.info(f"Listed {len(root_blobs)} blobs")
+        context.blobs_to_delete = root_blobs
+        assert int(file_cnt) == len(root_blobs)
+
+
+@then(u'I clean up the files')
+def _i_clean_up_the_files(context):
+    with Storage(config=context.medusa_config.storage) as storage:
+        # save another minute by deleting stuff all at once
+        storage.delete_objects(context.blobs_to_delete, concurrent_transfers=len(context.blobs_to_delete))
+        assert 0 == len(storage.list_root_blobs())
+
+
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
     connected = False
     attempt = 0
