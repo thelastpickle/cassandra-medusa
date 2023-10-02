@@ -83,6 +83,37 @@ class AbstractStorage(abc.ABC):
     async def _list_blobs(self, prefix=None):
         raise NotImplementedError()
 
+    def upload_blobs_from_strings(
+            self,
+            key_content_pairs: t.List[t.Tuple[str, str]],
+            encoding='utf-8',
+            concurrent_transfers=None
+    ):
+        loop = self.get_or_create_event_loop()
+        loop.run_until_complete(self._upload_blobs_from_strings(key_content_pairs, encoding, concurrent_transfers))
+
+    async def _upload_blobs_from_strings(
+            self,
+            key_content_pairs: t.List[t.Tuple[str, str]],
+            encoding,
+            concurrent_transfers
+    ):
+        # if the concurrent_transfers is not explicitly set, then use the value from the medusa's config
+        chunk_size = concurrent_transfers if concurrent_transfers else int(self.config.concurrent_transfers)
+
+        # split key_content_pairs into chunk-sized chunks
+        chunks = [key_content_pairs[i:i + chunk_size] for i in range(0, len(key_content_pairs), chunk_size)]
+        for chunk in chunks:
+            coros = [
+                self._upload_object(
+                    data=io.BytesIO(bytes(str(pair[1]), encoding)),
+                    object_key=pair[0],
+                    headers={}
+                )
+                for pair in chunk
+            ]
+            await asyncio.gather(*coros)
+
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         headers = self.additional_upload_headers()
@@ -223,12 +254,15 @@ class AbstractStorage(abc.ABC):
         loop = self.get_or_create_event_loop()
         loop.run_until_complete(self._delete_object(object))
 
-    def delete_objects(self, objects: t.List[AbstractBlob]):
+    def delete_objects(self, objects: t.List[AbstractBlob], concurrent_transfers: int = None):
         loop = self.get_or_create_event_loop()
-        loop.run_until_complete(self._delete_objects(objects))
+        loop.run_until_complete(self._delete_objects(objects, concurrent_transfers))
 
-    async def _delete_objects(self, objects: t.List[AbstractBlob]):
-        chunk_size = int(self.config.concurrent_transfers)
+    async def _delete_objects(self, objects: t.List[AbstractBlob], concurrent_transfers: int = None):
+
+        # if we get the concurrent_transfers provided, use those instead of the ones from the config
+        chunk_size = concurrent_transfers if concurrent_transfers else int(self.config.concurrent_transfers)
+
         # split objects into chunk-sized chunks
         chunks = [objects[i:i + chunk_size] for i in range(0, len(objects), chunk_size)]
         for chunk in chunks:
