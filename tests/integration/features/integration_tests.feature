@@ -996,3 +996,32 @@ Feature: Integration tests
     #    Examples: Local storage
     #    | storage           | client encryption |
     #    | local      |  with_client_encryption |
+
+    @27
+    Scenario Outline: Write a lot of files to storage, then try to list them
+    Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+    When I write "1042" files to storage
+    Then I can list all "1042" files in the storage
+    Then I clean up the files
+
+    @local
+    Examples: Local storage
+    | storage    | client encryption |
+    | local      | without_client_encryption |
+
+    @minio
+    Examples: MinIO storage
+    | storage | client encryption         |
+    | minio   | without_client_encryption |
+
+    # skipping s3 because we don't have good enough parallelization yet and this scenario takes too long
+
+    @gcs
+    Examples: Google Cloud Storage
+    | storage        | client encryption         |
+    | google_storage | without_client_encryption |
+
+    @azure
+    Examples: Azure Blob Storage
+    | storage     | client encryption         |
+    | azure_blobs | without_client_encryption |

@@ -442,5 +442,5 @@ class Storage(object):
         for marker in markers:
             self.storage_driver.delete_object(marker)
 
-    def delete_objects(self, objects):
-        self.storage_driver.delete_objects(objects)
+    def delete_objects(self, objects, concurrent_transfers=None):
+        self.storage_driver.delete_objects(objects, concurrent_transfers)

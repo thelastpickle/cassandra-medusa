@@ -70,13 +70,8 @@ class GoogleStorage(AbstractStorage):
             logging.error('Error disconnecting from Google Storage: {}'.format(e))
 
     async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
-        objects = await self.gcs_storage.list_objects(
-            bucket=self.bucket_name,
-            params={'prefix': str(prefix)}
-        )
 
-        if objects.get('items') is None:
-            return []
+        objects = self._paginate_objects(prefix=prefix)
 
         return [
             AbstractBlob(
@@ -86,8 +81,38 @@ class GoogleStorage(AbstractStorage):
                 # datetime comes as a string like 2023-08-31T14:23:24.957Z
                 datetime.datetime.strptime(o['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
             )
-            for o in objects.get('items')
+            async for o in objects
         ]
+
+    async def _paginate_objects(self, prefix=None):
+
+        params = {'prefix': str(prefix)} if prefix else {}
+
+        while True:
+
+            # fetch a page
+            page = await self.gcs_storage.list_objects(
+                bucket=self.bucket_name,
+                params=params
+            )
+
+            # got nothing, return from the function
+            if page.get('items') is None:
+                return
+
+            # yield items in the page
+            for o in page.get('items'):
+                yield o
+
+            # check for next page being available
+            next_page_token = page.get('nextPageToken', None)
+
+            # if there is no next page, return from the function
+            if next_page_token is None:
+                return
+
+            # otherwise, prepare params for the next page
+            params['pageToken'] = next_page_token
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
@@ -219,6 +244,7 @@ class GoogleStorage(AbstractStorage):
         )
         return content
 
+    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _delete_object(self, obj: AbstractBlob):
         await self.gcs_storage.delete(
             bucket=self.bucket_name,
