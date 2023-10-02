@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.16.2 (2023/10/02 08:40 +00:00)
+- [Storage] Paginate listing objects where needed (#658) (@rzvoncek)
+
 ### 0.16.1 (2023/09/20 05:40 +00:00)
 - re-enable docker push on releases (@adejanovski)
 
