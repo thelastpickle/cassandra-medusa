@@ -1025,3 +1025,30 @@ Feature: Integration tests
     Examples: Azure Blob Storage
     | storage     | client encryption         |
     | azure_blobs | without_client_encryption |
+
+    @28
+    Scenario Outline: Make a 2 node cluster, backup 1 node, check getting status works
+        Given I have a fresh "2" node ccm cluster with jolokia "<client encryption>" running named "scenario28"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I run a "ccm node2 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_28"
+        Then the backup index exists
+        Then I verify over gRPC that the backup "grpc_backup_28" exists and is of type "differential"
+        # The backup status is not actually a SUCCESS because the node2 has not been backed up.
+        # The gRPC server is not meant to understand other nodes.
+        # We just have to check so that we hit the case where a missing node was causing an exception
+        Then I verify over gRPC that the backup "grpc_backup_28" has expected status SUCCESS
+        # now we've checked that, so we can clean up and end
+        Then I delete the backup "grpc_backup_28" over gRPC
+        Then I verify over gRPC that the backup "grpc_backup_28" does not exist
+        Then I verify that backup manager has removed the backup "grpc_backup_28"
+        Then I shutdown the gRPC server
+
+        @local
+        Examples: Local storage
+        | storage                    | client encryption |
+        | local_backup_gc_grace      | without_client_encryption |

@@ -174,7 +174,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
                 response.finishedNodes.extend([node.fqdn for node in backup.complete_nodes()])
                 response.unfinishedNodes.extend([node.fqdn for node in backup.incomplete_nodes()])
-                response.missingNodes.extend([node.fqdn for node in backup.missing_nodes()])
+                response.missingNodes.extend(backup.missing_nodes())
 
                 if backup.finished:
                     response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
