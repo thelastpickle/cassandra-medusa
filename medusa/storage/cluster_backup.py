@@ -39,20 +39,22 @@ class ClusterBackup(object):
         return min(map(operator.attrgetter('started'), self.node_backups.values()))
 
     @property
-    def finished(self):
-        if any(self.missing_nodes()):
+    async def finished(self):
+        if any(await self.missing_nodes()):
             return None
 
-        finished_timestamps = list(map(operator.attrgetter('finished'), self.node_backups.values()))
+        finished_coros = list(map(operator.attrgetter('finished'), self.node_backups.values()))
+        import asyncio
+        finished_timestamps = await asyncio.gather(*finished_coros)
         if all(finished_timestamps):
             return max(finished_timestamps)
         else:
             return None
 
     @property
-    def tokenmap(self):
+    async def tokenmap(self):
         if self._tokenmap is None:
-            self._tokenmap = json.loads(self._first_nodebackup.tokenmap)
+            self._tokenmap = json.loads(await self._first_nodebackup.tokenmap)
         return self._tokenmap
 
     @property
@@ -68,8 +70,9 @@ class ClusterBackup(object):
     def is_complete(self):
         return not self.missing_nodes() and all(map(operator.attrgetter('finished'), self.node_backups.values()))
 
-    def missing_nodes(self):
-        return set(self.tokenmap.keys()) - set(self.node_backups.keys())
+    async def missing_nodes(self):
+        tokenmap = await self.tokenmap
+        return set(tokenmap.keys()) - set(self.node_backups.keys())
 
     def complete_nodes(self):
         return [node_backup

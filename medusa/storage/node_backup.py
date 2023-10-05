@@ -82,11 +82,11 @@ class NodeBackup(object):
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
 
-    def _blob(self, path):
+    async def _blob(self, path):
         blob = self._cached_blobs.get(path)
         if blob is None:
             logging.debug("Blob {} was not found in cache.".format(path))
-            blob = self._storage.storage_driver.get_blob(str(path))
+            blob = await self._storage.storage_driver.get_blob(str(path))
             self._cached_blobs[path] = blob
         return blob
 
@@ -115,10 +115,10 @@ class NodeBackup(object):
         return self._tokenmap_path
 
     @property
-    def tokenmap(self):
+    async def tokenmap(self):
         if self.cached_tokenmap_blob is None:
             self.cached_tokenmap_blob = self._blob(self.tokenmap_path)
-        return self._storage.storage_driver.read_blob_as_string(self.cached_tokenmap_blob)
+        return await self._storage.storage_driver.read_blob_as_string(self.cached_tokenmap_blob)
 
     @tokenmap.setter
     def tokenmap(self, tokenmap):
@@ -186,14 +186,14 @@ class NodeBackup(object):
         return None
 
     @property
-    def finished(self):
+    async def finished(self):
         # if we got the finished timestamp straight from the constructor
         if self._finished is not None:
             return self._finished
 
         # otherwise set it from the manifest blob
         if self.cached_manifest_blob is None:
-            self.cached_manifest_blob = self._blob(self._manifest_path)
+            self.cached_manifest_blob = await self._blob(self._manifest_path)
 
         if self.cached_manifest_blob is not None:
             dt = self._storage.storage_driver.get_object_datetime(self.cached_manifest_blob)

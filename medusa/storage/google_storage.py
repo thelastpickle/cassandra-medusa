@@ -50,17 +50,15 @@ class GoogleStorage(AbstractStorage):
 
         super().__init__(config)
 
-    def connect(self):
+    async def connect(self):
         self.session = aiohttp.ClientSession(
             loop=self.get_or_create_event_loop(),
         )
 
         self.gcs_storage = Storage(session=self.session, service_file=self.service_file)
 
-    def disconnect(self):
-        logging.debug('Disconnecting from Google Storage')
-        loop = self.get_or_create_event_loop()
-        loop.run_until_complete(self._disconnect())
+    async def disconnect(self):
+        await self._disconnect()
 
     async def _disconnect(self):
         try:
@@ -70,19 +68,14 @@ class GoogleStorage(AbstractStorage):
             logging.error('Error disconnecting from Google Storage: {}'.format(e))
 
     async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
-
-        objects = self._paginate_objects(prefix=prefix)
-
-        return [
-            AbstractBlob(
+        async for o in self._paginate_objects(prefix=prefix):
+            yield AbstractBlob(
                 o['name'],
                 int(o['size']),
                 o['md5Hash'],
                 # datetime comes as a string like 2023-08-31T14:23:24.957Z
                 datetime.datetime.strptime(o['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
             )
-            async for o in objects
-        ]
 
     async def _paginate_objects(self, prefix=None):
 

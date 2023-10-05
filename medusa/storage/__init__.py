@@ -69,12 +69,12 @@ class Storage(object):
         self.storage_driver = self._load_storage()
         self.storage_provider = self._config.storage_provider
 
-    def __enter__(self):
-        self.storage_driver.connect()
+    async def __aenter__(self):
+        await self.storage_driver.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.storage_driver.disconnect()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.storage_driver.disconnect()
 
     def _load_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
@@ -154,7 +154,7 @@ class Storage(object):
                 logging.debug("Found backup {}.{}".format(fqdn, backup_name))
                 yield NodeBackup(storage=self, fqdn=fqdn, name=backup_name, preloaded_blobs=backup_blobs)
 
-    def list_node_backups(self, *, fqdn=None, backup_index_blobs=None):
+    async def list_node_backups(self, *, fqdn=None, backup_index_blobs=None):
         """
         Lists node backups using the index.
         If there is no backup index, no backups will be found.
@@ -176,7 +176,7 @@ class Storage(object):
             return list(filter(lambda b: f'_{fqdn}.' in b, blobs))
 
         if backup_index_blobs is None:
-            backup_index_blobs = self.list_backup_index_blobs()
+            backup_index_blobs = await self.list_backup_index_blobs()
 
         blobs_by_backup = self.group_backup_index_by_backup_and_node(backup_index_blobs)
 
@@ -265,9 +265,9 @@ class Storage(object):
                         'Ignoring and continuing...'
                         .format(node_backup.name, node_backup.fqdn))
 
-    def list_backup_index_blobs(self):
+    async def list_backup_index_blobs(self):
         path = '{}index/backup_index'.format(self.prefix_path)
-        return self.storage_driver.list_objects(path)
+        return [o async for o in self.storage_driver.list_objects(path)]
 
     def list_root_blobs(self):
         return self.storage_driver.list_objects(self.prefix_path)
@@ -354,14 +354,16 @@ class Storage(object):
                                 blobs_by_backup[backup_name][fqdn]))
         return blob_list[0] if len(blob_list) > 0 else None
 
-    def list_cluster_backups(self, backup_index=None):
+    async def list_cluster_backups(self, backup_index=None):
         node_backups = sorted(
-            self.list_node_backups(backup_index_blobs=backup_index),
+            [nb async for nb in self.list_node_backups(backup_index_blobs=backup_index)],
             key=lambda b: (b.name, b.started)
         )
 
+        backups = []
         for name, node_backups in itertools.groupby(node_backups, key=operator.attrgetter('name')):
-            yield ClusterBackup(name, node_backups)
+            backups.append(ClusterBackup(name, node_backups))
+        return backups
 
     def latest_node_backup(self, *, fqdn):
         index_path = '{}index/latest_backup/{}/backup_name.txt'.format(self.prefix_path, fqdn)

@@ -56,28 +56,20 @@ class AbstractStorage(abc.ABC):
         self.bucket_name = config.bucket_name
 
     @abc.abstractmethod
-    def connect(self):
+    async def connect(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def disconnect(self):
+    async def disconnect(self):
         raise NotImplementedError
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def list_objects(self, path=None):
+    # @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    async def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
-
-        objects = self.list_blobs(prefix=path)
-
-        objects = list(filter(lambda blob: blob.size > 0, objects))
-
-        return objects
-
-    def list_blobs(self, prefix=None):
-        loop = self.get_or_create_event_loop()
-        objects = loop.run_until_complete(self._list_blobs(prefix))
-        return objects
+        async for o in self._list_blobs(prefix=path):
+            if o.size > 0:
+                yield o
 
     @abc.abstractmethod
     async def _list_blobs(self, prefix=None):
@@ -182,20 +174,11 @@ class AbstractStorage(abc.ABC):
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         raise NotImplementedError()
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def get_blob(self, path: t.Union[Path, str]):
+    # @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    async def get_blob(self, path: t.Union[Path, str]):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
-            return self.get_object(str(path))
-        except ObjectDoesNotExistError:
-            return None
-
-    def get_object(self, object_key: t.Union[Path, str]):
-        # Doesn't actually read the contents, just lists the thing
-        try:
-            loop = self.get_or_create_event_loop()
-            o = loop.run_until_complete(self._get_object(object_key))
-            return o
+            return await self._get_object(str(path))
         except ObjectDoesNotExistError:
             return None
 
@@ -211,18 +194,13 @@ class AbstractStorage(abc.ABC):
         return self.read_blob_as_string(blob)
 
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def get_blob_content_as_bytes(self, path: t.Union[Path, str]):
-        blob = self.get_blob(str(path))
-        return self.read_blob_as_bytes(blob)
+    async def get_blob_content_as_bytes(self, path: t.Union[Path, str]):
+        blob = await self.get_blob(str(path))
+        return self._read_blob_as_bytes(blob)
 
-    def read_blob_as_string(self, blob: AbstractBlob, encoding="utf-8") -> str:
-        return self.read_blob_as_bytes(blob).decode(encoding)
-
-    def read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        logging.debug("[Storage] Reading blob {}...".format(blob.name))
-        loop = self.get_or_create_event_loop()
-        b = loop.run_until_complete(self._read_blob_as_bytes(blob))
-        return b
+    async def read_blob_as_string(self, blob: AbstractBlob, encoding="utf-8") -> str:
+        blob_bytes = await self._read_blob_as_bytes(blob)
+        return blob_bytes.decode(encoding)
 
     @abc.abstractmethod
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:

@@ -21,10 +21,10 @@ from medusa.storage import Storage
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def get_backups(storage, config, show_all):
+async def get_backups(storage, config, show_all):
 
     cluster_backups = sorted(
-        storage.list_cluster_backups(),
+        await storage.list_cluster_backups(),
         key=lambda b: b.started
     )
     if not show_all:
@@ -36,30 +36,59 @@ def get_backups(storage, config, show_all):
     return cluster_backups
 
 
-def list_backups(config, show_all):
-    with Storage(config=config.storage) as storage:
-        list_backups_w_storage(config, show_all, storage)
+async def list_backups(config, show_all):
+    async with Storage(config=config.storage) as storage:
+        await list_backups_w_storage(config, show_all, storage)
 
 
-def list_backups_w_storage(config, show_all, storage):
-    cluster_backups = get_backups(storage, config, show_all)
-    seen_incomplete_backup = False
-    for cluster_backup in cluster_backups:
-        finished = cluster_backup.finished
-        if finished is not None:
-            finished = datetime.fromtimestamp(finished).strftime(TIMESTAMP_FORMAT)
-        else:
-            seen_incomplete_backup = True
-            finished_nodes = len(cluster_backup.complete_nodes())
-            total_nodes = len(cluster_backup.tokenmap)
-            finished = 'Incomplete [{} of {} nodes finished]'.format(
-                finished_nodes,
-                total_nodes
-            )
-        started = datetime.fromtimestamp(cluster_backup.started).strftime(TIMESTAMP_FORMAT)
-        print('{} (started: {}, finished: {})'.format(cluster_backup.name, started, finished))
+class BackupStatus(object):
+    name = None
+    finished = None
+    started = None
+    complete = None
+    finished_nodes = None
+    total_nodes = None
 
-    if seen_incomplete_backup:
+    def __init__(self, name, started, finished, complete):
+        self.name = name
+        self.started = started
+        self.finished = finished
+        self.complete = complete
+
+
+async def get_backup_statuses(cluster_backup):
+
+    started = cluster_backup.started
+    finished = await cluster_backup.finished
+    complete = True
+
+    if finished is None:
+        complete = False
+        finished_nodes = len(cluster_backup.complete_nodes())
+        total_nodes = len(await cluster_backup.tokenmap)
+        finished = 'Incomplete [{} of {} nodes finished]'.format(
+            finished_nodes,
+            total_nodes
+        )
+
+    return BackupStatus(cluster_backup.name, started, finished, complete)
+
+
+async def list_backups_w_storage(config, show_all, storage):
+    cluster_backups = await get_backups(storage, config, show_all)
+    coros = [get_backup_statuses(cluster_backup) for cluster_backup in cluster_backups]
+    import asyncio
+    backup_statuses = await asyncio.gather(*coros)
+
+    for bs in sorted(backup_statuses, key=lambda b: b.started):
+        print('{} (started: {}, finished: {})'.format(
+            bs.name,
+            datetime.fromtimestamp(bs.started).strftime(TIMESTAMP_FORMAT),
+            bs.finished if not bs.complete else datetime.fromtimestamp(bs.finished).strftime(TIMESTAMP_FORMAT)
+        ))
+
+    if any([not bs.complete for bs in backup_statuses]):
         print('')
         print('Incomplete backups found. You can run "medusa status --backup-name <name>" for more details')
+
     return cluster_backups

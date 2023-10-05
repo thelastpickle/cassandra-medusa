@@ -182,7 +182,8 @@ def list_backups(medusaconfig, show_all):
     """
     List backups
     """
-    medusa.listing.list_backups(medusaconfig, show_all)
+    import asyncio
+    asyncio.get_event_loop().run_until_complete(medusa.listing.list_backups(medusaconfig, show_all))
 
 
 @cli.command(name='download')
