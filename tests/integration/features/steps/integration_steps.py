@@ -247,9 +247,15 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
+@given(
+    r'I have a fresh "{num_nodes}" node ccm cluster with jolokia "{client_encryption}" running named "{cluster_name}"'
+)
+def _i_have_fresh_cluster_with_num_nodes(context, num_nodes, client_encryption, cluster_name):
+    _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, client_encryption, num_nodes)
+
+
 @given(r'I have a fresh ccm cluster with jolokia "{client_encryption}" running named "{cluster_name}"')
-def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, client_encryption):
-    context.cassandra_version = "3.11.6"
+def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, client_encryption, num_nodes=1):
     context.session = None
     context.cluster_name = cluster_name
     is_client_encryption_enable = False
@@ -270,7 +276,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
             "-v",
             "binary:" + context.cassandra_version,
             "-n",
-            "1",
+            str(num_nodes),
         ]
     )
 
