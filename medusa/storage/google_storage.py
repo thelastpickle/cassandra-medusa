@@ -212,7 +212,7 @@ class GoogleStorage(AbstractStorage):
             file_size = os.stat(src).st_size
             logging.debug(
                 '[GCS Storage] Uploading {} ({}) -> gs://{}/{}'.format(
-                    src, self._human_readable_size(file_size), self.config.bucket_name, object_key
+                    src, self.human_readable_size(file_size), self.config.bucket_name, object_key
                 )
             )
             with open(src, 'rb') as src_file:

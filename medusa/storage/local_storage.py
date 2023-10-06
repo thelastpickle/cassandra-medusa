@@ -113,7 +113,7 @@ class LocalStorage(AbstractStorage):
         file_size = os.stat(src_file).st_size
         logging.debug(
             '[Local Storage] Uploading {} ({}) -> {}'.format(
-                src_file, self._human_readable_size(file_size), dest_file
+                src_file, self.human_readable_size(file_size), dest_file
             )
         )
         # remove root_dir from dest_file name

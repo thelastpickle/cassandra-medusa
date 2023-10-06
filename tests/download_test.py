@@ -61,13 +61,13 @@ class DownloadTest(unittest.TestCase):
             self.assertRaises(RuntimeError, _check_available_space, manifest, destination)
         # now we provide more space and the exception does not happen
         with patch('medusa.download._get_available_size', return_value=200):
-            self.assertTrue(_check_available_space(manifest, destination))
+            _check_available_space(manifest, destination)
 
         # just /tmp should always exist and there ought to be 100 bytes free
-        self.assertTrue(_check_available_space(manifest, destination='/tmp'))
+        _check_available_space(manifest, destination='/tmp')
         # we also check that a previously non-existing directory is present already at the time of the space check
         random_destination = f'/tmp/medusa-restore-{str(uuid.uuid4())}'
         try:
-            self.assertTrue(_check_available_space(manifest, random_destination))
+            _check_available_space(manifest, random_destination)
         finally:
             shutil.rmtree(random_destination)

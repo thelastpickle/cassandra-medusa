@@ -20,6 +20,7 @@ import shutil
 import sys
 
 from medusa.storage import Storage
+from medusa.storage.abstract_storage import AbstractStorage
 from medusa.filtering import filter_fqtns
 
 
@@ -91,10 +92,16 @@ def _check_available_space(manifest, destination):
     available_space = _get_available_size(destination)
     logging.debug(f'Download size: {download_size}, available space: {available_space}')
     if download_size > available_space:
-        raise RuntimeError(
+        missing = int(download_size) - int(available_space)
+        logging.error(
             f'Directory {destination} does not have enough space to download backup of size {download_size}'
+            f'(Missing roughly {AbstractStorage.human_readable_size(missing)})'
         )
-    return True
+        logging.error(
+            f'Please add --temp-dir pointing to a directory with enough space to your restore command '
+            f'(or change where --download-destination of your download command points to).'
+        )
+        raise RuntimeError('Not enough space available')
 
 
 def _get_download_size(manifest):
