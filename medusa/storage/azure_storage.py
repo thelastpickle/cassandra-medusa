@@ -175,7 +175,7 @@ class AzureStorage(AbstractStorage):
         file_size = os.stat(src).st_size
         logging.debug(
             '[Azure Storage] Uploading {} ({}) -> azure://{}/{}'.format(
-                src, self._human_readable_size(file_size), self.config.bucket_name, object_key
+                src, self.human_readable_size(file_size), self.config.bucket_name, object_key
             )
         )
 

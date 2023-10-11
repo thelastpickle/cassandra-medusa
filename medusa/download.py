@@ -16,15 +16,21 @@
 import logging
 import json
 import pathlib
+import shutil
 import sys
 
 from medusa.storage import Storage
+from medusa.storage.abstract_storage import AbstractStorage
 from medusa.filtering import filter_fqtns
 
 
 def download_data(storageconfig, backup, fqtns_to_restore, destination):
+
+    manifest = json.loads(backup.manifest)
+
+    _check_available_space(manifest, destination)
+
     with Storage(config=storageconfig) as storage:
-        manifest = json.loads(backup.manifest)
 
         for section in manifest:
 
@@ -79,3 +85,29 @@ def download_cmd(config, backup_name, download_destination, keyspaces, tables, i
 
         fqtns_to_download, _ = filter_fqtns(keyspaces, tables, node_backup.manifest, ignore_system_keyspaces)
         download_data(config.storage, node_backup, fqtns_to_download, download_destination)
+
+
+def _check_available_space(manifest, destination):
+    download_size = _get_download_size(manifest)
+    available_space = _get_available_size(destination)
+    logging.debug(f'Download size: {download_size}, available space: {available_space}')
+    if download_size > available_space:
+        missing = int(download_size) - int(available_space)
+        logging.error(
+            f'Directory {destination} does not have enough space to download backup of size {download_size}'
+            f'(Missing roughly {AbstractStorage.human_readable_size(missing)})'
+        )
+        logging.error(
+            f'Please add --temp-dir pointing to a directory with enough space to your restore command '
+            f'(or change where --download-destination of your download command points to).'
+        )
+        raise RuntimeError('Not enough space available')
+
+
+def _get_download_size(manifest):
+    return sum([int(obj['size']) for section in manifest for obj in section['objects']])
+
+
+def _get_available_size(destination_dir):
+    pathlib.Path(destination_dir).mkdir(parents=True, exist_ok=True)
+    return shutil.disk_usage(destination_dir).free

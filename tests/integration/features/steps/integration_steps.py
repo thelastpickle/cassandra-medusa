@@ -524,15 +524,14 @@ def _i_create_the_whatever_table(context, table_name, keyspace_name):
     table = "CREATE TABLE IF NOT EXISTS {}.{} (id timeuuid PRIMARY KEY, value text);"
     context.session.execute(table.format(keyspace_name, table_name))
 
+    # wait for the table to be created on both nodes
+    # normally a driver would do this, but for some reason it isn't.
+    time.sleep(1)
+
 
 @when('I create the "{table_name}" table with secondary index in keyspace "{keyspace_name}"')
 def _i_create_the_table_with_si(context, table_name, keyspace_name):
-    keyspace = """CREATE KEYSPACE IF NOT EXISTS {} WITH replication = {{'class':'SimpleStrategy',
-    'replication_factor':1}}"""
-    context.session.execute(keyspace.format(keyspace_name))
-
-    table = "CREATE TABLE IF NOT EXISTS {}.{} (id timeuuid PRIMARY KEY, value text);"
-    context.session.execute(table.format(keyspace_name, table_name))
+    _i_create_the_whatever_table(context, table_name, keyspace_name)
 
     si = "CREATE INDEX IF NOT EXISTS {}_idx ON {}.{} (value);"
     context.session.execute(si.format(table_name, keyspace_name, table_name))
