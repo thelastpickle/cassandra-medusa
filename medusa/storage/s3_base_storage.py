@@ -324,7 +324,7 @@ class S3BaseStorage(AbstractStorage):
         file_size = os.stat(src).st_size
         logging.debug(
             '[S3 Storage] Uploading {} ({}) -> {}'.format(
-                src, self._human_readable_size(file_size), object_key
+                src, self.human_readable_size(file_size), object_key
             )
         )
 

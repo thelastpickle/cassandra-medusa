@@ -245,6 +245,19 @@ jobs:
         ccm start -v
         ccm showlastlog|tail -100
         ccm stop
+        # if we are dealing with C* 4.0+, we need to fix the java-driver dependency.
+        # it has a bug that breaks sstableloader tests with client encryption enabled
+        # if cassandra version starts with 4.0 or 4.1
+        if [[ "${{ matrix.cassandra-version }}" =~ ^4\.[01]\. ]];
+        then
+          ccm create driver-fix-cluster -v ${{ matrix.cassandra-version }} -n 1
+          # enclosed in () so we return to current pwd once we are done fixing the driver
+          (
+            cd ~/.ccm/repository/${{ matrix.cassandra-version }}/lib
+            rm cassandra-driver-core-3.11.0-shaded.jar
+            wget https://repo1.maven.org/maven2/com/datastax/cassandra/cassandra-driver-core/3.11.5/cassandra-driver-core-3.11.5-shaded.jar
+          )
+        fi
         if [ "${{ matrix.it-backend }}" == "s3" ]
         then
           # AWS S3 Storage tests
