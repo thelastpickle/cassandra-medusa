@@ -34,7 +34,8 @@ class NodeBackup(object):
                  finished_timestamp=None,
                  finished_blob=None,
                  differential_blob=None,
-                 differential_mode=False):
+                 differential_mode=False,
+                 server_version_blob=None):
 
         self._storage = storage
         self._fqdn = fqdn
@@ -62,6 +63,7 @@ class NodeBackup(object):
         self._incremental_path = self._meta_path / 'incremental'
         self._differential_path = self._meta_path / 'differential'
         self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
+        self._server_version_path = self._meta_path / 'server_version.json'
 
         if preloaded_blobs is None:
             preloaded_blobs = []
@@ -74,6 +76,7 @@ class NodeBackup(object):
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
         self.cached_tokenmap_blob = tokenmap_blob
+        self.cached_server_version_blob = server_version_blob
         self.started_blob = started_blob
         self.finished_blob = finished_blob
         self._started = started_timestamp
@@ -123,6 +126,36 @@ class NodeBackup(object):
     @tokenmap.setter
     def tokenmap(self, tokenmap):
         self._storage.storage_driver.upload_blob_from_string(self.tokenmap_path, tokenmap)
+
+    @property
+    def server_version_path(self):
+        return self._server_version_path
+
+    @property
+    def server_version(self):
+        try:
+            if self.cached_server_version_blob is None:
+                self.cached_server_version_blob = self._blob(self.server_version_path)
+            return self._storage.storage_driver.read_blob_as_string(self.cached_server_version_blob)
+        except Exception:
+            # old versions of Medusa do not write the server_version.json file, so we return a default thing
+            return json.dumps({"server_type": "cassandra", "release_version": "unknown"})
+
+    @server_version.setter
+    def server_version(self, version):
+        self._storage.storage_driver.upload_blob_from_string(self.server_version_path, version)
+
+    @property
+    def server_type(self):
+        return json.loads(self.server_version)["server_type"]
+
+    @property
+    def release_version(self):
+        return json.loads(self.server_version)["release_version"]
+
+    @property
+    def is_dse(self):
+        return self.server_type == "dse"
 
     @property
     def schema_path(self):

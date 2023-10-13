@@ -98,7 +98,10 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     # especially around system tables.
     use_sudo = medusa.utils.evaluate_boolean(config.storage.use_sudo_for_restore)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
-    clean_path(cassandra.saved_caches_path, use_sudo, keep_folder=True)
+
+    if node_backup.is_dse:
+        clean_path(cassandra.dse_metadata_path, use_sudo, keep_folder=True)
+        clean_path(cassandra.dse_search_path, use_sudo, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -134,6 +137,12 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
             cassandra.start_with_implicit_token()
         else:
             cassandra.start(tokens)
+
+        # if we're restoring DSE, we need to explicitly trigger Search index rebuild
+        if node_backup.is_dse:
+            logging.info('Triggering DSE Search index rebuild')
+            cassandra.rebuild_search_index()
+
     elif not in_place:
         # Kubernetes will manage the lifecycle, but we still need to modify the tokens
         cassandra.replace_tokens_in_cassandra_yaml_and_disable_bootstrap(tokens)
@@ -299,9 +308,15 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
             logging.info('Keeping section {}.{} untouched'.format(section['keyspace'], section['columnfamily']))
             return
 
-    src = download_dir / section['keyspace'] / section['columnfamily']
-    # not appending the column family name because mv later on copies the whole folder
-    dst = cassandra_data_dir / section['keyspace'] / section['columnfamily']
+    # the 'dse' is an arbitrary name we gave to folders that don't sit in the regular place for keyspaces
+    # this is mostly DSE internal files
+    if section['keyspace'] != 'dse':
+        src = download_dir / section['keyspace'] / section['columnfamily']
+        # not appending the column family name because mv later on copies the whole folder
+        dst = cassandra_data_dir / section['keyspace'] / section['columnfamily']
+    else:
+        src = download_dir / section['keyspace'] / section['columnfamily']
+        dst = cassandra_data_dir.parent / section['columnfamily']
 
     # prepare the destination folder
     if dst.exists():

@@ -224,11 +224,16 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
 
     logging.info('Saving tokenmap and schema')
     schema, tokenmap = get_schema_and_tokenmap(cassandra)
-
     node_backup.schema = schema
     node_backup.tokenmap = json.dumps(tokenmap)
+
+    logging.info('Saving server version')
+    server_type, release_version = get_server_type_and_version(cassandra)
+    node_backup.server_version = json.dumps({'server_type': server_type, 'release_version': release_version})
+
     if differential_mode is True:
         node_backup.differential = mode
+
     add_backup_start_to_index(storage, node_backup)
 
     if stagger_time:
@@ -274,6 +279,13 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
+@retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+def get_server_type_and_version(cassandra):
+    with cassandra.new_session() as cql_session:
+        server_type, release_version = cql_session.get_server_type_and_release_version()
+    return server_type, release_version
+
+
 def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_checks,
               config, backup_name):
     # Load last backup as a cache
@@ -293,6 +305,11 @@ def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_che
     with cassandra.create_snapshot(backup_name) as snapshot:
         manifest = []
         num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
+
+    if node_backup.is_dse:
+        logging.info('Creating DSE snapshot')
+        with cassandra.create_dse_snapshot(backup_name) as snapshot:
+            num_files += backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
 
     logging.info('Updating backup index')
     node_backup.manifest = json.dumps(manifest)

@@ -195,6 +195,7 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_nodetool_command_without_parameter(self):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
+            'nodetool_executable': 'nodetool'
         }
         config["grpc"] = {
             "enabled": "0"
@@ -219,6 +220,7 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_nodetool_command_with_parameters(self):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
+            'nodetool_executable': 'nodetool',
             'nodetool_ssl': 'true',
             'nodetool_username': 'cassandra',
             'nodetool_password': 'password',
@@ -253,6 +255,7 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_nodetool_command_with_ssl_false(self):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
+            'nodetool_executable': 'nodetool',
             'nodetool_ssl': 'false',
             'nodetool_username': 'cassandra',
             'nodetool_password': 'password',
@@ -286,6 +289,7 @@ class CassandraUtilsTest(unittest.TestCase):
     def test_nodetool_command_with_ssl_false_no_flags(self):
         config = configparser.ConfigParser(interpolation=None)
         config['cassandra'] = {
+            'nodetool_executable': 'nodetool',
             'nodetool_ssl': 'false',
             'nodetool_username': 'cassandra',
             'nodetool_password': 'password',

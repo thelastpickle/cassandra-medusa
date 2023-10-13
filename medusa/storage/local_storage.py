@@ -98,11 +98,7 @@ class LocalStorage(AbstractStorage):
         src_file = self.root_dir / src
 
         src_path = Path(src)
-        dest_file = (
-            "{}/{}/{}".format(dest, src_path.parent.name, src_path.name)
-            if src_path.parent.name.startswith(".")
-            else "{}/{}".format(dest, src_path.name)
-        )
+        dest_file = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
         logging.debug(
             '[Local Storage] Downloading {} -> {}'.format(
@@ -111,6 +107,7 @@ class LocalStorage(AbstractStorage):
         )
 
         with open(src_file, 'rb') as f:
+            Path(dest_file).parent.mkdir(parents=True, exist_ok=True)
             with open(dest_file, 'wb') as d:
                 while True:
                     data = f.read(BUFFER_SIZE)
@@ -120,21 +117,15 @@ class LocalStorage(AbstractStorage):
 
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
 
-        src_file = src
-        src_chunks = src.split('/')
-        parent_name, file_name = src_chunks[-2], src_chunks[-1]
+        src_path = Path(src)
 
         # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
-        dest_file = (
-            self.root_dir / dest / parent_name / file_name
-            if parent_name.startswith(".")
-            else self.root_dir / dest / file_name
-        )
+        dest_file = self.root_dir / AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        file_size = os.stat(src_file).st_size
+        file_size = os.stat(src_path).st_size
         logging.debug(
             '[Local Storage] Uploading {} ({}) -> {}'.format(
-                src_file, self.human_readable_size(file_size), dest_file
+                src_path, self.human_readable_size(file_size), dest_file
             )
         )
         # remove root_dir from dest_file name
@@ -142,7 +133,7 @@ class LocalStorage(AbstractStorage):
 
         md5 = hashlib.md5()
 
-        with open(src_file, 'rb') as f:
+        with open(src_path, 'rb') as f:
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             with open(dest_file, 'wb') as d:
                 while True:

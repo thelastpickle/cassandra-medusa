@@ -21,6 +21,7 @@ import itertools
 import logging
 import os
 import pathlib
+import shutil
 import shlex
 import socket
 import subprocess
@@ -218,6 +219,17 @@ class CqlSession(object):
     def execute(self, query):
         return self.session.execute(query)
 
+    def get_server_type_and_release_version(self):
+        server_type = 'cassandra'
+        release_version = 'None'
+        rows = self.session.execute("SELECT * FROM system.local")
+        for row in rows:
+            if hasattr(row, 'dse_version'):
+                server_type = 'dse'
+            if hasattr(row, 'release_version'):
+                release_version = row.release_version
+        return server_type, release_version
+
 
 class CassandraConfigReader(object):
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
@@ -329,6 +341,7 @@ class CassandraConfigReader(object):
 
 class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
+    DSE_SNAPSHOT_PATTERN = '*/snapshots/{}'
     SNAPSHOT_PREFIX = 'medusa-'
 
     def __init__(self, config, contact_point=None, release_version=None):
@@ -342,6 +355,8 @@ class Cassandra(object):
         config_reader = CassandraConfigReader(cassandra_config.config_file, release_version)
         self._cassandra_config_file = cassandra_config.config_file
         self._root = config_reader.root
+        self._dse_root = self._root.parent
+        self._dse_metadata_folder = 'metadata'
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
         self._hostname = contact_point if contact_point is not None else config_reader.listen_address
@@ -404,6 +419,69 @@ class Cassandra(object):
     def release_version(self):
         return self._release_version
 
+    @property
+    def dse_metadata_path(self):
+        return self._dse_root / self._dse_metadata_folder
+
+    @property
+    def dse_search_path(self):
+        # the DSE Search files are next to regular keyspace folders, but are not a real keyspace
+        return self._root / 'solr.data'
+
+    def rebuild_search_index(self):
+        logging.debug('Opening new session to restore DSE indexes')
+        with self._cql_session_provider.new_session() as session:
+            rows = session.execute("SELECT core_name FROM solr_admin.solr_resources")
+            fqtns_with_index = {r.core_name for r in rows}
+            for fqtn in fqtns_with_index:
+                logging.debug(f'Rebuilding search index for {fqtn}')
+                session.execute(f"REBUILD SEARCH INDEX ON {fqtn}")
+
+    def create_dse_snapshot(self, backup_name):
+        """
+        There is no good way of making snapshot of DSE files
+        They are not SSTables, so we cannot just hard-link them and get immutable files to work with
+        So we have a poor-mans alternative of just copying them into a folder
+        That folder is nested in the parent folder, just like for regular tables
+        This way, we can reuse a lot of code later on
+        """
+        tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
+        if not self.dse_snapshot_exists(tag):
+            src_path = self._dse_root / self._dse_metadata_folder
+            dst_path = self._dse_root / self._dse_metadata_folder / 'snapshots' / tag
+            shutil.copytree(src_path, dst_path)
+
+        return Cassandra.DseSnapshot(self, tag)
+
+    class DseSnapshot(object):
+
+        def __init__(self, parent, tag):
+            self._parent = parent
+            self._tag = tag
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            logging.debug('Cleaning up DSE snapshot')
+            self.delete()
+
+        def find_dirs(self):
+            dse_folder = self._parent._dse_metadata_folder
+            return [
+                SnapshotPath(
+                    pathlib.Path(self._parent._dse_root) / dse_folder / 'snapshots', 'dse', dse_folder
+                )
+            ]
+
+        def delete(self):
+            dse_folder = self._parent._dse_metadata_folder
+            dse_folder_path = self._parent._dse_root / dse_folder / 'snapshots' / self._tag
+            shutil.rmtree(dse_folder_path)
+
+        def __repr__(self):
+            return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
+
     class Snapshot(object):
         def __init__(self, parent, tag):
             self._parent = parent
@@ -413,7 +491,7 @@ class Cassandra(object):
             return self
 
         def __exit__(self, exc_type, exc_val, exc_tb):
-            logging.debug('Cleaning up snapshot')
+            logging.debug('Cleaning up Cassandra snapshot')
             self.delete()
 
         @property
@@ -473,6 +551,14 @@ class Cassandra(object):
 
     def snapshot_exists(self, tag):
         for snapshot in self.root.glob(self.SNAPSHOT_PATTERN.format('*')):
+            if snapshot.is_dir() and snapshot.name == tag:
+                return True
+        return False
+
+    def dse_snapshot_exists(self, tag):
+        # dse files live one directory up from the data folder
+        # the root field should point to the data directory as defined in the cassandra.yaml
+        for snapshot in self._dse_root.glob(self.DSE_SNAPSHOT_PATTERN.format('*')):
             if snapshot.is_dir() and snapshot.name == tag:
                 return True
         return False
