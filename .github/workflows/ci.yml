@@ -304,7 +304,7 @@ jobs:
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
-  
+
   k8ssandra-e2e-tests:
     needs: [build]
     runs-on: ubuntu-latest

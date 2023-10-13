@@ -1052,3 +1052,27 @@ Feature: Integration tests
         Examples: Local storage
         | storage                    | client encryption |
         | local_backup_gc_grace      | without_client_encryption |
+
+    @29
+    Scenario Outline: Backup and restore a DSE cluster with search enabled
+        Given I have a fresh DSE cluster version "6.8.38" with "<client_encryption>" running named "scenario29"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        And I create a search index on the "test" table in keyspace "medusa"
+        And I load 100 rows in the "medusa.test" table
+        When I run a DSE "nodetool flush" command
+        Then I can make a search query against the "medusa"."test" table
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can see the backup named "first_backup" when I list the backups
+        When I delete the DSE search files
+        And I restore the backup named "first_backup"
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        Then I can make a search query against the "medusa"."test" table
+
+        Then I stop the DSE cluster
+        And I delete the DSE cluster
+
+    @local
+    Examples: Local storage
+    | storage    | client encryption |
+    | local      | without_client_encryption |

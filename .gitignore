@@ -30,3 +30,4 @@ debian/cassandra-medusa/
 coverage.xml
 pytest.ini
 .python-version
+tests/resources/dse/dse-*

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<schema version="1.5">
+    <types>
+        <fieldType class="org.apache.solr.schema.TextField" name="TextField">
+            <analyzer>
+                <tokenizer class="solr.StandardTokenizerFactory"/>
+                <filter class="solr.LowerCaseFilterFactory"/>
+            </analyzer>
+        </fieldType>
+        <fieldType class="org.apache.solr.schema.StrField" name="StringField"/>
+        <fieldType class="org.apache.solr.schema.UUIDField" name="UUIDField"/>
+    </types>
+    <fields>
+        <field indexed="true" multiValued="false" name="id" stored="true" type="UUIDField"/>
+        <field indexed="true" multiValued="false" name="value" stored="true" type="TextField"/>
+    </fields>
+    <uniqueKey>id</uniqueKey>
+</schema>
