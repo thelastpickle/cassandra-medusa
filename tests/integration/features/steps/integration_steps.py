@@ -346,37 +346,30 @@ def _i_have_a_fresh_dse_cluster(context, dse_version, client_encryption, cluster
     context.cluster_name = cluster_name
     context.dse_version = dse_version
     kill_cassandra()
-    subprocess.check_call([str(Path(".") / f'resources/dse/configure-dse.sh'), dse_version])
-    subprocess.check_call([str(Path(".") / f'resources/dse/start-dse.sh'), dse_version])
+    subprocess.check_call([str(Path(".") / 'resources/dse/configure-dse.sh'), dse_version])
+    subprocess.check_call([str(Path(".") / 'resources/dse/start-dse.sh'), dse_version])
 
     enable_client_server_encryption = client_encryption == 'with_client_encryption'
+    context.client_server_encryption_enabled = enable_client_server_encryption
     context.session = connect_cassandra(enable_client_server_encryption)
 
 
 @then(r'I stop the DSE cluster')
 def _i_stop_the_dse_cluster(context):
-    subprocess.check_call([str(Path(".") / f'resources/dse/stop-dse.sh'), context.dse_version])
+    subprocess.check_call([str(Path(".") / 'resources/dse/stop-dse.sh'), context.dse_version])
 
 
 @then(r'I delete the DSE cluster')
 def _i_delete_the_dse_cluster(context):
-    subprocess.check_call([str(Path(".") / f'resources/dse/delete-dse.sh'), context.dse_version])
+    subprocess.check_call([str(Path(".") / 'resources/dse/delete-dse.sh'), context.dse_version])
 
 
 @when(r'I run a DSE "{command}" command')
 def _i_run_a_dse_command(context, command):
     subprocess.check_call([
-        str(Path(".") / f'resources/dse/run-command.sh'),
+        str(Path(".") / 'resources/dse/run-command.sh'),
         context.dse_version,
         *command.split(' ')
-    ])
-
-
-@when(r'I delete the DSE search files')
-def _i_delete_dse_search_file(context):
-    subprocess.check_call([
-        str(Path(".") / f'resources/dse/delete-search.sh'),
-        context.dse_version,
     ])
 
 
@@ -606,14 +599,49 @@ def _i_create_the_table_with_si(context, table_name, keyspace_name):
 @when(r'I create a search index on the "{table_name}" table in keyspace "{keyspace_name}"')
 def _i_create_a_search_index(context, table_name, keyspace_name):
     subprocess.check_call(
-        [str(Path(".") / f'resources/dse/configure-dse-search.sh'), context.dse_version, keyspace_name, table_name]
+        [str(Path(".") / 'resources/dse/configure-dse-search.sh'), context.dse_version, keyspace_name, table_name]
     )
+
+
+@when("I wait for the DSE Search indexes to be rebuilt")
+def _i_wait_for_indexes_to_be_rebuilt(context):
+    session = connect_cassandra(context.client_server_encryption_enabled)
+    rows = session.execute('SELECT core_name FROM solr_admin.solr_resources')
+    fqtns_with_search = {r.core_name for r in rows}
+    assert len(fqtns_with_search) > 0
+
+    for fqtn in fqtns_with_search:
+        attempts = 0
+        while True:
+            cmd = f'dsetool core_indexing_status {fqtn}'
+            p = subprocess.Popen([
+                str(Path(".") / 'resources/dse/run-command.sh'),
+                context.dse_version,
+                *cmd.split(' ')
+            ], stdout=PIPE)
+            stdout, _ = p.communicate()
+            output = b''.join(stdout.splitlines())
+            if b'FINISHED' in output:
+                logging.debug(f'DSE Search rebuild for {fqtn} finished')
+                break
+            logging.debug(f'DSE Search rebuild for {fqtn} not yet finished, waiting...')
+            attempts += 1
+            if attempts > 5:
+                logging.error(f'DSE Search rebuild of {fqtn} did not finish in time')
+                raise RuntimeError(f'DSE Search rebuild of {fqtn} did not finish in time')
+            time.sleep(2)
 
 
 @then(r'I can make a search query against the "{keyspace_name}"."{table_name}" table')
 def _i_can_make_a_search_query(context, keyspace_name, table_name):
+
+    # make a new session because this step runs after a restart which might break the session in the context
+    session = connect_cassandra(context.client_server_encryption_enabled)
+
     search_query = f'SELECT * FROM {keyspace_name}.{table_name} WHERE solr_query = \'{{"q":"value:42"}}\';'
-    context.session.execute(search_query)
+    rows = session.execute(search_query)
+    results = [r.id for r in rows]
+    assert len(results) > 0
 
 
 @when(r'I load {nb_rows} rows in the "{table_name}" table')

@@ -13,7 +13,6 @@ CWD=$(pwd)
 ROOT_PATH="${CWD}/resources/dse"
 # echo "Root path is ${ROOT_PATH}"
 
-# -s enables search
 "${ROOT_PATH}/dse-${DSE_VERSION}/bin/dse" cassandra-stop
 
 exit 0

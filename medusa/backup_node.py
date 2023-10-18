@@ -294,6 +294,11 @@ def do_backup(cassandra, node_backup, storage, differential_mode, enable_md5_che
         manifest = []
         num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
 
+    if cassandra.is_dse():
+        logging.info('Creating DSE snapshot')
+        with cassandra.create_dse_snapshot(backup_name) as snapshot:
+            num_files += backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
+
     logging.info('Updating backup index')
     node_backup.manifest = json.dumps(manifest)
     add_backup_finish_to_index(storage, node_backup)

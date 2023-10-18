@@ -240,6 +240,28 @@ class AbstractStorage(abc.ABC):
     def hashes_match(manifest_hash, object_hash):
         return base64.b64decode(manifest_hash).hex() == str(object_hash) or manifest_hash == str(object_hash)
 
+    @staticmethod
+    def path_maybe_with_parent(dest: str, src_path: Path) -> str:
+        """
+        Works out which path to download or upload a file into.
+        @param dest : path to a directory where we'll be placing the file into
+        @param src_path :  full path of a file (or object) we are read
+        @returns : full path of the file or object we write
+
+        Medusa generally expects SSTables which reside in .../keyspace/table/ (this is where dest points to)
+        But in some cases, we have exceptions:
+            - secondary indexes are stored in whatever/data_folder/keyspace/table/.index_name/,
+              so we need to include the index name in the destination path
+            - DSE metadata in resides in whatever/metadata where there is a `nodes` folder only (DSE 6.8)
+              in principle, this is just like a 2i file structure, so we reuse all the other logic
+        """
+        if src_path.parent.name.startswith(".") or src_path.parent.name.endswith('nodes'):
+            # secondary index file or a DSE metadata file
+            return "{}/{}/{}".format(dest, src_path.parent.name, src_path.name)
+        else:
+            # regular SSTable
+            return "{}/{}".format(dest, src_path.name)
+
     def get_path_prefix(self, path=None) -> str:
         return ""
 

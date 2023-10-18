@@ -138,11 +138,7 @@ class GoogleStorage(AbstractStorage):
         # we must make sure the blob gets stored under sub-folder (if there is any)
         # the dest variable only points to the table folder, so we need to add the sub-folder
         src_path = Path(src)
-        file_path = (
-            "{}/{}/{}".format(dest, src_path.parent.name, src_path.name)
-            if src_path.parent.name.startswith(".")
-            else "{}/{}".format(dest, src_path.name)
-        )
+        file_path = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
         logging.debug(
             '[Storage] Downloading gcs://{}/{} -> {}'.format(
@@ -184,15 +180,10 @@ class GoogleStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
-        src_chunks = src.split('/')
-        parent_name, file_name = src_chunks[-2], src_chunks[-1]
+        src_path = Path(src)
 
         # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
-        object_key = (
-            "{}/{}/{}".format(dest, parent_name, file_name)
-            if parent_name.startswith(".")
-            else "{}/{}".format(dest, file_name)
-        )
+        object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
         if src.startswith("gs"):
             logging.debug(

@@ -215,15 +215,6 @@
              with the script based replication...
              http://wiki.apache.org/solr/CollectionDistribution
           -->
-        <!--
-           <listener event="postCommit" class="solr.RunExecutableListener">
-             <str name="exe">solr/bin/snapshooter</str>
-             <str name="dir">.</str>
-             <bool name="wait">true</bool>
-             <arr name="args"> <str>arg1</str> <str>arg2</str> </arr>
-             <arr name="env"> <str>MYVAR=val1</str> </arr>
-           </listener>
-          -->
     </updateHandler>
 
     <query>
@@ -483,12 +474,6 @@
              (lastModifiedFrom and etagSeed are both ignored if you use
              the never304="true" option)
           -->
-        <!--
-           <httpCaching lastModifiedFrom="openTime"
-                        etagSeed="Solr">
-             <cacheControl>max-age=30, public</cacheControl>
-           </httpCaching>
-          -->
     </requestDispatcher>
 
 
@@ -575,12 +560,6 @@
              list can either be overridden completely, or components can be
              prepended or appended to the default list.  (see below)
           -->
-        <!--
-           <arr name="components">
-             <str>nameOfCustomComponent1</str>
-             <str>nameOfCustomComponent2</str>
-           </arr>
-          -->
     </requestHandler>
 
 
@@ -611,11 +590,6 @@
              updateRequestProcessorChains that can be used by name
              on each Update Request
           -->
-        <!--
-           <lst name="defaults">
-             <str name="update.chain">dedupe</str>
-           </lst>
-           -->
     </requestHandler>
 
 
@@ -1075,13 +1049,6 @@
     <!-- Legacy config for the admin interface -->
     <admin>
         <defaultQuery>*:*</defaultQuery>
-
-        <!-- configure a healthcheck file for servers behind a
-             loadbalancer
-          -->
-        <!--
-           <healthcheck type="file">server-enabled</healthcheck>
-          -->
     </admin>
 
 </config>
