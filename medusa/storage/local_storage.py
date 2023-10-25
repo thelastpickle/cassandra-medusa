@@ -24,6 +24,9 @@ from pathlib import Path
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject, ObjectDoesNotExistError
 
 
+BUFFER_SIZE = 4 * 1024 * 1024
+
+
 class LocalStorage(AbstractStorage):
 
     def __init__(self, config):
@@ -63,17 +66,31 @@ class LocalStorage(AbstractStorage):
 
     def _md5(self, file_path: str) -> str:
         with open(file_path, 'rb') as f:
-            return hashlib.md5(f.read()).hexdigest()
+            md5 = hashlib.md5()
+            while True:
+                data = f.read(BUFFER_SIZE)
+                if not data:
+                    break
+                md5.update(data)
+            return md5.hexdigest()
 
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         object_path = self.root_dir / object_key
         object_path.parent.mkdir(parents=True, exist_ok=True)
+
         with open(object_path, 'wb') as f:
-            f.write(data.read())
+            md5 = hashlib.md5()
+            while True:
+                chunk = data.read(BUFFER_SIZE)
+                if not chunk:
+                    break
+                md5.update(chunk)
+                f.write(chunk)
+
         return AbstractBlob(
             object_key,
             os.stat(object_path).st_size,
-            self._md5(object_path),
+            md5.hexdigest(),
             datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime)
         )
 
@@ -95,7 +112,11 @@ class LocalStorage(AbstractStorage):
 
         with open(src_file, 'rb') as f:
             with open(dest_file, 'wb') as d:
-                d.write(f.read())
+                while True:
+                    data = f.read(BUFFER_SIZE)
+                    if not data:
+                        break
+                    d.write(data)
 
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
 
@@ -119,14 +140,22 @@ class LocalStorage(AbstractStorage):
         # remove root_dir from dest_file name
         dest_object_key = str(dest_file.relative_to(str(self.root_dir)))
 
+        md5 = hashlib.md5()
+
         with open(src_file, 'rb') as f:
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             with open(dest_file, 'wb') as d:
-                d.write(f.read())
+                while True:
+                    data = f.read(BUFFER_SIZE)
+                    if not data:
+                        break
+                    d.write(data)
+                    md5.update(data)
+
         return ManifestObject(
             dest_object_key,
             os.stat(dest_file).st_size,
-            self._md5(dest_file),
+            md5.hexdigest(),
         )
 
     async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
