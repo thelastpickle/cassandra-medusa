@@ -1,5 +1,10 @@
 ## Change Log
 
+### 0.16.3 (2023/10/25 08:40 +00:00)
+- [Local Storage] Prevent OOM errors by processing files by chunks (#671) (@rzvoncek)
+- Add check for free space before downloading a backup (#663 (@rzvoncek)
+- [gRPC] Fix how we read the missing nodes in the gRPC server (#662) (@rzvoncek)
+
 ### 0.16.2 (2023/10/02 08:40 +00:00)
 - [Storage] Paginate listing objects where needed (#658) (@rzvoncek)
 
