@@ -52,7 +52,10 @@ class Server:
         self.config_file_path = config_file_path
         self.medusa_config = self.create_config()
         self.testing = testing
-        self.grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        self.grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
+            ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
+            ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
+        ])
         logging.info("GRPC server initialized")
 
     def shutdown(self, signum, frame):
