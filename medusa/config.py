@@ -73,7 +73,7 @@ LoggingConfig = collections.namedtuple(
 
 GrpcConfig = collections.namedtuple(
     'GrpcConfig',
-    ['enabled']
+    ['enabled', 'max_send_message_length', 'max_receive_message_length']
 )
 
 KubernetesConfig = collections.namedtuple(
@@ -161,6 +161,8 @@ def _build_default_config():
 
     config['grpc'] = {
         'enabled': 'False',
+        'max_send_message_length': '536870912',
+        'max_receive_message_length': '134217728',
     }
 
     config['kubernetes'] = {
