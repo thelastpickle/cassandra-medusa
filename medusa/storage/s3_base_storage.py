@@ -13,10 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import asyncio
 import base64
 import boto3
 import botocore.session
+import concurrent.futures
 import logging
 import io
 import os
@@ -114,6 +115,8 @@ class S3BaseStorage(AbstractStorage):
         self.connection_extra_args = self._make_connection_arguments(config)
         self.transfer_config = self._make_transfer_config(config)
 
+        self.executor = concurrent.futures.ThreadPoolExecutor(int(config.concurrent_transfers))
+
         super().__init__(config)
 
     def connect(self):
@@ -122,10 +125,16 @@ class S3BaseStorage(AbstractStorage):
                 self.storage_provider, self.connection_extra_args
             )
         )
+
+        # make the pool size double of what we will have going on
+        # helps urllib (used by boto) to reuse connections better and not WARN us about evicting connections
+        max_pool_size = int(self.config.concurrent_transfers) * 2
+
         boto_config = Config(
             region_name=self.credentials.region,
             signature_version='v4',
-            tcp_keepalive=True
+            tcp_keepalive=True,
+            max_pool_connections=max_pool_size
         )
         self.s3_client = boto3.client(
             's3',
@@ -139,6 +148,7 @@ class S3BaseStorage(AbstractStorage):
         logging.debug('Disconnecting from S3...')
         try:
             self.s3_client.close()
+            self.executor.shutdown()
         except Exception as e:
             logging.error('Error disconnecting from S3: {}'.format(e))
 
@@ -260,7 +270,15 @@ class S3BaseStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
-        blob = await self._stat_blob(src)
+        # boto has a connection pool, but it does not support the asyncio API
+        # so we make things ugly and submit the whole download as a task to an executor
+        # which allows us to download several files in parallel
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(self.executor, self.__download_blob, src, dest)
+        await future
+
+    def __download_blob(self, src: str, dest: str):
+        blob = self.__stat_blob(src)
         object_key = blob.name
 
         # we must make sure the blob gets stored under sub-folder (if there is any)
@@ -304,6 +322,11 @@ class S3BaseStorage(AbstractStorage):
                 logging.error("An error occurred:", e)
                 logging.error('Error getting object from s3://{}/{}'.format(self.bucket_name, object_key))
 
+    def __stat_blob(self, key):
+        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
+        item_hash = resp['ETag'].replace('"', '')
+        return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'])
+
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_chunks = src.split('/')
@@ -328,17 +351,28 @@ class S3BaseStorage(AbstractStorage):
             )
         )
 
-        self.s3_client.upload_file(
-            Filename=src,
-            Bucket=self.bucket_name,
-            Key=object_key,
-            Config=self.transfer_config,
-            ExtraArgs=kms_args,
-        )
-
-        blob = await self._stat_blob(object_key)
-        mo = ManifestObject(blob.name, blob.size, blob.hash)
+        upload_conf = {
+            'Filename': src,
+            'Bucket': self.bucket_name,
+            'Key': object_key,
+            'Config': self.transfer_config,
+            'ExtraArgs': kms_args,
+        }
+        # we are going to combine asyncio with boto's threading
+        # we do this by submitting the upload into an executor
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(self.executor, self.__upload_file, upload_conf)
+        # and then ask asyncio to yield until it completes
+        mo = await future
         return mo
+
+    def __upload_file(self, upload_conf):
+        self.s3_client.upload_file(**upload_conf)
+        resp = self.s3_client.head_object(Bucket=upload_conf['Bucket'], Key=upload_conf['Key'])
+        blob_name = upload_conf['Key']
+        blob_size = int(resp['ContentLength'])
+        blob_hash = resp['ETag'].replace('"', '')
+        return ManifestObject(blob_name, blob_size, blob_hash)
 
     async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
         blob = await self._stat_blob(str(object_key))

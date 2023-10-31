@@ -56,6 +56,7 @@ class S3StorageTest(unittest.TestCase):
                     'region': 'region-from-config',
                     'storage_provider': 's3_us_west_oregon',
                     'key_file': empty_file.name,
+                    'concurrent_transfers': '1'
                 })
 
                 credentials = S3BaseStorage._consolidate_credentials(config)
@@ -73,6 +74,7 @@ class S3StorageTest(unittest.TestCase):
                 'region': 'region-from-config',
                 'storage_provider': 's3_us_west_oregon',
                 'key_file': empty_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
@@ -101,6 +103,7 @@ class S3StorageTest(unittest.TestCase):
                 'region': 'region-from-config',
                 'storage_provider': 's3_us_west_oregon',
                 'key_file': credentials_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
@@ -127,6 +130,7 @@ class S3StorageTest(unittest.TestCase):
                     'region': 'region-from-config',
                     'storage_provider': 's3_us_west_oregon',
                     'key_file': credentials_file.name,
+                    'concurrent_transfers': '1'
                 })
 
                 credentials = S3BaseStorage._consolidate_credentials(config)
@@ -154,6 +158,7 @@ class S3StorageTest(unittest.TestCase):
                 'region': 'default',
                 'storage_provider': 's3_us_west_oregon',
                 'key_file': credentials_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
@@ -179,6 +184,7 @@ class S3StorageTest(unittest.TestCase):
                 'region': 'default',
                 'storage_provider': 's3_compatible',
                 'key_file': credentials_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
@@ -200,6 +206,7 @@ class S3StorageTest(unittest.TestCase):
                     'secure': 'True',
                     'host': None,
                     'port': None,
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 # there are no extra connection args when connecting to regular S3
@@ -222,6 +229,7 @@ class S3StorageTest(unittest.TestCase):
                     'secure': 'False',
                     'host': None,
                     'port': None,
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 # again, no extra connection args when connecting to regular S3
@@ -245,6 +253,7 @@ class S3StorageTest(unittest.TestCase):
                     'secure': 'True',
                     'host': 's3.example.com',
                     'port': '443',
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
@@ -266,6 +275,7 @@ class S3StorageTest(unittest.TestCase):
                     'secure': 'False',
                     'host': 's3.example.com',
                     'port': '8080',
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
