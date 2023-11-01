@@ -21,6 +21,7 @@ PACKAGEVERSION = $(VERSION)-0~$(DISTRIBUTION)0
 PY3VER = $(shell py3versions -d)
 SSH2_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VER)/site-packages/ssh2_python.libs/
 SSH_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VER)/site-packages/ssh_python.libs/
+POETRY_VIRTUALENVS_IN_PROJECT = true
 
 export DH_ALWAYS_EXCLUDE = .git
 export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
@@ -29,8 +30,8 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	  --extra-pip-arg "--no-cache-dir" \
-	  --python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv
+	--python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	--preinstall=poetry==1.6.1 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:
 	dh_strip --no-automatic-dbgsym -X libssh2 -X libssh -X libgssapi_krb5 -X libcrypto -X libkrb5 -X libk5crypto
@@ -40,3 +41,7 @@ override_dh_shlibdeps:
 
 override_dh_gencontrol:
 	dh_gencontrol -- -v$(PACKAGEVERSION)
+
+override_dh_auto_configure:
+	# overriding with a no-op to avoid dh to look for setup.py
+	true

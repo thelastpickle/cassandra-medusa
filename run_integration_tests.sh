@@ -111,9 +111,6 @@ done
 
 export LOCAL_JMX=yes
 export PYTHONWARNINGS="ignore"
-python3 -m pip install -r requirements.txt
-python3 -m pip install -r requirements-grpc.txt
-python3 -m pip install -r requirements-test.txt
 cd tests/integration
 if [ "$LOCAL" == "yes" ]
 then
@@ -180,7 +177,7 @@ fi
 
 if [ "$COVERAGE" == "yes" ]
 then
-    PYTHONPATH=../.. coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+    PYTHONPATH=../.. poetry run coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
 else
-    PYTHONPATH=../.. python3 -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
+    PYTHONPATH=../.. poetry run behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG
 fi

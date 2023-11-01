@@ -30,27 +30,23 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |
-        python -m venv venv
-        . venv/bin/activate
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install tox
+        poetry install
 
     - name: Lint with flake8
       run: |
-        pip install flake8
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
+        poetry run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=W503
     - name: Run tox
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        . venv/bin/activate
-        tox -e ${{ matrix.tox-py }}
+        poetry run tox -e ${{ matrix.tox-py }}
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage  
@@ -173,23 +169,13 @@ jobs:
       with:
         java-version: '8.0.252'
         architecture: x64
+    - name: Setup Poetry
+      uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |
-        python -m venv venv
-        . venv/bin/activate
-        sudo apt-get remove azure-cli
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-test.txt
+        poetry install
+        sudo apt-get remove azure-cli || true
         pip install ccm
-        case '${{ matrix.it-backend }}' in
-          'azure'|'azure-hierarchical')
-            echo "No extra requirements for now."
-            ;;
-          'ibm'|'minio'|'s3')
-            echo "No extra requirements for now."
-            ;;
-        esac
 
     - name: Check if integration tests can run
       env:
@@ -216,7 +202,6 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET }}
       run: |
         set -e
-        . venv/bin/activate
         if [[ "${{ matrix.it-backend }}" == "ibm" ]];
         then
           # Prevent awscli from using AWS secrets in case we're running against IBM cloud
@@ -292,7 +277,8 @@ jobs:
 
         # Move and convert the coverage analysis file to XML
         mv tests/integration/.coverage .
-        coverage xml
+        poetry run coverage xml
+
     - uses: codecov/codecov-action@v1
       name: Report code coverage
 
@@ -329,6 +315,8 @@ jobs:
         with:
           username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
           password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+      - name: Set up Poetry
+        uses: snok/install-poetry@v1
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -354,7 +342,7 @@ jobs:
         working-directory: cassandra-medusa
         run: |
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          python setup.py build
+          poetry install && poetry build
       - name: Build Medusa image
         id: docker_build
         uses: docker/build-push-action@v4
@@ -417,10 +405,12 @@ jobs:
       shell: bash
       run: |
         echo "sha_short=$(git rev-parse --short=8 ${{ github.sha }})" >> $GITHUB_OUTPUT
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
-        python setup.py build
+        poetry install && poetry build
     - name: Build image and push
       id: docker_build
       uses: docker/build-push-action@v4
@@ -496,10 +486,12 @@ jobs:
       shell: bash
       run: |
         echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
-        python setup.py build
+        poetry install && poetry build
     - name: Build image and push
       id: docker_build
       uses: docker/build-push-action@v4
@@ -535,5 +527,5 @@ jobs:
       run: |
         . venv/bin/activate
         pip install setuptools wheel twine
-        python setup.py sdist bdist_wheel
+        poetry install && poetry build
         twine upload dist/*
