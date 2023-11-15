@@ -21,15 +21,19 @@ import shutil
 import tempfile
 import unittest
 
+from datetime import datetime
+from random import randrange
+
 import medusa.storage.abstract_storage
 
-from medusa.storage.abstract_storage import AbstractStorage
+from medusa.storage import NodeBackup, ClusterBackup
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
 from medusa.storage import Storage
 
 
-class RestoreNodeTest(unittest.TestCase):
+class StorageTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.local_storage_dir = "/tmp/medusa_local_storage"
@@ -350,6 +354,33 @@ class RestoreNodeTest(unittest.TestCase):
             1574343029,
             self.storage.get_timestamp_from_blob_name('index/bi/third_backup/finished_localhost_1574343029.timestamp')
         )
+
+
+def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
+    if differential is True:
+        differential_blob = make_blob("localhost/{}/meta/differential".format(name), backup_date.timestamp())
+    else:
+        differential_blob = None
+    tokenmap_blob = make_blob("localhost/{}/meta/tokenmap.json".format(name), backup_date.timestamp())
+    schema_blob = make_blob("localhost/{}/meta/schema.cql".format(name), backup_date.timestamp())
+    manifest_blob = make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
+    return NodeBackup(storage=storage, fqdn=fqdn, name=str(name),
+                      differential_blob=differential_blob, manifest_blob=manifest_blob,
+                      tokenmap_blob=tokenmap_blob, schema_blob=schema_blob,
+                      started_timestamp=backup_date.timestamp(), finished_timestamp=backup_date.timestamp())
+
+
+def make_cluster_backup(storage, name, backup_date, nodes, differential=False):
+    node_backups = list()
+    for node in nodes:
+        node_backups.append(make_node_backup(storage, name, backup_date, differential, node))
+    return ClusterBackup(name, node_backups)
+
+
+def make_blob(blob_name, blob_date):
+    checksum = hashlib.md5()
+    checksum.update(os.urandom(4))
+    return AbstractBlob(blob_name, randrange(100), checksum.hexdigest(), datetime.fromtimestamp(blob_date))
 
 
 if __name__ == '__main__':

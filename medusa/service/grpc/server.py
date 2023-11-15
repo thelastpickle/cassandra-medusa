@@ -167,28 +167,27 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return response
 
     def BackupStatus(self, request, context):
-
         response = medusa_pb2.BackupStatusResponse()
         try:
             with Storage(config=self.storage_config) as storage:
-                backup = storage.get_cluster_backup(request.backupName)
 
-                # TODO how is the startTime determined?
+                backup = storage.get_node_backup(fqdn=storage.config.fqdn, name=request.backupName)
+                if backup.started is None:
+                    raise KeyError
+
                 response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
-                response.finishedNodes.extend([node.fqdn for node in backup.complete_nodes()])
-                response.unfinishedNodes.extend([node.fqdn for node in backup.incomplete_nodes()])
-                response.missingNodes.extend(backup.missing_nodes())
-
                 if backup.finished:
                     response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
                 else:
                     response.finishTime = ""
 
                 record_status_in_response(response, request.backupName)
+
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
             response.status = medusa_pb2.StatusType.UNKNOWN
+
         return response
 
     def GetBackup(self, request, context):
