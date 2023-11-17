@@ -582,13 +582,9 @@ def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, 
 
 @then(r'I verify over gRPC that the backup "{backup_name}" exists and is of type "{backup_type}"')
 def _i_verify_over_grpc_backup_exists(context, backup_name, backup_type):
-    found = False
-    backups = context.grpc_client.get_backups()
-    for backup in backups:
-        if backup.backupName == backup_name and backup.backupType == backup_type:
-            found = True
-            break
-    assert found is True
+    backup = context.grpc_client.get_backup(backup_name=backup_name)
+    assert backup.backupName == backup_name
+    assert backup.backupType == backup_type
 
 
 @then(r'I sleep for {num_secs} seconds')
@@ -614,20 +610,27 @@ def _i_verify_over_grpc_backup_has_status_success(context, backup_name):
     assert status == medusa_pb2.StatusType.SUCCESS
 
 
+@then(r'I verify over gRPC that I can see both backups "{backup_name_1}" and "{backup_name_2}"')
+def _i_verify_over_grpc_that_i_can_see_both_backups(context, backup_name_1, backup_name_2):
+    backups = context.grpc_client.get_backups()
+    assert len(backups) == 2
+
+    assert backups[0].backupName == backup_name_1
+    assert backups[0].nodes[0].host == "127.0.0.1"
+    assert backups[0].totalNodes == 1
+    assert backups[0].finishedNodes == 1
+    assert backups[0].status == 1
+
+    assert backups[1].backupName == backup_name_2
+
+
 @then(r'I verify over gRPC that the backup "{backup_name}" has the expected placement information')
 def _i_verify_over_grpc_backup_has_expected_information(context, backup_name):
-    found = False
-    backups = context.grpc_client.get_backups()
-    for backup in backups:
-
-        if backup.backupName == backup_name:
-            found = True
-            assert backup.nodes[0].host == "127.0.0.1"
-            assert backup.nodes[0].datacenter in ["dc1", "datacenter1", "DC1"]
-            assert backup.nodes[0].rack in ["rack1", "r1"]
-            assert len(backup.nodes[0].tokens) >= 1
-            break
-    assert found is True
+    backup = context.grpc_client.get_backup(backup_name)
+    assert backup.nodes[0].host == "127.0.0.1"
+    assert backup.nodes[0].datacenter in ["dc1", "datacenter1", "DC1"]
+    assert backup.nodes[0].rack in ["rack1", "r1"]
+    assert len(backup.nodes[0].tokens) >= 1
 
 
 @then(r'I delete the backup "{backup_name}" over gRPC')
