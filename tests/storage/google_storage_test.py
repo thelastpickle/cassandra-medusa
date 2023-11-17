@@ -22,7 +22,7 @@ from pathlib import Path
 from medusa.storage.google_storage import _group_by_parent, _is_in_folder
 
 
-class RestoreNodeTest(unittest.TestCase):
+class GoogleStorageTest(unittest.TestCase):
 
     def test_is_in_folder(self):
         folder = Path('foo/bar')
