@@ -59,4 +59,5 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_PREPARERESTORERESPONSE']._serialized_end=1200
   _globals['_MEDUSA']._serialized_start=1272
   _globals['_MEDUSA']._serialized_end=1728
+
 # @@protoc_insertion_point(module_scope)

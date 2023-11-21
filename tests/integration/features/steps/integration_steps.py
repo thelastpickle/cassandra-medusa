@@ -585,6 +585,8 @@ def _i_verify_over_grpc_backup_exists(context, backup_name, backup_type):
     backup = context.grpc_client.get_backup(backup_name=backup_name)
     assert backup.backupName == backup_name
     assert backup.backupType == backup_type
+    assert backup.totalSize > 0
+    assert backup.totalObjects > 0
 
 
 @then(r'I sleep for {num_secs} seconds')

@@ -181,6 +181,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 else:
                     response.finishTime = ""
 
+                response.totalSize = backup.size()
+                response.totalObjects = backup.num_objects()
+
                 record_status_in_response(response, request.backupName)
 
         except KeyError:
@@ -302,6 +305,8 @@ def get_backup_summary(backup, last_status):
     for node in backup.tokenmap:
         summary.nodes.append(create_token_map_node(backup, node))
     summary.backupType = backup.backup_type
+    summary.totalSize = backup.size()
+    summary.totalObjects = backup.num_objects()
     return summary, last_status
 
 
