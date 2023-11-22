@@ -49,15 +49,25 @@ class AzureStorage(AbstractStorage):
         self.account_name = self.credentials.named_key.name
         self.bucket_name = config.bucket_name
 
+        self.azure_blob_service_url = self._make_blob_service_url(self.account_name, config)
+
         # disable chatty loggers
         logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
         logging.getLogger('chardet.universaldetector').setLevel(logging.WARNING)
 
         super().__init__(config)
 
+    def _make_blob_service_url(self, account_name, config):
+        domain = 'windows.net' if config.host is None else config.host
+        if config.port is None:
+            url = f"https://{account_name}.blob.core.{domain}/"
+        else:
+            url = f"https://{account_name}.blob.core.{domain}:{config.port}/"
+        return url
+
     def connect(self):
         self.azure_blob_service = BlobServiceClient(
-            account_url=f"https://{self.account_name}.blob.core.windows.net/",
+            account_url=self.azure_blob_service_url,
             credential=self.credentials
         )
         self.azure_container_client = self.azure_blob_service.get_container_client(self.bucket_name)

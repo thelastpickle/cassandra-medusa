@@ -18,7 +18,13 @@ import unittest
 from medusa.storage.abstract_storage import AbstractStorage
 
 
-class S3StorageTest(unittest.TestCase):
+class AttributeDict(dict):
+    __slots__ = ()
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
+
+class AbstractStorageTest(unittest.TestCase):
 
     def test_convert_human_friendly_size_to_bytes(self):
         self.assertEqual(50, AbstractStorage._human_size_to_bytes('50B'))

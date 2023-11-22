@@ -21,12 +21,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 
 from medusa.storage.s3_base_storage import S3BaseStorage
-
-
-class AttributeDict(dict):
-    __slots__ = ()
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
+from tests.storage.abstract_storage_test import AttributeDict
 
 
 class S3StorageTest(unittest.TestCase):
