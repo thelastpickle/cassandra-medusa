@@ -71,6 +71,16 @@ class Client:
         except grpc.RpcError as e:
             logging.error("Failed to delete backup for name: {} due to error: {}".format(name, e))
 
+    def get_backup(self, backup_name):
+        try:
+            stub = medusa_pb2_grpc.MedusaStub(self.channel)
+            request = medusa_pb2.GetBackupRequest(backupName=backup_name)
+            response = stub.GetBackup(request)
+            return response.backup
+        except grpc.RpcError as e:
+            logging.error("Failed to obtain backup for name: {} due to error: {}".format(backup_name, e))
+            return None
+
     def get_backups(self):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)

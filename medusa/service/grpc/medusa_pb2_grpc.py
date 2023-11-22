@@ -34,6 +34,11 @@ class MedusaStub(object):
                 request_serializer=medusa__pb2.DeleteBackupRequest.SerializeToString,
                 response_deserializer=medusa__pb2.DeleteBackupResponse.FromString,
                 )
+        self.GetBackup = channel.unary_unary(
+                '/Medusa/GetBackup',
+                request_serializer=medusa__pb2.GetBackupRequest.SerializeToString,
+                response_deserializer=medusa__pb2.GetBackupResponse.FromString,
+                )
         self.GetBackups = channel.unary_unary(
                 '/Medusa/GetBackups',
                 request_serializer=medusa__pb2.GetBackupsRequest.SerializeToString,
@@ -73,6 +78,12 @@ class MedusaServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DeleteBackup(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetBackup(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -118,6 +129,11 @@ def add_MedusaServicer_to_server(servicer, server):
                     servicer.DeleteBackup,
                     request_deserializer=medusa__pb2.DeleteBackupRequest.FromString,
                     response_serializer=medusa__pb2.DeleteBackupResponse.SerializeToString,
+            ),
+            'GetBackup': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetBackup,
+                    request_deserializer=medusa__pb2.GetBackupRequest.FromString,
+                    response_serializer=medusa__pb2.GetBackupResponse.SerializeToString,
             ),
             'GetBackups': grpc.unary_unary_rpc_method_handler(
                     servicer.GetBackups,
@@ -209,6 +225,23 @@ class Medusa(object):
         return grpc.experimental.unary_unary(request, target, '/Medusa/DeleteBackup',
             medusa__pb2.DeleteBackupRequest.SerializeToString,
             medusa__pb2.DeleteBackupResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetBackup(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Medusa/GetBackup',
+            medusa__pb2.GetBackupRequest.SerializeToString,
+            medusa__pb2.GetBackupResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

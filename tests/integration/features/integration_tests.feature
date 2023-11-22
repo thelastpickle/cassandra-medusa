@@ -710,6 +710,7 @@ Feature: Integration tests
         Then I wait for 10 seconds
         When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
         Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
+        And I verify over gRPC that I can see both backups "grpc_backup_2" and "grpc_backup_2_2"
         Then I can see the backup index entry for "grpc_backup_2_2"
         Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
         When I perform a purge over gRPC

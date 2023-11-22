@@ -9,6 +9,8 @@ service Medusa {
 
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
 
+  rpc GetBackup(GetBackupRequest) returns (GetBackupResponse);
+
   rpc GetBackups(GetBackupsRequest) returns (GetBackupsResponse);
 
   rpc PurgeBackups(PurgeBackupsRequest) returns (PurgeBackupsResponse);
@@ -57,6 +59,15 @@ message DeleteBackupRequest {
 message DeleteBackupResponse {
   string name = 1;
   StatusType status = 2;
+}
+
+message GetBackupRequest {
+  string backupName = 1;
+}
+
+message GetBackupResponse {
+  BackupSummary backup = 1;
+  StatusType    status = 2;
 }
 
 message GetBackupsRequest {
