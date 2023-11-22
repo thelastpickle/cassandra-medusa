@@ -103,12 +103,14 @@ class ServerTest(unittest.TestCase):
             nodes=['node1'],
             differential=True
         )
+        cluster_backup.size = lambda: 0
+        cluster_backup.num_objects = lambda: 0
         tokenmap_dict = {
             "node1": {"tokens": [-1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"},
             "node2": {"tokens": [1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"}
         }
         BackupMan.register_backup('backup1', True)
-        BackupMan.update_backup_status('backup1', BackupMan.STATUS_SUCCESS)
+        BackupMan.update_backup_status('backup1', BackupMan.STATUS_IN_PROGRESS)
 
         # patches a call to the tokenmap, thus avoiding access to the storage
         with patch('medusa.storage.ClusterBackup.tokenmap', return_value=tokenmap_dict) as tokenmap:
@@ -123,7 +125,7 @@ class ServerTest(unittest.TestCase):
                     context = Mock(spec=ServicerContext)
                     get_backup_response = service.GetBackup(request, context)
 
-                    self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.status)
+                    self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, get_backup_response.status)
 
                     self.assertEqual('backup1', get_backup_response.backup.backupName)
                     self.assertEqual(1234, get_backup_response.backup.startTime)
@@ -136,6 +138,8 @@ class ServerTest(unittest.TestCase):
                         [medusa_pb2.BackupNode(host='node1'), medusa_pb2.BackupNode(host='node2')],
                         get_backup_response.backup.nodes
                     )
+                    # this should also be IN_PROGRESS but because the ClusterBackup.finished is a mock
+                    # we cannot correctly make it be 'None' when needed (some other things break)
                     self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.backup.status)
                     self.assertEqual('differential', get_backup_response.backup.backupType)
 

@@ -170,22 +170,18 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         response = medusa_pb2.BackupStatusResponse()
         try:
             with Storage(config=self.storage_config) as storage:
-
+                # find the backup
                 backup = storage.get_node_backup(fqdn=storage.config.fqdn, name=request.backupName)
                 if backup.started is None:
                     raise KeyError
-
+                # work out the timings
                 response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
                 if backup.finished:
                     response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
                 else:
                     response.finishTime = ""
-
-                response.totalSize = backup.size()
-                response.totalObjects = backup.num_objects()
-
+                # record the status
                 record_status_in_response(response, request.backupName)
-
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)

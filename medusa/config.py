@@ -216,6 +216,7 @@ def parse_config(args, config_file):
     config.set('cassandra', 'resolve_ip_addresses', 'True'
                if evaluate_boolean(config['cassandra']['resolve_ip_addresses']) else 'False')
     kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
+    grpc_enabled = evaluate_boolean(config['grpc']['enabled'])
 
     for config_property in ['cql_username', 'cql_password']:
         config_property_upper_old = config_property.upper()
@@ -266,6 +267,9 @@ def parse_config(args, config_file):
         config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
 
     config.set('storage', 'k8s_mode', str(kubernetes_enabled))
+
+    if args.get('grpc_enabled', 0) == 1 or grpc_enabled:
+        config.set('grpc', 'enabled', 'True')
 
     return config
 

@@ -353,8 +353,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
     config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=1)
-
+                                 "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=0)
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
@@ -479,11 +478,11 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
         )
 
     grpc_args = {
-        "enabled": grpc
+        "grpc_enabled": grpc
     }
 
     kubernetes_args = {
-        "enabled": use_mgmt_api,
+        "k8s_enabled": use_mgmt_api,
         "cassandra_url": cassandra_url,
         "use_mgmt_api": use_mgmt_api
     }
@@ -609,6 +608,7 @@ def _i_verify_over_grpc_backup_has_status_unknown(context, backup_name):
 @then(r'I verify over gRPC that the backup "{backup_name}" has expected status SUCCESS')
 def _i_verify_over_grpc_backup_has_status_success(context, backup_name):
     status = context.grpc_client.get_backup_status(backup_name)
+    logging.info(f'status={status}')
     assert status == medusa_pb2.StatusType.SUCCESS
 
 
