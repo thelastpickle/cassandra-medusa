@@ -24,16 +24,12 @@ from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc.server import MedusaService
 from medusa.storage import Storage
 
-# goes away after we merge #681 and rebase on top of it
-from tests.purge_test import PurgeTest
+from tests.storage_test import make_node_backup, make_cluster_backup
 
 
 class ServerTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        # goes away after we merge #681 and rebase on top of it
-        self.make_node_backup = PurgeTest().make_node_backup
-        self.make_cluster_backup = PurgeTest().make_cluster_backup
         super().__init__(*args, **kwargs)
 
     def _make_config(self):
@@ -98,7 +94,7 @@ class ServerTest(unittest.TestCase):
 
         # build a fake cluster backup object
         storage = Storage(config=medusa_config.storage)
-        cluster_backup = self.make_cluster_backup(
+        cluster_backup = make_cluster_backup(
             storage=storage,
             name='backup1',
             backup_date=datetime.fromtimestamp(123456),
@@ -142,6 +138,80 @@ class ServerTest(unittest.TestCase):
                     )
                     self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.backup.status)
                     self.assertEqual('differential', get_backup_response.backup.backupType)
+
+    def test_get_backup_status_unknown_backup(self):
+        # start the Medusa service
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        # make a status request for an unknown backup.
+        # no need to fake a backup here because we're not actually interested in it
+        request = medusa_pb2.BackupStatusRequest(backupName='unknown_backup')
+        context = Mock(spec=ServicerContext)
+        backup_status = service.BackupStatus(request, context)
+
+        # verify the response structure without an emphasis on the actual contents
+        status_fields = {field.name for field in backup_status.DESCRIPTOR.fields}
+        self.assertEqual(
+            status_fields,
+            {'startTime', 'finishTime', 'status'}
+        )
+        self.assertEqual(medusa_pb2.StatusType.UNKNOWN, backup_status.status)
+        self.assertEqual('', backup_status.startTime)
+        self.assertEqual('', backup_status.finishTime)
+
+    def test_get_backup_status_known_backup(self):
+        # start the Medusa service
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        # build a fake backup object
+        storage = Storage(config=medusa_config.storage)
+        node_backup = make_node_backup(storage, 'backup1', datetime.fromtimestamp(123456), differential=True)
+        BackupMan.register_backup('backup1', True)
+        BackupMan.update_backup_status('backup1', BackupMan.STATUS_SUCCESS)
+
+        # this patch prevents the actual get_node_backup call, and instead returns the fake backup from above
+        with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
+            request = medusa_pb2.BackupStatusRequest(backupName='backup1')
+            context = Mock(spec=ServicerContext)
+            backup_status = service.BackupStatus(request, context)
+
+            self.assertEqual(medusa_pb2.StatusType.SUCCESS, backup_status.status)
+
+            # the start timestamp of 123456 rendered as a human-readable date
+            # we're parsing this back and forth because hard-coding a human-readable date is
+            # inconsistent across environments
+            start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, start_time)
+            # the fake backup is instant - starts and finishes at the same time
+            finish_time = int(datetime.strptime(backup_status.finishTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, finish_time)
+
+    def test_get_backup_status_incomplete_backup(self):
+        # start the Medusa service
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        # build a fake backup object
+        storage = Storage(config=medusa_config.storage)
+        node_backup = make_node_backup(storage, 'backup2', datetime.fromtimestamp(123456), differential=True)
+        # we only register the backup, do not move it to SUCCESS
+        BackupMan.register_backup('backup2', True)
+
+        with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
+            request = medusa_pb2.BackupStatusRequest(backupName='backup2')
+            context = Mock(spec=ServicerContext)
+            backup_status = service.BackupStatus(request, context)
+
+            # we get the response as IN_PROGRESS
+            self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, backup_status.status)
+            # the finish time is already set
+            # I'm not sure this is because of faking the backup
+            start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, start_time)
+            finish_time = int(datetime.strptime(backup_status.finishTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, finish_time)
 
 
 if __name__ == '__main__':
