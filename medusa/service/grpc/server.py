@@ -153,7 +153,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             BackupMan.register_backup(request.name, is_async=False)
             backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
                                       enable_md5_checks_flag=False, mode=mode)
-            record_status_in_response(response, request.name)
+            response = record_status_in_response(response, request.name)
             return response
         except Exception as e:
             response.status = medusa_pb2.StatusType.FAILED
@@ -181,7 +181,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 else:
                     response.finishTime = ""
                 # record the status
-                record_status_in_response(response, request.backupName)
+                response = record_status_in_response(response, request.backupName)
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
@@ -191,13 +191,12 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
     def GetBackup(self, request, context):
         response = medusa_pb2.GetBackupResponse()
-        last_status = medusa_pb2.StatusType.UNKNOWN
         try:
             with Storage(config=self.storage_config) as connected_storage:
                 backup = connected_storage.get_cluster_backup(request.backupName)
-                summary, response.status = get_backup_summary(backup, last_status)
+                summary = get_backup_summary(backup)
                 response.backup.CopyFrom(summary)
-                record_status_in_response(response, request.backupName)
+                response.status = summary.status
         except Exception as e:
             context.set_details("Failed to get backup due to error: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -207,14 +206,14 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
     def GetBackups(self, request, context):
         response = medusa_pb2.GetBackupsResponse()
-        last_status = medusa_pb2.StatusType.UNKNOWN
         try:
             # cluster backups
             with Storage(config=self.storage_config) as connected_storage:
                 backups = get_backups(connected_storage, self.config, True)
                 for backup in backups:
-                    summary, last_status = get_backup_summary(backup, last_status)
+                    summary = get_backup_summary(backup)
                     response.backups.append(summary)
+                set_overall_status(response)
 
         except Exception as e:
             context.set_details("Failed to get backups due to error: {}".format(e))
@@ -281,29 +280,50 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         return response
 
 
-def get_backup_summary(backup, last_status):
+def set_overall_status(get_backups_response):
+    get_backups_response.overallStatus = medusa_pb2.StatusType.UNKNOWN
+    backups = get_backups_response.backups
+    if len(backups) == 0:
+        return
+    if all(backup.status == medusa_pb2.StatusType.SUCCESS for backup in backups):
+        get_backups_response.overallStatus = medusa_pb2.StatusType.SUCCESS
+    if any(backup.status == medusa_pb2.StatusType.IN_PROGRESS for backup in backups):
+        get_backups_response.overallStatus = medusa_pb2.StatusType.IN_PROGRESS
+    if any(backup.status == medusa_pb2.StatusType.FAILED for backup in backups):
+        get_backups_response.overallStatus = medusa_pb2.StatusType.FAILED
+    if any(backup.status == medusa_pb2.StatusType.UNKNOWN for backup in backups):
+        get_backups_response.overallStatus = medusa_pb2.StatusType.UNKNOWN
+
+
+def get_backup_summary(backup):
     summary = medusa_pb2.BackupSummary()
+
     summary.backupName = backup.name
+
     if backup.started is None:
         summary.startTime = 0
     else:
-        summary.startTime = 1234
+        summary.startTime = backup.started
+
     if backup.finished is None:
         summary.finishTime = 0
         summary.status = medusa_pb2.StatusType.IN_PROGRESS
-        last_status = medusa_pb2.StatusType.IN_PROGRESS
     else:
         summary.finishTime = backup.finished
-        if last_status != medusa_pb2.StatusType.IN_PROGRESS:
-            summary.status = medusa_pb2.StatusType.SUCCESS
+        summary.status = medusa_pb2.StatusType.SUCCESS
+
     summary.totalNodes = len(backup.tokenmap)
     summary.finishedNodes = len(backup.complete_nodes())
+
     for node in backup.tokenmap:
         summary.nodes.append(create_token_map_node(backup, node))
+
     summary.backupType = backup.backup_type
+
     summary.totalSize = backup.size()
     summary.totalObjects = backup.num_objects()
-    return summary, last_status
+
+    return summary
 
 
 # Callback function for recording unique backup results
@@ -350,6 +370,7 @@ def record_status_in_response(response, backup_name):
         response.status = medusa_pb2.StatusType.FAILED
     if status == BackupMan.STATUS_SUCCESS:
         response.status = medusa_pb2.StatusType.SUCCESS
+    return response
 
 
 def handle_backup_removal(backup_name):
