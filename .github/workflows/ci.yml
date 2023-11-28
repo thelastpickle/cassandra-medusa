@@ -343,7 +343,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
-          ref: main
+          ref: radovan/backup-size-in-summary
           path: k8ssandra-operator
       - name: Set up Go
         uses: actions/setup-go@v3
