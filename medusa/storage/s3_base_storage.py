@@ -46,11 +46,13 @@ class CensoredCredentials:
 
     access_key_id = None
     secret_access_key = None
+    session_token = None
     region = None
 
-    def __init__(self, access_key_id, secret_access_key, region):
+    def __init__(self, access_key_id, secret_access_key, session_token, region):
         self.access_key_id = access_key_id
         self.secret_access_key = secret_access_key
+        self.session_token = session_token
         self.region = region
 
     def __repr__(self):
@@ -141,6 +143,7 @@ class S3BaseStorage(AbstractStorage):
             config=boto_config,
             aws_access_key_id=self.credentials.access_key_id,
             aws_secret_access_key=self.credentials.secret_access_key,
+            aws_session_token=self.credentials.session_token,
             **self.connection_extra_args
         )
 

@@ -278,6 +278,28 @@ class S3StorageTest(unittest.TestCase):
                     s3_storage.connection_extra_args['endpoint_url']
                 )
 
+    def test_assume_role_authentication(self):
+        with patch('botocore.httpsession.URLLib3Session.send', new=_make_assume_role_with_web_identity_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '1',
+                    'assume_role': 'arn:aws:iam::123456789012:role/testRole'
+                })
+                credentials = S3BaseStorage._consolidate_credentials(config)
+                self.assertEqual('key-from-assume-role', credentials.access_key_id)
+                self.assertEqual('secret-from-assume-role', credentials.secret_access_key)
+                self.assertEqual('token-from-assume-role', credentials.session_token)
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
@@ -294,3 +316,18 @@ def _make_instance_metadata_mock():
     mock_session = MagicMock()
     mock_session.send = mock_send
     return mock_session
+
+def _make_assume_role_with_web_identity_mock():
+    # mock a call to the AssumeRoleWithWebIdentity endpoint
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    in_one_hour = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+    mock_response.text = json.dumps({
+        "Credentials": {
+            "AccessKeyId": 'key-from-assume-role',
+            "SecretAccessKey": 'secret-from-assume-role',
+            "SessionToken": 'token-from-assume-role',
+            "Expiration": in_one_hour.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'  # -3 to remove microseconds
+        }
+    })
+    return MagicMock(return_value=mock_response)
