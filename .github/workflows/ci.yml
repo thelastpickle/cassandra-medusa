@@ -343,9 +343,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
-          # Modify this line to use a different branch when making changes to the operator affecting Medusa
-          # Change to main once the operator changes are merged
-          ref: add-medusa-non-regression-test
+          ref: main
           path: k8ssandra-operator
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -377,7 +375,7 @@ jobs:
       - name: Setup kind cluster
         working-directory: k8ssandra-operator
         run: |
-          make single-create
+          make single-up
       - name: Run e2e test ( ${{ matrix.e2e_test }} )
         working-directory: k8ssandra-operator
         run: |

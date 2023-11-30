@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"Z\n\x14\x42\x61\x63kupStatusResponse\x12\x11\n\tstartTime\x18\x01 \x01(\t\x12\x12\n\nfinishTime\x18\x02 \x01(\t\x12\x1b\n\x06status\x18\x03 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"&\n\x10GetBackupRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"P\n\x11GetBackupResponse\x12\x1e\n\x06\x62\x61\x63kup\x18\x01 \x01(\x0b\x32\x0e.BackupSummary\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xc2\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\x12\x12\n\nbackupType\x18\x08 \x01(\t\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"\x15\n\x13PurgeBackupsRequest\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05\"S\n\x15PrepareRestoreRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x12\n\ndatacenter\x18\x02 \x01(\t\x12\x12\n\nrestoreKey\x18\x03 \x01(\t\"\x18\n\x16PrepareRestoreResponse*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\xc8\x03\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x32\n\tGetBackup\x12\x11.GetBackupRequest\x1a\x12.GetBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponse\x12\x41\n\x0ePrepareRestore\x12\x16.PrepareRestoreRequest\x1a\x17.PrepareRestoreResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cmedusa.proto\"d\n\rBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12!\n\x04mode\x18\x02 \x01(\x0e\x32\x13.BackupRequest.Mode\"\"\n\x04Mode\x12\x10\n\x0c\x44IFFERENTIAL\x10\x00\x12\x08\n\x04\x46ULL\x10\x01\"A\n\x0e\x42\x61\x63kupResponse\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\")\n\x13\x42\x61\x63kupStatusRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"Z\n\x14\x42\x61\x63kupStatusResponse\x12\x11\n\tstartTime\x18\x01 \x01(\t\x12\x12\n\nfinishTime\x18\x02 \x01(\t\x12\x1b\n\x06status\x18\x03 \x01(\x0e\x32\x0b.StatusType\"#\n\x13\x44\x65leteBackupRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\"A\n\x14\x44\x65leteBackupResponse\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"&\n\x10GetBackupRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\"P\n\x11GetBackupResponse\x12\x1e\n\x06\x62\x61\x63kup\x18\x01 \x01(\x0b\x32\x0e.BackupSummary\x12\x1b\n\x06status\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\x13\n\x11GetBackupsRequest\"Y\n\x12GetBackupsResponse\x12\x1f\n\x07\x62\x61\x63kups\x18\x01 \x03(\x0b\x32\x0e.BackupSummary\x12\"\n\roverallStatus\x18\x02 \x01(\x0e\x32\x0b.StatusType\"\xeb\x01\n\rBackupSummary\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x11\n\tstartTime\x18\x02 \x01(\x03\x12\x12\n\nfinishTime\x18\x03 \x01(\x03\x12\x12\n\ntotalNodes\x18\x04 \x01(\x05\x12\x15\n\rfinishedNodes\x18\x05 \x01(\x05\x12\x1a\n\x05nodes\x18\x06 \x03(\x0b\x32\x0b.BackupNode\x12\x1b\n\x06status\x18\x07 \x01(\x0e\x32\x0b.StatusType\x12\x12\n\nbackupType\x18\x08 \x01(\t\x12\x11\n\ttotalSize\x18\t \x01(\x03\x12\x14\n\x0ctotalObjects\x18\n \x01(\x03\"L\n\nBackupNode\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x0e\n\x06tokens\x18\x02 \x03(\x03\x12\x12\n\ndatacenter\x18\x03 \x01(\t\x12\x0c\n\x04rack\x18\x04 \x01(\t\"\x15\n\x13PurgeBackupsRequest\"\x84\x01\n\x14PurgeBackupsResponse\x12\x17\n\x0fnbBackupsPurged\x18\x01 \x01(\x05\x12\x17\n\x0fnbObjectsPurged\x18\x02 \x01(\x05\x12\x17\n\x0ftotalPurgedSize\x18\x03 \x01(\x03\x12!\n\x19totalObjectsWithinGcGrace\x18\x04 \x01(\x05\"S\n\x15PrepareRestoreRequest\x12\x12\n\nbackupName\x18\x01 \x01(\t\x12\x12\n\ndatacenter\x18\x02 \x01(\t\x12\x12\n\nrestoreKey\x18\x03 \x01(\t\"\x18\n\x16PrepareRestoreResponse*C\n\nStatusType\x12\x0f\n\x0bIN_PROGRESS\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\n\n\x06\x46\x41ILED\x10\x02\x12\x0b\n\x07UNKNOWN\x10\x03\x32\xc8\x03\n\x06Medusa\x12)\n\x06\x42\x61\x63kup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12.\n\x0b\x41syncBackup\x12\x0e.BackupRequest\x1a\x0f.BackupResponse\x12;\n\x0c\x42\x61\x63kupStatus\x12\x14.BackupStatusRequest\x1a\x15.BackupStatusResponse\x12;\n\x0c\x44\x65leteBackup\x12\x14.DeleteBackupRequest\x1a\x15.DeleteBackupResponse\x12\x32\n\tGetBackup\x12\x11.GetBackupRequest\x1a\x12.GetBackupResponse\x12\x35\n\nGetBackups\x12\x12.GetBackupsRequest\x1a\x13.GetBackupsResponse\x12;\n\x0cPurgeBackups\x12\x14.PurgeBackupsRequest\x1a\x15.PurgeBackupsResponse\x12\x41\n\x0ePrepareRestore\x12\x16.PrepareRestoreRequest\x1a\x17.PrepareRestoreResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -21,8 +21,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'medusa_pb2', _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _globals['_STATUSTYPE']._serialized_start=1202
-  _globals['_STATUSTYPE']._serialized_end=1269
+  _globals['_STATUSTYPE']._serialized_start=1243
+  _globals['_STATUSTYPE']._serialized_end=1310
   _globals['_BACKUPREQUEST']._serialized_start=16
   _globals['_BACKUPREQUEST']._serialized_end=116
   _globals['_BACKUPREQUEST_MODE']._serialized_start=82
@@ -46,17 +46,17 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_GETBACKUPSRESPONSE']._serialized_start=567
   _globals['_GETBACKUPSRESPONSE']._serialized_end=656
   _globals['_BACKUPSUMMARY']._serialized_start=659
-  _globals['_BACKUPSUMMARY']._serialized_end=853
-  _globals['_BACKUPNODE']._serialized_start=855
-  _globals['_BACKUPNODE']._serialized_end=931
-  _globals['_PURGEBACKUPSREQUEST']._serialized_start=933
-  _globals['_PURGEBACKUPSREQUEST']._serialized_end=954
-  _globals['_PURGEBACKUPSRESPONSE']._serialized_start=957
-  _globals['_PURGEBACKUPSRESPONSE']._serialized_end=1089
-  _globals['_PREPARERESTOREREQUEST']._serialized_start=1091
-  _globals['_PREPARERESTOREREQUEST']._serialized_end=1174
-  _globals['_PREPARERESTORERESPONSE']._serialized_start=1176
-  _globals['_PREPARERESTORERESPONSE']._serialized_end=1200
-  _globals['_MEDUSA']._serialized_start=1272
-  _globals['_MEDUSA']._serialized_end=1728
+  _globals['_BACKUPSUMMARY']._serialized_end=894
+  _globals['_BACKUPNODE']._serialized_start=896
+  _globals['_BACKUPNODE']._serialized_end=972
+  _globals['_PURGEBACKUPSREQUEST']._serialized_start=974
+  _globals['_PURGEBACKUPSREQUEST']._serialized_end=995
+  _globals['_PURGEBACKUPSRESPONSE']._serialized_start=998
+  _globals['_PURGEBACKUPSRESPONSE']._serialized_end=1130
+  _globals['_PREPARERESTOREREQUEST']._serialized_start=1132
+  _globals['_PREPARERESTOREREQUEST']._serialized_end=1215
+  _globals['_PREPARERESTORERESPONSE']._serialized_start=1217
+  _globals['_PREPARERESTORERESPONSE']._serialized_end=1241
+  _globals['_MEDUSA']._serialized_start=1313
+  _globals['_MEDUSA']._serialized_end=1769
 # @@protoc_insertion_point(module_scope)

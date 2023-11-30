@@ -353,8 +353,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
     config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=1)
-
+                                 "http://127.0.0.1:8778/jolokia/", grpc='True', use_mgmt_api='False')
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
@@ -383,8 +382,14 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
 def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
-    config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1, grpc=1)
+    config = parse_medusa_config(
+        context,
+        storage_provider,
+        client_encryption,
+        cassandra_url="http://127.0.0.1:8080/api/v0/ops/node/snapshots",
+        use_mgmt_api='True',
+        grpc='True'
+    )
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -434,7 +439,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -479,11 +484,11 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
         )
 
     grpc_args = {
-        "enabled": grpc
+        "grpc_enabled": grpc
     }
 
     kubernetes_args = {
-        "enabled": use_mgmt_api,
+        "k8s_enabled": use_mgmt_api,
         "cassandra_url": cassandra_url,
         "use_mgmt_api": use_mgmt_api
     }
@@ -492,7 +497,7 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
     return args
 
 
-def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
     args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
@@ -500,7 +505,9 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
     return config
 
 
-def parse_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def parse_medusa_config(
+        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'
+):
     args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
@@ -585,6 +592,8 @@ def _i_verify_over_grpc_backup_exists(context, backup_name, backup_type):
     backup = context.grpc_client.get_backup(backup_name=backup_name)
     assert backup.backupName == backup_name
     assert backup.backupType == backup_type
+    assert backup.totalSize > 0
+    assert backup.totalObjects > 0
 
 
 @then(r'I sleep for {num_secs} seconds')
@@ -607,6 +616,7 @@ def _i_verify_over_grpc_backup_has_status_unknown(context, backup_name):
 @then(r'I verify over gRPC that the backup "{backup_name}" has expected status SUCCESS')
 def _i_verify_over_grpc_backup_has_status_success(context, backup_name):
     status = context.grpc_client.get_backup_status(backup_name)
+    logging.info(f'status={status}')
     assert status == medusa_pb2.StatusType.SUCCESS
 
 
