@@ -187,6 +187,20 @@ class ConfigTest(unittest.TestCase):
         config = medusa.config.parse_config(args, medusa_k8s_config)
         assert config['cassandra']['use_sudo'] == 'False'
 
+    def test_use_sudo_kubernetes_enabled_without_config_file(self):
+        kubernetes_args = {
+            "k8s_enabled": 'True',
+            "cassandra_url": 'https://foo:8080',
+            "use_mgmt_api": 'True'
+        }
+        args = {**kubernetes_args}
+        medusa_basic_config = pathlib.Path(__file__).parent / "resources/config/medusa.ini"
+        config = medusa.config.parse_config(args, medusa_basic_config)
+        assert config['kubernetes']['enabled'] == 'True'
+        assert config['kubernetes']['cassandra_url'] == 'https://foo:8080'
+        assert config['kubernetes']['use_mgmt_api'] == 'True'
+        assert config['cassandra']['use_sudo'] == 'False'
+
     def test_overridden_fqdn(self):
         """Ensure that a overridden fqdn in config is honored"""
         args = {'fqdn': 'overridden-fqdn'}

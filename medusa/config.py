@@ -205,6 +205,15 @@ def parse_config(args, config_file):
             if value is not None
         }})
 
+    # the k8s mode and grpc server overlap in a keyword 'enabled'
+    # so we need to reconcile them explicitly
+    k8s_enabled = evaluate_boolean(config['kubernetes']['enabled'])
+    if args.get('k8s_enabled', 'False') == 'True' or k8s_enabled:
+        config.set('kubernetes', 'enabled', 'True')
+    grpc_enabled = evaluate_boolean(config['grpc']['enabled'])
+    if args.get('grpc_enabled', "False") == 'True' or grpc_enabled:
+        config.set('grpc', 'enabled', 'True')
+
     if evaluate_boolean(config['kubernetes']['enabled']):
         if evaluate_boolean(config['cassandra']['use_sudo']):
             logging.warning('Forcing use_sudo to False because Kubernetes mode is enabled')
@@ -216,7 +225,6 @@ def parse_config(args, config_file):
     config.set('cassandra', 'resolve_ip_addresses', 'True'
                if evaluate_boolean(config['cassandra']['resolve_ip_addresses']) else 'False')
     kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
-    grpc_enabled = evaluate_boolean(config['grpc']['enabled'])
 
     for config_property in ['cql_username', 'cql_password']:
         config_property_upper_old = config_property.upper()
@@ -267,9 +275,6 @@ def parse_config(args, config_file):
         config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
 
     config.set('storage', 'k8s_mode', str(kubernetes_enabled))
-
-    if args.get('grpc_enabled', 0) == 1 or grpc_enabled:
-        config.set('grpc', 'enabled', 'True')
 
     return config
 

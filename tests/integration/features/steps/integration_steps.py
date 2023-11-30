@@ -353,7 +353,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
     config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8778/jolokia/", grpc=1, use_mgmt_api=0)
+                                 "http://127.0.0.1:8778/jolokia/", grpc='True', use_mgmt_api='False')
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
@@ -382,8 +382,14 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
 
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
 def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
-    config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8080/api/v0/ops/node/snapshots", use_mgmt_api=1, grpc=1)
+    config = parse_medusa_config(
+        context,
+        storage_provider,
+        client_encryption,
+        cassandra_url="http://127.0.0.1:8080/api/v0/ops/node/snapshots",
+        use_mgmt_api='True',
+        grpc='True'
+    )
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -433,7 +439,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -491,7 +497,7 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
     return args
 
 
-def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
     args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
@@ -499,7 +505,9 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
     return config
 
 
-def parse_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api=0, grpc=0):
+def parse_medusa_config(
+        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'
+):
     args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
