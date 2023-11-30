@@ -153,7 +153,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             BackupMan.register_backup(request.name, is_async=False)
             backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
                                       enable_md5_checks_flag=False, mode=mode)
-            response = record_status_in_response(response, request.name)
+            record_status_in_response(response, request.name)
             return response
         except Exception as e:
             response.status = medusa_pb2.StatusType.FAILED
@@ -181,7 +181,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 else:
                     response.finishTime = ""
                 # record the status
-                response = record_status_in_response(response, request.backupName)
+                record_status_in_response(response, request.backupName)
         except KeyError:
             context.set_details("backup <{}> does not exist".format(request.backupName))
             context.set_code(grpc.StatusCode.NOT_FOUND)
@@ -370,7 +370,6 @@ def record_status_in_response(response, backup_name):
         response.status = medusa_pb2.StatusType.FAILED
     if status == BackupMan.STATUS_SUCCESS:
         response.status = medusa_pb2.StatusType.SUCCESS
-    return response
 
 
 def handle_backup_removal(backup_name):
