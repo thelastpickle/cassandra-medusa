@@ -1,5 +1,15 @@
 ## Change Log
 
+### 0.17.0 (2023/12/19 18:23 +00:00)
+- Support backups of DSE with Search (#693) (@rzvoncek)
+- Expose sum of backup object count and size via gRPC methods (#686) (@rzvoncek)
+- Make gRPC Service's BackupStatus return a node backup (#681) (@rzvoncek)
+- [gRPC] Add GetBackup() endpoint (#684) (@rzvoncek)
+- [Azure Storage] Honor host/port from config (#685) (@rzvoncek)
+- Pin click-aliases dependency (#678) (@rzvoncek)
+- [S3 Storage] Use boto's connection pool so transfers are trully parallel (#675) (@rzvoncek)
+- Add gRPC config values to configure max send and max receive sizes (#674) (@burmanm)
+
 ### 0.16.3 (2023/10/25 08:40 +00:00)
 - [Local Storage] Prevent OOM errors by processing files by chunks (#671) (@rzvoncek)
 - Add check for free space before downloading a backup (#663 (@rzvoncek)
