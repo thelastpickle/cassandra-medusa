@@ -29,6 +29,7 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
+        And the backup "first_backup" has server_type "cassandra" in its metadata
         And all files of "medusa.test" in "first_backup" were uploaded with KMS key as configured in "<storage>"
         Then I can download the backup named "first_backup" for all tables
         Then I can download the backup named "first_backup" for "medusa.test"
@@ -1053,3 +1054,32 @@ Feature: Integration tests
         Examples: Local storage
         | storage                    | client encryption |
         | local_backup_gc_grace      | without_client_encryption |
+
+    @29
+    Scenario Outline: Backup and restore a DSE cluster with search enabled
+        Given I have a fresh DSE cluster version "6.8.38" with "<client encryption>" running named "scenario29"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        And I create a search index on the "test" table in keyspace "medusa"
+        And I load 100 rows in the "medusa.test" table
+        When I run a DSE "nodetool flush" command
+        Then I can make a search query against the "medusa"."test" table
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can see the backup named "first_backup" when I list the backups
+        And the backup "first_backup" has server_type "dse" in its metadata
+        When I restore the backup named "first_backup"
+        And I wait for the DSE Search indexes to be rebuilt
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        Then I can make a search query against the "medusa"."test" table
+        Then I stop the DSE cluster
+        And I delete the DSE cluster
+
+    @local
+    Examples: Local storage
+    | storage    | client encryption |
+    | local      | without_client_encryption |
+
+    @s3
+    Examples: S3 storage
+    | storage           | client encryption         |
+    | s3_us_west_oregon | without_client_encryption |

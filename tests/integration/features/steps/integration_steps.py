@@ -94,9 +94,9 @@ def kill_cassandra():
     p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
     out, err = p.communicate()
     for line in out.splitlines():
-        if b"org.apache.cassandra.service.CassandraDaemon" in line:
-            logging.info(line)
+        if b"org.apache.cassandra.service.CassandraDaemon" in line or b"com.datastax.bdp.DseModul" in line:
             pid = int(line.split(None, 2)[1])
+            logging.info(f'Killing Cassandra or DSE with PID {pid}')
             os.kill(pid, signal.SIGKILL)
 
 
@@ -341,6 +341,38 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     get_mgmt_api_jars(version=context.cassandra_version)
 
 
+@given(r'I have a fresh DSE cluster version "{dse_version}" with "{client_encryption}" running named "{cluster_name}"')
+def _i_have_a_fresh_dse_cluster(context, dse_version, client_encryption, cluster_name):
+    context.cluster_name = cluster_name
+    context.dse_version = dse_version
+    kill_cassandra()
+    subprocess.check_call([str(Path(".") / 'resources/dse/configure-dse.sh'), dse_version])
+    subprocess.check_call([str(Path(".") / 'resources/dse/start-dse.sh'), dse_version])
+
+    enable_client_server_encryption = client_encryption == 'with_client_encryption'
+    context.client_server_encryption_enabled = enable_client_server_encryption
+    context.session = connect_cassandra(enable_client_server_encryption)
+
+
+@then(r'I stop the DSE cluster')
+def _i_stop_the_dse_cluster(context):
+    subprocess.check_call([str(Path(".") / 'resources/dse/stop-dse.sh'), context.dse_version])
+
+
+@then(r'I delete the DSE cluster')
+def _i_delete_the_dse_cluster(context):
+    subprocess.check_call([str(Path(".") / 'resources/dse/delete-dse.sh'), context.dse_version])
+
+
+@when(r'I run a DSE "{command}" command')
+def _i_run_a_dse_command(context, command):
+    subprocess.check_call([
+        str(Path(".") / 'resources/dse/run-command.sh'),
+        context.dse_version,
+        *command.split(' ')
+    ])
+
+
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
     context.storage_provider = storage_provider
@@ -444,18 +476,37 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
 
-    storage_args = {"prefix": storage_prefix}
-    cassandra_args = {
-        "is_ccm": "1",
-        "stop_cmd": CCM_STOP,
-        "start_cmd": CCM_START,
-        "cql_username": "cassandra",
-        "cql_password": "cassandra",
-        "config_file": os.path.expanduser(
+    is_dse = hasattr(context, "dse_version")
+    if not is_dse:
+        config_file = os.path.expanduser(
             os.path.join(
                 CCM_DIR, context.cluster_name, "node1", "conf", CASSANDRA_YAML
             )
-        ),
+        )
+        nodetool_executable = None  # will come from CCM
+        nodetool_port = 7100
+        is_ccm = 1
+        start_cmd = CCM_START
+        stop_cmd = CCM_STOP
+    else:
+        cwd = Path(".").absolute()
+        relative_yaml = f'resources/dse/dse-{context.dse_version}/resources/cassandra/conf/cassandra.yaml'
+        config_file = str(cwd / relative_yaml)
+        nodetool_port = 7199
+        nodetool_relative_path = f'resources/dse/dse-{context.dse_version}/resources/cassandra/bin/nodetool'
+        nodetool_executable = str(cwd / nodetool_relative_path)
+        is_ccm = 0
+        start_cmd = f'resources/dse/start-dse.sh {context.dse_version}'
+        stop_cmd = f'resources/dse/stop-dse.sh {context.dse_version}'
+
+    storage_args = {"prefix": storage_prefix}
+    cassandra_args = {
+        "is_ccm": str(is_ccm),
+        "stop_cmd": stop_cmd,
+        "start_cmd": start_cmd,
+        "cql_username": "cassandra",
+        "cql_password": "cassandra",
+        "config_file": config_file,
         "sstableloader_bin": os.path.expanduser(
             os.path.join(
                 CCM_DIR,
@@ -468,6 +519,8 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
         ),
         "resolve_ip_addresses": "False",
         "use_sudo": "True",
+        'nodetool_executable': nodetool_executable,
+        "nodetool_port": str(nodetool_port)
     }
 
     if client_encryption == 'with_client_encryption':
@@ -499,7 +552,13 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
 
 def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
     args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
-    config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
+
+    is_dse = hasattr(context, 'dse_version')
+    if is_dse:
+        config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}-dse.ini'))
+    else:
+        config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
+
     create_storage_specific_resources(storage_provider)
     config = medusa.config.load_config(args, config_file)
     return config
@@ -542,6 +601,54 @@ def _i_create_the_table_with_si(context, table_name, keyspace_name):
 
     si = "CREATE INDEX IF NOT EXISTS {}_idx ON {}.{} (value);"
     context.session.execute(si.format(table_name, keyspace_name, table_name))
+
+
+@when(r'I create a search index on the "{table_name}" table in keyspace "{keyspace_name}"')
+def _i_create_a_search_index(context, table_name, keyspace_name):
+    subprocess.check_call(
+        [str(Path(".") / 'resources/dse/configure-dse-search.sh'), context.dse_version, keyspace_name, table_name]
+    )
+
+
+@when("I wait for the DSE Search indexes to be rebuilt")
+def _i_wait_for_indexes_to_be_rebuilt(context):
+    session = connect_cassandra(context.client_server_encryption_enabled)
+    rows = session.execute('SELECT core_name FROM solr_admin.solr_resources')
+    fqtns_with_search = {r.core_name for r in rows}
+    assert len(fqtns_with_search) > 0
+
+    for fqtn in fqtns_with_search:
+        attempts = 0
+        while True:
+            cmd = f'dsetool core_indexing_status {fqtn}'
+            p = subprocess.Popen([
+                str(Path(".") / 'resources/dse/run-command.sh'),
+                context.dse_version,
+                *cmd.split(' ')
+            ], stdout=PIPE)
+            stdout, _ = p.communicate()
+            output = b''.join(stdout.splitlines())
+            if b'FINISHED' in output:
+                logging.debug(f'DSE Search rebuild for {fqtn} finished')
+                break
+            logging.debug(f'DSE Search rebuild for {fqtn} not yet finished, waiting...')
+            attempts += 1
+            if attempts > 5:
+                logging.error(f'DSE Search rebuild of {fqtn} did not finish in time')
+                raise RuntimeError(f'DSE Search rebuild of {fqtn} did not finish in time')
+            time.sleep(2)
+
+
+@then(r'I can make a search query against the "{keyspace_name}"."{table_name}" table')
+def _i_can_make_a_search_query(context, keyspace_name, table_name):
+
+    # make a new session because this step runs after a restart which might break the session in the context
+    session = connect_cassandra(context.client_server_encryption_enabled)
+
+    search_query = f'SELECT * FROM {keyspace_name}.{table_name} WHERE solr_query = \'{{"q":"value:42"}}\';'
+    rows = session.execute(search_query)
+    results = [r.id for r in rows]
+    assert len(results) > 0
 
 
 @when(r'I load {nb_rows} rows in the "{table_name}" table')
@@ -1476,6 +1583,14 @@ def _i_clean_up_the_files(context):
         # save another minute by deleting stuff all at once
         storage.delete_objects(context.blobs_to_delete, concurrent_transfers=len(context.blobs_to_delete))
         assert 0 == len(storage.list_root_blobs())
+
+
+@then(u'the backup "{backup_name}" has server_type "{server_type}" in its metadata')
+def _backup_has_server_type_and_release_version(context, backup_name, server_type):
+    with Storage(config=context.medusa_config.storage) as storage:
+        node_backup = storage.get_node_backup(fqdn=context.medusa_config.storage.fqdn, name=backup_name)
+        assert server_type == node_backup.server_type
+        # not asserting for release_version because it's hard to get the Cassandra's one
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

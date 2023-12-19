@@ -304,7 +304,7 @@ jobs:
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
-  
+
   k8ssandra-e2e-tests:
     needs: [build]
     runs-on: ubuntu-latest
@@ -312,6 +312,7 @@ jobs:
       matrix:
         e2e_test:
           - CreateSingleMedusaJob
+          - CreateSingleDseSearchDatacenterCluster
       fail-fast: false
     name: k8ssandra-${{ matrix.e2e_test }}
     env:
@@ -343,7 +344,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
-          ref: main
+          ref: radovan/ec2-dse-medusa
           path: k8ssandra-operator
       - name: Set up Go
         uses: actions/setup-go@v3
