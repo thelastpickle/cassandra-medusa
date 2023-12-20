@@ -217,7 +217,6 @@ class S3BaseStorage(AbstractStorage):
             session.set_config_variable('credentials_file', config.key_file)
 
             boto_credentials = session.get_credentials()
-
             return CensoredCredentials(
                 access_key_id=boto_credentials.access_key,
                 secret_access_key=boto_credentials.secret_key,
