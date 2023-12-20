@@ -46,17 +46,15 @@ class CensoredCredentials:
 
     access_key_id = None
     secret_access_key = None
-    session_token = None
     region = None
 
-    def __init__(self, access_key_id, secret_access_key, session_token, region):
+    def __init__(self, access_key_id, secret_access_key, region):
         self.access_key_id = access_key_id
         self.secret_access_key = secret_access_key
-        self.session_token = session_token
         self.region = region
 
     def __repr__(self):
-        if len(self.access_key_id) > 0:
+        if self.access_key_id and len(self.access_key_id) > 0:
             key = f"{self.access_key_id[0]}..{self.access_key_id[-1]}"
         else:
             key = "None"
@@ -138,14 +136,20 @@ class S3BaseStorage(AbstractStorage):
             tcp_keepalive=True,
             max_pool_connections=max_pool_size
         )
-        self.s3_client = boto3.client(
-            's3',
-            config=boto_config,
-            aws_access_key_id=self.credentials.access_key_id,
-            aws_secret_access_key=self.credentials.secret_access_key,
-            aws_session_token=self.credentials.session_token,
-            **self.connection_extra_args
-        )
+        if self.credentials.access_key_id is not None:
+            self.s3_client = boto3.client(
+                's3',
+                config=boto_config,
+                aws_access_key_id=self.credentials.access_key_id,
+                aws_secret_access_key=self.credentials.secret_access_key,
+                **self.connection_extra_args
+            )
+        else:
+            self.s3_client = boto3.client(
+                's3',
+                config=boto_config,
+                **self.connection_extra_args
+            )
 
     def disconnect(self):
         logging.debug('Disconnecting from S3...')
@@ -212,12 +216,20 @@ class S3BaseStorage(AbstractStorage):
             ))
             session.set_config_variable('credentials_file', config.key_file)
 
-        boto_credentials = session.get_credentials()
-        return CensoredCredentials(
-            access_key_id=boto_credentials.access_key,
-            secret_access_key=boto_credentials.secret_key,
-            region=session.get_config_variable('region'),
-        )
+            boto_credentials = session.get_credentials()
+
+            return CensoredCredentials(
+                access_key_id=boto_credentials.access_key,
+                secret_access_key=boto_credentials.secret_key,
+                region=session.get_config_variable('region'),
+            )
+        else:
+            return CensoredCredentials(
+                access_key_id=None,
+                secret_access_key=None,
+                region=session.get_config_variable('region'),
+            )
+
 
     @staticmethod
     def _region_from_provider_name(provider_name: str) -> str:

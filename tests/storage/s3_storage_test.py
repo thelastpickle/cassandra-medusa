@@ -17,14 +17,18 @@ import json
 import os
 import unittest
 import tempfile
+import pytest
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
+import botocore.utils
 
 from medusa.storage.s3_base_storage import S3BaseStorage
 from tests.storage.abstract_storage_test import AttributeDict
 
 
 class S3StorageTest(unittest.TestCase):
+    original_call = None
+
     def test_legacy_provider_region_replacement(self):
         assert (
             S3BaseStorage._region_from_provider_name("s3_us_west_oregon") == "us-west-2"
@@ -43,6 +47,16 @@ class S3StorageTest(unittest.TestCase):
                     del os.environ["AWS_SECRET_ACCESS_KEY"]
                 if os.environ.get("AWS_PROFILE", None):
                     del os.environ["AWS_PROFILE"]
+                if os.environ.get("AWS_STS_REGIONAL_ENDPOINTS", None):
+                    del os.environ["AWS_STS_REGIONAL_ENDPOINTS"]
+                if os.environ.get("AWS_DEFAULT_REGION", None):
+                    del os.environ["AWS_DEFAULT_REGION"]
+                if os.environ.get("AWS_REGION", None):
+                    del os.environ["AWS_REGION"]
+                if os.environ.get("AWS_ROLE_ARN", None):
+                    del os.environ["AWS_ROLE_ARN"]
+                if os.environ.get("AWS_WEB_IDENTITY_TOKEN_FILE", None):
+                    del os.environ["AWS_WEB_IDENTITY_TOKEN_FILE"]
 
                 self.assertIsNone(os.environ.get("AWS_ACCESS_KEY_ID", None))
                 self.assertIsNone(os.environ.get("AWS_SECRET_ACCESS_KEY", None))
@@ -316,6 +330,36 @@ class S3StorageTest(unittest.TestCase):
             new=_make_assume_role_with_web_identity_mock(),
         ):
             with tempfile.NamedTemporaryFile() as empty_file:
+                if os.environ.get("AWS_ACCESS_KEY_ID", None):
+                    del os.environ["AWS_ACCESS_KEY_ID"]
+                if os.environ.get("AWS_SECRET_ACCESS_KEY", None):
+                    del os.environ["AWS_SECRET_ACCESS_KEY"]
+                if os.environ.get("AWS_PROFILE", None):
+                    del os.environ["AWS_PROFILE"]
+
+                self.assertIsNone(os.environ.get("AWS_ACCESS_KEY_ID", None))
+                self.assertIsNone(os.environ.get("AWS_SECRET_ACCESS_KEY", None))
+                self.assertIsNone(os.environ.get("AWS_PROFILE", None))
+
+                os.environ["AWS_STS_REGIONAL_ENDPOINTS"] = "regional"
+                os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+                os.environ["AWS_REGION"] = "us-east-1"
+                os.environ["AWS_ROLE_ARN"] = "arn:aws:iam::123456789012:role/testRole"
+
+                # Set AWS_CONFIG_FILE to an empty temporary file
+                os.environ["AWS_CONFIG_FILE"] = empty_file.name
+
+                os.environ["AWS_WEB_IDENTITY_TOKEN_FILE"] = "/var/run/secrets/token"
+
+
+                # Create a mock file with the token
+                mock_file_content = "eyJh..."
+                def mock_call(self):
+                    if self._web_identity_token_path == "/var/run/secrets/token":
+                        return mock_file_content
+                    else:
+                        return self.original_call(self)
+
                 config = AttributeDict(
                     {
                         "storage_provider": "s3_us_west_oregon",
@@ -328,17 +372,27 @@ class S3StorageTest(unittest.TestCase):
                         "secure": "True",
                         "host": None,
                         "port": None,
-                        "concurrent_transfers": "1",
-                        "assume_role": "arn:aws:iam::123456789012:role/testRole",
+                        "concurrent_transfers": "1"
                     }
                 )
-                credentials = S3BaseStorage._consolidate_credentials(config)
+
+                # Replace the open function with the mock
+                with patch.object(botocore.utils.FileWebIdentityTokenLoader, '__call__', new=mock_call):
+                    credentials = S3BaseStorage._consolidate_credentials(config)
+
                 self.assertEqual("key-from-assume-role", credentials.access_key_id)
                 self.assertEqual(
                     "secret-from-assume-role", credentials.secret_access_key
                 )
                 self.assertEqual("token-from-assume-role", credentials.session_token)
 
+        @pytest.fixture(autouse=True)
+        def run_around_tests():
+            print("setting up AAAAAAAAAAAAAAAAAA")
+            self.original_call = botocore.utils.FileWebIdentityTokenLoader.__call__
+            yield
+            botocore.utils.FileWebIdentityTokenLoader.__call__ = self.original_call
+            del os.environ["AWS_WEB_IDENTITY_TOKEN_FILE"]
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
