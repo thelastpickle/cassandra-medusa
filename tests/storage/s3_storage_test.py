@@ -29,17 +29,13 @@ class S3StorageTest(unittest.TestCase):
     original_call = None
 
     def setUp(self):
-        print("setting up botocore mock")
         self.original_call = botocore.utils.FileWebIdentityTokenLoader.__call__
 
     def tearDown(self):
-        print("tearing down botocore mock")
         botocore.utils.FileWebIdentityTokenLoader.__call__ = self.original_call
 
     def test_legacy_provider_region_replacement(self):
-        assert (
-            S3BaseStorage._region_from_provider_name("s3_us_west_oregon") == "us-west-2"
-        )
+        assert S3BaseStorage._region_from_provider_name("s3_us_west_oregon") == "us-west-2"
 
     def test_credentials_from_metadata(self):
 
@@ -151,7 +147,7 @@ class S3StorageTest(unittest.TestCase):
                 })
 
                 credentials = S3BaseStorage._consolidate_credentials(config)
-                self.assertEqual("key-from-file", credentials.access_key_id)
+                self.assertEqual('key-from-file', credentials.access_key_id)
 
                 del(os.environ['AWS_ACCESS_KEY_ID'])
                 del(os.environ['AWS_SECRET_ACCESS_KEY'])
@@ -171,16 +167,16 @@ class S3StorageTest(unittest.TestCase):
             self.assertIsNone(os.environ.get('AWS_SECRET_ACCESS_KEY', None))
 
             config = AttributeDict({
-                "api_profile": "default",
-                "region": "default",
-                "storage_provider": "s3_us_west_oregon",
-                "key_file": credentials_file.name,
-                "concurrent_transfers": "1",
+                'api_profile': 'default',
+                'region': 'default',
+                'storage_provider': 's3_us_west_oregon',
+                'key_file': credentials_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
-            self.assertEqual("key-from-file", credentials.access_key_id)
-            self.assertEqual("us-west-2", credentials.region)
+            self.assertEqual('key-from-file', credentials.access_key_id)
+            self.assertEqual('us-west-2', credentials.region)
 
     def test_credentials_with_default_region_and_s3_compatible_storage(self):
         credentials_file_content = """
@@ -197,101 +193,107 @@ class S3StorageTest(unittest.TestCase):
             self.assertIsNone(os.environ.get('AWS_SECRET_ACCESS_KEY', None))
 
             config = AttributeDict({
-                "api_profile": "default",
-                "region": "default",
-                "storage_provider": "s3_compatible",
-                "key_file": credentials_file.name,
-                "concurrent_transfers": "1",
+                'api_profile': 'default',
+                'region': 'default',
+                'storage_provider': 's3_compatible',
+                'key_file': credentials_file.name,
+                'concurrent_transfers': '1'
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
-            self.assertEqual("key-from-file", credentials.access_key_id)
+            self.assertEqual('key-from-file', credentials.access_key_id)
             # default AWS region
-            self.assertEqual("us-east-1", credentials.region)
+            self.assertEqual('us-east-1', credentials.region)
 
     def test_make_s3_url(self):
         with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
             with tempfile.NamedTemporaryFile() as empty_file:
                 config = AttributeDict({
-                    "storage_provider": "s3_us_west_oregon",
-                    "region": "default",
-                    "key_file": empty_file.name,
-                    "api_profile": None,
-                    "kms_id": None,
-                    "transfer_max_bandwidth": None,
-                    "bucket_name": "whatever-bucket",
-                    "secure": "True",
-                    "host": None,
-                    "port": None,
-                    "concurrent_transfers": "1",
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 # there are no extra connection args when connecting to regular S3
-                self.assertEqual(dict(), s3_storage.connection_extra_args)
+                self.assertEqual(
+                    dict(),
+                    s3_storage.connection_extra_args
+                )
 
     def test_make_s3_url_without_secure(self):
         with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
             with tempfile.NamedTemporaryFile() as empty_file:
                 config = AttributeDict({
-                    "storage_provider": "s3_us_west_oregon",
-                    "region": "default",
-                    "key_file": empty_file.name,
-                    "api_profile": None,
-                    "kms_id": None,
-                    "transfer_max_bandwidth": None,
-                    "bucket_name": "whatever-bucket",
-                    "secure": "False",
-                    "host": None,
-                    "port": None,
-                    "concurrent_transfers": "1",
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'False',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 # again, no extra connection args when connecting to regular S3
                 # we can't even disable HTTPS
-                self.assertEqual(dict(), s3_storage.connection_extra_args)
+                self.assertEqual(
+                    dict(),
+                    s3_storage.connection_extra_args
+                )
 
     def test_make_s3_compatible_url(self):
         with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
             with tempfile.NamedTemporaryFile() as empty_file:
                 config = AttributeDict({
-                    "storage_provider": "s3_compatible",
-                    "region": "default",
-                    "key_file": empty_file.name,
-                    "api_profile": None,
-                    "kms_id": None,
-                    "transfer_max_bandwidth": None,
-                    "bucket_name": "whatever-bucket",
-                    "secure": "True",
-                    "host": "s3.example.com",
-                    "port": "443",
-                    "concurrent_transfers": "1",
+                    'storage_provider': 's3_compatible',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'host': 's3.example.com',
+                    'port': '443',
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
-                    "https://s3.example.com:443",
-                    s3_storage.connection_extra_args["endpoint_url"],
+                    'https://s3.example.com:443',
+                    s3_storage.connection_extra_args['endpoint_url']
                 )
 
     def test_make_s3_compatible_url_without_secure(self):
         with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
             with tempfile.NamedTemporaryFile() as empty_file:
                 config = AttributeDict({
-                    "storage_provider": "s3_compatible",
-                    "region": "default",
-                    "key_file": empty_file.name,
-                    "api_profile": None,
-                    "kms_id": None,
-                    "transfer_max_bandwidth": None,
-                    "bucket_name": "whatever-bucket",
-                    "secure": "False",
-                    "host": "s3.example.com",
-                    "port": "8080",
-                    "concurrent_transfers": "1",
+                    'storage_provider': 's3_compatible',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'False',
+                    'host': 's3.example.com',
+                    'port': '8080',
+                    'concurrent_transfers': '1'
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
-                    "http://s3.example.com:8080",
-                    s3_storage.connection_extra_args["endpoint_url"],
+                    'http://s3.example.com:8080',
+                    s3_storage.connection_extra_args['endpoint_url']
                 )
 
     def test_assume_role_authentication(self):
@@ -318,17 +320,17 @@ class S3StorageTest(unittest.TestCase):
             mock_file_content = 'eyJh...'
             mock_call = mock_open(read_data=mock_file_content)
             config = AttributeDict({
-                "storage_provider": "s3_us_west_oregon",
-                "region": "default",
-                "key_file": "",
-                "api_profile": None,
-                "kms_id": None,
-                "transfer_max_bandwidth": None,
-                "bucket_name": "whatever-bucket",
-                "secure": "True",
-                "host": None,
-                "port": None,
-                "concurrent_transfers": "1"
+                'storage_provider': 's3_us_west_oregon',
+                'region': 'default',
+                'key_file': '',
+                'api_profile': None,
+                'kms_id': None,
+                'transfer_max_bandwidth': None,
+                'bucket_name': 'whatever-bucket',
+                'secure': 'True',
+                'host': None,
+                'port': None,
+                'concurrent_transfers': '1'
             })
 
             # Replace the open function with the mock
@@ -338,17 +340,17 @@ class S3StorageTest(unittest.TestCase):
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
 
+
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
     mock_response = MagicMock()
     mock_response.status_code = 200
     in_one_hour = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
     mock_response.text = json.dumps({
-            "AccessKeyId": "key-from-instance-metadata",
-            "SecretAccessKey": "secret-from-instance-metadata",
-            "Token": "token-from-metadata",
-            "Expiration": in_one_hour.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-            + "Z",  # -3 to remove microseconds
+        "AccessKeyId": 'key-from-instance-metadata',
+        "SecretAccessKey": 'secret-from-instance-metadata',
+        "Token": 'token-from-metadata',
+        "Expiration": in_one_hour.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'  # -3 to remove microseconds
     })
     mock_send = MagicMock(return_value=mock_response)
     mock_session = MagicMock()
@@ -362,12 +364,9 @@ def _make_assume_role_with_web_identity_mock():
     mock_response.status_code = 200
     in_one_hour = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
     mock_response.text = json.dumps({
-            "Credentials": {
-                "AccessKeyId": "key-from-assume-role",
-                "SecretAccessKey": "secret-from-assume-role",
-                "SessionToken": "token-from-assume-role",
-                "Expiration": in_one_hour.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-                + "Z",  # -3 to remove microseconds
-            }
+        "AccessKeyId": 'key-from-assume-role',
+        "SecretAccessKey": 'secret-from-assume-role',
+        "SessionToken": 'token-from-assume-role',
+        "Expiration": in_one_hour.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'  # -3 to remove microseconds
     })
     return MagicMock(return_value=mock_response)
