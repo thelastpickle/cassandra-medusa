@@ -229,7 +229,6 @@ class S3BaseStorage(AbstractStorage):
                 region=session.get_config_variable('region'),
             )
 
-
     @staticmethod
     def _region_from_provider_name(provider_name: str) -> str:
         if provider_name.upper() in LIBCLOUD_REGION_NAME_MAP.keys():
