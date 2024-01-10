@@ -162,6 +162,7 @@ class S3BaseStorage(AbstractStorage):
     def _make_connection_arguments(self, config) -> t.Dict[str, str]:
 
         secure = config.secure or 'True'
+        ssl_verify = config.ssl_verify or 'False'   # False until we work out how to specify custom certs
         host = config.host
         port = config.port
 
@@ -175,7 +176,7 @@ class S3BaseStorage(AbstractStorage):
             s3_url = '{}://{}:{}'.format(protocol, host, port)
             return {
                 'endpoint_url': s3_url,
-                'verify': protocol == 'https'
+                'verify': ssl_verify.lower() == 'true'
             }
 
     def _make_transfer_config(self, config):
