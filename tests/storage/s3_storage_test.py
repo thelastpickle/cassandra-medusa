@@ -217,6 +217,7 @@ class S3StorageTest(unittest.TestCase):
                     'transfer_max_bandwidth': None,
                     'bucket_name': 'whatever-bucket',
                     'secure': 'True',
+                    'ssl_verify': 'False',
                     'host': None,
                     'port': None,
                     'concurrent_transfers': '1'
@@ -240,6 +241,7 @@ class S3StorageTest(unittest.TestCase):
                     'transfer_max_bandwidth': None,
                     'bucket_name': 'whatever-bucket',
                     'secure': 'False',
+                    'ssl_verify': 'False',
                     'host': None,
                     'port': None,
                     'concurrent_transfers': '1'
@@ -264,6 +266,7 @@ class S3StorageTest(unittest.TestCase):
                     'transfer_max_bandwidth': None,
                     'bucket_name': 'whatever-bucket',
                     'secure': 'True',
+                    'ssl_verify': 'False',
                     'host': 's3.example.com',
                     'port': '443',
                     'concurrent_transfers': '1'
@@ -286,6 +289,7 @@ class S3StorageTest(unittest.TestCase):
                     'transfer_max_bandwidth': None,
                     'bucket_name': 'whatever-bucket',
                     'secure': 'False',
+                    'ssl_verify': 'False',
                     'host': 's3.example.com',
                     'port': '8080',
                     'concurrent_transfers': '1'
@@ -295,6 +299,46 @@ class S3StorageTest(unittest.TestCase):
                     'http://s3.example.com:8080',
                     s3_storage.connection_extra_args['endpoint_url']
                 )
+
+    def test_make_connection_arguments_without_ssl_verify(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            config = AttributeDict({
+                'storage_provider': 's3_compatible',
+                'region': 'default',
+                'key_file': '/tmp/whatever',
+                'api_profile': None,
+                'kms_id': None,
+                'transfer_max_bandwidth': None,
+                'bucket_name': 'whatever-bucket',
+                'secure': 'False',
+                'ssl_verify': 'False',
+                'host': 's3.example.com',
+                'port': '8080',
+                'concurrent_transfers': '1'
+            })
+            s3_storage = S3BaseStorage(config)
+            connection_args = s3_storage._make_connection_arguments(config)
+            self.assertEqual(False, connection_args['verify'])
+
+    def test_make_connection_arguments_with_ssl_verify(self):
+        with patch('botocore.httpsession.URLLib3Session', return_value=_make_instance_metadata_mock()):
+            config = AttributeDict({
+                'storage_provider': 's3_compatible',
+                'region': 'default',
+                'key_file': '/tmp/whatever',
+                'api_profile': None,
+                'kms_id': None,
+                'transfer_max_bandwidth': None,
+                'bucket_name': 'whatever-bucket',
+                'secure': 'False',
+                'ssl_verify': 'True',
+                'host': 's3.example.com',
+                'port': '8080',
+                'concurrent_transfers': '1'
+            })
+            s3_storage = S3BaseStorage(config)
+            connection_args = s3_storage._make_connection_arguments(config)
+            self.assertEqual(True, connection_args['verify'])
 
     def test_assume_role_authentication(self):
         with patch('botocore.httpsession.URLLib3Session', new=_make_assume_role_with_web_identity_mock()):
@@ -328,6 +372,7 @@ class S3StorageTest(unittest.TestCase):
                 'transfer_max_bandwidth': None,
                 'bucket_name': 'whatever-bucket',
                 'secure': 'True',
+                'ssl_verify': 'False',
                 'host': None,
                 'port': None,
                 'concurrent_transfers': '1'
