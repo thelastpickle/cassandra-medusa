@@ -942,5 +942,27 @@ class CassandraUtilsTest(unittest.TestCase):
         assert mock_instance.shutdown.call_count == 1
         assert mock_instance.close.call_count == 1
 
+    def test_ignore_snapshots(self):
+        # none of these combinations is ignored
+        folder = 'keyspace/table'
+        contents = ['file1', 'file2']
+        expected_ignored = set()
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
+        # none of these combinations is ignored
+        folder = 'keyspace/table/snapshots'
+        contents = ['snapshot1', 'snapshot2']
+        expected_ignored = set()
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
+        # we only ignore stuff in this specific folder
+        folder = 'metadata/snapshots'
+        contents = ['snapshot1', 'snapshot2']
+        expected_ignored = {'snapshot1', 'snapshot2'}
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
     if __name__ == '__main__':
         unittest.main()

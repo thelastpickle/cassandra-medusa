@@ -29,7 +29,11 @@ class NodetoolSnapshotService(AbstractSnapshotService):
         # create the Nodetool command
         cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
         logging.debug('Executing: {}'.format(' '.join(cmd)))
-        subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+        try:
+            subprocess.check_output(cmd, universal_newlines=True)
+        except subprocess.CalledProcessError as e:
+            logging.error('nodetool output: {}'.format(e.output))
+            logging.error('Creating snapshot failed and without a snapshot we cannot do a backup')
 
     def delete_snapshot(self, *, tag):
         # create the Nodetool command

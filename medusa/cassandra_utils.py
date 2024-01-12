@@ -437,6 +437,15 @@ class Cassandra(object):
                 logging.debug(f'Rebuilding search index for {fqtn}')
                 session.execute(f"REBUILD SEARCH INDEX ON {fqtn}")
 
+    @staticmethod
+    def _ignore_snapshots(folder, contents):
+        ignored = set()
+        if folder.endswith('metadata/snapshots'):
+            logging.info(f'Ignoring {contents} in folder {folder}')
+            for c in contents:
+                ignored.add(c)
+        return ignored
+
     def create_dse_snapshot(self, backup_name):
         """
         There is no good way of making snapshot of DSE files
@@ -445,11 +454,12 @@ class Cassandra(object):
         That folder is nested in the parent folder, just like for regular tables
         This way, we can reuse a lot of code later on
         """
+
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.dse_snapshot_exists(tag):
             src_path = self._dse_root / self._dse_metadata_folder
             dst_path = self._dse_root / self._dse_metadata_folder / 'snapshots' / tag
-            shutil.copytree(src_path, dst_path)
+            shutil.copytree(src_path, dst_path, ignore=Cassandra._ignore_snapshots)
 
         return Cassandra.DseSnapshot(self, tag)
 
