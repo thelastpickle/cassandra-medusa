@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.17.1 (2024/01/11 16:00 +00:00)
+- Allow enabling/disabling SSL certificate verification (#701) (@rzvoncek)
+- Support AWS IAM roles as authentication method (#691) (@JBOClara)
+
 ### 0.17.0 (2023/12/19 18:23 +00:00)
 - Support backups of DSE with Search (#693) (@rzvoncek)
 - Expose sum of backup object count and size via gRPC methods (#686) (@rzvoncek)
