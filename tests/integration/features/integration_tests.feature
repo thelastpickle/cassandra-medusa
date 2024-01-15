@@ -1058,16 +1058,26 @@ Feature: Integration tests
     @29
     Scenario Outline: Backup and restore a DSE cluster with search enabled
         Given I have a fresh DSE cluster version "6.8.38" with "<client encryption>" running named "scenario29"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         And I create a search index on the "test" table in keyspace "medusa"
         And I load 100 rows in the "medusa.test" table
         When I run a DSE "nodetool flush" command
         Then I can make a search query against the "medusa"."test" table
-        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
-        Then I can see the backup named "first_backup" when I list the backups
-        And the backup "first_backup" has server_type "dse" in its metadata
-        When I restore the backup named "first_backup"
+        When I perform an async backup over gRPC in "differential" mode of the node named "backup29-1"
+        Then the backup index exists
+        Then I can see the backup named "backup29-1" when I list the backups
+        And the backup "backup29-1" has server_type "dse" in its metadata
+        Then I verify over gRPC that the backup "backup29-1" exists and is of type "differential"
+        Then I verify over gRPC that the backup "backup29-1" has expected status SUCCESS
+        When I perform an async backup over gRPC in "differential" mode of the node named "backup29-2"
+        Then the backup index exists
+        Then I can see the backup named "backup29-2" when I list the backups
+        And the backup "backup29-2" has server_type "dse" in its metadata
+        Then I verify over gRPC that the backup "backup29-2" exists and is of type "differential"
+        Then I verify over gRPC that the backup "backup29-2" has expected status SUCCESS
+        When I restore the backup named "backup29-2"
         And I wait for the DSE Search indexes to be rebuilt
         Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
         Then I can make a search query against the "medusa"."test" table
