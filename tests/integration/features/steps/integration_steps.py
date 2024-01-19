@@ -129,14 +129,19 @@ def get_client_encryption_opts(keystore_path, trustore_path):
 
 
 def tune_ccm_settings(cluster_name):
-    if os.uname().sysname == "Linux":
+    if os.uname().sysname == "Linux" or os.uname().sysname == "Darwin":
         os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
+            """gsed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
             + cluster_name
             + """/node1/conf/cassandra-env.sh"""
         ).read()
         os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
+            """gsed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
+            + cluster_name
+            + """/node1/conf/cassandra-env.sh"""
+        ).read()
+        os.popen(
+            """gsed -i 's/JVM_EXTRA_OPTS/JVM_EXTRA_OPTS -Xss1024k/g' ~/.ccm/"""
             + cluster_name
             + """/node1/conf/cassandra-env.sh"""
         ).read()

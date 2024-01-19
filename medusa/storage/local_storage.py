@@ -115,6 +115,18 @@ class LocalStorage(AbstractStorage):
                         break
                     d.write(data)
 
+    def default_block_size_bytes(self) -> int:
+        # we don't use this for local storage
+        return -1
+
+    def max_block_size_bytes(self) -> int:
+        # we don't use this for local storage
+        return -1
+
+    def max_block_count(self) -> int:
+        # we don't use this for local storage
+        return -1
+
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
 
         src_path = Path(src)

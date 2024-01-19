@@ -179,6 +179,19 @@ class GoogleStorage(AbstractStorage):
             datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
         )
 
+    def default_block_size_bytes(self) -> int:
+        # google's documentation does not specify block sizes, so we use 4 MB
+        return 4 * 1024 * 1024
+
+    def max_block_size_bytes(self) -> int:
+        # google also does not specify the block size max, but they claim a 5 TiB max object size
+        # this is the same in azure, so we use the same max block size
+        return 100 * 1024 * 1024
+
+    def max_block_count(self) -> int:
+        # we're keeping the same max block count as in azure
+        return 50000
+
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
@@ -207,6 +220,7 @@ class GoogleStorage(AbstractStorage):
                     src, self.human_readable_size(file_size), self.config.bucket_name, object_key
                 )
             )
+            # we are not forcing the block size, we hope the library will adjust it automatically
             with open(src, 'rb') as src_file:
                 resp = await self.gcs_storage.upload(
                     bucket=self.bucket_name,

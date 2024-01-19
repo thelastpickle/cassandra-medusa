@@ -167,6 +167,18 @@ class AzureStorage(AbstractStorage):
             blob_properties.last_modified,
         )
 
+    def default_block_size_bytes(self) -> int:
+        # for azure, the default block size is 4 MB
+        return 4 * 1024 * 1024
+
+    def max_block_size_bytes(self) -> int:
+        # for azure, the max block size is 100 MB
+        return 100 * 1024 * 1024
+
+    def max_block_count(self) -> int:
+        # for azure, the max block count is 50000
+        return 50000
+
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
@@ -175,11 +187,27 @@ class AzureStorage(AbstractStorage):
         object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
         file_size = os.stat(src).st_size
+        block_size = self.calculate_block_size(file_size)
+        if block_size == -1:
+            raise ValueError(
+                'File size {} is too large for Azure Storage. Max allowed size is 5 TiB'.format(file_size)
+            )
         logging.debug(
             '[Azure Storage] Uploading {} ({}) -> azure://{}/{}'.format(
                 src, self.human_readable_size(file_size), self.config.bucket_name, object_key
             )
         )
+
+        # we fake the blob settings object
+        # as long as we populate all the fields, it should not matter we don't provide the exact Azure's one
+        blob_settings = collections.namedtuple(
+            'BlobSettings',
+            ['max_single_put_size', 'use_byte_buffer', 'max_block_size', 'min_large_block_upload_threshold']
+        )
+        blob_settings.max_single_put_size = 64 * 1024 * 1024
+        blob_settings.use_byte_buffer = False
+        blob_settings.max_block_size = block_size
+        blob_settings.min_large_block_upload_threshold = 4 * 1024 * 1024 + 1
 
         with open(src, "rb") as data:
             blob_client = await self.azure_container_client.upload_blob(
@@ -187,6 +215,7 @@ class AzureStorage(AbstractStorage):
                 data=data,
                 overwrite=True,
                 max_concurrency=16,
+                blob_settings=blob_settings,
             )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(

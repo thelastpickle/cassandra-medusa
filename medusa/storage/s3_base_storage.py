@@ -338,6 +338,18 @@ class S3BaseStorage(AbstractStorage):
         item_hash = resp['ETag'].replace('"', '')
         return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'])
 
+    def default_block_size_bytes(self) -> int:
+        # for s3, the default block size is 5 MiB
+        return 5 * 1024 * 1024
+
+    def max_block_size_bytes(self) -> int:
+        # for s3, the max block size is 5 GiB
+        return 5 * 1024 * 1024 * 1024
+
+    def max_block_count(self) -> int:
+        # for s3, the max block count is 10k
+        return 10000
+
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
@@ -356,6 +368,12 @@ class S3BaseStorage(AbstractStorage):
                 src, self.human_readable_size(file_size), object_key
             )
         )
+        chunk_size = self.calculate_block_size(file_size)
+        if chunk_size == -1:
+            raise ValueError(
+                'File size {} is too large for S3. Max allowed size is 5 TiB'.format(file_size)
+            )
+        # otherwise, we don't force the chunk size, boto should work it out by itself
 
         upload_conf = {
             'Filename': src,

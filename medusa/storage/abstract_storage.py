@@ -182,6 +182,35 @@ class AbstractStorage(abc.ABC):
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def default_block_size_bytes(self):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def max_block_size_bytes(self):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def max_block_count(self):
+        raise NotImplementedError()
+
+    def calculate_block_size(self, file_size) -> int:
+        default_block_size = self.default_block_size_bytes()
+        max_block_size = self.max_block_size_bytes()
+        max_block_count = self.max_block_count()
+
+        # check if the file is too big to handle even with max block count and max block size
+        if file_size > max_block_size * max_block_count:
+            return -1
+
+        # ceiling division to ensure the whole file gets covered
+        default_block_count = -(-file_size // default_block_size)
+        if default_block_count <= max_block_count:
+            return default_block_size
+
+        new_block_size = min(max(file_size // max_block_count, default_block_size), max_block_size)
+        return new_block_size
+
     @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, path: t.Union[Path, str]):
         try:

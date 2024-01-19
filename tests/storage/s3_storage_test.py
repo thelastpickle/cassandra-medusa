@@ -385,6 +385,52 @@ class S3StorageTest(unittest.TestCase):
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
 
+    def test_calculate_block_size(self):
+        with patch('botocore.httpsession.URLLib3Session', new=_make_assume_role_with_web_identity_mock()):
+            config = AttributeDict({
+                'region': 'region-from-config',
+                'storage_provider': 's3_us_west_oregon',
+                'key_file': '',
+                'bucket_name': 'bucket-from-config',
+                'concurrent_transfers': '1',
+                'host': None,
+                'port': None,
+                'kms_id': None,
+                'api_profile': None,
+                'secure': 'False',
+                'ssl_verify': 'False',
+                'transfer_max_bandwidth': None,
+            })
+            s3_storage = S3BaseStorage(config)
+            # small file does not lead to a non-default block size
+            self.assertEqual(
+                5 * 1024 * 1024,
+                s3_storage.calculate_block_size(123)
+            )
+            # a reasonably big file still uses the default chunk
+            self.assertEqual(
+                5242880,
+                s3_storage.calculate_block_size(20 * 1024 * 1024 * 1024)  # 20 GB
+            )
+            # s3 can have, at most, 10 000 blocks, so 10k * 5 = 50 GB
+            self.assertEqual(
+                5368709,
+                s3_storage.calculate_block_size(50 * 1024 * 1024 * 1024 + 1)    # 50 GB + 1B
+            )
+            self.assertEqual(
+                28668906,
+                s3_storage.calculate_block_size(267 * 1024 * 1024 * 1024)    # 267 GB
+            )
+            # the biggest block we can have is 5 GiB and the block count is 10k, which leads up to 5 TB file
+            self.assertEqual(
+                5 * 1024 * 1024 * 1024,
+                s3_storage.calculate_block_size(5 * 1024 * 1024 * 1024 * 10 * 1000)
+            )
+            self.assertEqual(
+                -1,
+                s3_storage.calculate_block_size(5 * 1024 * 1024 * 1024 * 10 * 1000 + 1)
+            )
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
