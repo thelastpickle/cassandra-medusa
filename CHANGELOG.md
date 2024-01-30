@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.17.2 (2024/01/30 26:00 +00:00)
+- [Storage] Make Azure Storage use big upload chunks by default (#708) (@rzvoncek)
+- Prevent recursive DSE snapshots (#704) (@rzvoncek)
+
 ### 0.17.1 (2024/01/11 16:00 +00:00)
 - Allow enabling/disabling SSL certificate verification (#701) (@rzvoncek)
 - Support AWS IAM roles as authentication method (#691) (@JBOClara)
