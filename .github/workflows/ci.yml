@@ -13,10 +13,8 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10", "3.11"]
+        python-version: [3.8, 3.9, "3.10", "3.11"]
         include:
-          - python-version: 3.7
-            tox-py: py37
           - python-version: 3.8
             tox-py: py38
           - python-version: 3.9
@@ -105,7 +103,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.7, 3.8, 3.9, "3.10", "3.11"]
+          python-version: [3.8, 3.9, "3.10", "3.11"]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -133,11 +131,6 @@ jobs:
               cassandra-version: 4.0.0
               it-backend: gcs
               experimental: false
-            # explicitly include tests against python 3.7 and one version of cassandra
-            - python-version: 3.7
-              cassandra-version: 4.0.0
-              it-backend: gcs
-              experimental: false
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
@@ -153,7 +146,6 @@ jobs:
             - it-backend: azure-hierarchical
               cassandra-version: "3.11.11"
             # no tests against non-python3.9, except the explicitly allowed combinations
-            - python-version: 3.7
             - python-version: 3.8
             - python-version: "3.10"
             - python-version: "3.11"
@@ -528,10 +520,10 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.7
+    - name: Set up Python 3.8
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.8
     - name: Install dependencies
       run: |
         python -m venv venv

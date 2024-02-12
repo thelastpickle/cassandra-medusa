@@ -34,11 +34,11 @@ setuptools.setup(
         'Environment :: Console',
         'Intended Audience :: System Administrators',
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Topic :: Database',
         'Topic :: System :: Archiving :: Backup'
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     packages=setuptools.find_packages(),
     install_requires=[
         'python-dateutil==2.8.1',
