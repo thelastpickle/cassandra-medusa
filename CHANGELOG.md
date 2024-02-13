@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.18.0 (2024/02/14 16:50 +00:00)
+- Bump cryptography, pyOpenSSL and requests versions (#711) (@rzvoncek)
+- Drop Python 3.7 support (#711) (@rzvoncek)
+
 ### 0.17.2 (2024/01/30 26:00 +00:00)
 - [Storage] Make Azure Storage use big upload chunks by default (#708) (@rzvoncek)
 - Prevent recursive DSE snapshots (#704) (@rzvoncek)
