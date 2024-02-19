@@ -171,9 +171,9 @@ def _build_default_config():
         'enabled': 'False',
         'cassandra_url': 'None',
         'use_mgmt_api': 'False',
-        'ca_cert': 'None',
-        'tls_cert': 'None',
-        'tls_key': 'None'
+        'ca_cert': '',
+        'tls_cert': '',
+        'tls_key': ''
     }
     return config
 
