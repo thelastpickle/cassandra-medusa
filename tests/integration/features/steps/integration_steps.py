@@ -484,7 +484,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False', ca_cert=None, tls_cert=None, tls_key=None):
+def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
+             ca_cert=None, tls_cert=None, tls_key=None):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -581,9 +582,11 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
 
 
 def parse_medusa_config(
-        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False', ca_cert=None, tls_cert=None, tls_key=None
+        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
+        ca_cert=None, tls_cert=None, tls_key=None
 ):
-    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc, ca_cert, tls_cert, tls_key)
+    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc,
+                    ca_cert, tls_cert, tls_key)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
     config = medusa.config.parse_config(args, config_file)
