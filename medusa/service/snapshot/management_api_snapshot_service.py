@@ -23,7 +23,7 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
     def __init__(self, config):
         self.config = config
         self.session = requests.Session()
-        if self.config.tls_cert:
+        if self.config.tls_cert is not None:
             self.session.verify = self.config.ca_cert
             self.session.cert = (self.config.tls_cert, self.config.tls_key)
 
