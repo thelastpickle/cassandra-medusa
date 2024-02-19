@@ -20,6 +20,13 @@ from medusa.service.snapshot.abstract_snapshot_service import AbstractSnapshotSe
 
 class ManagementAPISnapshotService(AbstractSnapshotService):
 
+    def __init__(self, config):
+        self.config = config
+        self.session = requests.Session()
+        if self.config.tls_cert:
+            self.session.verify = self.config.ca_cert
+            self.session.cert = (self.config.tls_cert, self.config.tls_key)
+
     def create_snapshot(self, *, tag):
         # get the Cassandra URL to POST the request
         post_url = self.config.cassandra_url
@@ -28,7 +35,7 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
             "snapshot_name": tag
         }
         # send the request
-        response = requests.post(post_url, data=json.dumps(data), headers={"Content-Type": "application/json"})
+        response = self.session.post(post_url, data=json.dumps(data), headers={"Content-Type": "application/json"})
         # raise an Exception if the POST was not successful
         if response.status_code != 200:
             err_msg = "failed to create snapshot: {}".format(response.text)
@@ -38,7 +45,7 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
         # get the Cassandra URL to DELETE
         delete_url = self.config.cassandra_url + "?snapshotNames=" + tag
         # send the DELETE
-        response = requests.delete(delete_url)
+        response = self.session.delete(delete_url)
         # raise an Exception if the DELETE was not successful
         if response.status_code != 200:
             err_msg = "failed to delete snapshot: {}".format(response.text)
