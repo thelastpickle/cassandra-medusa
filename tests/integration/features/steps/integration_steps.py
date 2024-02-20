@@ -208,7 +208,7 @@ class MgmtApiServer:
         while not started and start_count < 20:
             try:
                 start_count += 1
-                requests.post("http://127.0.0.1:8080/api/v0/lifecycle/start")
+                requests.post("https://127.0.0.1:8080/api/v0/lifecycle/start", verify="/tmp/mutual_auth_ca.pem", cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
                 started = True
             except Exception:
                 # wait for Cassandra to start
@@ -216,7 +216,7 @@ class MgmtApiServer:
 
     @staticmethod
     def stop():
-        requests.post("http://127.0.0.1:8080/api/v0/lifecycle/stop")
+        requests.post("https://127.0.0.1:8080/api/v0/lifecycle/stop", verify="/tmp/mutual_auth_ca.pem", cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
 
 
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
