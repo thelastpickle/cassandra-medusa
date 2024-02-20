@@ -185,11 +185,11 @@ class MgmtApiServer:
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
 
-        env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp',
-               "MGMT_API_TLS_CA_CERT_FILE": "/tmp/mutual_auth_ca.pem",
-               "MGMT_API_TLS_CERT_FILE": "/tmp/mutual_auth_server.crt",
-               "MGMT_API_TLS_KEY_FILE": "/tmp/mutual_auth_server.key"}
+        env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
         cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
+               "--tlscacert=/tmp/mutual_auth_ca.pem",
+               "--tlscert=/tmp/mutual_auth_server.crt",
+               "--tlskey=/tmp/mutual_auth_server.key",
                "--db-socket=/tmp/db.sock",
                "--host=unix:///tmp/mgmtapi.sock",
                "--host=http://localhost:8080",
