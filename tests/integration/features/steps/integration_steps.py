@@ -472,7 +472,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     while ready_count < 20:
         ready = 0
         try:
-            ready = requests.get("http://127.0.0.1:8080/api/v0/probes/readiness").status_code
+            ready = requests.get("https://127.0.0.1:8080/api/v0/probes/readiness", verify="/tmp/mutual_auth_ca.pem",
+                                 cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key")).status_code
         except Exception:
             # wait for the server to be ready
             time.sleep(1)
