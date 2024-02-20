@@ -181,8 +181,15 @@ class MgmtApiServer:
 
     def __init__(self, config, cluster_name):
         self.cluster_name = cluster_name
+        shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
+        shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
+        shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
+
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
         cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
+               "--tlscacert=/tmp/mutual_auth_ca.pem",
+               "--tlscert=/tmp/mutual_auth_server.crt",
+               "--tlskey=/tmp/mutual_auth_server.key",
                "--db-socket=/tmp/db.sock",
                "--host=unix:///tmp/mgmtapi.sock",
                "--host=http://localhost:8080",
@@ -201,7 +208,8 @@ class MgmtApiServer:
         while not started and start_count < 20:
             try:
                 start_count += 1
-                requests.post("http://127.0.0.1:8080/api/v0/lifecycle/start")
+                requests.post("https://127.0.0.1:8080/api/v0/lifecycle/start", verify="/tmp/mutual_auth_ca.pem",
+                              cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
                 started = True
             except Exception:
                 # wait for Cassandra to start
@@ -209,7 +217,8 @@ class MgmtApiServer:
 
     @staticmethod
     def stop():
-        requests.post("http://127.0.0.1:8080/api/v0/lifecycle/stop")
+        requests.post("https://127.0.0.1:8080/api/v0/lifecycle/stop", verify="/tmp/mutual_auth_ca.pem",
+                      cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
 
 
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
@@ -418,10 +427,16 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         context,
         storage_provider,
         client_encryption,
-        cassandra_url="http://127.0.0.1:8080/api/v0/ops/node/snapshots",
+        cassandra_url="https://127.0.0.1:8080/api/v0/ops/node/snapshots",
         use_mgmt_api='True',
-        grpc='True'
+        grpc='True',
+        ca_cert='/tmp/mutual_auth_ca.pem',
+        tls_cert='/tmp/mutual_auth_client.crt',
+        tls_key='/tmp/mutual_auth_client.key'
     )
+    shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
+    shutil.copyfile("resources/grpc/mutual_auth_client.crt", "/tmp/mutual_auth_client.crt")
+    shutil.copyfile("resources/grpc/mutual_auth_client.key", "/tmp/mutual_auth_client.key")
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -457,7 +472,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     while ready_count < 20:
         ready = 0
         try:
-            ready = requests.get("http://127.0.0.1:8080/api/v0/probes/readiness").status_code
+            ready = requests.get("https://127.0.0.1:8080/api/v0/probes/readiness", verify="/tmp/mutual_auth_ca.pem",
+                                 cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key")).status_code
         except Exception:
             # wait for the server to be ready
             time.sleep(1)
@@ -471,7 +487,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
+def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
+             ca_cert=None, tls_cert=None, tls_key=None):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
         context.cluster_name = "test"
@@ -543,7 +560,10 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
     kubernetes_args = {
         "k8s_enabled": use_mgmt_api,
         "cassandra_url": cassandra_url,
-        "use_mgmt_api": use_mgmt_api
+        "use_mgmt_api": use_mgmt_api,
+        "ca_cert": ca_cert,
+        "tls_cert": tls_cert,
+        "tls_key": tls_key
     }
 
     args = {**storage_args, **cassandra_args, **config_checks, **grpc_args, **kubernetes_args}
@@ -565,9 +585,11 @@ def get_medusa_config(context, storage_provider, client_encryption, cassandra_ur
 
 
 def parse_medusa_config(
-        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'
+        context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
+        ca_cert=None, tls_cert=None, tls_key=None
 ):
-    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
+    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc,
+                    ca_cert, tls_cert, tls_key)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
     config = medusa.config.parse_config(args, config_file)

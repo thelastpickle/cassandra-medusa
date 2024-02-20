@@ -293,7 +293,6 @@ jobs:
         # Move and convert the coverage analysis file to XML
         mv tests/integration/.coverage .
         coverage xml
-
     - uses: codecov/codecov-action@v1
       name: Report code coverage
 

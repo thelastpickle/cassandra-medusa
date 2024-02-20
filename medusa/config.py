@@ -78,7 +78,7 @@ GrpcConfig = collections.namedtuple(
 
 KubernetesConfig = collections.namedtuple(
     'KubernetesConfig',
-    ['enabled', 'cassandra_url', 'use_mgmt_api']
+    ['enabled', 'cassandra_url', 'use_mgmt_api', 'ca_cert', 'tls_cert', 'tls_key']
 )
 
 CONFIG_SECTIONS = {
@@ -170,7 +170,10 @@ def _build_default_config():
     config['kubernetes'] = {
         'enabled': 'False',
         'cassandra_url': 'None',
-        'use_mgmt_api': 'False'
+        'use_mgmt_api': 'False',
+        'ca_cert': '',
+        'tls_cert': '',
+        'tls_key': ''
     }
     return config
 
