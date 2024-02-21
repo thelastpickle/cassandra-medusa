@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.19.0 (2024/02/21 16:50 +00:00)
+- Add mtls to mgmt api connection (#714) (@burmanm)
+
 ### 0.18.0 (2024/02/14 16:50 +00:00)
 - Bump cryptography, pyOpenSSL and requests versions (#711) (@rzvoncek)
 - Drop Python 3.7 support (#711) (@rzvoncek)
