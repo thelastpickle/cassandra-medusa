@@ -24,8 +24,11 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
         self.config = config
         self.session = requests.Session()
         if self.config.tls_cert is not None and len(self.config.tls_cert) > 0:
-            self.session.verify = self.config.ca_cert
+            # self.session.verify = self.config.ca_cert
+            self.session.verify = False
             self.session.cert = (self.config.tls_cert, self.config.tls_key)
+            if self.config.cassandra_url.startswith('http://'):
+                self.config.cassandra_url = self.config.cassandra_url.replace('http://', 'https://')
 
     def create_snapshot(self, *, tag):
         # get the Cassandra URL to POST the request
