@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.19.1 (2024/02/24 12:19 +00:00)
+- Disable verification of server TLS certificates for mgmt-api (#715) (@burmanm)
+
 ### 0.19.0 (2024/02/21 16:50 +00:00)
 - Add mtls to mgmt api connection (#714) (@burmanm)
 
