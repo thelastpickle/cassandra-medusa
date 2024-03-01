@@ -58,7 +58,7 @@ RUN apt-get update \
 RUN pip3 install --upgrade pip
 
 RUN cd /tmp && \
-    wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.2.2-1.4_all.deb && \
+    wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.2.2-1.4build1_all.deb && \
     gdebi -n dh-virtualenv*.deb && \
     rm dh-virtualenv_*.deb
         

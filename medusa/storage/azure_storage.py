@@ -20,6 +20,7 @@ import io
 import json
 import logging
 import os
+import pathlib
 import typing as t
 
 from azure.core.credentials import AzureNamedKeyCredential
@@ -233,12 +234,12 @@ class AzureStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
         return AzureStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
-            size_in_manifest=cached_item['size'],
+            size_in_manifest=cached_item.size,
             actual_hash=AbstractStorage.generate_md5_hash(src) if enable_md5_checks else None,
-            hash_in_manifest=cached_item['MD5'],
+            hash_in_manifest=cached_item.MD5,
         )
 
     @staticmethod

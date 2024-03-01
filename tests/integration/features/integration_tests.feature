@@ -850,7 +850,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I perform a backup in "full" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
-        And I delete a random sstable from backup "first_backup" in the "test" table in keyspace "medusa"
+        And I "delete" a random sstable from "full" backup "first_backup" in the "test" table in keyspace "medusa"
         Then verifying backup "first_backup" fails
         When I delete the backup named "first_backup"
         Then I cannot see the backup named "first_backup" when I list the backups
@@ -1098,6 +1098,34 @@ Feature: Integration tests
     | storage           | client encryption         |
     | s3_us_west_oregon | without_client_encryption |
 
+    @30
+    Scenario Outline: Create an differential backup, corrupt it, then fix by doing another backup, and verify it
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario30"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table with secondary index in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
+        And I "delete" a random sstable from "differential" backup "first_backup" in the "test" table in keyspace "medusa"
+        Then verifying backup "first_backup" fails
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "disabled"
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
+        Then I can verify the backup named "second_backup" with md5 checks "enabled" successfully
+        And I "truncate" a random sstable from "differential" backup "second_backup" in the "test" table in keyspace "medusa"
+        Then verifying backup "second_backup" fails
+        When I perform a backup in "differential" mode of the node named "fourth_backup" with md5 checks "enabled"
+        Then some files from the previous backup were not reuploaded
+        Then some files from the previous backup "were" replaced
+        Then I can verify the backup named "second_backup" with md5 checks "enabled" successfully
+        Then I can verify the backup named "fourth_backup" with md5 checks "enabled" successfully
+        When I delete the backup named "first_backup"
+        Then I cannot see the backup named "first_backup" when I list the backups
+
+    @local
+    Examples: Local storage
+    | storage    | client encryption |
+    | local      |  with_client_encryption |
+
     @31
     Scenario Outline: Perform a backup, then forget about it, then get its status over gRPC
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario31"
@@ -1112,7 +1140,7 @@ Feature: Integration tests
         Then I verify over gRPC that the backup "first_backup" has status "SUCCESS"
         Then I shutdown the gRPC server
 
-        @local
-        Examples: Local storage
-        | storage           | client encryption |
-        | local      |  with_client_encryption |
+    @local
+    Examples: Local storage
+    | storage    | client encryption |
+    | local      |  with_client_encryption |

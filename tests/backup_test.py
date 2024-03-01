@@ -16,6 +16,7 @@
 import pathlib
 import unittest
 
+from medusa.storage.abstract_storage import ManifestObject
 from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.s3_storage import S3Storage
 
@@ -26,31 +27,27 @@ class RestoreNodeTest(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
     def test_single_part_s3_file(self):
-        cached_item = {'MD5': '620c203520494bb92811fddc6d88cd65',
-                       'size': 113651}
+        cached_item = ManifestObject('path', 113651, '620c203520494bb92811fddc6d88cd65')
         src = pathlib.Path(__file__).parent / "resources/s3/md-10-big-CompressionInfo.db"
-        assert S3Storage.file_matches_cache(src, cached_item, 100 * 1024 * 1024, True)
+        assert S3Storage.file_matches_storage(src, cached_item, 100 * 1024 * 1024, True)
 
     def test_multi_part_s3_file(self):
         # Multi part hashes have a special structure, with the number of chunks at the end
-        cached_item = {'MD5': 'e4344d1ea2b32372db7f7e1c81d154b9-1',
-                       'size': 113651}
+        cached_item = ManifestObject('path', 113651, 'e4344d1ea2b32372db7f7e1c81d154b9-1')
         src = pathlib.Path(__file__).parent / "resources/s3/md-10-big-CompressionInfo.db"
-        assert S3Storage.file_matches_cache(src, cached_item, 100, True)
+        assert S3Storage.file_matches_storage(src, cached_item, 100, True)
 
     def test_multi_part_s3_file_fail(self):
         # File size is below the multi part threshold, a single part hash will be computed
-        cached_item = {'MD5': 'e4344d1ea2b32372db7f7e1c81d154b9-1',
-                       'size': 113651}
+        cached_item = ManifestObject('path', 113651, 'e4344d1ea2b32372db7f7e1c81d154b9-1')
         src = pathlib.Path(__file__).parent / "resources/s3/md-10-big-CompressionInfo.db"
-        assert not S3Storage.file_matches_cache(src, cached_item, 100 * 1024 * 1024, True)
+        assert not S3Storage.file_matches_storage(src, cached_item, 100 * 1024 * 1024, True)
 
     def test_gcs_file(self):
         # GCS hashes are b64 encoded
-        cached_item = {'MD5': '2c6QmQGESWilicKJiNY1NQ==',
-                       'size': 148906}
+        cached_item = ManifestObject('path', 148906, '2c6QmQGESWilicKJiNY1NQ==')
         src = pathlib.Path(__file__).parent / "resources/gcs/lb-21-big-Index.db"
-        assert GoogleStorage.file_matches_cache(src, cached_item, True)
+        assert GoogleStorage.file_matches_storage(src, cached_item, True)
 
 
 if __name__ == '__main__':

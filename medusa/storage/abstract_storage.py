@@ -21,6 +21,7 @@ import datetime
 import hashlib
 import io
 import logging
+import pathlib
 import typing as t
 
 from pathlib import Path
@@ -401,15 +402,15 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
         """
-        Compares a local file with its entry in the cache of backed up items. This happens when doing an actual backup.
+        Compares a local file with its version in the storage backend. This happens when doing an actual backup.
 
         This method is expected to take care of actually computing the local hash, but leave the actual comparing to
         _compare_blob_with_manifest().
 
-        :param src: typically, local file that comes as a string/path
-        :param cached_item: usually a reference to a item in the storage, mostly a dict. Likely a manifest object
+        :param src: typically, local file that comes as a Path
+        :param cached_item: a reference to the storage, should be via a manifest object
         :param threshold: files bigger than this are digested by chunks
         :param enable_md5_checks: boolean flag to enable md5 file generation and comparison to the md5
                 found in the manifest (only applicable to some cloud storage implementations that compare md5 hashes)

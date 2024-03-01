@@ -702,10 +702,12 @@ def _i_run_a_whatever_command(context, command):
       r' "{backup_name}" with md5 checks "{md5_enabled_str}"')
 def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name, md5_enabled_str):
     BackupMan.register_backup(backup_name, is_async=False)
-    (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start, backup_name) = \
-        backup_node.handle_backup(context.medusa_config, backup_name, None, str(md5_enabled_str).lower() == "enabled",
-                                  backup_mode)
-    context.latest_backup_cache = node_backup_cache
+    (_, _, _, _, num_files, num_replaced, num_kept, _, _) = backup_node.handle_backup(
+        context.medusa_config, backup_name, None, str(md5_enabled_str).lower() == "enabled", backup_mode
+    )
+    context.latest_num_files = num_files
+    context.latest_backup_replaced = num_replaced
+    context.latest_num_kept = num_kept
 
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
@@ -861,7 +863,15 @@ def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(
 
 @then(r'some files from the previous backup were not reuploaded')
 def _some_files_from_the_previous_backup_were_not_reuploaded(context):
-    assert context.latest_backup_cache.replaced > 0
+    assert context.latest_num_kept > 0
+
+
+@then(r'some files from the previous backup "{outcome}" replaced')
+def _some_files_from_the_previous_backup_were_replaced(context, outcome):
+    if outcome == "were":
+        assert context.latest_backup_replaced > 0
+    if outcome == "were not":
+        assert context.latest_backup_replaced == 0
 
 
 @then(r'I cannot see the backup named "{backup_name}" when I list the backups')
@@ -1429,22 +1439,36 @@ def _the_backup_named_is_incomplete(context, backup_name):
                 assert not backup.finished
 
 
-@then(u'I delete a random sstable from backup "{backup_name}" in the "{table}" table in keyspace "{keyspace}"')
-def _i_delete_a_random_sstable(context, backup_name, table, keyspace):
+@then(u'I "{operation}" a random sstable from "{backup_type}" backup "{backup_name}" '
+      u'in the "{table}" table in keyspace "{keyspace}"')
+def _i_manipulate_a_random_sstable(context, operation, backup_type, backup_name, table, keyspace):
+
     with Storage(config=context.medusa_config.storage) as storage:
         path_root = BUCKET_ROOT
 
         fqdn = "127.0.0.1"
-        path_sstables = "{}/{}{}/{}/data/{}/{}*".format(
-            path_root, storage.prefix_path, fqdn, backup_name, keyspace, table
-        )
+        if backup_type == "full":
+            path_sstables = "{}/{}{}/{}/data/{}/{}*".format(
+                path_root, storage.prefix_path, fqdn, backup_name, keyspace, table
+            )
+        else:
+            path_sstables = "{}/{}{}/data/{}/{}*".format(
+                path_root, storage.prefix_path, fqdn, keyspace, table
+            )
 
         table_path = glob.glob(path_sstables)[0]
         sstable_files = os.listdir(table_path)
         # Exclude Statistics.db files from sstables_files as they will be ignored by verify.
-        sstable_files = [x for x in sstable_files if '-Statistics.db' not in x]
+        # Exclude the folder with Cassandra's secondary indexes as well.
+        sstable_files = [x for x in sstable_files if ('-Statistics.db' not in x) and ('idx') not in x]
         random.shuffle(sstable_files)
-        os.remove(os.path.join(table_path, sstable_files[0]))
+
+        file_path = Path(os.path.join(table_path, sstable_files[0]))
+        if operation == "delete":
+            os.remove(file_path)
+        if operation == "truncate":
+            os.remove(file_path)
+            file_path.touch()
 
 
 @then(r'verifying backup "{backup_name}" fails')

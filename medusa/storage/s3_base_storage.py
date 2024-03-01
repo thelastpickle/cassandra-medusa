@@ -15,6 +15,8 @@
 # limitations under the License.
 import asyncio
 import base64
+import pathlib
+
 import boto3
 import botocore.session
 import concurrent.futures
@@ -426,7 +428,7 @@ class S3BaseStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
 
         threshold = int(threshold) if threshold else -1
 
@@ -440,9 +442,9 @@ class S3BaseStorage(AbstractStorage):
 
         return S3BaseStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
-            size_in_manifest=cached_item['size'],
+            size_in_manifest=cached_item.size,
             actual_hash=md5_hash,
-            hash_in_manifest=cached_item['MD5'],
+            hash_in_manifest=cached_item.MD5,
             threshold=threshold
         )
 
