@@ -39,6 +39,9 @@ include = [
     { path = "bin/medsua-wrapper" }
 ]
 
+[project]
+requires-python = ">=3.8,<=3.11"
+
 [tool.poetry.scripts]
 medusa = { reference = "medusa.medusacli:cli", type = "console" }
 
