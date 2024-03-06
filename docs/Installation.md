@@ -29,7 +29,7 @@ If your Cassandra servers do not have internet access:
 - on a machine with the same target OS and Python version, clone the cassandra-medusa repo and cd into the root directory
 - run `POETRY_VIRTUALENVS_IN_PROJECT=true poetry install` to install Medusa's dependencies
 - run `poetry run pip freeze | grep -v cassandra-medusa > requirements.txt` to identify the dependencies
-- run `mkdir -p pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
+- run `mkdir -p medusa_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
 - run `tar --exclude=".venv" -zcf medusa.tar.gz .` to compress Medusa together with its dependencies but without Poetry's venv
 - upload the archive to all Cassandra nodes and decompress it (`mkdir -p cassandra-medusa && tar xf medusa.tar.gz -C cassandra-medusa`)
 - install Medusa's dependencies using `pip install --no-index --find-links medusa_dependencies -r requirements.txt`
