@@ -37,7 +37,6 @@ $ cd medusa/service/grpc
 $ python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. medusa.proto
 ``` 
 
-These steps should be integrated into the build system at some point. I am just not sure where the appropriate integrations points are yet.
 
 # Kubernetes Configuration
 There is a Kubernetes section of the Medusa configuration that will need to be set for all this to work in a K8s environment. Currently, the Cassandra image you use will need to support one of two APIs in order for the Medusa image to be able to perform backup and restore functions: JMX (via Jolokia) or the [Management API](https://github.com/datastax/management-api-for-apache-cassandra).
