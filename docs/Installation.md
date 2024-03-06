@@ -26,23 +26,27 @@ Running the installation using `sudo` is necessary to have the `/usr/local/bin/m
 
 If your Cassandra servers do not have internet access:  
 
-- on a machine with the same target os and python version, clone the cassandra-medusa repo and cd into the root directory
-- run `mkdir pip_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
-- run `cp requirements.txt medusa_dependencies/`
-- run `tar -zcf medusa_dependencies.tar.gz medusa_dependencies` to compress the dependencies
-- Upload the archive to all Cassandra nodes and decompress it
-- run `pip install -r medusa_dependencies/requirements.txt --no-index --find-links` to install the dependencies on the nodes
-- install Medusa using `python setup.py install` from the cassandra-medusa source directory
+- on a machine with the same target OS and Python version, clone the cassandra-medusa repo and cd into the root directory
+- run `POETRY_VIRTUALENVS_IN_PROJECT=true poetry install` to install Medusa's dependencies
+- run `poetry run pip freeze | grep -v cassandra-medusa > requirements.txt` to identify the dependencies
+- run `mkdir -p medusa_dependencies && pip download -r requirements.txt -d medusa_dependencies` to download the dependencies into a sub directory
+- run `tar --exclude=".venv" -zcf medusa.tar.gz .` to compress Medusa together with its dependencies but without Poetry's venv
+- upload the archive to all Cassandra nodes and decompress it (`mkdir -p cassandra-medusa && tar xf medusa.tar.gz -C cassandra-medusa`)
+- install Medusa's dependencies using `pip install --no-index --find-links medusa_dependencies -r requirements.txt`
+- install medusa itself using a command similar to `poetry build && pip install dist/cassandra_medusa-<version>-py3-none-any.whl`
+- test if the installation was successful by running `medusa` 
 
 #### Example of Offline installation using pipenv on RHEL, centos 7
 
 - install RPM pre-requisites `sudo yum install -y python3-pip python3-devel`
 - install pipenv `sudo pip3 install pipenv`
-- unpack your archive built using the procedure from previous section `tar zxvf my-archive-of-cassandra-medusa.tar.gz`
-- create your python env in the directory previously created `cd cassandra-medusa-0.7.1 && pipenv --python 3`
+- unpack your archive built using the procedure from previous section
+- create your python env in the directory previously created `cd cassandra-medusa && pipenv --python 3`
 - install python dependencies of medusa `pipenv run pip3 install -r requirements.txt --no-index --find-links medusa_dependencies/`
 - prepare an installation directory with appropriate privileges `sudo mkdir /opt/cassandra-medusa ; sudo chmod go+rwX  /opt/cassandra-medusa`
-- install medusa as non root user `pipenv run python3 setup.py install --prefix=. --root=/opt/cassandra-medusa`
+- build Medusa using `pipenv run pip3 install poetry && poetry build`
+- install medusa as non-root user `pipenv run pip3 install dist/cassandra_medusa-0.20.0.dev0-py3-none-any.whl --no-index --find-links medusa_dependencies`
+- test if the installation was successful by running `pipenv run medusa` 
 
 ## Debian packages
 ### Using apt-get

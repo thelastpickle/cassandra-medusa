@@ -104,9 +104,9 @@ def restore_backup(in_place, config):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 3:
-        config_file_path = sys.argv[2]
-        restore_key = sys.argv[3]
+    if len(sys.argv) > 2:
+        config_file_path = sys.argv[1]
+        restore_key = sys.argv[2]
     else:
         logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
         sys.exit(1)

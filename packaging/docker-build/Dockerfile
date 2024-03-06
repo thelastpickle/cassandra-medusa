@@ -33,8 +33,8 @@ RUN apt-get update && \
 # install dependencies
 RUN apt-get update \
     && apt-get install -y \
-        libffi-dev \   
-        libssl-dev \  
+        libffi-dev \
+        libssl-dev \
         debhelper \
         gdebi-core \
         gcc \
@@ -58,13 +58,14 @@ RUN apt-get update \
 RUN pip3 install --upgrade pip
 
 RUN cd /tmp && \
-    wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.0-1_all.deb && \
+    wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.2.2-1.4_all.deb && \
     gdebi -n dh-virtualenv*.deb && \
     rm dh-virtualenv_*.deb
         
 
 RUN pip3 install greenlet
 RUN pip3 install gevent
+RUN pip3 install poetry
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}

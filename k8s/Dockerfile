@@ -27,20 +27,17 @@ ENV PATH=/root/.local/bin:$PATH
 COPY . /build/
 
 # General requirements
-RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user \
-    -r /build/requirements.txt \
-    -r /build/requirements-grpc-runtime.txt
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poetry
 
 # Build medusa itself so we can add the executables in the final image
-RUN pip3 install --ignore-installed --user /build
+RUN cd /build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM ubuntu:22.04
 
 ## add user
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
-
-COPY --from=base /install /usr/local
 
 # wget could happen in the build-phase
 RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
@@ -59,6 +56,8 @@ ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:$PATH
 
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
+COPY --from=base --chown=cassandra:cassandra /build/.venv /home/cassandra/.venv
+COPY --from=base --chown=cassandra:cassandra /build/pyproject.toml /home/cassandra/pyproject.toml
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
 COPY --chown=cassandra:cassandra k8s/docker-entrypoint.sh /home/cassandra
 

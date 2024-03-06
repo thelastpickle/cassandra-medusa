@@ -1,0 +1,101 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+# Copyright 2018 Spotify AB
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[tool.poetry]
+name = "cassandra-medusa"
+version = "0.20.0-dev"
+description = "Apache Cassandra backup and restore tool"
+authors = ["The Last Pickle <medusa@thelastpickle.com>"]
+license = "Apache"
+readme = "README.md"
+homepage = "https://github.com/thelastpickle/cassandra-medusa"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.8",
+    "Topic :: Database",
+    "Topic :: System :: Archiving :: Backup"
+]
+packages = [
+    { include = "medusa" }
+]
+include = [
+    { path = "medusa-example.ini" },
+    { path = "bin/medsua-wrapper" }
+]
+
+[project]
+requires-python = ">=3.8,<=3.11"
+
+[tool.poetry.scripts]
+medusa = { reference = "medusa.medusacli:cli", type = "console" }
+
+[tool.poetry.dependencies]
+python = "^3.8"
+python-dateutil = "2.8.1"
+click = "8.1.7"
+click-aliases = "1.0.1"
+PyYAML = "6.0.1"
+cassandra-driver = "3.28.0"
+psutil = "5.9.6"
+ffwd = "0.0.2"
+lockfile = "0.12.2"
+pyOpenSSL = "22.0.0"
+cryptography = "35.0"
+pycryptodome = "3.19.0"
+retrying = "1.3.4"
+ssh2-python = "1.0.0"
+ssh-python = "1.0.0"
+parallel-ssh = "2.2.0"
+requests = "2.31.0"
+wheel = "^0.32.0"
+gevent = "23.9.1"
+greenlet = "3.0.1"
+fasteners = "0.16"
+datadog = "0.47.0"
+botocore = "1.31.75"
+boto3 = "1.28.71"
+dnspython = "2.4.2"
+asyncio = "3.4.3"
+aiohttp = "3.8.5"
+gcloud-aio-storage = "8.3.0"
+azure-core = "1.29.4"
+azure-identity = "1.14.0"
+azure-storage-blob = "12.17.0"
+
+[tool.poetry.group.grpc.dependencies]
+protobuf = "4.24.3"
+grpcio = "1.58.0"
+grpcio-health-checking = "1.58.0"
+grpcio-tools = "1.58.0"
+
+[tool.poetry.group.grpc-runtime.dependencies]
+grpcio = "1.58.0"
+grpcio-health-checking = "1.58.0"
+
+[tool.poetry.group.test.dependencies]
+behave = "1.2.6"
+flake8 = "3.7.9"
+nose = "1.3.7"
+coverage = "7.3.2"
+pytest-cov = "4.1.0"
+tox = "4.11.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
