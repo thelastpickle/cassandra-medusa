@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import datetime
 import glob
 import json
@@ -89,6 +90,11 @@ CASSANDRA_YAML = "cassandra.yaml"
 AWS_CREDENTIALS = "~/.aws/credentials"
 GCS_CREDENTIALS = "~/medusa_credentials.json"
 
+# hide cassandra driver logs, they are overly verbose and we don't really need them for tests
+for logger_name in {'cassandra.io', 'cassandra.pool', 'cassandra.cluster', 'cassandra.connection'}:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.CRITICAL)
+
 
 def kill_cassandra():
     p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
@@ -154,7 +160,7 @@ class GRPCServer:
             self.config.write(config_file)
 
         self.grpc_server = medusa.service.grpc.server.Server(medusa_conf_file, testing=True)
-        self.grpc_server.serve()
+        asyncio.get_event_loop().run_until_complete(self.grpc_server.serve())
 
     def destroy(self):
         self.grpc_server.shutdown(None, None)
@@ -698,18 +704,28 @@ def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backu
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_grpc_backup_of_node_named_backupname(context, backup_mode, backup_name):
-    context.grpc_client.backup(backup_name, backup_mode)
+    asyncio.get_event_loop().run_until_complete(context.grpc_client.backup(backup_name, backup_mode))
 
 
 @when(r'I perform an async backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}"')
 def _i_perform_grpc_async_backup_of_node_named_backupname(context, backup_mode, backup_name):
-    context.grpc_client.async_backup(backup_name, backup_mode)
+    asyncio.get_event_loop().run_until_complete(context.grpc_client.async_backup(backup_name, backup_mode))
+
+
+@then(r'I wait for the async backup "{backup_name}" to finish')
+def _i_wait_for_async_backup_to_finish(context, backup_name):
+    while True:
+        status = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup_status(backup_name))
+        if status == medusa_pb2.StatusType.SUCCESS:
+            break
+        logging.debug(f'Backup {backup_name} is not yet finished, waiting...')
+        time.sleep(2)
 
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}" and it fails')
 def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, backup_name):
     try:
-        context.grpc_client.backup(backup_name, backup_mode)
+        asyncio.get_event_loop().run_until_complete(context.grpc_client.backup(backup_name, backup_mode))
         raise AssertionError("Backup process should have failed but didn't.")
     except Exception:
         # This exception is required to be raised to validate the step
@@ -718,7 +734,7 @@ def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, 
 
 @then(r'I verify over gRPC that the backup "{backup_name}" exists and is of type "{backup_type}"')
 def _i_verify_over_grpc_backup_exists(context, backup_name, backup_type):
-    backup = context.grpc_client.get_backup(backup_name=backup_name)
+    backup = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup(backup_name=backup_name))
     assert backup.backupName == backup_name
     assert backup.backupType == backup_type
     assert backup.totalSize > 0
@@ -732,26 +748,26 @@ def _i_sleep_for_seconds(context, num_secs):
 
 @then(r'I verify over gRPC that the backup "{backup_name}" has expected status IN_PROGRESS')
 def _i_verify_over_grpc_backup_has_status_in_progress(context, backup_name):
-    status = context.grpc_client.get_backup_status(backup_name)
+    status = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup_status(backup_name))
     assert status == medusa_pb2.StatusType.IN_PROGRESS
 
 
 @then(r'I verify over gRPC that the backup "{backup_name}" has expected status UNKNOWN')
 def _i_verify_over_grpc_backup_has_status_unknown(context, backup_name):
-    status = context.grpc_client.get_backup_status(backup_name)
+    status = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup_status(backup_name))
     assert status == medusa_pb2.StatusType.UNKNOWN
 
 
 @then(r'I verify over gRPC that the backup "{backup_name}" has expected status SUCCESS')
 def _i_verify_over_grpc_backup_has_status_success(context, backup_name):
-    status = context.grpc_client.get_backup_status(backup_name)
+    status = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup_status(backup_name))
     logging.info(f'status={status}')
     assert status == medusa_pb2.StatusType.SUCCESS
 
 
 @then(r'I verify over gRPC that I can see both backups "{backup_name_1}" and "{backup_name_2}"')
 def _i_verify_over_grpc_that_i_can_see_both_backups(context, backup_name_1, backup_name_2):
-    backups = context.grpc_client.get_backups()
+    backups = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backups())
     assert len(backups) == 2
 
     assert backups[0].backupName == backup_name_1
@@ -765,7 +781,7 @@ def _i_verify_over_grpc_that_i_can_see_both_backups(context, backup_name_1, back
 
 @then(r'I verify over gRPC that the backup "{backup_name}" has the expected placement information')
 def _i_verify_over_grpc_backup_has_expected_information(context, backup_name):
-    backup = context.grpc_client.get_backup(backup_name)
+    backup = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup(backup_name))
     assert backup.nodes[0].host == "127.0.0.1"
     assert backup.nodes[0].datacenter in ["dc1", "datacenter1", "DC1"]
     assert backup.nodes[0].rack in ["rack1", "r1"]
@@ -774,13 +790,13 @@ def _i_verify_over_grpc_backup_has_expected_information(context, backup_name):
 
 @then(r'I delete the backup "{backup_name}" over gRPC')
 def _i_delete_backup_grpc(context, backup_name):
-    context.grpc_client.delete_backup(backup_name)
+    asyncio.get_event_loop().run_until_complete(context.grpc_client.delete_backup(backup_name))
 
 
 @then(r'I delete the backup "{backup_name}" over gRPC and it fails')
 def _i_delete_backup_grpc_fail(context, backup_name):
     try:
-        context.grpc_client.delete_backup(backup_name)
+        asyncio.get_event_loop().run_until_complete(context.grpc_client.delete_backup(backup_name))
         raise AssertionError("Backup deletion should have failed but didn't.")
     except Exception:
         # This exception is required to be raised to validate the step
@@ -789,7 +805,7 @@ def _i_delete_backup_grpc_fail(context, backup_name):
 
 @then(r'I verify over gRPC that the backup "{backup_name}" does not exist')
 def _i_verify_over_grpc_backup_does_not_exist(context, backup_name):
-    assert not context.grpc_client.backup_exists(backup_name)
+    assert not asyncio.get_event_loop().run_until_complete(context.grpc_client.backup_exists(backup_name))
 
 
 @then(r'I verify that backup manager has removed the backup "{backup_name}"')
@@ -802,7 +818,7 @@ def _i_verify_backup_manager_removed_backup(context, backup_name):
 
 @then(r'the gRPC server is up')
 def _check_grpc_server_is_up(context):
-    resp = context.grpc_client.health_check()
+    resp = asyncio.get_event_loop().run_until_complete(context.grpc_client.health_check())
     assert resp.status == 1
 
 
@@ -1522,7 +1538,7 @@ def _all_files_of_table_in_backup_were_uploaded_with_key_configured_in_storage_c
 
 @when(r'I perform a purge over gRPC')
 def _i_perform_a_purge_over_grpc_with_a_max_backup_count(context):
-    context.purge_result = context.grpc_client.purge_backups()
+    context.purge_result = asyncio.get_event_loop().run_until_complete((context.grpc_client.purge_backups()))
 
 
 @then(r'{nb_purged_backups} backup has been purged')

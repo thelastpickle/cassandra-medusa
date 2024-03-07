@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import logging
 import os
-import signal
 import sys
 from collections import defaultdict
 from concurrent import futures
@@ -26,6 +26,7 @@ from pathlib import Path
 
 import grpc
 import grpc_health.v1.health
+from grpc import aio
 from grpc_health.v1 import health_pb2_grpc
 
 from medusa import backup_node
@@ -38,7 +39,6 @@ from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.storage import Storage
-from medusa.storage.abstract_storage import AbstractStorage
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
@@ -52,7 +52,7 @@ class Server:
         self.config_file_path = config_file_path
         self.medusa_config = self.create_config()
         self.testing = testing
-        self.grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
+        self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
         ])
@@ -61,9 +61,9 @@ class Server:
     def shutdown(self, signum, frame):
         logging.info("Shutting down GRPC server")
         handle_backup_removal_all()
-        self.grpc_server.stop(0)
+        asyncio.get_event_loop().run_until_complete(self.grpc_server.stop(0))
 
-    def serve(self):
+    async def serve(self):
         config = self.create_config()
         self.configure_console_logging()
 
@@ -72,11 +72,14 @@ class Server:
 
         logging.info('Starting server. Listening on port 50051.')
         self.grpc_server.add_insecure_port('[::]:50051')
-        self.grpc_server.start()
+        await self.grpc_server.start()
 
         if not self.testing:
-            signal.signal(signal.SIGTERM, self.shutdown)
-            self.grpc_server.wait_for_termination()
+            try:
+                await self.grpc_server.wait_for_termination()
+            except asyncio.exceptions.CancelledError:
+                logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
+            handle_backup_removal_all()
 
     def create_config(self):
         config_file = Path(self.config_file_path)
@@ -87,6 +90,10 @@ class Server:
     def configure_console_logging(self):
         root_logger = logging.getLogger('')
         root_logger.setLevel(logging.DEBUG)
+
+        # Clean up handlers on the root_logger, this prevents duplicate log lines
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
 
         log_format = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
 
@@ -108,10 +115,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         self.config = config
         self.storage_config = config.storage
 
-    def AsyncBackup(self, request, context):
+    async def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
         logging.info("Performing ASYNC backup {} (type={})".format(request.name, request.mode))
-        loop = AbstractStorage.get_or_create_event_loop()
         response = medusa_pb2.BackupResponse()
         mode = BACKUP_MODE_DIFFERENTIAL
         if medusa_pb2.BackupRequest.Mode.FULL == request.mode:
@@ -120,13 +126,16 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         try:
             response.backupName = request.name
             response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
-            with ThreadPoolExecutor(max_workers=1, thread_name_prefix=request.name) as executor:
-                BackupMan.register_backup(request.name, is_async=True)
-                backup_future = loop.run_in_executor(executor, backup_node.handle_backup, self.config,
-                                                     request.name, None,
-                                                     False, mode)
-                backup_future.add_done_callback(record_backup_info)
-                BackupMan.set_backup_future(request.name, backup_future)
+            BackupMan.register_backup(request.name, is_async=True)
+            executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=request.name)
+            loop = asyncio.get_running_loop()
+            backup_future = loop.run_in_executor(
+                executor,
+                backup_node.handle_backup,
+                self.config, request.name, None, False, mode
+            )
+            backup_future.add_done_callback(record_backup_info)
+            BackupMan.set_backup_future(request.name, backup_future)
 
         except Exception as e:
 
@@ -382,11 +391,15 @@ def handle_backup_removal_all():
         logging.error("Failed to cleanup all backups")
 
 
-if __name__ == '__main__':
+async def main():
     if len(sys.argv) > 2:
         config_file_path = sys.argv[2]
     else:
         config_file_path = "/etc/medusa/medusa.ini"
 
     server = Server(config_file_path)
-    server.serve()
+    await server.serve()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
