@@ -31,7 +31,7 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poetry
 
 # Build medusa itself so we can add the executables in the final image
-RUN cd /build && poetry install
+RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM ubuntu:22.04
@@ -52,7 +52,8 @@ WORKDIR /home/cassandra
 
 ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
-ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:$PATH
+ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:/home/cassandra/bin:$PATH
+ENV PYTHONPATH=/home/cassandra
 
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 
@@ -60,6 +61,9 @@ COPY --from=base --chown=cassandra:cassandra /build/.venv /home/cassandra/.venv
 COPY --from=base --chown=cassandra:cassandra /build/pyproject.toml /home/cassandra/pyproject.toml
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa
 COPY --chown=cassandra:cassandra k8s/docker-entrypoint.sh /home/cassandra
+
+RUN mkdir -p /home/cassandra/bin
+COPY --chown=cassandra:cassandra k8s/medusa.sh /home/cassandra/bin/medusa
 
 # Avoid Click locale errors when running medusa directly
 ENV LC_ALL=C.UTF-8

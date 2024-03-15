@@ -926,6 +926,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_23"
+        Then I wait for the async backup "grpc_backup_23" to finish
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_23" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_23"
@@ -1038,6 +1039,7 @@ Feature: Integration tests
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I run a "ccm node2 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_28"
+        Then I wait for the async backup "grpc_backup_28" to finish
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_28" exists and is of type "differential"
         # The backup status is not actually a SUCCESS because the node2 has not been backed up.
@@ -1066,12 +1068,14 @@ Feature: Integration tests
         When I run a DSE "nodetool flush" command
         Then I can make a search query against the "medusa"."test" table
         When I perform an async backup over gRPC in "differential" mode of the node named "backup29-1"
+        Then I wait for the async backup "backup29-1" to finish
         Then the backup index exists
         Then I can see the backup named "backup29-1" when I list the backups
         And the backup "backup29-1" has server_type "dse" in its metadata
         Then I verify over gRPC that the backup "backup29-1" exists and is of type "differential"
         Then I verify over gRPC that the backup "backup29-1" has expected status SUCCESS
         When I perform an async backup over gRPC in "differential" mode of the node named "backup29-2"
+        Then I wait for the async backup "backup29-2" to finish
         Then the backup index exists
         Then I can see the backup named "backup29-2" when I list the backups
         And the backup "backup29-2" has server_type "dse" in its metadata

@@ -24,13 +24,13 @@ from medusa.service.grpc import medusa_pb2_grpc
 
 class Client:
     def __init__(self, target, channel_options=[]):
-        self.channel = grpc.insecure_channel(target, options=channel_options)
+        self.channel = grpc.aio.insecure_channel(target, options=channel_options)
 
-    def health_check(self):
+    async def health_check(self):
         try:
             health_stub = health_pb2_grpc.HealthStub(self.channel)
             request = health_pb2.HealthCheckRequest()
-            return health_stub.Check(request)
+            return await health_stub.Check(request)
         except grpc.RpcError as e:
             logging.error("Failed health check due to error: {}".format(e))
             return None
@@ -45,65 +45,65 @@ class Client:
             raise RuntimeError("{} is not a recognized backup mode".format(mode))
         return backup_mode, stub
 
-    def async_backup(self, name, mode):
+    async def async_backup(self, name, mode):
         try:
             backup_mode, stub = self.create_backup_stub(mode=mode)
             request = medusa_pb2.BackupRequest(name=name, mode=backup_mode)
-            return stub.AsyncBackup(request)
+            return await stub.AsyncBackup(request)
         except grpc.RpcError as e:
             logging.error("Failed async backup for name: {} and mode: {} due to error: {}".format(name, mode, e))
             return None
 
-    def backup(self, name, mode):
+    async def backup(self, name, mode):
         try:
             backup_mode, stub = self.create_backup_stub(mode=mode)
             request = medusa_pb2.BackupRequest(name=name, mode=backup_mode)
-            return stub.Backup(request)
+            return await stub.Backup(request)
         except grpc.RpcError as e:
             logging.error("Failed sync backup for name: {} and mode: {} due to error: {}".format(name, mode, e))
             return None
 
-    def delete_backup(self, name):
+    async def delete_backup(self, name):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
             request = medusa_pb2.DeleteBackupRequest(name=name)
-            stub.DeleteBackup(request)
+            await stub.DeleteBackup(request)
         except grpc.RpcError as e:
             logging.error("Failed to delete backup for name: {} due to error: {}".format(name, e))
 
-    def get_backup(self, backup_name):
+    async def get_backup(self, backup_name):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
             request = medusa_pb2.GetBackupRequest(backupName=backup_name)
-            response = stub.GetBackup(request)
+            response = await stub.GetBackup(request)
             return response.backup
         except grpc.RpcError as e:
             logging.error("Failed to obtain backup for name: {} due to error: {}".format(backup_name, e))
             return None
 
-    def get_backups(self):
+    async def get_backups(self):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
             request = medusa_pb2.GetBackupsRequest()
-            response = stub.GetBackups(request)
+            response = await stub.GetBackups(request)
             return response.backups
         except grpc.RpcError as e:
             logging.error("Failed to obtain list of backups due to error: {}".format(e))
             return None
 
-    def get_backup_status(self, name):
+    async def get_backup_status(self, name):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
             request = medusa_pb2.BackupStatusRequest(backupName=name)
-            resp = stub.BackupStatus(request)
+            resp = await stub.BackupStatus(request)
             return resp.status
         except grpc.RpcError as e:
             logging.error("Failed to determine backup status for name: {} due to error: {}".format(name, e))
             return medusa_pb2.StatusType.UNKNOWN
 
-    def backup_exists(self, name):
+    async def backup_exists(self, name):
         try:
-            backups = self.get_backups()
+            backups = await self.get_backups()
             for backup in list(backups):
                 if backup.backupName == name:
                     return True
@@ -112,11 +112,11 @@ class Client:
             logging.error("Failed to determine if backup exists for backup name: {} due to error: {}".format(name, e))
             return False
 
-    def purge_backups(self):
+    async def purge_backups(self):
         try:
             stub = medusa_pb2_grpc.MedusaStub(self.channel)
             request = medusa_pb2.PurgeBackupsRequest()
-            resp = stub.PurgeBackups(request)
+            resp = await stub.PurgeBackups(request)
             return resp
         except grpc.RpcError as e:
             logging.error("Failed to purge backups due to error: {}".format(e))
