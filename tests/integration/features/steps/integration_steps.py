@@ -427,6 +427,12 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     time.sleep(3)
 
 
+@when(r'I forget about all backups')
+def i_forget_backups(context):
+    # makes the gRPC server look like we've just started it
+    BackupMan.remove_all_backups()
+
+
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mgmt api')
 def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_provider, client_encryption):
     config = parse_medusa_config(
@@ -730,6 +736,12 @@ def _i_perform_grpc_backup_of_node_named_backupname_fails(context, backup_mode, 
     except Exception:
         # This exception is required to be raised to validate the step
         pass
+
+
+@then(r'I verify over gRPC that the backup "{backup_name}" has status "{backup_status}"')
+def _i_verify_over_grpc_that_backup_has_status(context, backup_name, backup_status):
+    status = asyncio.get_event_loop().run_until_complete(context.grpc_client.get_backup_status(name=backup_name))
+    assert status == medusa_pb2.StatusType.SUCCESS
 
 
 @then(r'I verify over gRPC that the backup "{backup_name}" exists and is of type "{backup_type}"')

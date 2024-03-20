@@ -211,8 +211,8 @@ class ServerTest(unittest.TestCase):
             context = Mock(spec=ServicerContext)
             backup_status = service.BackupStatus(request, context)
 
-            # we get the response as IN_PROGRESS
-            self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, backup_status.status)
+            # we get the response as SUCCESS because the finish time is set (~not None)
+            self.assertEqual(medusa_pb2.StatusType.SUCCESS, backup_status.status)
             # the finish time is already set
             # I'm not sure this is because of faking the backup
             start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())

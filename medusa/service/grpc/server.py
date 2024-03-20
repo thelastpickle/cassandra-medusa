@@ -189,6 +189,13 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                     response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
                 else:
                     response.finishTime = ""
+                BackupMan.register_backup(request.backupName, is_async=False)
+                status = BackupMan.STATUS_UNKNOWN
+                if backup.started:
+                    status = BackupMan.STATUS_IN_PROGRESS
+                if backup.finished:
+                    status = BackupMan.STATUS_SUCCESS
+                BackupMan.update_backup_status(request.backupName, status)
                 # record the status
                 record_status_in_response(response, request.backupName)
         except KeyError:
