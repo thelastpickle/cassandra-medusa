@@ -80,6 +80,17 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
 
+    # externalise the fact a backup is running.
+    # we need a way to tell a backup is running without invoking Meudsa to prevent concurrency and abrupt termination
+    backup_in_progress_marker = medusa.utils.MedusaTempFile()
+    if backup_in_progress_marker.exists():
+        marker_path = backup_in_progress_marker.get_path()
+        raise IOError(
+            f'Error: Backup already in progress. Please delete f{marker_path} if that is not the case to continue.'
+        )
+    else:
+        backup_in_progress_marker.create()
+
     with Storage(config=config.storage) as storage:
         try:
             logging.debug("Starting backup preparations with Mode: {}".format(mode))
@@ -120,6 +131,8 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
                 "Error occurred during backup: {}".format(str(e)),
                 config
             )
+        finally:
+            backup_in_progress_marker.delete()
 
 
 def start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,

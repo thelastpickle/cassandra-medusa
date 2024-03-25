@@ -926,7 +926,9 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
         When I perform an async backup over gRPC in "differential" mode of the node named "grpc_backup_23"
+        Then I can tell a backup "is" in progress
         Then I wait for the async backup "grpc_backup_23" to finish
+        Then I can tell a backup "is not" in progress
         Then the backup index exists
         Then I verify over gRPC that the backup "grpc_backup_23" exists and is of type "differential"
         Then I can see the backup index entry for "grpc_backup_23"

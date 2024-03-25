@@ -15,7 +15,29 @@
 
 import logging
 import sys
+import pathlib
 import traceback
+
+
+class MedusaTempFile(object):
+
+    _tempfile_path = '/tmp/medusa_backup_in_progress'
+
+    def __init__(self):
+        pass
+
+    def create(self):
+        self._tempfile = open(self._tempfile_path, 'wb')
+
+    def delete(self):
+        self._tempfile.close()
+        pathlib.Path(self._tempfile_path).unlink()
+
+    def exists(self):
+        return pathlib.Path(self._tempfile_path).exists()
+
+    def get_path(self):
+        return self._tempfile_path
 
 
 def evaluate_boolean(value):
