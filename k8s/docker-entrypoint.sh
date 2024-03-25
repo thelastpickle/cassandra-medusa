@@ -47,8 +47,26 @@ restore() {
 }
 
 grpc() {
+    ORIGINAL_MEDUSA_INI_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
     echo "Starting Medusa gRPC service"
-    exec poetry run python -m medusa.service.grpc.server server.py
+
+    exec poetry run python -m medusa.service.grpc.server server.py &
+    MEDUSA_PID=$!
+
+    while true; do
+      CURRENT_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
+      if [ "$ORIGINAL_MEDUSA_INI_DIGEST" != "$CURRENT_DIGEST" ]; then
+        echo "Detected change in medusa.ini, checking for running backups"
+        if ! [ -f /tmp/medusa_backup_in_progress ]; then
+          echo "No backups in progress, stopping Medusa"
+          kill $MEDUSA_PID
+          break
+        else
+          echo "Backup in progress, postponing restart restart"
+        fi
+      fi
+      sleep 5
+    done
 }
 
 echo "sleeping for $DEBUG_SLEEP sec"
