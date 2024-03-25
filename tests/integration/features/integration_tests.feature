@@ -1097,3 +1097,22 @@ Feature: Integration tests
     Examples: S3 storage
     | storage           | client encryption         |
     | s3_us_west_oregon | without_client_encryption |
+
+    @31
+    Scenario Outline: Perform a backup, then forget about it, then get its status over gRPC
+        Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario31"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Then the gRPC server is up
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "enabled"
+        Then the backup index exists
+        When I forget about all backups
+        Then I verify over gRPC that the backup "first_backup" has status "SUCCESS"
+        Then I shutdown the gRPC server
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  with_client_encryption |

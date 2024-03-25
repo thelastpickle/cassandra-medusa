@@ -109,7 +109,7 @@ class BackupMan:
                 BackupMan()
 
             if backup_name in BackupMan.__instance.__backups:
-                logging.warning("Registered backup name {} found existing, replacing with new".format(backup_name))
+                logging.debug("Registered backup name {} found existing, replacing with new".format(backup_name))
                 if not BackupMan.__clean(backup_name):
                     logging.error("Registered backup name {} cleanup failed prior to re-register.".format(backup_name))
 
@@ -177,8 +177,10 @@ class BackupMan:
             with lock:
                 if backup_name in BackupMan.__instance.__backups:
                     old_status = BackupMan.__instance.__backups[backup_name][BackupMan.__IDX_STATUS]
-                    logging.info("Updated from existing status: {} to new status: {} "
-                                 "for backup id: {} ".format(old_status, status, backup_name))
+                    logging.debug(
+                        "Updated from existing status: {} to new status: {} for backup id: {} "
+                        .format(old_status, status, backup_name)
+                    )
                     BackupMan.__instance.__backups[backup_name][BackupMan.__IDX_STATUS] = status
                 else:
                     raise RuntimeError('Unable to update backup status for backup id: {} '
