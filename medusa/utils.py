@@ -21,20 +21,31 @@ import traceback
 
 class MedusaTempFile(object):
 
+    _tempfile = None
     _tempfile_path = '/tmp/medusa_backup_in_progress'
 
     def __init__(self):
         pass
 
     def create(self):
-        self._tempfile = open(self._tempfile_path, 'wb')
+        try:
+            self._tempfile = open(self._tempfile_path, 'wb')
+        except Exception:
+            logging.warning(f'Could not create running backup marker at {self._tempfile_path}')
 
     def delete(self):
-        self._tempfile.close()
-        pathlib.Path(self._tempfile_path).unlink()
+        try:
+            if self._tempfile is not None:
+                self._tempfile.close()
+                pathlib.Path(self._tempfile_path).unlink()
+        except Exception:
+            pass
 
     def exists(self):
-        return pathlib.Path(self._tempfile_path).exists()
+        if self._tempfile is not None:
+            return pathlib.Path(self._tempfile_path).exists()
+        else:
+            return False
 
     def get_path(self):
         return self._tempfile_path
