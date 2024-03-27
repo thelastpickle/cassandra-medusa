@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import pathlib
 import unittest
 from concurrent.futures.thread import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
 from medusa import backup_node, config
-from medusa.backup_node import BackupMan
+from medusa.backup_node import BackupMan, check_already_uploaded
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, \
     SSHConfig, ChecksConfig, MonitoringConfig, LoggingConfig, GrpcConfig, KubernetesConfig
+from medusa.storage.abstract_storage import ManifestObject
 
 
 class BackupNodeTest(unittest.TestCase):
@@ -80,6 +82,97 @@ class BackupNodeTest(unittest.TestCase):
         result = registered_backup_future.result()
         assert result is not None
         assert result == {"foo": "bar"}
+
+    @patch("medusa.storage")
+    @patch("medusa.storage.node_backup.NodeBackup")
+    def test_check_already_uploaded(self, mock_storage, mock_node_backup):
+
+        def mo(path, size, hash='whatever'):
+            return ManifestObject(path, size, hash)
+
+        mock_node_backup.is_differential = True
+
+        # avoid comparing file sizes, always return True
+        mock_storage.storage_driver.file_matches_storage.return_value = True
+
+        files_in_storage = {
+            'keyspace1': {
+                'table1-cfid': {
+                    'nb-1-big-Data.db': mo('nb-1-big-Data.db', 250),
+                    'nb-1-big-Statistics.db': mo('nb-1-big-Statistics.db', 120)
+                },
+                'table1-cfid..test_idx': {
+                    'nb-1-big-Statistics.db': mo('nb-1-big-Statistics.db', 70),
+                    'nb-1-big-CompressionInfo.db': mo('nb-1-big-CompressionInfo.db', 42)
+                }
+            },
+            'keyspace2': {
+                'table2-cfid': {
+                    'nb-1-big-Data.db': mo('nb-1-big-Data.db', 252),
+                },
+
+            }
+        }
+
+        table1_srcs = [
+            pathlib.Path('/foo/bar/data/keyspace1/table1-cfid/snapshots/snapshot-name/nb-1-big-Data.db'),
+            pathlib.Path('/foo/bar/data/keyspace1/table1-cfid/snapshots/snapshot-name/nb-1-big-Statistics.db'),
+        ]
+        table1_backup, table1_reupload, table1_already_up = check_already_uploaded(
+            mock_storage,
+            mock_node_backup,
+            multipart_threshold=100,
+            enable_md5_checks=False,
+            files_in_storage=files_in_storage,
+            keyspace='keyspace1',
+            srcs=table1_srcs
+        )
+
+        self.assertEqual(list(), table1_backup)
+        self.assertEqual(list(), table1_reupload)
+        self.assertEqual(
+            [mo('nb-1-big-Data.db', 250), mo('nb-1-big-Statistics.db', 120)],
+            table1_already_up
+        )
+
+        table1_index_srcs = [
+            pathlib.Path('/foo/bar/data/keyspace1/table1-cfid/snapshots/snapshot-name/.test_idx/nb-1-big-Data.db'),
+            pathlib.Path('/data/keyspace1/table1-cfid/snapshots/snapshot-name/.test_idx/nb-1-big-Statistics.db'),
+            pathlib.Path('/data/keyspace1/table1-cfid/snapshots/snapshot-name/.test_idx/nb-1-big-CompressionInfo.db'),
+        ]
+        t1_idx_backup, t1_idx_reupload, t1_idx_already_up = check_already_uploaded(
+            mock_storage,
+            mock_node_backup,
+            multipart_threshold=100,
+            enable_md5_checks=False,
+            files_in_storage=files_in_storage,
+            keyspace='keyspace1',
+            srcs=table1_index_srcs
+        )
+        # the first file was not in storage, so we need to reuplaod it
+        self.assertEqual([table1_index_srcs[0]], t1_idx_backup)
+        self.assertEqual([], t1_idx_reupload)
+        # the other two files were already backed up
+        self.assertEqual([mo('nb-1-big-Statistics.db', 70), mo('nb-1-big-CompressionInfo.db', 42)], t1_idx_already_up)
+
+        # make every file not match storage
+        mock_storage.storage_driver.file_matches_storage.return_value = False
+        table2_srcs = [
+            pathlib.Path('/foo/bar/data/keyspace2/table2-cfid/snapshots/snapshot-name/nb-1-big-Data.db'),
+        ]
+        t2_backup, t2_reupload, t2_already_up = check_already_uploaded(
+            mock_storage,
+            mock_node_backup,
+            multipart_threshold=100,
+            enable_md5_checks=False,
+            files_in_storage=files_in_storage,
+            keyspace='keyspace2',
+            srcs=table2_srcs,
+        )
+        self.assertEqual([], t2_backup)
+        # the file shows up in the reupload list because it's in the storage, but not at a different shape
+        self.assertEqual([table2_srcs[0]], t2_reupload)
+        self.assertEqual([], t2_already_up)
 
 
 if __name__ == '__main__':

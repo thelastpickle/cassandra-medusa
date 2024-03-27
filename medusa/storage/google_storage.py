@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pathlib
 
 import aiohttp
 import base64
@@ -254,12 +255,12 @@ class GoogleStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
         return GoogleStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
-            size_in_manifest=cached_item['size'],
+            size_in_manifest=cached_item.size,
             actual_hash=AbstractStorage.generate_md5_hash(src) if enable_md5_checks else None,
-            hash_in_manifest=cached_item['MD5']
+            hash_in_manifest=cached_item.MD5
         )
 
     @staticmethod

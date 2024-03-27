@@ -18,6 +18,7 @@ import logging
 import operator
 import pathlib
 import re
+import typing as t
 
 from retrying import retry
 
@@ -25,6 +26,7 @@ import medusa.index
 
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
+from medusa.storage.abstract_storage import ManifestObject, AbstractBlob
 from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.s3_storage import S3Storage
@@ -444,3 +446,61 @@ class Storage(object):
 
     def delete_objects(self, objects, concurrent_transfers=None):
         self.storage_driver.delete_objects(objects, concurrent_transfers)
+
+    @staticmethod
+    def sanitize_keyspace_and_table_name(path: pathlib.Path) -> t.Tuple[str, str]:
+        """
+        This functions makes sure that for a given path (being it a local or storage one), we identify a SSTable file
+        together with its parent, which might sometime be a secondary index.
+        Secondary indices live as hidden folder in the regular data folder, and contain regular SSTable files.
+        Similar logic applies to DSE (6.8) internal files.
+
+        When dealing with local paths, the path is a string like
+        /some/path/to/data/folder/keyspace/table-cfid/snapshots/snapshot-name/nb-5-big-CompressionInfo.db
+        or
+        /some/path/to/data/folder/keyspace/table-cfid/snapshots/snapshot-name/.index_name/nb-5-big-CompressionInfo.db
+        """
+        # 2i tables or the dse internal folder, we merge table and index name as a new table
+        # we're dealing with local path, which features a snapshot
+        if str(path).startswith('/'):
+            is_2i_or_dse = path.parent.name.startswith('.') or path.parent.name.endswith('nodes')
+            chunks = str(path).split('/')
+            if (len(chunks) < 7 and is_2i_or_dse) or len(chunks) < 6:
+                raise RuntimeError(f'Path {path} does not look like a correct SSTable location')
+            if is_2i_or_dse:
+                k, t, index_name = chunks[-6], chunks[-5], chunks[-2]
+                keyspace, table = k, f"{t}.{index_name}"
+            else:
+                keyspace, table = chunks[-5], chunks[-4]
+        # it's a path in a storage, without a snapshot
+        else:
+            if path.parent.name.startswith('.') or path.parent.name.endswith('nodes'):
+                keyspace, table = path.parent.parent.parent.name, f"{path.parent.parent.name}.{path.parent.name}"
+            else:
+                keyspace, table = path.parent.parent.name, path.parent.name
+        return keyspace, table
+
+    @staticmethod
+    def get_keyspace_and_table(manifest_object: ManifestObject) -> t.Tuple[str, str, ManifestObject]:
+        p = pathlib.Path(manifest_object.path)
+        # 2i tables or the dse internal folder, we merge table and index name as a new table
+        keyspace, table = Storage.sanitize_keyspace_and_table_name(p)
+        return keyspace, table, manifest_object
+
+    def list_files_per_table(self) -> t.Dict[str, t.Dict[str, t.Set[ManifestObject]]]:
+        if self.config.prefix != '':
+            prefix = f"{self.config.prefix}/"
+        else:
+            prefix = ""
+        fdns_data_prefix = f"{prefix}{self.config.fqdn}/data/"
+        all_blobs: t.List[AbstractBlob] = self.storage_driver.list_blobs(prefix=fdns_data_prefix)
+        all_files = [ManifestObject(blob.name, blob.size, blob.hash) for blob in all_blobs]
+        keyspace_table_mo_tuples = map(Storage.get_keyspace_and_table, all_files)
+
+        files_by_keyspace_and_table = dict()
+        for ks, ks_files in itertools.groupby(keyspace_table_mo_tuples, lambda t: t[0]):
+            files_by_keyspace_and_table[ks] = dict()
+            for tt, t_files in itertools.groupby(ks_files, lambda tf: tf[1]):
+                files_by_keyspace_and_table[ks][tt] = {pathlib.Path(tf[2].path).name: tf[2] for tf in t_files}
+
+        return files_by_keyspace_and_table

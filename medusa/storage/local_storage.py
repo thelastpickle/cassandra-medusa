@@ -18,6 +18,7 @@ import hashlib
 import io
 import logging
 import os
+import pathlib
 import typing as t
 from pathlib import Path
 
@@ -186,10 +187,10 @@ class LocalStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_cache(src, cached_item, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
         return LocalStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
-            size_in_manifest=cached_item['size']
+            size_in_manifest=cached_item.size
         )
 
     @staticmethod
