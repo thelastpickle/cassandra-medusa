@@ -71,6 +71,8 @@ from medusa.config import _namedtuple_from_dict
 from medusa.monitoring import LocalMonitoring
 from medusa.service.grpc import medusa_pb2
 from medusa.storage import Storage
+from medusa.utils import MedusaTempFile
+
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
 os.chdir("..")
@@ -1665,6 +1667,15 @@ def _backup_has_server_type_and_release_version(context, backup_name, server_typ
         node_backup = storage.get_node_backup(fqdn=context.medusa_config.storage.fqdn, name=backup_name)
         assert server_type == node_backup.server_type
         # not asserting for release_version because it's hard to get the Cassandra's one
+
+
+@then(u'I can tell a backup "{is_in_progress}" in progress')
+def _backup_is_or_is_not_in_progress(context, is_in_progress):
+    marker_file_path = MedusaTempFile().get_path()
+    if 'is' == is_in_progress:
+        assert Path(marker_file_path).exists()
+    if 'is not' == is_in_progress:
+        assert not Path(marker_file_path).exists()
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):
