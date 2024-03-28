@@ -27,21 +27,29 @@ from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
 
 
-def main(config, max_backup_age=0, max_backup_count=0):
+def main(config, prefer_incomplete=False, max_backup_age=0, max_backup_count=0):
     backups_to_purge = set()
     monitoring = Monitoring(config=config.monitoring)
 
     try:
         logging.info('Starting purge')
         with Storage(config=config.storage) as storage:
-            # Get all backups for the local node
-            logging.info('Listing backups for {}'.format(config.storage.fqdn))
+
+            # Pre-fetch the backup index
             backup_index = storage.list_backup_index_blobs()
-            backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
-            # list all backups to purge based on date conditions
-            backups_to_purge |= set(backups_to_purge_by_age(backups, max_backup_age))
-            # list all backups to purge based on count conditions
-            backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
+
+            # Get names of all complete cluster backups
+            cluster_backups = storage.list_cluster_backups(backup_index=backup_index)
+            complete_cluster_backup_names = {cb.name for cb in cluster_backups if cb.finished is not None}
+
+            # Get all node backups
+            logging.info('Listing backups for {}'.format(config.storage.fqdn))
+            node_backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
+
+            backups_to_purge = find_backups_to_purge(
+                complete_cluster_backup_names, node_backups, prefer_incomplete, max_backup_age, max_backup_count
+            )
+
             # purge all candidate backups
             object_counts = purge_backups(
                 storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
@@ -60,6 +68,58 @@ def main(config, max_backup_age=0, max_backup_count=0):
         monitoring.send(tags, 1)
         logging.error('This error happened during the purge: {}'.format(str(e)))
         sys.exit(1)
+
+
+def find_backups_to_purge(
+        complete_cluster_backup_names, node_backups, prefer_incomplete, max_backup_age, max_backup_count
+):
+    backups_to_purge = set()
+
+    # we purge old backups always
+    backups_to_purge |= set(backups_to_purge_by_age(node_backups, max_backup_age))
+
+    # if we already keep only max_backup_count or less, we return
+    if max_backup_count == 0 or len(node_backups) - len(backups_to_purge) <= max_backup_count:
+        return backups_to_purge
+
+    # if we don't care about the incomplete ones, we purge by count and return
+    if not prefer_incomplete:
+        backups_to_purge |= set(backups_to_purge_by_count(node_backups, max_backup_count))
+        return backups_to_purge
+
+    # otherwise we need to check for the complete and incomplete backups
+    # we do this by comparing them to the complete cluster backups
+    # this is for the unlikely case when an incomplete node backup does not have its associated cluster backup
+    complete_node_backups, incomplete_node_backups = [], []
+    for nb in node_backups:
+        (complete_node_backups, incomplete_node_backups)[nb.name not in complete_cluster_backup_names].append(nb)
+
+    # try to pick from the incomplete ones first
+    incomplete_to_keep = max_backup_count - len(complete_node_backups)
+    if incomplete_to_keep <= 0:
+        # there is more complete backups than the max_backup_count, so we will need to purge them in a bit
+        # because we have to purge complete ones, we need to go through (possibly all) incomplete ones first
+        # but it might also happen that we hit the max_backup_count retained already here, so we proceed with care
+        for nb in incomplete_node_backups:
+            if nb in backups_to_purge:
+                # backup is already getting purged because of the age
+                continue
+            if len(node_backups) - len(backups_to_purge) == max_backup_count:
+                # we reached the limit of backups to keep
+                break
+            backups_to_purge.add(nb)
+    else:
+        # complete backups are too few, we can afford to keep some complete ones
+        incomplete_to_purge = set(backups_to_purge_by_count(incomplete_node_backups, incomplete_to_keep))
+        backups_to_purge |= incomplete_to_purge
+
+    # if there wasn't enough incomplete backups, ensure we still keep only the max_backup_count of backups
+    # we do this by taking backups to purge from the complete ones
+    remaining_backups = len(node_backups) - len(backups_to_purge)
+    if remaining_backups > max_backup_count:
+        backups_to_purge |= set(backups_to_purge_by_count(complete_node_backups, max_backup_count))
+
+    return backups_to_purge
 
 
 def backups_to_purge_by_age(backups, max_backup_age):

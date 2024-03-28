@@ -332,12 +332,15 @@ def build_index(medusa_config, noop):
 
 
 @cli.command(name='purge')
+@click.option('--prefer-incomplete', default=False, is_flag=True,
+              help='Prioritise incomplete backups when purging by count')
 @pass_MedusaConfig
-def purge(medusaconfig):
+def purge(medusaconfig, prefer_incomplete):
     """
     Delete obsolete backups
     """
     medusa.purge.main(medusaconfig,
+                      prefer_incomplete=prefer_incomplete,
                       max_backup_age=int(medusaconfig.storage.max_backup_age),
                       max_backup_count=int(medusaconfig.storage.max_backup_count))
 
