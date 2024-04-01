@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.20.1 (2024/04/01 16:55 +00:00)
+- Fix CI to pre-install Poetry when publishing to pipy (#733) (@rzvoncek)
+
 ### 0.20.0 (2024/04/01 12:55 +00:00)
 - Bump wheel from 0.32.3 to 0.38.1 (#726) (@dependabot)
 - Bump cryptography from 42.0.2 to 42.0.4 (#727) (@dependabot)
