@@ -1,5 +1,16 @@
 ## Change Log
 
+### 0.20.0 (2024/04/01 12:55 +00:00)
+- Bump wheel from 0.32.3 to 0.38.1 (#726) (@dependabot)
+- Bump cryptography from 42.0.2 to 42.0.4 (#727) (@dependabot)
+- Change is_open function's log level messages from error to debug. (#722) (@philipfischbacher)
+- Re-upload files if they are missing in storage (#716) (@rzvoncek)
+- Fix GetBackupStatus endpoint on a fresh gRPC server (#730) (@rzvoncek)
+- Update GRPC_HEALTH_PROBE_VERSION to version 0.4.25 (#724) (@AlexsandroRotundo)
+- Update dependecies to resolve security vulnerabilities (#717) (@rzvoncek)
+- Make grpc's AsynBackup truly Async (#720) (@rzvoncek)
+- Switch to Poetry for dependency and build management (#679) (@rzvoncek)
+
 ### 0.19.1 (2024/02/24 12:19 +00:00)
 - Disable verification of server TLS certificates for mgmt-api (#715) (@burmanm)
 
