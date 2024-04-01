@@ -193,7 +193,7 @@ class BackupMan:
     def __clean(backup_name):
         try:
             backup_future = BackupMan.__instance.__backups[backup_name][0]
-            logging.debug("Cancelling backup` id: {}".format(backup_name))
+            logging.debug("Cancelling backup id: {}".format(backup_name))
             if backup_future is not None and asyncio.isfuture(backup_future):
                 backup_future.cancel("Removal of backup requested. Cancelling backup Name: {} with "
                                      "done state: {}".format(backup_name, backup_future.done()))

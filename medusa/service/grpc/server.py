@@ -240,10 +240,22 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
     def DeleteBackup(self, request, context):
         logging.info("Deleting backup {}".format(request.name))
         response = medusa_pb2.DeleteBackupResponse()
+        response.name = request.name
+
+        if not BackupMan.is_active():
+            logging.warning(f"Backup manager has no backups on record")
+            response.status = medusa_pb2.StatusType.FAILED
+            return response
+
+        if BackupMan.get_backup_status(request.name) == BackupMan.STATUS_IN_PROGRESS:
+            logging.warning(f"Attempted to delete a running backup {request.name}")
+            response.status = medusa_pb2.StatusType.FAILED
+            return response
 
         try:
             delete_backup(self.config, [request.name], True)
             handle_backup_removal(request.name)
+            response.status = medusa_pb2.StatusType.UNKNOWN
         except Exception as e:
             context.set_details("deleting backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -356,7 +368,7 @@ def record_backup_info(future):
             logging.error("Expected a backup result for recording in callback function.")
             return
 
-        (actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start,
+        (actual_backup_duration, actual_start, end, node_backup, num_files, num_replaced, num_kept, start,
          backup_name) = result
 
         logging.info("Setting result in callback for backup Name: {}".format(backup_name))
