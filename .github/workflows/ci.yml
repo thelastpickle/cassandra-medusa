@@ -515,6 +515,8 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.8
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |
         python -m venv venv
