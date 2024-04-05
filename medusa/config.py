@@ -138,7 +138,7 @@ def _build_default_config():
         'resolve_ip_addresses': 'True',
         'use_sudo': 'True',
         'nodetool_executable': 'nodetool',
-        'nodetool_flags': '-Dcom.sun.jndi.rmiURLParsing=legacy', 
+        'nodetool_flags': '-Dcom.sun.jndi.rmiURLParsing=legacy',
         'ssl': 'False'
     }
 
