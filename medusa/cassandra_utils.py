@@ -74,8 +74,8 @@ class CqlSessionProvider(object):
                                                   password=self._cassandra_config.cql_password)
             self._auth_provider = auth_provider
 
-        if ((self._cassandra_config.ssl is not None and evaluate_boolean(self._cassandra_config.ssl)) or 
-            self._cassandra_config.certfile is not None):
+        if ((self._cassandra_config.ssl is not None and evaluate_boolean(self._cassandra_config.ssl))
+                or self._cassandra_config.certfile is not None):
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
 
             if self._cassandra_config.certfile is not None:
