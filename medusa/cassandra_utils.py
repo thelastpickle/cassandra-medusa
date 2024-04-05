@@ -75,7 +75,7 @@ class CqlSessionProvider(object):
             self._auth_provider = auth_provider
 
 
-        if medusa.utils.evaluate_boolean(self._cassandra_config.ssl) or self._cassandra_config.certfile is not None:
+        if evaluate_boolean(self._cassandra_config.ssl) or self._cassandra_config.certfile is not None:
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
 
             if self._cassandra_config.certfile is not None:                
