@@ -115,6 +115,7 @@ class AzureStorage(AbstractStorage):
             name=object_key,
             data=data,
             overwrite=True,
+            standard_blob_tier=self.get_storage_class(),
         )
         blob_properties = await blob_client.get_blob_properties()
         return AbstractBlob(
@@ -189,6 +190,7 @@ class AzureStorage(AbstractStorage):
                 data=data,
                 overwrite=True,
                 max_concurrency=16,
+                standard_blob_tier=self.get_storage_class(),
             )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(

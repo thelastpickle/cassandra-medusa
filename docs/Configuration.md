@@ -52,6 +52,14 @@ storage_provider = <Storage system used for backups>
 ; storage_provider should be either of "local", "google_storage" or "s3"
 region = <Region hosting the storage>
 
+storage_class = <Storage Class Name used to store backups>
+; AWS S3 Storage classes: STANDARD | REDUCED_REDUNDANCY | STANDARD_IA | ONEZONE_IA | INTELLIGENT_TIERING | GLACIER | DEEP_ARCHIVE | GLACIER_IR
+; GCP Storage classes: STANDARD | NEARLINE | COLDLINE | ARCHIVE
+; AZURE Storage classes: ARCHIVE | COLD | COOL | HOT
+; https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html
+; https://cloud.google.com/storage/docs/storage-classes
+; https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview
+
 ; Name of the bucket used for storing backups
 bucket_name = cassandra_backups
 

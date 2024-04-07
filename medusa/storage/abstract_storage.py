@@ -441,6 +441,12 @@ class AbstractStorage(abc.ABC):
         """
         return {}
 
+    def get_storage_class(self):
+        if self.config.storage_class is not None:
+            return self.config.storage_class.upper()
+        else:
+            return None
+
     @staticmethod
     def human_readable_size(size, decimal_places=3):
         for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
