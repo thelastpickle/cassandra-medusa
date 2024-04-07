@@ -263,7 +263,9 @@ class S3BaseStorage(AbstractStorage):
             kms_args['ServerSideEncryption'] = 'aws:kms'
             kms_args['SSEKMSKeyId'] = self.kms_id
 
-        kms_args['StorageClass'] = self.get_storage_class()
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            kms_args['StorageClass'] = storage_class
 
         logging.debug(
             '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
@@ -354,7 +356,9 @@ class S3BaseStorage(AbstractStorage):
             kms_args['ServerSideEncryption'] = 'aws:kms'
             kms_args['SSEKMSKeyId'] = self.kms_id
 
-        kms_args['StorageClass'] = self.get_storage_class()
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            kms_args['StorageClass'] = storage_class
 
         file_size = os.stat(src).st_size
         logging.debug(
