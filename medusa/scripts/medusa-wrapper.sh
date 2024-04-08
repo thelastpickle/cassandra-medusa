@@ -1,3 +1,5 @@
+#! /bin/sh
+
 # Copyright 2019 Spotify AB. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#! /bin/sh
 if test -f pid; then
     # We can't wait for things that aren't our children. Loop and sleep. :-(
     while ! test -f status; do
@@ -26,5 +27,6 @@ fi
 $@ >stdout 2>stderr &
 echo $! >pid
 wait $!
-echo $? >status
+STATUS=$?
+echo ${STATUS} >status
 exit $(cat status)
