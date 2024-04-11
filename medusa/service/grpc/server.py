@@ -189,7 +189,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                     response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
                 else:
                     response.finishTime = ""
-                BackupMan.register_backup(request.backupName, is_async=False)
+                BackupMan.register_backup(request.backupName, is_async=False, overwrite_existing=False)
                 status = BackupMan.STATUS_UNKNOWN
                 if backup.started:
                     status = BackupMan.STATUS_IN_PROGRESS
