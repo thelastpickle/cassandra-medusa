@@ -75,6 +75,7 @@ class AbstractStorage(abc.ABC):
 
         return objects
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def list_blobs(self, prefix=None):
         loop = self.get_or_create_event_loop()
         objects = loop.run_until_complete(self._list_blobs(prefix))
