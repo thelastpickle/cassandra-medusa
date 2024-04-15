@@ -15,7 +15,47 @@
 
 import logging
 import sys
+import pathlib
 import traceback
+import tempfile
+
+
+class MedusaTempFile(object):
+
+    _tempfile = None
+    _tempfile_path = f'{tempfile.gettempdir()}/medusa_backup_in_progress'
+
+    def __init__(self):
+        pass
+
+    def create(self):
+        try:
+            self._tempfile = open(self._tempfile_path, 'wb')
+        except Exception:
+            logging.warning(f'Could not create running backup marker at {self._tempfile_path}')
+
+    def delete(self):
+        try:
+            if self._tempfile is not None:
+                self._tempfile.close()
+                pathlib.Path(self._tempfile_path).unlink()
+        except Exception:
+            pass
+
+    def exists(self):
+        if self._tempfile is not None:
+            try:
+                return pathlib.Path(self._tempfile_path).exists()
+            except Exception:
+                logging.warning(
+                    f'Could not check for running backup marker {self._tempfile_path}. Assuming a backup is not running'
+                )
+                return False
+        else:
+            return False
+
+    def get_path(self):
+        return self._tempfile_path
 
 
 def evaluate_boolean(value):
