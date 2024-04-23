@@ -36,7 +36,7 @@ packages = [
 ]
 include = [
     { path = "medusa-example.ini" },
-    { path = "bin/medsua-wrapper" }
+    { path = "bin/medusa-wrapper" }
 ]
 
 [project]
