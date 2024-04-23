@@ -98,7 +98,7 @@ def configure_console_logging(verbosity, without_log_timestamp):
 @click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
 @click.option('--without-log-timestamp', help='Do not show timestamp in logs', default=False, is_flag=True)
 @click.option('--config-file', help='Specify config file')
-@click.option('--bucket-name', help='Bucket name')
+@click.option('--bucket-name', help='Explicit bucket name to over-ride the one from config')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
 @click.option('--fqdn', help='Act as another host')
@@ -168,7 +168,7 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
 @cli.command(name='fetch-tokenmap')
 @click.option('--backup-name', help='backup name', required=True)
 @click.option('--bucket-name', help='Bucket with backup', required=False, default=None)
-@click.option('--prefix', help='Backup prefix', required=False, default=None)
+@click.option('--prefix', help='Path prefix in multi-tenant buckets', required=False, default=None)
 @pass_MedusaConfig
 def fetch_tokenmap(medusaconfig, backup_name, bucket_name, prefix):
     """
@@ -179,8 +179,8 @@ def fetch_tokenmap(medusaconfig, backup_name, bucket_name, prefix):
 
 @cli.command(name='list-backups')
 @click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
-@click.option('--bucket-name', help='Bucket with backup', required=False, default=None)
-@click.option('--prefix', help='Backup prefix', required=False, default=None)
+@click.option('--bucket-name', help='Explicit bucket name to over-ride the one from config', required=False, default=None)
+@click.option('--prefix', help='Path prefix in multi-tenant buckets', required=False, default=None)
 @pass_MedusaConfig
 def list_backups(medusaconfig, show_all, bucket_name, prefix):
     """
@@ -198,8 +198,8 @@ def list_backups(medusaconfig, show_all, bucket_name, prefix):
               multiple=True, default={})
 @click.option('--ignore-system-keyspaces', help='Do not download cassandra system keyspaces', required=True,
               is_flag=True, default=False)
-@click.option('--bucket-name', help='Bucket with backup', required=False, default=None)
-@click.option('--prefix', help='Backup prefix', required=False, default=None)
+@click.option('--bucket-name', help='Explicit bucket name to over-ride the one from config', required=False, default=None)
+@click.option('--prefix', help='Path prefix in multi-tenant buckets', required=False, default=None)
 @pass_MedusaConfig
 def download(medusaconfig, backup_name, download_destination, keyspaces, tables, ignore_system_keyspaces, bucket_name,
              prefix):
@@ -231,8 +231,8 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
 @click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
 @click.option('--ignore-racks', help='Disable matching nodes based on rack topology', required=False, default=False,
               is_flag=True)
-@click.option('--bucket-name', help='Bucket with backup', required=False, default=None)
-@click.option('--prefix', help='Backup prefix', required=False, default=None)
+@click.option('--bucket-name', help='Explicit bucket name to over-ride the one from config', required=False, default=None)
+@click.option('--prefix', help='Path prefix in multi-tenant buckets', required=False, default=None)
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
                     verify, keyspaces, tables, parallel_restores, use_sstableloader, version_target, ignore_racks,
@@ -276,8 +276,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
-@click.option('--bucket-name', help='Bucket with backup', required=False, default=None)
-@click.option('--prefix', help='Backup prefix', required=False, default=None)
+@click.option('--bucket-name', help='Explicit bucket name to over-ride the one from config', required=False, default=None)
+@click.option('--prefix', help='Path prefix in multi-tenant buckets', required=False, default=None)
 @pass_MedusaConfig
 def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
                  use_sstableloader, version_target, bucket_name, prefix):
