@@ -24,18 +24,14 @@ from retrying import retry
 
 import medusa.index
 
-from medusa.storage.cluster_backup import ClusterBackup
-from medusa.storage.node_backup import NodeBackup
 from medusa.storage.abstract_storage import ManifestObject, AbstractBlob
 from medusa.storage.azure_storage import AzureStorage
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.google_storage import GoogleStorage
 from medusa.storage.local_storage import LocalStorage
 from medusa.storage.node_backup import NodeBackup
-from medusa.storage.s3_base_storage import S3BaseStorage
-
 from medusa.storage.s3_rgw import S3RGWStorage
-from medusa.storage.s3_storage import S3Storage
+from medusa.storage.s3_storage import S3BaseStorage, S3Storage
 from medusa.utils import evaluate_boolean
 
 # pattern meant to match just the blob name, not the entire path
@@ -86,23 +82,23 @@ class Storage(object):
     def _load_storage(self):
         logging.debug('Loading storage_provider: {}'.format(self._config.storage_provider))
         if self._config.storage_provider.lower() == 'google_storage':
-            google_storage = GoogleStorage(self._config, bucket_name=self._bucket_name)
+            google_storage = GoogleStorage(self._config)
             return google_storage
         elif self._config.storage_provider.lower() == 'azure_blobs':
-            azure_storage = AzureStorage(self._config, bucket_name=self._bucket_name)
+            azure_storage = AzureStorage(self._config)
             return azure_storage
         elif self._config.storage_provider.lower() == 's3_rgw':
-            return S3RGWStorage(self._config, bucket_name=self._bucket_name)
+            return S3RGWStorage(self._config)
         elif self._config.storage_provider.lower() == "s3_compatible":
-            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
+            s3_storage = S3BaseStorage(self._config)
             return s3_storage
         elif self._config.storage_provider.lower().startswith('s3'):
-            s3_storage = S3Storage(self._config, bucket_name=self._bucket_name)
+            s3_storage = S3Storage(self._config)
             return s3_storage
         elif self._config.storage_provider.lower() == 'local':
-            return LocalStorage(self._config, bucket_name=self._bucket_name)
+            return LocalStorage(self._config)
         elif self._config.storage_provider.lower() == "ibm_storage":
-            s3_storage = S3BaseStorage(self._config, bucket_name=self._bucket_name)
+            s3_storage = S3BaseStorage(self._config)
             return s3_storage
 
         raise NotImplementedError("Unsupported storage provider")

@@ -31,12 +31,13 @@ BUFFER_SIZE = 4 * 1024 * 1024
 class LocalStorage(AbstractStorage):
 
     def __init__(self, config):
+        # in Python we usually put this last, bur we need it to set the bucket_name
+        super().__init__(config)
+
         self.config = config
 
         self.root_dir = Path(config.base_path) / self.bucket_name
         self.root_dir.mkdir(parents=True, exist_ok=True)
-
-        super().__init__(config)
 
     def connect(self):
         pass
