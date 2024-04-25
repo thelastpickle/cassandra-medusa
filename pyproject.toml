@@ -35,8 +35,7 @@ packages = [
     { include = "medusa" }
 ]
 include = [
-    { path = "medusa-example.ini" },
-    { path = "bin/medsua-wrapper" }
+    { path = "medusa-example.ini" }
 ]
 
 [project]
@@ -44,6 +43,7 @@ requires-python = ">=3.8,<=3.11"
 
 [tool.poetry.scripts]
 medusa = { reference = "medusa.medusacli:cli", type = "console" }
+medusa-wrapper = { reference = "medusa.scripts.medusa_wrapper:main", type = "console" }
 
 [tool.poetry.dependencies]
 python = "^3.8"
