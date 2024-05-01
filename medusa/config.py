@@ -37,7 +37,7 @@ StorageConfig = collections.namedtuple(
 CassandraConfig = collections.namedtuple(
     'CassandraConfig',
     ['prefix_nodetool_command', 'start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running',
-      'is_ccm', 'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 
+     'is_ccm', 'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path',
      'nodetool_host', 'nodetool_executable', 'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts',
      'sstableloader_tspw', 'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'use_sudo',
      'nodetool_flags', 'cql_k8s_secrets_path', 'nodetool_k8s_secrets_path']
