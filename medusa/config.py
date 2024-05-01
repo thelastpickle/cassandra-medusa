@@ -130,7 +130,6 @@ def _build_default_config():
 
     config['cassandra'] = {
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
-        'prefix_nodetool_command': None,
         'start_cmd': 'sudo service cassandra start',
         'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
