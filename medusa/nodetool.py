@@ -20,6 +20,9 @@ class Nodetool(object):
         nodetool_executable = cassandra_config.nodetool_executable
         nodetool_flags = cassandra_config.nodetool_flags.split(" ") if cassandra_config.nodetool_flags else []
         self._nodetool = [nodetool_executable] + nodetool_flags
+        if cassandra_config.prefix_nodetool_command is not None:
+            curr_nodetool = self._nodetool
+            self._nodetool = cassandra_config.prefix_nodetool_command + "&&" + curr_nodetool
         if cassandra_config.nodetool_ssl == "true":
             self._nodetool += ['--ssl']
         if cassandra_config.nodetool_username is not None:

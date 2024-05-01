@@ -36,7 +36,7 @@ StorageConfig = collections.namedtuple(
 
 CassandraConfig = collections.namedtuple(
     'CassandraConfig',
-    ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
+    ['prefix_nodetool_command','start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
      'sstableloader_bin', 'nodetool_username', 'nodetool_password', 'nodetool_password_file_path', 'nodetool_host',
      'nodetool_executable', 'nodetool_port', 'certfile', 'usercert', 'userkey', 'sstableloader_ts',
      'sstableloader_tspw', 'sstableloader_ks', 'sstableloader_kspw', 'nodetool_ssl', 'resolve_ip_addresses', 'use_sudo',
@@ -130,6 +130,7 @@ def _build_default_config():
 
     config['cassandra'] = {
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
+        'prefix_nodetool_command': None,
         'start_cmd': 'sudo service cassandra start',
         'stop_cmd': 'sudo service cassandra stop',
         'check_running': 'nodetool version',
