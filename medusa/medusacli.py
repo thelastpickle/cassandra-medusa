@@ -116,7 +116,7 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 
 
 @cli.command(aliases=['backup', 'backup-node'])
-@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--backup-name', help='Backup name of the backup, defaults to current datetime (formatted "%Y%m%dT%H%M")')
 @click.option('--stagger', default=None, type=int, help='Drop initial backups if longer than a duration in seconds')
 @click.option('--enable-md5-checks',
               help='During backups and verify, use md5 calculations to determine file integrity '
@@ -129,8 +129,9 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
     Backup single Cassandra node
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    BackupMan.register_backup(backup_name, is_async=False)
-    return backup_node.handle_backup(medusaconfig, backup_name, stagger_time, enable_md5_checks, mode)
+    actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
+    BackupMan.register_backup(actual_backup_name, is_async=False)
+    return backup_node.handle_backup(medusaconfig, actual_backup_name, stagger_time, enable_md5_checks, mode)
 
 
 @cli.command(name='backup-cluster')
@@ -154,8 +155,9 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
     """
     Backup Cassandra cluster
     """
+    actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
     medusa.backup_cluster.orchestrate(medusaconfig,
-                                      backup_name,
+                                      actual_backup_name,
                                       seed_target,
                                       stagger,
                                       enable_md5_checks,
