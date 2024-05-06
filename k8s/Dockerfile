@@ -1,6 +1,6 @@
 ARG ARCH="amd64"
 
-FROM --platform=linux/${ARCH} ubuntu:22.04 as base
+FROM --platform=linux/${ARCH} ubuntu:22.04 AS base
 
 RUN mkdir /install
 WORKDIR /install
