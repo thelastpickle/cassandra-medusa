@@ -109,7 +109,6 @@ class BackupMan:
                 BackupMan()
 
             if backup_name in BackupMan.__instance.__backups:
-                logging.debug("Registered backup name {} found existing, replacing with new".format(backup_name))
                 if overwrite_existing:
                     if not BackupMan.__clean(backup_name):
                         logging.error(f"Registered backup name {backup_name} cleanup failed prior to re-register.")
