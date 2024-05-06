@@ -1,4 +1,6 @@
-FROM ubuntu:22.04 as base
+ARG ARCH="amd64"
+
+FROM --platform=linux/${ARCH} ubuntu:22.04 as base
 
 RUN mkdir /install
 WORKDIR /install
@@ -34,7 +36,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poet
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM ubuntu:22.04
+FROM --platform=linux/${ARCH} ubuntu:22.04
 
 ## add user
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
@@ -43,9 +45,10 @@ RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --creat
 RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Download the correct grpc_health_probe binary based on architecture
 RUN GRPC_HEALTH_PROBE_VERSION=v0.4.25 && \
-    wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe
+wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${ARCH} && \
+chmod +x /bin/grpc_health_probe
 
 USER cassandra
 WORKDIR /home/cassandra
@@ -56,7 +59,6 @@ ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:/home/c
 ENV PYTHONPATH=/home/cassandra
 
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
-
 COPY --from=base --chown=cassandra:cassandra /build/.venv /home/cassandra/.venv
 COPY --from=base --chown=cassandra:cassandra /build/pyproject.toml /home/cassandra/pyproject.toml
 COPY --chown=cassandra:cassandra medusa /home/cassandra/medusa

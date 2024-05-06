@@ -82,10 +82,14 @@ The image can be used for backups or for restores. The `docker-entrypoint.sh` sc
 ## Building the Image
 If you made any changes to `medusa.proto`, then you first need to run the protobuf compiler as described above.
 
-Run the following from the project root:
+To build for a specific architecture, run the following from the project root:
 
 ```
 $ poetry install && poetry build
-
-$ docker build -t <tag name> -f k8s/Dockerfile .
+$ docker buildx build --platform linux/amd64 -t <tag name> -f k8s/Dockerfile .
+```
+Or, to build for both AMD64 and ARM64 architectures at the same time, run:
+```
+$ poetry install && poetry build
+$ docker buildx build --platform linux/amd64,linux/arm64 -t <tag name> -f k8s/Dockerfile .
 ```
