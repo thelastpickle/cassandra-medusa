@@ -729,7 +729,7 @@ def _i_wait_for_async_backup_to_finish(context, backup_name):
         if status == medusa_pb2.StatusType.SUCCESS:
             break
         logging.debug(f'Backup {backup_name} is not yet finished, waiting...')
-        time.sleep(2)
+        time.sleep(1)
 
 
 @when(r'I perform a backup over gRPC in "{backup_mode}" mode of the node named "{backup_name}" and it fails')

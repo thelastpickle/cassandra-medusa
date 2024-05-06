@@ -99,7 +99,7 @@ class BackupMan:
 
     # Sets the future for a backup; unknown on overall status at this point unless already existing
     @staticmethod
-    def register_backup(backup_name, is_async):
+    def register_backup(backup_name, is_async, overwrite_existing=True):
         if not backup_name:
             raise RuntimeError(BackupMan.NO_BACKUP_NAME_ERR_MSG)
 
@@ -109,9 +109,9 @@ class BackupMan:
                 BackupMan()
 
             if backup_name in BackupMan.__instance.__backups:
-                logging.debug("Registered backup name {} found existing, replacing with new".format(backup_name))
-                if not BackupMan.__clean(backup_name):
-                    logging.error("Registered backup name {} cleanup failed prior to re-register.".format(backup_name))
+                if overwrite_existing:
+                    if not BackupMan.__clean(backup_name):
+                        logging.error(f"Registered backup name {backup_name} cleanup failed prior to re-register.")
 
             BackupMan.__instance.__backups[backup_name] = [None, BackupMan.STATUS_UNKNOWN, is_async]
             logging.info("Registered backup id {}".format(backup_name))
