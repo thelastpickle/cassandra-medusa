@@ -1,5 +1,15 @@
 ## Change Log
 
+### 0.21.0 (2024/05/06 16:55 +00:00)
+- Prevent gRRPC's BackupStatus from canceling pending futures (#745) (@rzvoncek)
+- Fix to enable the creation of backups when a backup name is not provided (#758) (@VenkataNaladala94)
+- Add bin/medusa-wrapper to package's installed scripts (#738) (@rzvoncek)
+- Bump aiohttp from 3.9.2 to 3.9.4 (#750) (@dependabot)
+- Bump dnspython from 2.4.2 to 2.6.1 (#748) (@dependabot)
+- Restart the Medusa container when the config is updated (#731) (@rzvoncek)
+- Bump idna from 3.6 to 3.7 (#747) (@dependabot)
+- Add a retry annotation to list_blobs (#744) (@rzvoncek)
+
 ### 0.20.1 (2024/04/01 16:55 +00:00)
 - Fix CI to pre-install Poetry when publishing to pipy (#733) (@rzvoncek)
 
