@@ -32,7 +32,7 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
                 parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
                 cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None):
     backup = None
-    backup_name = backup_name_arg or datetime.datetime.now().strftime('%Y%m%d%H%M')
+    backup_name = backup_name_arg
     monitoring = Monitoring(config=config.monitoring) if monitoring is None else monitoring
 
     if existing_storage is None:
