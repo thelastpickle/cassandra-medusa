@@ -330,7 +330,7 @@ class RestoreJob(object):
                 # Remove leading/trailing whitespace
                 _line = line.strip()
                 # Ignore comment lines
-                if not _line or  _line.startswith('#'):
+                if not _line or _line.startswith('#'):
                     continue
                 seed, target, source = _line.split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
