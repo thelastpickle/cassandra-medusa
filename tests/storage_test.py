@@ -449,6 +449,11 @@ class StorageTest(unittest.TestCase):
             self.storage.sanitize_keyspace_and_table_name(p)
         )
 
+    def test_get_table_prefix(self):
+        self.assertEqual('localhost/data/', self.storage._get_table_prefix(None, 'localhost'))
+        self.assertEqual('localhost/data/', self.storage._get_table_prefix('', 'localhost'))
+        self.assertEqual('prefix/localhost/data/', self.storage._get_table_prefix('prefix', 'localhost'))
+
 
 def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
     if differential is True:
