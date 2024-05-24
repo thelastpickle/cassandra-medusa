@@ -79,14 +79,14 @@ azure-identity = "1.14.0"
 azure-storage-blob = "12.17.0"
 
 [tool.poetry.group.grpc.dependencies]
-protobuf = "4.24.3"
-grpcio = "1.58.0"
-grpcio-health-checking = "1.58.0"
-grpcio-tools = "1.58.0"
+protobuf = "5.26.1"
+grpcio = "1.63.0"
+grpcio-health-checking = "1.63.0"
+grpcio-tools = "1.63.0"
 
 [tool.poetry.group.grpc-runtime.dependencies]
-grpcio = "1.58.0"
-grpcio-health-checking = "1.58.0"
+grpcio = "1.63.0"
+grpcio-health-checking = "1.63.0"
 
 [tool.poetry.group.test.dependencies]
 behave = "1.2.6"
