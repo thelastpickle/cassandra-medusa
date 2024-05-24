@@ -2077,6 +2077,27 @@ files = [
 ]
 
 [[package]]
+name = "ssh2-python312"
+version = "0.1.1"
+description = "Bindings for libssh2 C library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "ssh2_python312-0.1.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:694487a93a551ff60a847c403fe126ccee8553b0f1d68c2e581cf47e16fdcb9d"},
+    {file = "ssh2_python312-0.1.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:ed5ae8920e4a529cf6f4883b7da4637a292128fb0b700e05b89d66796b4080d9"},
+    {file = "ssh2_python312-0.1.1-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:9fd7dfa133c862af74192c43576a4c145325282b3a919a671cf978a154cb305b"},
+    {file = "ssh2_python312-0.1.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7a9c764c83db59a360c7427ac36088fc7222e61b340de208ed5a9a5f60133069"},
+    {file = "ssh2_python312-0.1.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:122653d0bfe811fb45d6c13862db349032ec9b8c5d8d1944536affc53fe05e9a"},
+    {file = "ssh2_python312-0.1.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:9e38f1a9475cb92a8742540148250d029d7e146a21db03750b5b8d2c1b141c6a"},
+    {file = "ssh2_python312-0.1.1-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:efdc125b255cb39caa508ed8895964ee63c207e7871ccfa478384216d36f6288"},
+    {file = "ssh2_python312-0.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:15e61742937b299ac40ae567759d9916c05aaa4a2d43b6073abdc6254e87ffd3"},
+    {file = "ssh2_python312-0.1.1-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:3763989a0eeb1234399f13bffd527e1c85c4bc9a6931311d7ff61586f3027292"},
+    {file = "ssh2_python312-0.1.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:b2d4c3e9154f456f8befaf81b0e7647e06a5ee613ff6b227340cecb029c11c77"},
+    {file = "ssh2_python312-0.1.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:721d7f7f452fa34296e3dea2484fe795fe4a06ac71b17325eed5148bf8594108"},
+    {file = "ssh2_python312-0.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e597616ee450e3ffbd357b2001cae459a45a8a9ae9b5282df7247ca710b57971"},
+]
+
+[[package]]
 name = "tomli"
 version = "2.0.1"
 description = "A lil' TOML parser"
@@ -2369,4 +2390,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "ff5c847b88f5571d5685d8bd005a835707e95a9fea30e0d2bdf00f60dcc8c890"
+content-hash = "a1f8da6002e445d8ea556c3c3785b7e18a68ec7eadbfb765f7181d90b0d4aeb7"
