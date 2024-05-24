@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        python-version: [3.8, 3.9, "3.10", "3.11", "3.12"]
         include:
           - python-version: 3.8
             tox-py: py38
@@ -23,6 +23,8 @@ jobs:
             tox-py: py310
           - python-version: "3.11"
             tox-py: py311
+          - python-version: "3.12"
+            tox-py: py312
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v3
@@ -127,6 +129,11 @@ jobs:
               cassandra-version: 4.0.0
               it-backend: gcs
               experimental: false
+            # explicitly include tests against python 3.12 and one version of cassandra
+            - python-version: 3.12
+              cassandra-version: 4.0.0
+              it-backend: gcs
+              experimental: false
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
@@ -145,6 +152,7 @@ jobs:
             - python-version: 3.8
             - python-version: "3.10"
             - python-version: "3.11"
+            - python-version: "3.12"
 
     runs-on: ubuntu-20.04
     services:
