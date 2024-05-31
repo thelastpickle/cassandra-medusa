@@ -1,6 +1,6 @@
-ARG ARCH="amd64"
+ARG TARGETARCH="amd64"
 
-FROM --platform=linux/${ARCH} ubuntu:22.04 AS base
+FROM --platform=linux/${TARGETARCH} ubuntu:22.04 AS base
 
 RUN mkdir /install
 WORKDIR /install
@@ -36,7 +36,7 @@ RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poet
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${ARCH} ubuntu:22.04
+FROM --platform=linux/${TARGETARCH} ubuntu:22.04
 
 ## add user
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
 
 # Download the correct grpc_health_probe binary based on architecture
 RUN GRPC_HEALTH_PROBE_VERSION=v0.4.25 && \
-wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${ARCH} && \
+wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${TARGETARCH} && \
 chmod +x /bin/grpc_health_probe
 
 USER cassandra
