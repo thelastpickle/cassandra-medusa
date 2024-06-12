@@ -123,8 +123,8 @@ class GoogleStorage(AbstractStorage):
             )
         )
 
-        storage_class = self.storage.get_storage_class(),
-        ex_header = {"storageClass": storage_class}
+        storage_class = self.get_storage_class()
+        ex_header = {"storageClass": storage_class} if storage_class else {}
         resp = await self.gcs_storage.upload(
             bucket=self.bucket_name,
             object_name=object_key,
@@ -198,8 +198,8 @@ class GoogleStorage(AbstractStorage):
                 )
             )
 
-            storage_class = self.get_storage_class(),
-            ex_header = {"storageClass": storage_class}
+            storage_class = self.get_storage_class()
+            ex_header = {"storageClass": storage_class} if storage_class else {}
             resp = await self.gcs_storage.copy(
                 bucket=self.bucket_name,
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
