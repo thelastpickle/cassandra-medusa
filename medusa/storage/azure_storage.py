@@ -90,7 +90,8 @@ class AzureStorage(AbstractStorage):
                 b_props.name,
                 b_props.size,
                 self._get_blob_hash(b_props),
-                b_props.last_modified)
+                b_props.last_modified,
+                b_props.blob_tier)
             )
         return blobs
 
@@ -124,6 +125,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.size,
             self._get_blob_hash(blob_properties),
             blob_properties.last_modified,
+            blob_properties.blob_tier
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -169,6 +171,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.size,
             self._get_blob_hash(blob_properties),
             blob_properties.last_modified,
+            blob_properties.blob_tier
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)

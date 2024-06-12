@@ -53,12 +53,12 @@ storage_provider = <Storage system used for backups>
 region = <Region hosting the storage>
 
 ; Storage class to use when uploading objects.
-; Use a value specific to chosen `storage_provider` that supports both reads and writes (eg S3's GLACIER won't work).
+; Use a value specific to chosen `storage_provider` that supports both reads and writes (eg S3's GLACIER and Azure's ARCHIVE won't work).
 ; If not specified, we default to the 'hottest' class (STANDARD, STANDARD, HOT for GCP, AWS, AZURE respectively).
 ; Supported values:
 ; AWS S3: STANDARD | REDUCED_REDUNDANCY | STANDARD_IA | ONEZONE_IA | INTELLIGENT_TIERING
 ;    GCP: STANDARD |           NEARLINE |    COLDLINE | ARCHIVE
-;  AZURE:      HOT |               COOL |        COLD | ARCHIVE
+;  AZURE:      HOT |               COOL |        COLD
 ; https://aws.amazon.com/s3/storage-classes/
 ; https://cloud.google.com/storage/docs/storage-classes
 ; https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview
