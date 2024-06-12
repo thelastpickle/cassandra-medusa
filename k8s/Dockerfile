@@ -1,6 +1,10 @@
+# Declare architecture variable globally
 ARG TARGETARCH="amd64"
 
 FROM --platform=linux/${TARGETARCH} ubuntu:22.04 AS base
+
+# Reuse the architecture argument
+ARG TARGETARCH
 
 RUN mkdir /install
 WORKDIR /install
@@ -37,6 +41,9 @@ RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM --platform=linux/${TARGETARCH} ubuntu:22.04
+
+# Reuse the architecture argument
+ARG TARGETARCH
 
 ## add user
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
