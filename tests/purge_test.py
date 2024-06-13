@@ -20,7 +20,9 @@ from datetime import datetime, timedelta
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import Storage
-from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
+from medusa.purge import (
+    backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name, backups_to_purge_by_completion
+)
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
@@ -90,6 +92,43 @@ class PurgeTest(unittest.TestCase):
 
         obsolete_backups = backups_to_purge_by_count(backups, 40)
         assert len(obsolete_backups) == 0
+
+    def test_purge_backups_by_completion(self):
+        backups = list()
+
+        # Build a list of 40 bi-daily backups, making every second backup incomplete
+        complete = True
+        now = datetime.now()
+        for i in range(0, 80, 2):
+            file_time = now + timedelta(days=(i + 1) - 80)
+            backups.append(make_node_backup(self.storage, str(i), file_time, differential=True, complete=complete))
+            complete = not complete
+
+        self.assertEqual(40, len(backups))
+        complete_backup_names = {nb.name for nb in filter(lambda nb: nb.finished is not None, backups)}
+        self.assertEqual(len(complete_backup_names), 20, "The amount of complete backups is not correct")
+
+        # the base with all 40 backups
+        complete, incomplete_to_purge = backups_to_purge_by_completion(backups)
+        self.assertEqual(20, len(complete))  # 1 is kept because it might be in progress
+        self.assertEqual(19, len(incomplete_to_purge))  # 1 is kept because it might be in progress
+
+        # take all complete backups, but only half of the incomplete ones
+        test_backups = list()
+        for i in range(0, 40, 1):
+            # take each complete backup
+            if backups[i].finished is not None:
+                test_backups.append(backups[i])
+                continue
+            # but only first half of the incomplete ones
+            if i > 20:
+                continue
+            test_backups.append(backups[i])
+        self.assertEqual(20, len(list(filter(lambda b: b.finished is not None, test_backups))))
+        self.assertEqual(10, len(list(filter(lambda b: b.finished is None, test_backups))))
+        complete, incomplete_to_purge = backups_to_purge_by_completion(test_backups)
+        self.assertEqual(20, len(complete))  # 1 is kept because it might be in progress
+        self.assertEqual(9, len(incomplete_to_purge))  # 1 is kept because it might be in progress
 
     def test_filter_differential_backups(self):
         backups = list()

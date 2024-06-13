@@ -38,10 +38,16 @@ def main(config, max_backup_age=0, max_backup_count=0):
             logging.info('Listing backups for {}'.format(config.storage.fqdn))
             backup_index = storage.list_backup_index_blobs()
             backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
+
+            # split backups by completion
+            complete_backups, incomplete_to_purge = backups_to_purge_by_completion(backups)
+            backups_to_purge |= set(incomplete_to_purge)
+
             # list all backups to purge based on date conditions
-            backups_to_purge |= set(backups_to_purge_by_age(backups, max_backup_age))
+            backups_to_purge |= set(backups_to_purge_by_age(complete_backups, max_backup_age))
             # list all backups to purge based on count conditions
-            backups_to_purge |= set(backups_to_purge_by_count(backups, max_backup_count))
+            backups_to_purge |= set(backups_to_purge_by_count(complete_backups, max_backup_count))
+
             # purge all candidate backups
             object_counts = purge_backups(
                 storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
@@ -60,6 +66,17 @@ def main(config, max_backup_age=0, max_backup_count=0):
         monitoring.send(tags, 1)
         logging.error('This error happened during the purge: {}'.format(str(e)))
         sys.exit(1)
+
+
+def backups_to_purge_by_completion(backups):
+    complete, incomplete = [], []
+    for backup in backups:
+        complete.append(backup) if backup.finished is not None else incomplete.append(backup)
+
+    # keep the most recent one because it might be in progress
+    incomplete_to_purge = set(incomplete[:-1]) if len(incomplete) > 1 else set()
+
+    return complete, incomplete_to_purge
 
 
 def backups_to_purge_by_age(backups, max_backup_age):
