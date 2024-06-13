@@ -33,6 +33,7 @@ class AzureStorageTest(unittest.TestCase):
                 'concurrent_transfers': '1',
                 'host': None,
                 'port': None,
+                'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
             self.assertEqual(
@@ -52,6 +53,7 @@ class AzureStorageTest(unittest.TestCase):
                 'concurrent_transfers': '1',
                 'host': 'custom.host.net',
                 'port': None,
+                'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
             self.assertEqual(
@@ -71,6 +73,7 @@ class AzureStorageTest(unittest.TestCase):
                 'concurrent_transfers': '1',
                 'host': 'custom.host.net',
                 'port': 123,
+                'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
             self.assertEqual(
