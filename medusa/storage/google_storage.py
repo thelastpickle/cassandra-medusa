@@ -49,6 +49,8 @@ class GoogleStorage(AbstractStorage):
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
+        self.read_timeout = int(config.read_timeout)
+
         super().__init__(config)
 
     def connect(self):
@@ -94,7 +96,8 @@ class GoogleStorage(AbstractStorage):
             # fetch a page
             page = await self.gcs_storage.list_objects(
                 bucket=self.bucket_name,
-                params=params
+                params=params,
+                timeout=self.read_timeout,
             )
 
             # got nothing, return from the function
@@ -151,7 +154,7 @@ class GoogleStorage(AbstractStorage):
             stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
-                timeout=-1,
+                timeout=self.read_timeout if self.read_timeout is not None else -1,
             )
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, 'wb') as f:
@@ -171,6 +174,7 @@ class GoogleStorage(AbstractStorage):
         blob = await self.gcs_storage.download_metadata(
             bucket=self.bucket_name,
             object_name=object_key,
+            timeout=self.read_timeout,
         )
         return AbstractBlob(
             blob['name'],
@@ -233,7 +237,7 @@ class GoogleStorage(AbstractStorage):
             bucket=self.bucket_name,
             object_name=blob.name,
             session=self.session,
-            timeout=-1
+            timeout=self.read_timeout if self.read_timeout is not None else -1,
         )
         return content
 

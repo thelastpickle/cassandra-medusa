@@ -56,6 +56,8 @@ class AzureStorage(AbstractStorage):
         logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
         logging.getLogger('chardet.universaldetector').setLevel(logging.WARNING)
 
+        self.read_timeout = int(config.read_timeout)
+
         super().__init__(config)
 
     def _make_blob_service_url(self, account_name, config):
@@ -85,7 +87,10 @@ class AzureStorage(AbstractStorage):
 
     async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
         blobs = []
-        async for b_props in self.azure_container_client.list_blobs(name_starts_with=str(prefix)):
+        async for b_props in self.azure_container_client.list_blobs(
+                name_starts_with=str(prefix),
+                timeout=self.read_timeout
+        ):
             blobs.append(AbstractBlob(
                 b_props.name,
                 b_props.size,
@@ -150,6 +155,7 @@ class AzureStorage(AbstractStorage):
         downloader = await self.azure_container_client.download_blob(
             blob=object_key,
             max_concurrency=workers,
+            timeout=self.read_timeout,
         )
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         await downloader.readinto(open(file_path, "wb"))
@@ -206,6 +212,7 @@ class AzureStorage(AbstractStorage):
         downloader = await self.azure_container_client.download_blob(
             blob=blob.name,
             max_concurrency=1,
+            timeout=self.read_timeout,
         )
         return await downloader.readall()
 
