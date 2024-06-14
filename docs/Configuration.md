@@ -57,7 +57,7 @@ region = <Region hosting the storage>
 ; If not specified, we default to the 'hottest' class (STANDARD, STANDARD, HOT for GCP, AWS, AZURE respectively).
 ; Supported values:
 ; AWS S3: STANDARD | REDUCED_REDUNDANCY | STANDARD_IA | ONEZONE_IA | INTELLIGENT_TIERING
-;    GCP: STANDARD |           NEARLINE |    COLDLINE | ARCHIVE
+;    GCP: STANDARD |        Unsupported | Unsupported | Unsupported
 ;  AZURE:      HOT |               COOL |        COLD
 ; https://aws.amazon.com/s3/storage-classes/
 ; https://cloud.google.com/storage/docs/storage-classes

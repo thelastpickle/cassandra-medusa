@@ -1148,7 +1148,7 @@ Feature: Integration tests
     | local      |  with_client_encryption |
 
     @32
-    Scenario Outline: Perform an differential backup with explicit storage class, then verify it
+    Scenario Outline: Perform a differential backup with explicit storage class, then verify it
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario32"
         Given I will use "<storage class>" as storage class in the storage
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
