@@ -60,7 +60,8 @@ class LocalStorage(AbstractStorage):
                 str(p.relative_to(self.root_dir)),
                 os.stat(self.root_dir / p).st_size,
                 self._md5(self.root_dir / p),
-                datetime.datetime.fromtimestamp(os.stat(self.root_dir / p).st_mtime)
+                datetime.datetime.fromtimestamp(os.stat(self.root_dir / p).st_mtime),
+                None
             )
             for p in paths if not p.is_dir()
         ]
@@ -92,7 +93,8 @@ class LocalStorage(AbstractStorage):
             object_key,
             os.stat(object_path).st_size,
             md5.hexdigest(),
-            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime)
+            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime),
+            None
         )
 
     async def _download_blob(self, src: str, dest: str):
@@ -160,7 +162,8 @@ class LocalStorage(AbstractStorage):
             str(object_key),
             os.stat(object_path).st_size,
             self._md5(object_path),
-            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime)
+            datetime.datetime.fromtimestamp(os.stat(object_path).st_mtime),
+            None
         )
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:

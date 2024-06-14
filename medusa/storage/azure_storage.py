@@ -25,7 +25,7 @@ import typing as t
 
 from azure.core.credentials import AzureNamedKeyCredential
 from azure.storage.blob.aio import BlobServiceClient
-from azure.storage.blob import BlobProperties
+from azure.storage.blob import BlobProperties, StandardBlobTier
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ObjectDoesNotExistError
 from pathlib import Path
 from retrying import retry
@@ -95,7 +95,8 @@ class AzureStorage(AbstractStorage):
                 b_props.name,
                 b_props.size,
                 self._get_blob_hash(b_props),
-                b_props.last_modified)
+                b_props.last_modified,
+                b_props.blob_tier)
             )
         return blobs
 
@@ -116,10 +117,12 @@ class AzureStorage(AbstractStorage):
                 self.config.bucket_name, object_key
             )
         )
+        storage_class = self.get_storage_class()
         blob_client = await self.azure_container_client.upload_blob(
             name=object_key,
             data=data,
             overwrite=True,
+            standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
         )
         blob_properties = await blob_client.get_blob_properties()
         return AbstractBlob(
@@ -127,6 +130,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.size,
             self._get_blob_hash(blob_properties),
             blob_properties.last_modified,
+            blob_properties.blob_tier
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -173,6 +177,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.size,
             self._get_blob_hash(blob_properties),
             blob_properties.last_modified,
+            blob_properties.blob_tier
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -188,13 +193,14 @@ class AzureStorage(AbstractStorage):
                 src, self.human_readable_size(file_size), self.config.bucket_name, object_key
             )
         )
-
+        storage_class = self.get_storage_class()
         with open(src, "rb") as data:
             blob_client = await self.azure_container_client.upload_blob(
                 name=object_key,
                 data=data,
                 overwrite=True,
                 max_concurrency=16,
+                standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
             )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(

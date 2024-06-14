@@ -82,7 +82,8 @@ class GoogleStorage(AbstractStorage):
                 int(o['size']),
                 o['md5Hash'],
                 # datetime comes as a string like 2023-08-31T14:23:24.957Z
-                datetime.datetime.strptime(o['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                datetime.datetime.strptime(o['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ'),
+                o['storageClass']
             )
             async for o in objects
         ]
@@ -125,14 +126,20 @@ class GoogleStorage(AbstractStorage):
                 self.config.bucket_name, object_key
             )
         )
+
+        storage_class = self.get_storage_class()
+        ex_header = {"storageClass": storage_class} if storage_class else {}
         resp = await self.gcs_storage.upload(
             bucket=self.bucket_name,
             object_name=object_key,
             file_data=data,
             force_resumable_upload=True,
             timeout=-1,
+            headers=ex_header,
         )
-        return AbstractBlob(resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'])
+        return AbstractBlob(
+            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], storage_class.upper()
+        )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
@@ -181,7 +188,8 @@ class GoogleStorage(AbstractStorage):
             int(blob['size']),
             blob['md5Hash'],
             # datetime comes as a string like 2023-08-31T14:23:24.957Z
-            datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ'),
+            blob['storageClass']
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -197,12 +205,16 @@ class GoogleStorage(AbstractStorage):
                     src, self.config.bucket_name, object_key
                 )
             )
+
+            storage_class = self.get_storage_class()
+            ex_header = {"storageClass": storage_class} if storage_class else {}
             resp = await self.gcs_storage.copy(
                 bucket=self.bucket_name,
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
                 destination_bucket=self.bucket_name,
                 new_name=object_key,
                 timeout=-1,
+                headers=ex_header,
             )
             resp = resp['resource']
         else:

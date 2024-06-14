@@ -366,7 +366,7 @@ class StorageTest(unittest.TestCase):
     def test_list_files_per_table_with_prefix(self):
 
         def fake_blob(s):
-            return AbstractBlob(s, 0, '0', datetime.now())
+            return AbstractBlob(s, 0, '0', datetime.now(), None)
 
         def fake_mo(s):
             return ManifestObject(s, 0, '0')
@@ -479,7 +479,7 @@ def make_cluster_backup(storage, name, backup_date, nodes, differential=False):
 def make_blob(blob_name, blob_date):
     checksum = hashlib.md5()
     checksum.update(os.urandom(4))
-    return AbstractBlob(blob_name, randrange(100), checksum.hexdigest(), datetime.fromtimestamp(blob_date))
+    return AbstractBlob(blob_name, randrange(100), checksum.hexdigest(), datetime.fromtimestamp(blob_date), None)
 
 
 if __name__ == '__main__':

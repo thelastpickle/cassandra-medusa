@@ -252,7 +252,7 @@ class S3BaseStorage(AbstractStorage):
 
         for o in response.get('Contents', []):
             obj_hash = o['ETag'].replace('"', '')
-            blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified']))
+            blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified'], o['StorageClass']))
 
         return blobs
 
@@ -263,6 +263,10 @@ class S3BaseStorage(AbstractStorage):
         if self.kms_id is not None:
             kms_args['ServerSideEncryption'] = 'aws:kms'
             kms_args['SSEKMSKeyId'] = self.kms_id
+
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            kms_args['StorageClass'] = storage_class
 
         logging.debug(
             '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
@@ -326,7 +330,7 @@ class S3BaseStorage(AbstractStorage):
         try:
             resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_key)
             item_hash = resp['ETag'].replace('"', '')
-            return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'])
+            return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'], None)
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchKey' or e.response['Error']['Code'] == '404':
                 logging.debug("[S3 Storage] Object {} not found".format(object_key))
@@ -339,7 +343,7 @@ class S3BaseStorage(AbstractStorage):
     def __stat_blob(self, key):
         resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
         item_hash = resp['ETag'].replace('"', '')
-        return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'])
+        return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'], None)
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
@@ -352,6 +356,10 @@ class S3BaseStorage(AbstractStorage):
         if self.kms_id is not None:
             kms_args['ServerSideEncryption'] = 'aws:kms'
             kms_args['SSEKMSKeyId'] = self.kms_id
+
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            kms_args['StorageClass'] = storage_class
 
         file_size = os.stat(src).st_size
         logging.debug(
