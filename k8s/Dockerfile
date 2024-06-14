@@ -1,9 +1,5 @@
-# Declare architecture variable globally
-ARG TARGETARCH="amd64"
-
 FROM --platform=linux/${TARGETARCH} ubuntu:22.04 AS base
 
-# Reuse the architecture argument
 ARG TARGETARCH
 
 RUN mkdir /install
