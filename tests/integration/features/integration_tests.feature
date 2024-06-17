@@ -1151,6 +1151,7 @@ Feature: Integration tests
     Scenario Outline: Perform a differential backup with explicit storage class, then verify it
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario32"
         Given I will use "<storage class>" as storage class in the storage
+        Given I will use "<canned ACL>" canned ACL when uploading objects
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -1158,29 +1159,29 @@ Feature: Integration tests
         When I perform a backup in "differential" mode of the node named "first_backup" with md5 checks "disabled"
         Then I can see the backup named "first_backup" when I list the backups
         Then I can verify the backup named "first_backup" with md5 checks "disabled" successfully
-        Then I can see 2 SSTables with "<storage class>" in the SSTable pool for the "test" table in keyspace "medusa"
+        Then I can see 2 SSTables with "<storage class>" and "<canned ACL>" in the SSTable pool for the "test" table in keyspace "medusa"
 
         @s3
         Examples: S3 storage
-        | storage           | client encryption         | storage class       |
-        | s3_us_west_oregon | without_client_encryption | STANDARD            |
-        | s3_us_west_oregon | without_client_encryption | REDUCED_REDUNDANCY  |
-        | s3_us_west_oregon | without_client_encryption | STANDARD_IA         |
-        | s3_us_west_oregon | without_client_encryption | ONEZONE_IA          |
-        | s3_us_west_oregon | without_client_encryption | INTELLIGENT_TIERING |
+        | storage           | client encryption         | storage class       | canned ACL        |
+        | s3_us_west_oregon | without_client_encryption | STANDARD            | bucket-owner-read	 |
+        | s3_us_west_oregon | without_client_encryption | REDUCED_REDUNDANCY  | bucket-owner-read |
+        | s3_us_west_oregon | without_client_encryption | STANDARD_IA         | bucket-owner-read |
+        | s3_us_west_oregon | without_client_encryption | ONEZONE_IA          | bucket-owner-read |
+        | s3_us_west_oregon | without_client_encryption | INTELLIGENT_TIERING | bucket-owner-read |
 
         @gcs
         Examples: Google Cloud Storage
-        | storage        | client encryption         | storage class |
-        | google_storage | without_client_encryption | STANDARD      |
+        | storage        | client encryption         | storage class | canned ACL |
+        | google_storage | without_client_encryption | STANDARD      | None       |
 # this is buggy for now, the library does not propagate the custom storage class headers
-#        | google_storage | without_client_encryption | NEARLINE      |
-#        | google_storage | without_client_encryption | COLDLINE      |
-#        | google_storage | without_client_encryption | ARCHIVE       |
+#        | google_storage | without_client_encryption | NEARLINE      | None       |
+#        | google_storage | without_client_encryption | COLDLINE      | None       |
+#        | google_storage | without_client_encryption | ARCHIVE       | None       |
 
         @azure
         Examples: Azure Blob Storage
-        | storage     | client encryption         | storage class |
-        | azure_blobs | without_client_encryption | HOT           |
-        | azure_blobs | without_client_encryption | COOL          |
-        | azure_blobs | without_client_encryption | COLD          |
+        | storage     | client encryption         | storage class | canned ACL |
+        | azure_blobs | without_client_encryption | HOT           | None       |
+        | azure_blobs | without_client_encryption | COOL          | None       |
+        | azure_blobs | without_client_encryption | COLD          | None       |

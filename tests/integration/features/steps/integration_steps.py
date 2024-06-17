@@ -395,6 +395,11 @@ def i_will_use_storage_class(context, storage_class):
     context.storage_class = storage_class
 
 
+@given(r'I will use "{canned_acl}" canned ACL when uploading objects')
+def i_will_use_canned_acl(context, canned_acl):
+    context.canned_acl = canned_acl
+
+
 @given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}"')
 def i_am_using_storage_provider(context, storage_provider, client_encryption):
     context.storage_provider = storage_provider
@@ -538,6 +543,8 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
     storage_args = {"prefix": storage_prefix}
     if hasattr(context, "storage_class"):
         storage_args.update({"storage_class": context.storage_class})
+    if hasattr(context, "canned_acl"):
+        storage_args.update({"canned_acl": context.canned_acl})
 
     cassandra_args = {
         "is_ccm": str(is_ccm),
@@ -1277,14 +1284,15 @@ def _the_backup_index_exists(context):
 def _i_can_see_nb_sstables_in_the_sstable_pool(
         context, nb_sstables, table_name, keyspace
 ):
-    _i_can_see_nb_sstables_with_storage_class_in_the_sstable_pool(context, nb_sstables, None, table_name, keyspace)
+    _i_can_see_nb_sstables_with_storage_class_in_the_sstable_pool(
+        context, nb_sstables, None, None, table_name, keyspace
+    )
 
 
-# Then I can see 2 SSTables with "<storage class>" in the SSTable pool for the "test" table in keyspace "medusa"
-@then(r'I can see {nb_sstables} SSTables with "{storage_class}" in the SSTable pool '
+@then(r'I can see {nb_sstables} SSTables with "{storage_class}" and "{canned_acl}" in the SSTable pool '
       r'for the "{table_name}" table in keyspace "{keyspace}"')
 def _i_can_see_nb_sstables_with_storage_class_in_the_sstable_pool(
-        context, nb_sstables, storage_class, table_name, keyspace
+        context, nb_sstables, storage_class, canned_acl, table_name, keyspace
 ):
     with Storage(config=context.medusa_config.storage) as storage:
         path = os.path.join(
@@ -1301,6 +1309,12 @@ def _i_can_see_nb_sstables_with_storage_class_in_the_sstable_pool(
             for sstable in sstables:
                 logging.info(f'{storage_class.upper()} vs {sstable.storage_class.upper()}')
                 assert storage_class.upper() == sstable.storage_class.upper()
+
+        # to make checking ACLs work, we'd need to make the driver call
+        # response = s3.get_object_acl(Bucket=bucket_name, Key=object_key)
+        # but that assumes we have a bucket with ACLs enabled
+        if canned_acl is not None:
+            pass
 
 
 @then(
