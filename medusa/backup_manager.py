@@ -129,8 +129,10 @@ class BackupMan:
         with lock:
             backup_state = BackupMan.__instance.__backups[backup_name]
             if backup_state:
-                logging.debug("Returning backup future for id: {}".format(backup_name))
-                return backup_state[BackupMan.__IDX_FUTURE]
+                future = backup_state[BackupMan.__IDX_FUTURE]
+                if future is not None and not future.done():
+                    return backup_state[BackupMan.__IDX_FUTURE]
+                raise RuntimeError(f'Backup future not found or already completed for id: {backup_name} {future}')
 
             raise RuntimeError('Backup not located for id: {}'.format(backup_name))
 
@@ -153,6 +155,13 @@ class BackupMan:
                 is_all_cleanup_successful = True
             else:
                 for backup_name in list(BackupMan.__instance.__backups):
+                    try:
+                        future = BackupMan.get_backup_future(backup_name)
+                        if future is not None and not future.done():
+                            future.cancel()
+                    except RuntimeError:
+                        # the future was not there, so there's nothing to cancel
+                        pass
                     if not BackupMan.__clean(backup_name):
                         is_all_cleanup_successful = False
                 BackupMan.__instance.__backups = None

@@ -251,17 +251,17 @@ jobs:
         if [ "${{ matrix.it-backend }}" == "s3" ]
         then
           # AWS S3 Storage tests
-          ./run_integration_tests.sh -v --s3 --no-local --cassandra-version=${{ matrix.cassandra-version }}
+          ./run_integration_tests.sh -vv --s3 --no-local --cassandra-version=${{ matrix.cassandra-version }}
         elif [ "${{ matrix.it-backend }}" == "gcs" ]
         then
           # Google Cloud Storage tests
           echo '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' > ~/medusa_credentials.json
-          ./run_integration_tests.sh -v --gcs --no-local --cassandra-version=${{ matrix.cassandra-version }}
+          ./run_integration_tests.sh -vv --gcs --no-local --cassandra-version=${{ matrix.cassandra-version }}
         elif [ "${{ matrix.it-backend }}" == "ibm" ]
         then
           # IBM Cloud Object Storage tests
           printf "%s" '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' > ~/.aws/ibm_credentials
-          ./run_integration_tests.sh -v --ibm --no-local --cassandra-version=${{ matrix.cassandra-version }}
+          ./run_integration_tests.sh -vv --ibm --no-local --cassandra-version=${{ matrix.cassandra-version }}
         elif [ "${{ matrix.it-backend }}" == "minio" ]
         then
           # MinIO Object Storage tests
@@ -272,20 +272,20 @@ jobs:
           ./mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
           ./mc mb minio/medusa-dev
           cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
-          ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
+          ./run_integration_tests.sh -vv --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure" ]
         then
           # Azure Blob Storage tests
           printf "%s" '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' > ~/medusa_azure_credentials.json
-          ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
+          ./run_integration_tests.sh -vv --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure-hierarchical" ]
         then
           # Azure Blob Storage with hierarchical namespace tests
           printf "%s" '${{ secrets.MEDUSA_AZURE_HIERARCHICAL_CREDENTIALS }}' > ~/medusa_azure_credentials.json
-          ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
+          ./run_integration_tests.sh -vv --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         else
         # Local storage tests
-          ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
+          ./run_integration_tests.sh -vv --cassandra-version=${{ matrix.cassandra-version }}
         fi
 
         # Move and convert the coverage analysis file to XML

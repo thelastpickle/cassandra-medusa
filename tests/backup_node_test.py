@@ -72,6 +72,7 @@ class BackupNodeTest(unittest.TestCase):
                                             backup_name_arg=test_backup_name, stagger_time=None,
                                             enable_md5_checks_flag=False, mode="differential")
             mock_future_instance = MagicMock()
+            mock_future_instance.done = lambda: False
             mock_callback = MagicMock()
             mock_future_instance.result.return_value = {"foo": "bar"}
             backup_future.add_done_callback(mock_callback)
