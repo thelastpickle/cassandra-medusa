@@ -190,11 +190,20 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 else:
                     response.finishTime = ""
                 BackupMan.register_backup(request.backupName, is_async=False, overwrite_existing=False)
+                # determine backup state
                 status = BackupMan.STATUS_UNKNOWN
                 if backup.started:
                     status = BackupMan.STATUS_IN_PROGRESS
                 if backup.finished:
                     status = BackupMan.STATUS_SUCCESS
+                if status == BackupMan.STATUS_IN_PROGRESS:
+                    # if the backup is in progress, check if we have the future waiting for its completion
+                    try:
+                        if BackupMan.get_backup_future(request.backupName) is None:
+                            status = BackupMan.STATUS_FAILED
+                    except RuntimeError:
+                        # if we don't, then something bad happened (eg we restarted), so it's a failure
+                        status = BackupMan.STATUS_FAILED
                 BackupMan.update_backup_status(request.backupName, status)
                 # record the status
                 record_status_in_response(response, request.backupName)
@@ -340,6 +349,13 @@ def get_backup_summary(backup):
         summary.finishTime = backup.finished
         summary.status = medusa_pb2.StatusType.SUCCESS
 
+    if summary.status == medusa_pb2.StatusType.IN_PROGRESS:
+        try:
+            if BackupMan.get_backup_future(backup.name) is None:
+                summary.status = medusa_pb2.StatusType.FAILED
+        except RuntimeError:
+            summary.status = medusa_pb2.StatusType.FAILED
+
     summary.totalNodes = len(backup.tokenmap)
     summary.finishedNodes = len(backup.complete_nodes())
 
@@ -356,6 +372,9 @@ def get_backup_summary(backup):
 
 # Callback function for recording unique backup results
 def record_backup_info(future):
+    if future.cancelled():
+        return
+
     try:
         logging.info("Recording async backup information.")
         if future.exception():
