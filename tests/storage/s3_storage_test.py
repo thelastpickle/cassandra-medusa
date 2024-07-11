@@ -197,7 +197,8 @@ class S3StorageTest(unittest.TestCase):
                 'region': 'default',
                 'storage_provider': 's3_compatible',
                 'key_file': credentials_file.name,
-                'concurrent_transfers': '1'
+                'concurrent_transfers': '1',
+                'canned_acl': 'public-read',
             })
 
             credentials = S3BaseStorage._consolidate_credentials(config)
@@ -220,7 +221,8 @@ class S3StorageTest(unittest.TestCase):
                     'ssl_verify': 'False',
                     'host': None,
                     'port': None,
-                    'concurrent_transfers': '1'
+                    'concurrent_transfers': '1',
+                    'canned_acl': 'public-read',
                 })
                 s3_storage = S3BaseStorage(config)
                 # there are no extra connection args when connecting to regular S3
@@ -244,7 +246,8 @@ class S3StorageTest(unittest.TestCase):
                     'ssl_verify': 'False',
                     'host': None,
                     'port': None,
-                    'concurrent_transfers': '1'
+                    'concurrent_transfers': '1',
+                    'canned_acl': 'public-read',
                 })
                 s3_storage = S3BaseStorage(config)
                 # again, no extra connection args when connecting to regular S3
@@ -269,7 +272,8 @@ class S3StorageTest(unittest.TestCase):
                     'ssl_verify': 'False',
                     'host': 's3.example.com',
                     'port': '443',
-                    'concurrent_transfers': '1'
+                    'concurrent_transfers': '1',
+                    'canned_acl': 'public-read',
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
@@ -292,7 +296,8 @@ class S3StorageTest(unittest.TestCase):
                     'ssl_verify': 'False',
                     'host': 's3.example.com',
                     'port': '8080',
-                    'concurrent_transfers': '1'
+                    'concurrent_transfers': '1',
+                    'canned_acl': 'public-read',
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
@@ -314,7 +319,8 @@ class S3StorageTest(unittest.TestCase):
                 'ssl_verify': 'False',
                 'host': 's3.example.com',
                 'port': '8080',
-                'concurrent_transfers': '1'
+                'concurrent_transfers': '1',
+                'canned_acl': 'public-read',
             })
             s3_storage = S3BaseStorage(config)
             connection_args = s3_storage._make_connection_arguments(config)
@@ -334,7 +340,8 @@ class S3StorageTest(unittest.TestCase):
                 'ssl_verify': 'True',
                 'host': 's3.example.com',
                 'port': '8080',
-                'concurrent_transfers': '1'
+                'concurrent_transfers': '1',
+                'canned_acl': 'public-read',
             })
             s3_storage = S3BaseStorage(config)
             connection_args = s3_storage._make_connection_arguments(config)
@@ -375,7 +382,8 @@ class S3StorageTest(unittest.TestCase):
                 'ssl_verify': 'False',
                 'host': None,
                 'port': None,
-                'concurrent_transfers': '1'
+                'concurrent_transfers': '1',
+                'canned_acl': 'public-read',
             })
 
             # Replace the open function with the mock
