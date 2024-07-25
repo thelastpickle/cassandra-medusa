@@ -197,8 +197,6 @@ class S3BaseStorage(AbstractStorage):
 
         if multipart_chunksize is not None:
             transfer_config['multipart_chunksize'] = AbstractStorage._human_size_to_bytes(multipart_chunksize)
-
-
         return TransferConfig(**transfer_config)
 
     @staticmethod
