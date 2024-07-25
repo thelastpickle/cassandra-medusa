@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import time
 import traceback
 import typing as t
@@ -75,7 +76,7 @@ def stagger(fqdn, storage, tokenmap):
 # Called by async thread for backup, called in main thread as synchronous backup.
 # Kicks off the node backup unit of work and registers for backup queries.
 # No return value for async mode, throws back exception for failed kickoff.
-def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode):
+def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode, exclude, include):
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
@@ -112,7 +113,7 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
             logging.info("Starting backup using Stagger: {} Mode: {} Name: {}".format(stagger_time, mode, backup_name))
             BackupMan.update_backup_status(backup_name, BackupMan.STATUS_IN_PROGRESS)
             info = start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
-                                enable_md5_checks_flag, backup_name, config, monitoring)
+                                enable_md5_checks_flag, backup_name, config, monitoring, exclude, include)
             BackupMan.update_backup_status(backup_name, BackupMan.STATUS_SUCCESS)
 
             logging.debug("Done with backup, returning backup result information")
@@ -136,7 +137,7 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
 
 
 def start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
-                 enable_md5_checks_flag, backup_name, config, monitoring):
+                 enable_md5_checks_flag, backup_name, config, monitoring, exclude, include):
     try:
         # Make sure that priority remains to Cassandra/limiting backups resource usage
         throttle_backup()
@@ -172,7 +173,7 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
     actual_start = datetime.datetime.now()
     enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
     num_files, num_replaced, num_kept = do_backup(
-        cassandra, node_backup, storage, enable_md5, backup_name
+        cassandra, node_backup, storage, enable_md5, backup_name, exclude, include
     )
     end = datetime.datetime.now()
     actual_backup_duration = end - actual_start
@@ -209,7 +210,7 @@ def get_server_type_and_version(cassandra):
     return server_type, release_version
 
 
-def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name):
+def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, exclude, include):
 
     # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
     # so even if exception is thrown, a new snapshot will be created on the next run
@@ -218,14 +219,14 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name):
     with cassandra.create_snapshot(backup_name) as snapshot:
         manifest = []
         num_files, num_replaced, num_kept = backup_snapshots(
-            storage, manifest, node_backup, snapshot, enable_md5_checks
+            storage, manifest, node_backup, snapshot, enable_md5_checks, exclude, include
         )
 
     if node_backup.is_dse:
         logging.info('Creating DSE snapshot')
         with cassandra.create_dse_snapshot(backup_name) as snapshot:
             dse_num_files, dse_replaced, dse_kept = backup_snapshots(
-                storage, manifest, node_backup, snapshot, enable_md5_checks
+                storage, manifest, node_backup, snapshot, enable_md5_checks, exclude, include
             )
             num_files += dse_num_files
             num_replaced += dse_replaced
@@ -281,7 +282,20 @@ def update_monitoring(actual_backup_duration, backup_name, monitoring, node_back
     logging.debug('Done emitting metrics')
 
 
-def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks):
+def need_backup(fqtn, exclude, include):
+    if exclude is None and include is None:
+        return True
+
+    if include is None:
+        return not re.match(exclude, fqtn)
+
+    if exclude is None:
+        return re.match(include, fqtn)
+
+    return not re.match(exclude, fqtn) and re.match(include, fqtn)
+
+
+def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks, exclude, include):
     try:
         num_files = 0
         replaced = 0
@@ -296,6 +310,10 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
 
         for snapshot_path in snapshot.find_dirs():
             fqtn = f"{snapshot_path.keyspace}.{snapshot_path.columnfamily}"
+            if not need_backup(fqtn, exclude, include):
+                logging.info(f"Ignore backing up {fqtn} as required ...")
+                continue
+
             logging.info(f"Backing up {fqtn}")
 
             needs_backup, needs_reupload, already_backed_up = check_already_uploaded(
