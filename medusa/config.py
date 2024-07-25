@@ -28,10 +28,13 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 StorageConfig = collections.namedtuple(
     'StorageConfig',
-    ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'storage_class',
-     'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
-     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'ssl_verify',
-     'aws_cli_path', 'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode', 'read_timeout']
+    [
+        'bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'storage_class',
+        'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
+        'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'ssl_verify',
+        'aws_cli_path', 'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode', 'read_timeout',
+        's3_addressing_style'
+    ]
 )
 
 CassandraConfig = collections.namedtuple(
@@ -117,7 +120,8 @@ def _build_default_config():
         'region': 'default',
         'backup_grace_period_in_days': 10,
         'use_sudo_for_restore': 'True',
-        'read_timeout': 60
+        'read_timeout': 60,
+        's3_addressing_style': 'auto',
     }
 
     config['logging'] = {
