@@ -192,8 +192,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 BackupMan.register_backup(request.backupName, is_async=False, overwrite_existing=False)
                 status = BackupMan.STATUS_UNKNOWN
                 future = BackupMan.get_backup_future(request.backupName)
-                if not future:
-                    # No future exists, if the backup isn't marked as finished in the backend then it failed
+                if future is None or future.done():
+                    # No future exists or the future is finished already,
+                    # if the backup isn't marked as finished in the backend then it failed
                     if not backup.finished:
                         status = BackupMan.STATUS_FAILED
                 if status == BackupMan.STATUS_UNKNOWN:
@@ -201,6 +202,13 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                         status = BackupMan.STATUS_IN_PROGRESS
                     if backup.finished:
                         status = BackupMan.STATUS_SUCCESS
+
+                if status == BackupMan.STATUS_FAILED and future is not None:
+                    try:
+                        future.result()
+                    except Exception as e:
+                        # If the future failed, then log the exception
+                        logging.error(f"Backup {request.backupName} has failed: {e}")
                 BackupMan.update_backup_status(request.backupName, status)
                 # record the status
                 record_status_in_response(response, request.backupName)

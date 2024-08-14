@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import concurrent
 import configparser
 import unittest
 
@@ -231,7 +232,8 @@ class ServerTest(unittest.TestCase):
         storage = Storage(config=medusa_config.storage)
         node_backup = make_node_backup(storage, 'backup3', datetime.fromtimestamp(123456), differential=True)
         BackupMan.register_backup('backup1', True)
-        BackupMan.set_backup_future('backup1', 'fake_future')
+        mock_future = Mock(spec=concurrent.futures.Future)
+        BackupMan.set_backup_future('backup1', mock_future)
 
         # this patch prevents the actual get_node_backup call, and instead returns the fake backup from above
         with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
@@ -250,7 +252,34 @@ class ServerTest(unittest.TestCase):
             finish_time = int(datetime.strptime(backup_status.finishTime, '%Y-%m-%d %H:%M:%S').timestamp())
             self.assertEqual(123456, finish_time)
 
-    def test_get_backup_status_started_backup_with_future(self):
+    def test_get_backup_status_started_backup_with_done_future(self):
+        # Backup is started and has a future which is done. We consider it failed.
+        # start the Medusa service
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        # build a fake backup object
+        storage = Storage(config=medusa_config.storage)
+        node_backup = make_unfinished_node_backup(storage, 'backup4', datetime.fromtimestamp(123456), differential=True)
+        # we only register the backup, do not move it to SUCCESS
+        BackupMan.register_backup('backup4', True)
+        mock_future = Mock(spec=concurrent.futures.Future)
+        mock_future.done.return_value = True
+        BackupMan.set_backup_future('backup4', mock_future)
+
+        with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
+            request = medusa_pb2.BackupStatusRequest(backupName='backup4')
+            context = Mock(spec=ServicerContext)
+            backup_status = service.BackupStatus(request, context)
+
+            # we get the response as SUCCESS because the finish time is set (~not None)
+            self.assertEqual(medusa_pb2.StatusType.FAILED, backup_status.status)
+            # the finish time is already set
+            # I'm not sure this is because of faking the backup
+            start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, start_time)
+
+    def test_get_backup_status_started_backup_with_undone_future(self):
         # Backup is started and has a future. We consider it in progress.
         # start the Medusa service
         medusa_config = self._make_config()
@@ -261,7 +290,9 @@ class ServerTest(unittest.TestCase):
         node_backup = make_unfinished_node_backup(storage, 'backup4', datetime.fromtimestamp(123456), differential=True)
         # we only register the backup, do not move it to SUCCESS
         BackupMan.register_backup('backup4', True)
-        BackupMan.set_backup_future('backup4', 'fake_future')
+        mock_future = Mock(spec=concurrent.futures.Future)
+        mock_future.done.return_value = False
+        BackupMan.set_backup_future('backup4', mock_future)
 
         with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
             request = medusa_pb2.BackupStatusRequest(backupName='backup4')
@@ -291,6 +322,35 @@ class ServerTest(unittest.TestCase):
         with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
             request = medusa_pb2.BackupStatusRequest(backupName='backup5')
             context = Mock(spec=ServicerContext)
+            backup_status = service.BackupStatus(request, context)
+
+            # we get the response as SUCCESS because the finish time is set (~not None)
+            self.assertEqual(medusa_pb2.StatusType.FAILED, backup_status.status)
+            # the finish time is already set
+            # I'm not sure this is because of faking the backup
+            start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
+            self.assertEqual(123456, start_time)
+
+    def test_get_backup_status_started_backup_failed_future(self):
+        # Backup is started and has no future. We consider it failed.
+        # start the Medusa service
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        # build a fake backup object
+        storage = Storage(config=medusa_config.storage)
+        node_backup = make_unfinished_node_backup(storage, 'backup6', datetime.fromtimestamp(123456), differential=True)
+        # we only register the backup, do not move it to SUCCESS
+        BackupMan.register_backup('backup6', True)
+        self.assertIsNone(BackupMan.get_backup_future('backup6'))
+
+        with patch('medusa.storage.Storage.get_node_backup', return_value=node_backup):
+            request = medusa_pb2.BackupStatusRequest(backupName='backup6')
+            context = Mock(spec=ServicerContext)
+            mock_future = Mock(spec=concurrent.futures.Future)
+            mock_future.done.return_value = True
+            mock_future.result.side_effect = Exception('fake exception')
+            BackupMan.set_backup_future('backup6', mock_future)
             backup_status = service.BackupStatus(request, context)
 
             # we get the response as SUCCESS because the finish time is set (~not None)
