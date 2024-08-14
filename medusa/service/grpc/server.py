@@ -208,7 +208,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                         # If the future failed, then log the exception
                         logging.error(f"Backup {request.backupName} has failed: {e}")
                         status = BackupMan.STATUS_FAILED
-                elif future.running():
+                else:
                     logging.info("Backup {} is still running".format(request.backupName))
                 if status == BackupMan.STATUS_UNKNOWN:
                     if backup.started:
