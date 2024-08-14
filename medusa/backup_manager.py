@@ -108,12 +108,13 @@ class BackupMan:
             if not BackupMan.__instance:
                 BackupMan()
 
-            if backup_name in BackupMan.__instance.__backups:
+            if backup_name in BackupMan.__instance.__backups.keys():
                 if overwrite_existing:
                     if not BackupMan.__clean(backup_name):
                         logging.error(f"Registered backup name {backup_name} cleanup failed prior to re-register.")
-
-            BackupMan.__instance.__backups[backup_name] = [None, BackupMan.STATUS_UNKNOWN, is_async]
+                    BackupMan.__instance.__backups[backup_name] = [None, BackupMan.STATUS_UNKNOWN, is_async]
+            else:
+                BackupMan.__instance.__backups[backup_name] = [None, BackupMan.STATUS_UNKNOWN, is_async]
             logging.info("Registered backup id {}".format(backup_name))
 
     # Caller can decide how long to wait for a result using the registered backup future returned.
