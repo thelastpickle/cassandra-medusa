@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.22.1 (2024/08/15 16:00 +00:00)
+- Do not set storage class for GCP (it's not supported anyway) (#800) (@rzvoncek)
+- Fix backup man future registration and BackupStatus computation of the node backup state (#799) (@adejanovski)
+
 ### 0.22.0 (2024/07/19 16:00 +00:00)
 - Bump urllib3 from 1.26.18 to 1.26.19 (#784) (@dependabot)
 - Ignore blank likes in host_list file (#761) (@VenkataNaladala94)
