@@ -469,6 +469,20 @@ def make_node_backup(storage, name, backup_date, differential=False, fqdn="local
                       started_timestamp=backup_date.timestamp(), finished_timestamp=backup_date.timestamp())
 
 
+def make_unfinished_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
+    if differential is True:
+        differential_blob = make_blob("localhost/{}/meta/differential".format(name), backup_date.timestamp())
+    else:
+        differential_blob = None
+    tokenmap_blob = make_blob("localhost/{}/meta/tokenmap.json".format(name), backup_date.timestamp())
+    schema_blob = make_blob("localhost/{}/meta/schema.cql".format(name), backup_date.timestamp())
+    manifest_blob = None
+    return NodeBackup(storage=storage, fqdn=fqdn, name=str(name),
+                      differential_blob=differential_blob, manifest_blob=manifest_blob,
+                      tokenmap_blob=tokenmap_blob, schema_blob=schema_blob,
+                      started_timestamp=backup_date.timestamp(), finished_timestamp=None)
+
+
 def make_cluster_backup(storage, name, backup_date, nodes, differential=False):
     node_backups = list()
     for node in nodes:
