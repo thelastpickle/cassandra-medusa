@@ -191,10 +191,38 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                     response.finishTime = ""
                 BackupMan.register_backup(request.backupName, is_async=False, overwrite_existing=False)
                 status = BackupMan.STATUS_UNKNOWN
-                if backup.started:
-                    status = BackupMan.STATUS_IN_PROGRESS
-                if backup.finished:
-                    status = BackupMan.STATUS_SUCCESS
+                future = BackupMan.get_backup_future(request.backupName)
+                if future is None:
+                    # No future exists or the future is finished already,
+                    # if the backup isn't marked as finished in the backend then it failed
+                    logging.info("Backup {} has no future".format(request.backupName))
+                    if not backup.finished:
+                        status = BackupMan.STATUS_FAILED
+                elif future.done():
+                    try:
+                        future.result()
+                        logging.info("Backup {} has finished with no exception".format(request.backupName))
+                        if not backup.finished:
+                            status = BackupMan.STATUS_FAILED
+                    except Exception as e:
+                        # If the future failed, then log the exception
+                        logging.error(f"Backup {request.backupName} has failed: {e}")
+                        status = BackupMan.STATUS_FAILED
+                else:
+                    logging.info("Backup {} is still running".format(request.backupName))
+                if status == BackupMan.STATUS_UNKNOWN:
+                    if backup.started:
+                        status = BackupMan.STATUS_IN_PROGRESS
+                    if backup.finished:
+                        status = BackupMan.STATUS_SUCCESS
+
+                if status == BackupMan.STATUS_FAILED and future is not None:
+                    try:
+                        future.result()
+                        logging.info("Backup {} has failed with no exception".format(request.backupName))
+                    except Exception as e:
+                        # If the future failed, then log the exception
+                        logging.error(f"Backup {request.backupName} has failed: {e}")
                 BackupMan.update_backup_status(request.backupName, status)
                 # record the status
                 record_status_in_response(response, request.backupName)
