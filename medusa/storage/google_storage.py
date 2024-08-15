@@ -127,18 +127,15 @@ class GoogleStorage(AbstractStorage):
             )
         )
 
-        storage_class = self.get_storage_class()
-        ex_header = {"storageClass": storage_class} if storage_class else {}
         resp = await self.gcs_storage.upload(
             bucket=self.bucket_name,
             object_name=object_key,
             file_data=data,
             force_resumable_upload=True,
             timeout=-1,
-            headers=ex_header,
         )
         return AbstractBlob(
-            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], storage_class.upper()
+            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -206,15 +203,12 @@ class GoogleStorage(AbstractStorage):
                 )
             )
 
-            storage_class = self.get_storage_class()
-            ex_header = {"storageClass": storage_class} if storage_class else {}
             resp = await self.gcs_storage.copy(
                 bucket=self.bucket_name,
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
                 destination_bucket=self.bucket_name,
                 new_name=object_key,
                 timeout=-1,
-                headers=ex_header,
             )
             resp = resp['resource']
         else:
