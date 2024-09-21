@@ -31,7 +31,7 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 override_dh_virtualenv:
 	dh_virtualenv \
 	  --extra-pip-arg "--no-cache-dir" \
-	  --python /usr/bin/python3 --preinstall=setuptools==52.0.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	  --python /usr/bin/python3 --preinstall=setuptools==52.0.0 --preinstall=pip --preinstall=wheel --builtin-venv \
 	  --preinstall=poetry==1.6.1 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:

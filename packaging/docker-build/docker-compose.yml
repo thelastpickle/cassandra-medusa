@@ -58,6 +58,18 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-builder-bookworm:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian-12
+      args:
+        - BUILD_IMAGE=debian:bookworm
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
   release:
     build:
       context: ../..
