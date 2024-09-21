@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version: '2.1'
+version: '2.10'
 
 services:
   cassandra-medusa-builder-jammy:
@@ -48,6 +48,8 @@ services:
       - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-bullseye:
     build:
+      platforms:
+        - linux/amd64
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile-debian
       args:
