@@ -36,16 +36,6 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-buster:
-    build:
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-debian
-      args:
-        - BUILD_IMAGE=debian:buster
-    volumes:
-      - ../..:/usr/src/app/cassandra-medusa
-      - ../../packages:/usr/src/app/packages
-      - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-bullseye:
     build:
       platforms:
