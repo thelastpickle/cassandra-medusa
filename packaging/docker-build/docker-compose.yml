@@ -41,7 +41,7 @@ services:
       platforms:
         - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-debian
+      dockerfile: packaging/docker-build/Dockerfile-debian-11
       args:
         - BUILD_IMAGE=debian:bullseye
     volumes:
