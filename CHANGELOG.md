@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.22.3 (2024/10/02 16:00 +00:00)
+- Propagate Medusa process exit code in k8s docker-entrypoint (#806) (@c3-clement)
+
 ### 0.22.2 (2024/08/16 16:00 +00:00)
 - Do not install docker-compose in release-debian CI step (#801) (@rzvoncek)
 
