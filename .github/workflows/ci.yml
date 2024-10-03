@@ -103,7 +103,7 @@ jobs:
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [4.0.0, 'github:apache/trunk']
+          cassandra-version: [4.0.0, 4.1.7, 5.0.1, 'github:apache/trunk']
           include:
             # tweak the experimental flag for cassandra versions
             - cassandra-version: 4.0.0
