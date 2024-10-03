@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version: '2.10'
-
 services:
   cassandra-medusa-builder-jammy:
     build:
@@ -52,6 +50,16 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-bookworm:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian-12-tester
+      args:
+        - BUILD_IMAGE=debian:bookworm
+    volumes:
+      - ../../packages:/usr/src/app/packages
   release:
     build:
       context: ../..
