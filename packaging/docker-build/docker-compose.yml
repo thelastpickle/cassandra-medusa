@@ -26,6 +26,16 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-focal:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu-tester
+      args:
+        - BUILD_IMAGE=ubuntu:20.04
+    volumes:
+      - ../../packages:/usr/src/app/packages
   cassandra-medusa-builder-bullseye:
     build:
       platforms:
