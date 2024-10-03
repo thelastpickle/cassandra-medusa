@@ -96,6 +96,11 @@ jobs:
         sudo dpkg -D 3 -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         medusa
         exit $?
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 15
+
 
   integration-tests:
     needs: build
