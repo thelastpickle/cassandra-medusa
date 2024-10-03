@@ -31,7 +31,7 @@ services:
       platforms:
         - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-ubuntu-tester
+      dockerfile: packaging/docker-build/Dockerfile-tester
       args:
         - BUILD_IMAGE=ubuntu:20.04
     volumes:
@@ -53,7 +53,7 @@ services:
       platforms:
         - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-debian-11-tester
+      dockerfile: packaging/docker-build/Dockerfile-tester
       args:
         - BUILD_IMAGE=debian:bullseye
     volumes:
@@ -75,7 +75,7 @@ services:
       platforms:
         - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-debian-12-tester
+      dockerfile: packaging/docker-build/Dockerfile-tester
       args:
         - BUILD_IMAGE=debian:bookworm
     volumes:
