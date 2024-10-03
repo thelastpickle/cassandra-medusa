@@ -9,6 +9,7 @@
 set -e
 
 echo "MEDUSA_MODE = $MEDUSA_MODE"
+echo "MEDUSA_TMP_DIR = $MEDUSA_TMP_DIR"
 
 restore() {
     # The BACKUP_NAME and RESTORE_KEY env vars have to be set in order for a 

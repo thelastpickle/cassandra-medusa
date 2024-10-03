@@ -60,6 +60,7 @@ ENV DEBUG_VERSION 1
 ENV DEBUG_SLEEP 0
 ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:/home/cassandra/bin:$PATH
 ENV PYTHONPATH=/home/cassandra
+ENV MEDUSA_TMP_DIR=""
 
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 COPY --from=base --chown=cassandra:cassandra /build/.venv /home/cassandra/.venv
