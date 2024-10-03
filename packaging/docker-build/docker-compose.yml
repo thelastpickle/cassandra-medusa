@@ -17,21 +17,13 @@ version: '2.10'
 services:
   cassandra-medusa-builder-jammy:
     build:
+      platforms:
+        - linux/amd64
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile-ubuntu
       args:
         - BUILD_IMAGE=ubuntu:22.04
         - EXTRA_PACKAGES=""
-    volumes:
-      - ../..:/usr/src/app/cassandra-medusa
-      - ../../packages:/usr/src/app/packages
-      - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-bionic:
-    build:
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-ubuntu
-      args:
-        - BUILD_IMAGE=ubuntu:18.04
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
