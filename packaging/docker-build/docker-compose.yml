@@ -26,16 +26,6 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-bionic:
-    build:
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-ubuntu
-      args:
-        - BUILD_IMAGE=ubuntu:18.04
-    volumes:
-      - ../..:/usr/src/app/cassandra-medusa
-      - ../../packages:/usr/src/app/packages
-      - ./scripts:/usr/src/app/scripts
   cassandra-medusa-builder-bullseye:
     build:
       platforms:
