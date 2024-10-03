@@ -103,13 +103,9 @@ jobs:
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
+          cassandra-version: [4.0.0, 'github:apache/trunk']
           include:
             # tweak the experimental flag for cassandra versions
-            - cassandra-version: 2.2.19
-              experimental: false
-            - cassandra-version: 3.11.11
-              experimental: false
             - cassandra-version: 4.0.0
               experimental: false
             # explicitly include tests against python 3.11 and one version of cassandra
@@ -130,17 +126,6 @@ jobs:
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
-            # fewer tests against cassandra 3.11.11 (exclude all but local storage backends)
-            - it-backend: s3
-              cassandra-version: "3.11.11"
-            - it-backend: gcs
-              cassandra-version: "3.11.11"
-            - it-backend: minio
-              cassandra-version: "3.11.11"
-            - it-backend: azure
-              cassandra-version: "3.11.11"
-            - it-backend: azure-hierarchical
-              cassandra-version: "3.11.11"
             # no tests against non-python3.9, except the explicitly allowed combinations
             - python-version: 3.8
             - python-version: "3.10"
