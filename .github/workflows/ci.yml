@@ -60,9 +60,9 @@ jobs:
           - suite: focal
             os-version: ubuntu-20.04
           - suite: bullseye
-            os-version: ubuntu-22.04
+            os-version: ubuntu-20.04
           - suite: bookworm
-            os-version: ubuntu-22.04
+            os-version: ubuntu-20.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
