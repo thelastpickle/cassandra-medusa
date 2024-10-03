@@ -55,11 +55,13 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bullseye]
+        suite: [focal, bullseye, bookworm]
         include:
           - suite: focal
             os-version: ubuntu-20.04
           - suite: bullseye
+            os-version: ubuntu-22.04
+          - suite: bookworm
             os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
@@ -94,7 +96,7 @@ jobs:
         sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         medusa
         exit $?
-      
+
   integration-tests:
     needs: build
     continue-on-error: ${{ matrix.experimental }}
@@ -424,7 +426,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
-    
+
   publish-debian:
     # We can only release if the build above succeeded first
     needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
