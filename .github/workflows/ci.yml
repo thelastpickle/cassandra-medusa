@@ -92,6 +92,7 @@ jobs:
     - name: Install Debian Package and run Medusa
       run: |
         version=$(cat VERSION)
+        cd packaging/docker-build
         docker compose build cassandra-medusa-tester-${{ matrix.suite }}
         docker compose run cassandra-medusa-tester-${{ matrix.suite }} cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         exit $?
