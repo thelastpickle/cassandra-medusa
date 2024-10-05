@@ -65,7 +65,7 @@ class Orchestration(object):
                                 cert_file=cert_file)
             logging.debug('Batch #{i}: Running "{command}" on nodes {hosts} parallelism of {pool_size}'
                           .format(i=i, command=command, hosts=parallel_hosts, pool_size=len(parallel_hosts)))
-            output = client.run_command(command, host_args=hosts_variables,
+            output = client.run_command(command, host_args=hosts_variables, shell='$SHELL -cl',
                                         sudo=medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo))
             client.join(output)
 
