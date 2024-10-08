@@ -112,6 +112,24 @@ jobs:
               experimental: false
             - cassandra-version: 4.0.0
               experimental: false
+            # explicitly include test for (currently) latest cassandra 4.1.x
+            - python-version: "3.11"
+              cassandra-version: 4.1.5
+              it-backend: gcs
+              experimental: false
+            - python-version: "3.11"
+              cassandra-version: 4.1.5
+              it-backend: local
+              experimental: false
+            # explicitly include a test for trunk
+            - python-version: "3.11"
+              cassandra-version: 'github:apache/trunk'
+              it-backend: gcs
+              experimental: false
+            - python-version: "3.11"
+              cassandra-version: 'github:apache/trunk'
+              it-backend: local
+              experimental: false
             # explicitly include tests against python 3.11 and one version of cassandra
             - python-version: "3.11"
               cassandra-version: 4.0.0
