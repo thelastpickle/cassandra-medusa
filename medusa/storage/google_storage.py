@@ -43,8 +43,6 @@ class GoogleStorage(AbstractStorage):
         self.service_file = str(Path(config.key_file).expanduser())
         logging.info("Using service file: {}".format(self.service_file))
 
-        self.bucket_name = config.bucket_name
-
         logging.debug('Connecting to Google Storage')
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
