@@ -964,6 +964,8 @@ Feature: Integration tests
 
     @25
     Scenario Outline: Perform an differential backup, verify it, modify Statistics.db file, verify it
+        Given I will set "index_summary_capacity" to "1MiB" in the "cassandra.yaml" of the test cluster
+        Given I will set "index_summary_resize_interval" to "1m" in the "cassandra.yaml" of the test cluster
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario25"
         Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
         When I create the "test" table in keyspace "medusa"
@@ -974,7 +976,11 @@ Feature: Integration tests
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
         Then I modify Statistics.db file in the backup in the "test" table in keyspace "medusa"
         Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
-        
+        Then I modify Summary.db file in the backup in the "test" table in keyspace "medusa"
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
+        When I perform a backup in "differential" mode of the node named "second_backup" with md5 checks "enabled"
+        Then I can verify the backup named "second_backup" with md5 checks "enabled" successfully
+        Then I can verify the backup named "first_backup" with md5 checks "enabled" successfully
 
         @local
         Examples: Local storage
