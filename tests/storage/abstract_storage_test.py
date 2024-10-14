@@ -26,6 +26,7 @@ class AttributeDict(dict):
     __slots__ = ()
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
+    __dict__ = dict.__dict__
 
 
 class TestAbstractStorage(AbstractStorage):
