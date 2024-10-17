@@ -61,6 +61,7 @@ curl -1sLf \
 In case of problem, read the full instructions on the [cloudsmith.io documentation](https://cloudsmith.io/~thelastpickle/repos/medusa/setup/#formats-deb)
 
 *Note: since Medusa 0.9 we publish releases for Ubuntu `bionic` and `focal` only.*
+*Note: since Medusa 0.23 we removed `bionic` releases (they haven't worked for a while already).*
 
 2/ Install Medusa :
 

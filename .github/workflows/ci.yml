@@ -55,10 +55,14 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal]
+        suite: [focal, bullseye, bookworm]
         include:
           - suite: focal
             os-version: ubuntu-20.04
+          - suite: bullseye
+            os-version: ubuntu-20.04
+          - suite: bookworm
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -89,10 +93,15 @@ jobs:
       run: |
         version=$(cat VERSION)
         cd packages
-        sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
+        sudo dpkg -D 3 -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         medusa
         exit $?
-      
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 15
+
+
   integration-tests:
     needs: build
     continue-on-error: ${{ matrix.experimental }}
@@ -422,7 +431,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
-    
+
   publish-debian:
     # We can only release if the build above succeeded first
     needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
