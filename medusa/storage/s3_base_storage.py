@@ -116,6 +116,7 @@ class S3BaseStorage(AbstractStorage):
 
         self.connection_extra_args = self._make_connection_arguments(config)
         self.transfer_config = self._make_transfer_config(config)
+        self.canned_acl = config.canned_acl
 
         self.executor = concurrent.futures.ThreadPoolExecutor(int(config.concurrent_transfers))
 
@@ -259,14 +260,18 @@ class S3BaseStorage(AbstractStorage):
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
 
-        kms_args = {}
+        extra_args = {}
         if self.kms_id is not None:
-            kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.kms_id
+            extra_args['ServerSideEncryption'] = 'aws:kms'
+            extra_args['SSEKMSKeyId'] = self.kms_id
 
         storage_class = self.get_storage_class()
         if storage_class is not None:
-            kms_args['StorageClass'] = storage_class
+            extra_args['StorageClass'] = storage_class
+
+        # doing this to a bucket w/o ACLS enabled causes AccessControlListNotSupported error
+        if self.canned_acl is not None:
+            extra_args['ACL'] = self.canned_acl
 
         logging.debug(
             '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
@@ -281,7 +286,7 @@ class S3BaseStorage(AbstractStorage):
                 Bucket=self.bucket_name,
                 Key=object_key,
                 Body=data,
-                **kms_args,
+                **extra_args,
             )
         except Exception as e:
             logging.error(e)
@@ -352,14 +357,16 @@ class S3BaseStorage(AbstractStorage):
         # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
         object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        kms_args = {}
+        extra_args = {}
         if self.kms_id is not None:
-            kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.kms_id
+            extra_args['ServerSideEncryption'] = 'aws:kms'
+            extra_args['SSEKMSKeyId'] = self.kms_id
 
         storage_class = self.get_storage_class()
         if storage_class is not None:
-            kms_args['StorageClass'] = storage_class
+            extra_args['StorageClass'] = storage_class
+        if self.canned_acl is not None:
+            extra_args['ACL'] = self.canned_acl
 
         file_size = os.stat(src).st_size
         logging.debug(
@@ -373,7 +380,7 @@ class S3BaseStorage(AbstractStorage):
             'Bucket': self.bucket_name,
             'Key': object_key,
             'Config': self.transfer_config,
-            'ExtraArgs': kms_args,
+            'ExtraArgs': extra_args,
         }
         # we are going to combine asyncio with boto's threading
         # we do this by submitting the upload into an executor
