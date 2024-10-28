@@ -94,6 +94,13 @@ def validate_manifest(storage, node_backup, enable_md5_checks):
             continue
 
         if not storage.storage_driver.blob_matches_manifest(blob, object_in_manifest, enable_md5_checks):
+            if '-Summary.db' in blob.name:
+                m = f"Blob [{blob.name}] mismatches manifest. "
+                m += f"It's a Summary.db file which might be re-written once Cassandra rebuilds index summaries. "
+                m += f"Therefore we are not causing this mismatch to fail the verification. "
+                m += f"Cassandra will (re-)write this file during bootstrap if needed. "
+                logging.warning(m)
+                continue
             logging.error("Expected {} but got {}".format(object_in_manifest, blob))
             yield("  - [{}] Blob different".format(object_in_manifest['path']))
 
