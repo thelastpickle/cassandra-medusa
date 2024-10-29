@@ -49,7 +49,7 @@ class GoogleStorage(AbstractStorage):
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
-        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else -1
 
         super().__init__(config)
 
