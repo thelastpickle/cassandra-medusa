@@ -49,7 +49,7 @@ class GoogleStorage(AbstractStorage):
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
-        self.read_timeout = int(config.read_timeout)
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else -1
 
         super().__init__(config)
 
@@ -158,7 +158,7 @@ class GoogleStorage(AbstractStorage):
             stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
-                timeout=self.read_timeout if self.read_timeout is not None else -1,
+                timeout=self.read_timeout,
             )
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, 'wb') as f:
@@ -243,7 +243,7 @@ class GoogleStorage(AbstractStorage):
             bucket=self.bucket_name,
             object_name=blob.name,
             session=self.session,
-            timeout=self.read_timeout if self.read_timeout is not None else -1,
+            timeout=self.read_timeout,
         )
         return content
 

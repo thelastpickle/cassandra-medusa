@@ -94,8 +94,8 @@ jobs:
         exit $?
       
   integration-tests:
-    needs: build
     continue-on-error: ${{ matrix.experimental }}
+    needs: build
     strategy:
         fail-fast: false
         matrix:
@@ -104,6 +104,7 @@ jobs:
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
+          java-version: [8.0.252, 11.0.25]
           include:
             # tweak the experimental flag for cassandra versions
             - cassandra-version: 2.2.19
@@ -117,21 +118,35 @@ jobs:
               cassandra-version: 4.0.0
               it-backend: gcs
               experimental: false
+              java-version: 11.0.25
             # explicitly include tests against python 3.10 and one version of cassandra
             - python-version: "3.10"
               cassandra-version: 4.0.0
               it-backend: gcs
               experimental: false
+              java-version: 11.0.25
             # explicitly include tests against python 3.8 and one version of cassandra
             - python-version: 3.8
               cassandra-version: 4.0.0
               it-backend: gcs
               experimental: false
+              java-version: 11.0.25
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
-            # fewer tests against cassandra 3.11.11 (exclude all but local storage backends)
-            - it-backend: s3
+            # no tests for C* 2.2 with java 11
+            - cassandra-version: 2.2.19
+              java-version: 11.0.25
+            # no tests for C* 3.11 with java 11
+            - cassandra-version: 3.11.11
+              java-version: 11.0.25
+            # no tests for C* 4.0 with java 8
+            - cassandra-version: 4.0.0
+              java-version: 8.0.252
+            # fewer tests against cassandra 3.11.11 (exclude all but s3 storage backends)
+            # we are not doing the local because it would run a scenario with mgmt-api which no longer supports 3.11
+            # but we still want some tests against 3.11.11, so we use s3 for at least some coverage
+            - it-backend: local
               cassandra-version: "3.11.11"
             - it-backend: gcs
               cassandra-version: "3.11.11"
@@ -167,7 +182,7 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '8.0.252'
+        java-version: ${{ matrix.java-version}}
         architecture: x64
     - name: Setup Poetry
       uses: snok/install-poetry@v1
@@ -211,7 +226,7 @@ jobs:
         # Write GCS service account credentials to a file
         mkdir ~/.aws
         # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
-        ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
+        ccm create test_cluster -v binary:${{ matrix.cassandra-version }} -n 1 --vnodes
         ccm node1 updateconf 'storage_port: 7011'
         ccm node1 updateconf 'concurrent_reads: 4'
         ccm node1 updateconf 'concurrent_writes: 4'
@@ -219,6 +234,9 @@ jobs:
         ccm node1 updateconf 'num_tokens: 4'
         sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
+        # remove the ThreadPriorityPolicy option for cases where we run with java 11
+        sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm.options || true
+        sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm8-server.options || true
         ccm start -v
         ccm showlastlog|tail -100
         ccm stop

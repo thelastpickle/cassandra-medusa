@@ -117,7 +117,6 @@ def _build_default_config():
         'region': 'default',
         'backup_grace_period_in_days': 10,
         'use_sudo_for_restore': 'True',
-        'read_timeout': 60
     }
 
     config['logging'] = {

@@ -136,7 +136,7 @@ def get_client_encryption_opts(keystore_path, trustore_path):
         protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
 
 
-def tune_ccm_settings(cluster_name, custom_settings=None):
+def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
     if os.uname().sysname == "Linux":
         os.popen(
             """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
@@ -148,6 +148,15 @@ def tune_ccm_settings(cluster_name, custom_settings=None):
             + cluster_name
             + """/node1/conf/cassandra-env.sh"""
         ).read()
+        if cassandra_version.startswith("4") or cassandra_version.startswith("5"):
+            jvm_options_file = "jvm8-server.options"
+        else:
+            jvm_options_file = "jvm.options"
+        os.popen(
+            """sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/"""
+            + cluster_name
+            + """/node1/conf/""" + jvm_options_file
+        )
 
     # sed on some macos needs `-i .bak` instead of just `-i`
     if os.uname().sysname == "Darwin":
@@ -285,7 +294,7 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
         os.popen(update_client_encrytion_opts).read()
 
     custom_settings = context.custom_settings if hasattr(context, 'custom_settings') else None
-    tune_ccm_settings(context.cluster_name, custom_settings)
+    tune_ccm_settings(context.cassandra_version, context.cluster_name, custom_settings)
 
     context.session = connect_cassandra(is_client_encryption_enable)
 
@@ -335,7 +344,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
         )
     shutil.copyfile("resources/grpc/jolokia-jvm-1.6.2-agent.jar", "/tmp/jolokia-jvm-1.6.2-agent.jar")
 
-    tune_ccm_settings(context.cluster_name)
+    tune_ccm_settings(context.cassandra_version, context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -370,7 +379,7 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    tune_ccm_settings(context.cluster_name)
+    tune_ccm_settings(context.cassandra_version, context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
     # stop the node via CCM as it needs to be started by the Management API
     os.popen(CCM_STOP).read()

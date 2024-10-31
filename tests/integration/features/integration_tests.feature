@@ -1096,15 +1096,12 @@ Feature: Integration tests
         Then I stop the DSE cluster
         And I delete the DSE cluster
 
-    @local
-    Examples: Local storage
-    | storage    | client encryption |
-    | local      | without_client_encryption |
+        @dse
+        Examples: DSE Scenario
+        | storage           | client encryption |
+        | local             | without_client_encryption |
+        | s3_us_west_oregon | without_client_encryption |
 
-    @s3
-    Examples: S3 storage
-    | storage           | client encryption         |
-    | s3_us_west_oregon | without_client_encryption |
 
     @30
     Scenario Outline: Create an differential backup, corrupt it, then fix by doing another backup, and verify it
