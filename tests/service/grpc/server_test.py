@@ -110,6 +110,7 @@ class ServerTest(unittest.TestCase):
             "node1": {"tokens": [-1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"},
             "node2": {"tokens": [1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"}
         }
+        BackupMan.remove_backup('backup1')
         BackupMan.register_backup('backup1', True)
         BackupMan.update_backup_status('backup1', BackupMan.STATUS_IN_PROGRESS)
 

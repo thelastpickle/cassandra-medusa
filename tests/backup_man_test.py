@@ -58,7 +58,8 @@ class BackupManTest(unittest.TestCase):
     def test_register_backup_sync_mode(self):
         BackupMan.register_backup("test_backup_id", is_async=False)
         self.assertEqual(BackupMan.STATUS_UNKNOWN, BackupMan.get_backup_status("test_backup_id"))
-        self.assertEqual(None, BackupMan.get_backup_future("test_backup_id"))
+        with self.assertRaises(RuntimeError):
+            BackupMan.get_backup_future("test_backup_id")
 
         BackupMan.update_backup_status("test_backup_id", BackupMan.STATUS_SUCCESS)
         self.assertEqual(BackupMan.STATUS_SUCCESS, BackupMan.get_backup_status("test_backup_id"))
@@ -66,6 +67,7 @@ class BackupManTest(unittest.TestCase):
     def test_register_backup_async_mode(self):
         backup_id = "test_backup_id"
         mock_future = Mock(concurrent.futures.Future)
+        mock_future.done = lambda: False
         BackupMan.register_backup(backup_id, is_async=True)
         BackupMan.set_backup_future(backup_id, mock_future)
         stored_future = BackupMan.get_backup_future(backup_id)
@@ -76,6 +78,7 @@ class BackupManTest(unittest.TestCase):
 
         backup_id_2 = "test_backup_id_2"
         mock_future_2 = Mock(concurrent.futures.Future)
+        mock_future_2.done = lambda: False
         BackupMan.register_backup(backup_id_2, is_async=True)
         BackupMan.set_backup_future(backup_id_2, mock_future_2)
 
@@ -91,7 +94,9 @@ class BackupManTest(unittest.TestCase):
         # Self-healing of detected duplicate, clean and reset w/ new expected
         backup_id_1 = "test_backup_id"
         mock_future_1 = Mock(concurrent.futures.Future)
+        mock_future_1.done = lambda: False
         mock_future_2 = Mock(concurrent.futures.Future)
+        mock_future_2.done = lambda: False
         BackupMan.register_backup(backup_id_1, is_async=True)
         BackupMan.set_backup_future(backup_id_1, mock_future_1)
         self.assertEqual(BackupMan.get_backup_future(backup_id_1), mock_future_1)
