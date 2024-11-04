@@ -18,7 +18,7 @@ restore() {
     # the file does not exist or if the values differ.
 
     echo "Running Medusa in restore mode"
-    last_restore_file=/var/lib/cassandra/.last-restore
+    last_restore_file=${MEDUSA_TMP_DIR:-'/var/lib/cassandra'}/.last-restore
 
     if [ -z "$BACKUP_NAME" ]; then
         echo "BACKUP_NAME env var not set, skipping restore operation"
