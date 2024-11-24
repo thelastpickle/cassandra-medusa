@@ -73,7 +73,7 @@ LoggingConfig = collections.namedtuple(
 
 GrpcConfig = collections.namedtuple(
     'GrpcConfig',
-    ['enabled', 'max_send_message_length', 'max_receive_message_length']
+    ['enabled', 'max_send_message_length', 'max_receive_message_length', 'port']
 )
 
 KubernetesConfig = collections.namedtuple(
@@ -93,6 +93,7 @@ CONFIG_SECTIONS = {
 }
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
+DEFAULT_GRPC_PORT = 50051
 
 
 def _build_default_config():
@@ -167,6 +168,7 @@ def _build_default_config():
         'enabled': 'False',
         'max_send_message_length': '536870912',
         'max_receive_message_length': '134217728',
+        'port': f'{DEFAULT_GRPC_PORT}'
     }
 
     config['kubernetes'] = {
