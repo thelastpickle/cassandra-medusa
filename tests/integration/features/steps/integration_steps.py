@@ -447,7 +447,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
-        "127.0.0.1:50051",
+        f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[('grpc.enable_retries', 0)]
     )
 
@@ -496,7 +496,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
-        "127.0.0.1:50051",
+        f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[('grpc.enable_retries', 0)]
     )
 

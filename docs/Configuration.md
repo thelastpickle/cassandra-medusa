@@ -158,6 +158,7 @@ backup_grace_period_in_days = 10
 ; Set to true when running in grpc server mode.
 ; Allows to propagate the exceptions instead of exiting the program.
 ;enabled = False
+;port = <grpc port the server listens to. Defaults to port 50051.>
 
 [kubernetes]
 ; The following settings are only intended to be configured if Medusa is running in containers, preferably in Kubernetes.
