@@ -54,7 +54,9 @@ gsutil iam set ${iamGetFile} ${BUCKET_URL} && \
 rm -rf ${iamGetFile}
 ```
 
-### Configure Medusa
+### Configure Medusa using a service account key
+
+note: Skip this step if you intend to use a service account attached to a VM or workload identity)
 
 Generate a json key file called `credentials.json`, for the service account:
 
@@ -73,3 +75,17 @@ key_file = /etc/medusa/credentials.json
 ```
 
 Medusa should now be able to access the bucket and perform all required operations.
+
+### Configure Medusa using an attached service account.
+
+If you are running medusa on a GCE Virtual Machine, you can use an attached service account without providing a credentials file. This can be useful to avoid having to rotate service account keys frequently
+
+To do this, configure `/etc/medusa/medusa.ini` without specifying a `key_file`, as below:
+
+```
+[storage]
+storage_provider = google_storage
+bucket_name = my_gcs_bucket
+```
+
+For this to work, ensure that the `storage-rw` access scope set on the GCE instance.
