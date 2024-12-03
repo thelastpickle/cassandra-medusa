@@ -46,6 +46,7 @@ class Orchestration(object):
         cert_file = self.config.ssh.cert_file if self.config.ssh.cert_file != '' else None
         keepalive_seconds = int(self.config.ssh.keepalive_seconds)
         use_pty = medusa.utils.evaluate_boolean(self.config.ssh.use_pty)
+        use_login_shell = medusa.utils.evaluate_boolean(self.config.ssh.login_shell)
 
         if ssh_client is None:
             if cert_file is None:
@@ -81,9 +82,12 @@ class Orchestration(object):
                                     pkey=pkey,
                                     cert_file=cert_file)
 
-            logging.debug('Batch #{i}: Running "{command}" on nodes {hosts} parallelism of {pool_size}'
-                          .format(i=i, command=command, hosts=parallel_hosts, pool_size=len(parallel_hosts)))
-            output = client.run_command(command, host_args=hosts_variables, use_pty=use_pty,
+            logging.debug(f'Batch #{i}: Running "{command}" nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
+                          f'login_shell={use_login_shell}')
+
+            shell = '$SHELL -cl' if use_login_shell else None
+
+            output = client.run_command(command, host_args=hosts_variables, use_pty=use_pty, shell=shell,
                                         sudo=medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo))
             client.join(output)
 
