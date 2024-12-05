@@ -71,6 +71,7 @@ bucket_name = cassandra_backups
 kms_id = <ARN of KMS key used for server-side bucket encryption>
 
 ; JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)
+; optional if using GCS (see ./Docs/gcs_setup.md)
 key_file = /etc/medusa/credentials
 
 ; Path of the local storage bucket (used only with 'local' storage provider)
