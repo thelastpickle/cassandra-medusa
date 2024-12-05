@@ -59,7 +59,7 @@ class LocalStorage(AbstractStorage):
             AbstractBlob(
                 str(p.relative_to(self.root_dir)),
                 os.stat(self.root_dir / p).st_size,
-                self._md5(self.root_dir / p),
+                None,   # was self._md5(self.root_dir / p),  see Task1 for issue #829
                 datetime.datetime.fromtimestamp(os.stat(self.root_dir / p).st_mtime),
                 None
             )
