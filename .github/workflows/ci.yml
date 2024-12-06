@@ -55,10 +55,14 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal]
+        suite: [focal, bullseye, bookworm]
         include:
           - suite: focal
             os-version: ubuntu-20.04
+          - suite: bullseye
+            os-version: ubuntu-22.04
+          - suite: bookworm
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -88,9 +92,9 @@ jobs:
     - name: Install Debian Package and run Medusa
       run: |
         version=$(cat VERSION)
-        cd packages
-        sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
-        medusa
+        cd packaging/docker-build
+        docker compose build cassandra-medusa-tester-${{ matrix.suite }}
+        docker compose run cassandra-medusa-tester-${{ matrix.suite }} cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         exit $?
       
   integration-tests:
@@ -447,10 +451,12 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal]
+        suite: [focal, bionic]
         include:
           - suite: focal
             os-version: ubuntu-20.04
+          - suite: bionic
+            os-version: ubuntu-18.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
