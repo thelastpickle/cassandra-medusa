@@ -136,7 +136,7 @@ def get_client_encryption_opts(keystore_path, trustore_path):
         protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
 
 
-def tune_ccm_settings(cluster_name):
+def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
     if os.uname().sysname == "Linux":
         os.popen(
             """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
@@ -148,6 +148,30 @@ def tune_ccm_settings(cluster_name):
             + cluster_name
             + """/node1/conf/cassandra-env.sh"""
         ).read()
+        if cassandra_version.startswith("4") or cassandra_version.startswith("5"):
+            jvm_options_file = "jvm8-server.options"
+        else:
+            jvm_options_file = "jvm.options"
+        os.popen(
+            """sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/"""
+            + cluster_name
+            + """/node1/conf/""" + jvm_options_file
+        )
+
+    # sed on some macos needs `-i .bak` instead of just `-i`
+    if os.uname().sysname == "Darwin":
+        sed_option = ".bak"
+    else:
+        sed_option = ""
+
+    if custom_settings:
+        for file in custom_settings.keys():
+            for setting in custom_settings[file].keys():
+                os.popen(
+                    f"""sed -i {sed_option} "s/{setting}: .*/{setting}: {custom_settings[file][setting]}/" """
+                    + f""" ~/.ccm/{cluster_name}/node1/conf/{file}"""
+                ).read()
+
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
 
 
@@ -229,6 +253,15 @@ class MgmtApiServer:
                       cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
 
 
+@given(r'I will set "{setting_name}" to "{setting_value}" in the "{file_name}" of the test cluster')
+def _i_will_set_setting(context, setting_name, setting_value, file_name):
+    if not hasattr(context, 'custom_settings'):
+        context.custom_settings = {}
+    if context.custom_settings.get(file_name, None) is None:
+        context.custom_settings[file_name] = {}
+    context.custom_settings[file_name][setting_name] = setting_value
+
+
 @given(r'I have a fresh ccm cluster "{client_encryption}" running named "{cluster_name}"')
 def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption):
     context.session = None
@@ -260,7 +293,9 @@ def _i_have_a_fresh_ccm_cluster_running(context, cluster_name, client_encryption
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    tune_ccm_settings(context.cluster_name)
+    custom_settings = context.custom_settings if hasattr(context, 'custom_settings') else None
+    tune_ccm_settings(context.cassandra_version, context.cluster_name, custom_settings)
+
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -309,7 +344,7 @@ def _i_have_a_fresh_ccm_cluster_with_jolokia_running(context, cluster_name, clie
         )
     shutil.copyfile("resources/grpc/jolokia-jvm-1.6.2-agent.jar", "/tmp/jolokia-jvm-1.6.2-agent.jar")
 
-    tune_ccm_settings(context.cluster_name)
+    tune_ccm_settings(context.cassandra_version, context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
 
 
@@ -344,7 +379,7 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
         update_client_encrytion_opts = get_client_encryption_opts(keystore_path, trustore_path)
         os.popen(update_client_encrytion_opts).read()
 
-    tune_ccm_settings(context.cluster_name)
+    tune_ccm_settings(context.cassandra_version, context.cluster_name)
     context.session = connect_cassandra(is_client_encryption_enable)
     # stop the node via CCM as it needs to be started by the Management API
     os.popen(CCM_STOP).read()
@@ -412,7 +447,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
-        "127.0.0.1:50051",
+        f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[('grpc.enable_retries', 0)]
     )
 
@@ -461,7 +496,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
     context.grpc_client = medusa.service.grpc.client.Client(
-        "127.0.0.1:50051",
+        f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[('grpc.enable_retries', 0)]
     )
 
@@ -1626,6 +1661,13 @@ def _i_modify_a_statistics_db_file(context, table, keyspace):
         path_statistics_db_file = os.path.join(table_path, statistics_db_files[0])
         with open(path_statistics_db_file, 'a') as file:
             file.write('Adding some additional characters')
+
+
+@then(r'I modify Summary.db file in the backup in the "{table}" table in keyspace "{keyspace}"')
+def _i_modify_a_summary_db_file(context, table, keyspace):
+    context.session.execute(f"ALTER TABLE {keyspace}.{table} WITH min_index_interval = 8 and max_index_interval = 8;")
+    logging.debug("waiting 65 seconds for index redistribution to happen")
+    time.sleep(65)
 
 
 @then(r'checking the list of decommissioned nodes returns "{expected_node}"')

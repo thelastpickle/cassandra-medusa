@@ -175,6 +175,17 @@ else
    CASSANDRA_VERSION_FLAG="-D cassandra-version=${CASSANDRA_VERSION}"
 fi
 
+java -version 2>&1 | grep version | grep -q 11
+if [ $? -ne 0 ]; then
+    # we're NOT having java 11, we can proceed
+    echo ${STORAGE_TAGS} | grep -q minio
+    if [ $? -eq 1 ]; then
+        # we cannot allow the DSE scenario with minio because in ITs it does not have the correct creds set up
+        STORAGE_TAGS="${STORAGE_TAGS},@dse"
+    fi
+    # do not add the dse scenario if minio is about to run
+fi
+
 if [ "$COVERAGE" == "yes" ]
 then
     PYTHONPATH=../.. poetry run coverage run --source='../../medusa' -m behave --stop $SCENARIO --tags=$STORAGE_TAGS $LOGGING $CASSANDRA_VERSION_FLAG

@@ -119,6 +119,8 @@ class S3BaseStorage(AbstractStorage):
 
         self.executor = concurrent.futures.ThreadPoolExecutor(int(config.concurrent_transfers))
 
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
+
         super().__init__(config)
 
     def connect(self):
@@ -137,7 +139,7 @@ class S3BaseStorage(AbstractStorage):
             signature_version='v4',
             tcp_keepalive=True,
             max_pool_connections=max_pool_size,
-            read_timeout=int(self.config.read_timeout),
+            read_timeout=self.read_timeout,
         )
         if self.credentials.access_key_id is not None:
             self.s3_client = boto3.client(
