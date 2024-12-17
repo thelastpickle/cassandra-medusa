@@ -23,8 +23,8 @@ from medusa.storage import Storage, format_bytes_str
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def status(config, backup_name):
-    with Storage(config=config.storage) as storage:
+def status(config, backup_name, bucket_name=None, prefix=None):
+    with Storage(config=config.storage, bucket_name=bucket_name, prefix=prefix) as storage:
 
         try:
             cluster_backup = storage.get_cluster_backup(backup_name)
