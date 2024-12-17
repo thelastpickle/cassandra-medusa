@@ -132,6 +132,8 @@ backup_grace_period_in_days = 10
 ;cert_file = <Path of public key signed certificate file to use for authentication. The corresponding private key must also be provided via key_file parameter>
 ;keepalive_seconds = <seconds between ssh keepalive messages to the ssh server. Default to 60 seconds. Due to a limitation in parallel-ssh, if 'cert_file' is defined, then 'keepalive_seconds' will be ignored and no keep alive messages will be sent>
 ;use_pty = <Boolean: Allocates pseudo-terminal. Default to False. Useful if sudo settings require a tty>
+; Enables the usage of a 'login' shell which, among other things, loads user's profile files.
+;login_shell = False
 
 [checks]
 ;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>
