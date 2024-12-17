@@ -369,6 +369,13 @@ def get_backup_summary(backup):
         summary.finishTime = backup.finished
         summary.status = medusa_pb2.StatusType.SUCCESS
 
+    if summary.status == medusa_pb2.StatusType.IN_PROGRESS:
+        try:
+            if BackupMan.get_backup_future(backup.name) is None:
+                summary.status = medusa_pb2.StatusType.FAILED
+        except RuntimeError:
+            summary.status = medusa_pb2.StatusType.FAILED
+
     summary.totalNodes = len(backup.tokenmap)
     summary.finishedNodes = len(backup.complete_nodes())
 
@@ -385,6 +392,9 @@ def get_backup_summary(backup):
 
 # Callback function for recording unique backup results
 def record_backup_info(future):
+    if future.cancelled():
+        return
+
     try:
         logging.info("Recording async backup information.")
         if future.exception():
