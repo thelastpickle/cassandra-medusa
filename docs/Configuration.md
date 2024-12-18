@@ -123,7 +123,7 @@ backup_grace_period_in_days = 10
 ;aws_cli_path = <Location of the aws cli binary if not in PATH>
 
 [monitoring]
-;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
+;monitoring_provider = <Provider used for sending metrics. Currently just "local">
 
 [ssh]
 ;username = <SSH username to use for restoring clusters>
