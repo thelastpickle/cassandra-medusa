@@ -23,6 +23,8 @@
 
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fthelastpickle%2Fcassandra-medusa%2Fmaster%2Fpyproject.toml)
 
+Dummy change.
+
 Medusa for Apache Cassandra&trade;
 ==================================
 
