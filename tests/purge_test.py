@@ -83,7 +83,7 @@ class PurgeTest(unittest.TestCase):
             backups.append(make_node_backup(self.storage, str(i), file_time, differential=True))
 
         obsolete_backups = backups_to_purge_by_count(backups, 10)
-        assert(obsolete_backups[0].name == "1")
+        assert (obsolete_backups[0].name == "1")
 
         obsolete_backups = backups_to_purge_by_count(backups, 20)
         assert len(obsolete_backups) == 20

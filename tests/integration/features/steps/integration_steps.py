@@ -131,9 +131,9 @@ def get_client_encryption_opts(keystore_path, trustore_path):
     else:
         cipher_suite = "TLS_RSA_WITH_AES_256_CBC_SHA"
     return f"""ccm node1 updateconf -y 'client_encryption_options: {{ enabled: true,
-        optional: false,keystore: {keystore_path}, keystore_password: testdata1,
-        require_client_auth: true,truststore: {trustore_path},  truststore_password: truststorePass1,
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
+        optional: false, keystore: {keystore_path}, keystore_password: testdata1,
+        require_client_auth: true, truststore: {trustore_path}, truststore_password: truststorePass1,
+        protocol: TLS, algorithm: SunX509, store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
 
 
 def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
@@ -713,8 +713,8 @@ def _i_wait_for_indexes_to_be_rebuilt(context):
             logging.debug(f'DSE Search rebuild for {fqtn} not yet finished, waiting...')
             attempts += 1
             if attempts > 5:
-                logging.error(f'DSE Search rebuild of {fqtn} did not finish in time')
-                raise RuntimeError(f'DSE Search rebuild of {fqtn} did not finish in time')
+                logging.error(f"DSE Search rebuild of {fqtn} did not finish in time")
+                raise RuntimeError(f"DSE Search rebuild of {fqtn} did not finish in time")
             time.sleep(2)
 
 
@@ -1451,7 +1451,7 @@ def _i_delete_the_manifest_from_the_backup_named(context, backup_name):
             path_root, storage.prefix_path, backup_name
         )
         path_manifest_backup = "{}/{}{}/{}/meta/manifest.json".format(
-            path_root, storage.prefix_path, fqdn, backup_name, fqdn
+            path_root, storage.prefix_path, fqdn, backup_name
         )
 
         os.remove(path_manifest_backup)

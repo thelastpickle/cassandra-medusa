@@ -272,7 +272,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         response.name = request.name
 
         if not BackupMan.is_active():
-            logging.warning(f"Backup manager has no backups on record")
+            logging.warning("Backup manager has no backups on record")
             response.status = medusa_pb2.StatusType.FAILED
             return response
 

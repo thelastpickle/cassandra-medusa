@@ -44,21 +44,21 @@ class S3StorageTest(unittest.TestCase):
             with tempfile.NamedTemporaryFile() as empty_file:
 
                 if os.environ.get('AWS_ACCESS_KEY_ID', None):
-                    del(os.environ['AWS_ACCESS_KEY_ID'])
+                    del (os.environ['AWS_ACCESS_KEY_ID'])
                 if os.environ.get('AWS_SECRET_ACCESS_KEY', None):
-                    del(os.environ['AWS_SECRET_ACCESS_KEY'])
+                    del (os.environ['AWS_SECRET_ACCESS_KEY'])
                 if os.environ.get('AWS_PROFILE', None):
-                    del(os.environ['AWS_PROFILE'])
+                    del (os.environ['AWS_PROFILE'])
                 if os.environ.get('AWS_STS_REGIONAL_ENDPOINTS', None):
-                    del(os.environ['AWS_STS_REGIONAL_ENDPOINTS'])
+                    del (os.environ['AWS_STS_REGIONAL_ENDPOINTS'])
                 if os.environ.get('AWS_DEFAULT_REGION', None):
-                    del(os.environ['AWS_DEFAULT_REGION'])
+                    del (os.environ['AWS_DEFAULT_REGION'])
                 if os.environ.get('AWS_REGION', None):
-                    del(os.environ['AWS_REGION'])
+                    del (os.environ['AWS_REGION'])
                 if os.environ.get('AWS_ROLE_ARN', None):
-                    del(os.environ['AWS_ROLE_ARN'])
+                    del (os.environ['AWS_ROLE_ARN'])
                 if os.environ.get('AWS_WEB_IDENTITY_TOKEN_FILE', None):
-                    del(os.environ['AWS_WEB_IDENTITY_TOKEN_FILE'])
+                    del (os.environ['AWS_WEB_IDENTITY_TOKEN_FILE'])
 
                 self.assertIsNone(os.environ.get('AWS_ACCESS_KEY_ID', None))
                 self.assertIsNone(os.environ.get('AWS_SECRET_ACCESS_KEY', None))
@@ -94,8 +94,8 @@ class S3StorageTest(unittest.TestCase):
             self.assertEqual('key-from-env', credentials.access_key_id)
             self.assertEqual('region-from-config', credentials.region)
 
-            del(os.environ['AWS_ACCESS_KEY_ID'])
-            del(os.environ['AWS_SECRET_ACCESS_KEY'])
+            del (os.environ['AWS_ACCESS_KEY_ID'])
+            del (os.environ['AWS_SECRET_ACCESS_KEY'])
 
     def test_credentials_from_file(self):
         credentials_file_content = """
@@ -149,8 +149,8 @@ class S3StorageTest(unittest.TestCase):
                 credentials = S3BaseStorage._consolidate_credentials(config)
                 self.assertEqual('key-from-file', credentials.access_key_id)
 
-                del(os.environ['AWS_ACCESS_KEY_ID'])
-                del(os.environ['AWS_SECRET_ACCESS_KEY'])
+                del (os.environ['AWS_ACCESS_KEY_ID'])
+                del (os.environ['AWS_SECRET_ACCESS_KEY'])
 
     def test_credentials_with_default_region(self):
         credentials_file_content = """
@@ -343,11 +343,11 @@ class S3StorageTest(unittest.TestCase):
     def test_assume_role_authentication(self):
         with patch('botocore.httpsession.URLLib3Session', new=_make_assume_role_with_web_identity_mock()):
             if os.environ.get('AWS_ACCESS_KEY_ID', None):
-                del(os.environ['AWS_ACCESS_KEY_ID'])
+                del (os.environ['AWS_ACCESS_KEY_ID'])
             if os.environ.get('AWS_SECRET_ACCESS_KEY', None):
-                del(os.environ['AWS_SECRET_ACCESS_KEY'])
+                del (os.environ['AWS_SECRET_ACCESS_KEY'])
             if os.environ.get('AWS_PROFILE', None):
-                del(os.environ['AWS_PROFILE'])
+                del (os.environ['AWS_PROFILE'])
 
             self.assertIsNone(os.environ.get('AWS_ACCESS_KEY_ID', None))
             self.assertIsNone(os.environ.get('AWS_SECRET_ACCESS_KEY', None))
