@@ -31,7 +31,7 @@ jobs:
     - name: Set up Poetry
       uses: abatilo/actions-poetry@v2
       with:
-        poetry-version: "1.8.0"
+        poetry-version: "2.0.0"
     - name: Install dependencies
       run: |
         poetry install
@@ -180,7 +180,7 @@ jobs:
     - name: Setup Poetry
       uses: abatilo/actions-poetry@v2
       with:
-        poetry-version: "1.8.0"
+        poetry-version: "2.0.0"
     - name: Install dependencies
       run: |
         poetry install
@@ -335,7 +335,7 @@ jobs:
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: "1.8.0"
+          poetry-version: "2.0.0"
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -427,7 +427,7 @@ jobs:
     - name: Set up Poetry
       uses: abatilo/actions-poetry@v2
       with:
-        poetry-version: "1.8.0"
+        poetry-version: "2.0.0"
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
@@ -505,7 +505,7 @@ jobs:
     - name: Set up Poetry
       uses: abatilo/actions-poetry@v2
       with:
-        poetry-version: "1.8.0"
+        poetry-version: "2.0.0"
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
@@ -536,7 +536,7 @@ jobs:
     - name: Set up Poetry
       uses: abatilo/actions-poetry@v2
       with:
-        poetry-version: "1.8.0"
+        poetry-version: "2.0.0"
     - name: Install dependencies
       run: |
         python -m venv venv
