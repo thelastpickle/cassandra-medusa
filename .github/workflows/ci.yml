@@ -188,6 +188,8 @@ jobs:
         architecture: x64
     - name: Setup Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Install dependencies
       run: |
         poetry install
@@ -337,6 +339,8 @@ jobs:
           password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
       - name: Set up Poetry
         uses: snok/install-poetry@v1
+        with:
+          version: 1.8.5
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -427,6 +431,8 @@ jobs:
         echo "sha_short=$(git rev-parse --short=8 ${{ github.sha }})" >> $GITHUB_OUTPUT
     - name: Set up Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
@@ -503,6 +509,8 @@ jobs:
         echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
     - name: Set up Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
@@ -531,6 +539,8 @@ jobs:
       with:
         python-version: 3.8
     - name: Set up Poetry
+      with:
+        version: 1.8.5
       uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |
