@@ -89,7 +89,7 @@ jobs:
       run: |
         version=$(cat VERSION)
         cd packages
-          sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
+        sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         medusa
         exit $?
       
