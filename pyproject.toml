@@ -39,6 +39,7 @@ include = [
 ]
 
 [project]
+name = "cassandra-medusa"
 requires-python = ">=3.8,<=3.11"
 
 [tool.poetry.scripts]
@@ -46,7 +47,7 @@ medusa = { reference = "medusa.medusacli:cli", type = "console" }
 medusa-wrapper = { reference = "medusa.scripts.medusa_wrapper:main", type = "console" }
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8,<=3.11"
 python-dateutil = "2.8.1"
 click = "8.1.7"
 click-aliases = "1.0.1"
@@ -97,5 +98,5 @@ pytest-cov = "4.1.0"
 tox = "4.11.3"
 
 [build-system]
-requires = ["poetry-core>=1.0.0,<2.0.0"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
