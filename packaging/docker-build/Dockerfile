@@ -65,7 +65,7 @@ RUN cd /tmp && \
 
 RUN pip3 install greenlet
 RUN pip3 install gevent
-RUN pip3 install poetry
+RUN pip3 install poetry==1.8.5
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}
