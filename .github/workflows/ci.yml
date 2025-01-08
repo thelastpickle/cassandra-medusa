@@ -13,17 +13,15 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        python-version: [3.9, "3.10", "3.11"]
         include:
-          - python-version: 3.8
-            tox-py: py38
           - python-version: 3.9
             tox-py: py39
           - python-version: "3.10"
             tox-py: py310
           - python-version: "3.11"
             tox-py: py311
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -57,10 +55,10 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal]
+        suite: [jammy]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          - suite: jammy
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -101,35 +99,29 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.8, 3.9, "3.10", "3.11"]
+          python-version: [3.9, "3.10", "3.11"]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
+          cassandra-version: [2.2.19, 3.11.17, 4.0.15, 'github:apache/trunk']
           java-version: [8.0.252, 11.0.25]
           include:
             # tweak the experimental flag for cassandra versions
             - cassandra-version: 2.2.19
               experimental: false
-            - cassandra-version: 3.11.11
+            - cassandra-version: 3.11.17
               experimental: false
-            - cassandra-version: 4.0.0
+            - cassandra-version: 4.0.15
               experimental: false
             # explicitly include tests against python 3.11 and one version of cassandra
             - python-version: "3.11"
-              cassandra-version: 4.0.0
+              cassandra-version: 4.0.15
               it-backend: gcs
               experimental: false
               java-version: 11.0.25
             # explicitly include tests against python 3.10 and one version of cassandra
             - python-version: "3.10"
-              cassandra-version: 4.0.0
-              it-backend: gcs
-              experimental: false
-              java-version: 11.0.25
-            # explicitly include tests against python 3.8 and one version of cassandra
-            - python-version: 3.8
-              cassandra-version: 4.0.0
+              cassandra-version: 4.0.15
               it-backend: gcs
               experimental: false
               java-version: 11.0.25
@@ -140,30 +132,29 @@ jobs:
             - cassandra-version: 2.2.19
               java-version: 11.0.25
             # no tests for C* 3.11 with java 11
-            - cassandra-version: 3.11.11
+            - cassandra-version: 3.11.17
               java-version: 11.0.25
             # no tests for C* 4.0 with java 8
-            - cassandra-version: 4.0.0
+            - cassandra-version: 4.0.15
               java-version: 8.0.252
-            # fewer tests against cassandra 3.11.11 (exclude all but s3 storage backends)
+            # fewer tests against cassandra 3.11.17 (exclude all but s3 storage backends)
             # we are not doing the local because it would run a scenario with mgmt-api which no longer supports 3.11
-            # but we still want some tests against 3.11.11, so we use s3 for at least some coverage
+            # but we still want some tests against 3.11.17, so we use s3 for at least some coverage
             - it-backend: local
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: gcs
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: minio
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: azure
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: azure-hierarchical
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             # no tests against non-python3.9, except the explicitly allowed combinations
-            - python-version: 3.8
             - python-version: "3.10"
             - python-version: "3.11"
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       minio:
         image: lazybit/minio
@@ -337,6 +328,10 @@ jobs:
         with:
           username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
           password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       - name: Set up Poetry
         uses: snok/install-poetry@v1
         with:
@@ -410,7 +405,7 @@ jobs:
   publish-docker-master:
     needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -455,10 +450,10 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal]
+        suite: [jammy]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          - suite: jammy
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -488,7 +483,7 @@ jobs:
   publish-docker:
     needs: [publish-debian]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -531,13 +526,13 @@ jobs:
     # We can only release if the build above succeeded first
     needs: [publish-docker]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: 3.10
     - name: Set up Poetry
       with:
         version: 1.8.5

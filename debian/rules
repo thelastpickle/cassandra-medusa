@@ -30,7 +30,7 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	--python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	--python /usr/bin/python3.10 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
 	--preinstall=poetry==1.8.5 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:
