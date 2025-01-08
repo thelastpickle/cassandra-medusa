@@ -13,14 +13,14 @@
 # limitations under the License.
 
 services:
-  cassandra-medusa-builder-jammy:
+  cassandra-medusa-builder-focal:
     build:
       platforms:
         - linux/amd64
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile-ubuntu
       args:
-        - BUILD_IMAGE=ubuntu:22.04
+        - BUILD_IMAGE=ubuntu:20.04
         - EXTRA_PACKAGES=""
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
