@@ -26,15 +26,15 @@ WORKDIR ${WORKDIR}
 ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
-# add a repo that contains a backport of dh-virtualenv 1.1 for focal, bionic
+# add a repo that contains a backport of dh-virtualenv 1.1 for jammy, bionic
 RUN apt-get update && \
     apt-get install -y software-properties-common
 
 # install dependencies
 RUN apt-get update \
     && apt-get install -y \
-        libffi-dev \   
-        libssl-dev \  
+        libffi-dev \
+        libssl-dev \
         debhelper \
         gcc \
         dh-python \

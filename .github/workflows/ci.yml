@@ -55,9 +55,9 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal, bullseye, bookworm]
+        suite: [jammy, bullseye, bookworm]
         include:
-          - suite: focal
+          - suite: jammy
             os-version: ubuntu-20.04
           - suite: bullseye
             os-version: ubuntu-22.04
@@ -454,9 +454,9 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal, bionic]
+        suite: [jammy, bionic]
         include:
-          - suite: focal
+          - suite: jammy
             os-version: ubuntu-20.04
           - suite: bionic
             os-version: ubuntu-18.04
