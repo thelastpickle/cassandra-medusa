@@ -187,6 +187,7 @@ class S3BaseStorage(AbstractStorage):
     def _make_transfer_config(self, config):
 
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
+        multipart_chunksize = config.multipart_chunksize or None
 
         # we hard-code this one because the parallelism is for now applied to chunking the files
         transfer_config = {
@@ -196,6 +197,8 @@ class S3BaseStorage(AbstractStorage):
         if transfer_max_bandwidth is not None:
             transfer_config['max_bandwidth'] = AbstractStorage._human_size_to_bytes(transfer_max_bandwidth)
 
+        if multipart_chunksize is not None:
+            transfer_config['multipart_chunksize'] = AbstractStorage._human_size_to_bytes(multipart_chunksize)
         return TransferConfig(**transfer_config)
 
     @staticmethod
