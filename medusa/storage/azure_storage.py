@@ -56,7 +56,7 @@ class AzureStorage(AbstractStorage):
         logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
         logging.getLogger('chardet.universaldetector').setLevel(logging.WARNING)
 
-        self.read_timeout = int(config.read_timeout)
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
 
         super().__init__(config)
 

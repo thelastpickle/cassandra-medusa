@@ -15,7 +15,8 @@
 
 import logging
 
-from pssh.clients.ssh import ParallelSSHClient
+from pssh.clients.native.parallel import ParallelSSHClient as PsshNativeClient
+from pssh.clients.ssh.parallel import ParallelSSHClient as PsshSSHClient
 
 import medusa.utils
 from medusa.storage import divide_chunks
@@ -39,33 +40,54 @@ class Orchestration(object):
         Runs a command on hosts list using pssh under the hood
         Return: True (success) or False (error)
         """
-        if ssh_client is None:
-            ssh_client = ParallelSSHClient
-        pssh_run_success = False
-        success = []
-        error = []
-        i = 1
-
         username = self.config.ssh.username if self.config.ssh.username != '' else None
         port = int(self.config.ssh.port)
         pkey = self.config.ssh.key_file if self.config.ssh.key_file != '' else None
         cert_file = self.config.ssh.cert_file if self.config.ssh.cert_file != '' else None
+        keepalive_seconds = int(self.config.ssh.keepalive_seconds)
+        use_pty = medusa.utils.evaluate_boolean(self.config.ssh.use_pty)
+        use_login_shell = medusa.utils.evaluate_boolean(self.config.ssh.login_shell)
+
+        if ssh_client is None:
+            if cert_file is None:
+                ssh_client = PsshNativeClient
+            else:
+                ssh_client = PsshSSHClient
+        pssh_run_success = False
+        success = []
+        error = []
+        i = 1
 
         logging.info('Executing "{command}" on following nodes {hosts} with a parallelism/pool size of {pool_size}'
                      .format(command=command, hosts=hosts, pool_size=self.pool_size))
 
         for parallel_hosts in divide_chunks(hosts, self.pool_size):
 
-            client = ssh_client(parallel_hosts,
-                                forward_ssh_agent=True,
-                                pool_size=len(parallel_hosts),
-                                user=username,
-                                port=port,
-                                pkey=pkey,
-                                cert_file=cert_file)
-            logging.debug('Batch #{i}: Running "{command}" on nodes {hosts} parallelism of {pool_size}'
-                          .format(i=i, command=command, hosts=parallel_hosts, pool_size=len(parallel_hosts)))
-            output = client.run_command(command, host_args=hosts_variables,
+            if cert_file is None:
+                client = ssh_client(parallel_hosts,
+                                    forward_ssh_agent=True,
+                                    pool_size=len(parallel_hosts),
+                                    user=username,
+                                    port=port,
+                                    pkey=pkey,
+                                    keepalive_seconds=keepalive_seconds)
+            else:
+                logging.debug('The ssh parameter "cert_file" is defined. Due to limitations in parallel-ssh '
+                              '"keep_alive" will be ignored and no ServerAlive messages will be generated')
+                client = ssh_client(parallel_hosts,
+                                    forward_ssh_agent=True,
+                                    pool_size=len(parallel_hosts),
+                                    user=username,
+                                    port=port,
+                                    pkey=pkey,
+                                    cert_file=cert_file)
+
+            logging.debug(f'Batch #{i}: Running "{command}" nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
+                          f'login_shell={use_login_shell}')
+
+            shell = '$SHELL -cl' if use_login_shell else None
+
+            output = client.run_command(command, host_args=hosts_variables, use_pty=use_pty, shell=shell,
                                         sudo=medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo))
             client.join(output)
 

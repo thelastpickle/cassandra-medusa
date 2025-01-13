@@ -39,9 +39,12 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 class GoogleStorage(AbstractStorage):
 
     def __init__(self, config):
-
-        self.service_file = str(Path(config.key_file).expanduser())
-        logging.info("Using service file: {}".format(self.service_file))
+        if config.key_file is not None:
+            self.service_file = str(Path(config.key_file).expanduser())
+            logging.info("Using service file: {}".format(self.service_file))
+        else:
+            self.service_file = None
+            logging.info("Using attached service account")
 
         self.bucket_name = config.bucket_name
 
@@ -49,7 +52,7 @@ class GoogleStorage(AbstractStorage):
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
-        self.read_timeout = int(config.read_timeout)
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else -1
 
         super().__init__(config)
 
@@ -127,18 +130,15 @@ class GoogleStorage(AbstractStorage):
             )
         )
 
-        storage_class = self.get_storage_class()
-        ex_header = {"storageClass": storage_class} if storage_class else {}
         resp = await self.gcs_storage.upload(
             bucket=self.bucket_name,
             object_name=object_key,
             file_data=data,
             force_resumable_upload=True,
             timeout=-1,
-            headers=ex_header,
         )
         return AbstractBlob(
-            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], storage_class.upper()
+            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
         )
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
@@ -161,7 +161,7 @@ class GoogleStorage(AbstractStorage):
             stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
-                timeout=self.read_timeout if self.read_timeout is not None else -1,
+                timeout=self.read_timeout,
             )
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, 'wb') as f:
@@ -206,15 +206,12 @@ class GoogleStorage(AbstractStorage):
                 )
             )
 
-            storage_class = self.get_storage_class()
-            ex_header = {"storageClass": storage_class} if storage_class else {}
             resp = await self.gcs_storage.copy(
                 bucket=self.bucket_name,
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
                 destination_bucket=self.bucket_name,
                 new_name=object_key,
                 timeout=-1,
-                headers=ex_header,
             )
             resp = resp['resource']
         else:
@@ -249,7 +246,7 @@ class GoogleStorage(AbstractStorage):
             bucket=self.bucket_name,
             object_name=blob.name,
             session=self.session,
-            timeout=self.read_timeout if self.read_timeout is not None else -1,
+            timeout=self.read_timeout,
         )
         return content
 

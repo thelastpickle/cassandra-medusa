@@ -13,17 +13,15 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11"]
+        python-version: [3.9, "3.10", "3.11"]
         include:
-          - python-version: 3.8
-            tox-py: py38
           - python-version: 3.9
             tox-py: py39
           - python-version: "3.10"
             tox-py: py310
           - python-version: "3.11"
             tox-py: py311
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -32,6 +30,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Set up Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Install dependencies
       run: |
         poetry install
@@ -55,10 +55,10 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [focal]
+        suite: [jammy]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          - suite: jammy
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
@@ -71,12 +71,12 @@ jobs:
         then
             echo "Updating debian changelog..."
             cd packaging/docker-build
-            docker-compose build release && docker-compose run release
+            docker compose build release && docker compose run release
             cd ../..
         fi
         cd packaging/docker-build
-        docker-compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
-            && docker-compose run "cassandra-medusa-builder-${{ matrix.suite }}"
+        docker compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
+            && docker compose run "cassandra-medusa-builder-${{ matrix.suite }}"
         
         cd ../../packages
         if [ -f "cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb" ]; then
@@ -94,59 +94,67 @@ jobs:
         exit $?
       
   integration-tests:
-    needs: build
     continue-on-error: ${{ matrix.experimental }}
+    needs: build
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.8, 3.9, "3.10", "3.11"]
+          python-version: [3.9, "3.10", "3.11"]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
-          cassandra-version: [2.2.19, 3.11.11, 4.0.0, 'github:apache/trunk']
+          cassandra-version: [2.2.19, 3.11.17, 4.0.15, 'github:apache/trunk']
+          java-version: [8.0.252, 11.0.25]
           include:
             # tweak the experimental flag for cassandra versions
             - cassandra-version: 2.2.19
               experimental: false
-            - cassandra-version: 3.11.11
+            - cassandra-version: 3.11.17
               experimental: false
-            - cassandra-version: 4.0.0
+            - cassandra-version: 4.0.15
               experimental: false
             # explicitly include tests against python 3.11 and one version of cassandra
             - python-version: "3.11"
-              cassandra-version: 4.0.0
+              cassandra-version: 4.0.15
               it-backend: gcs
               experimental: false
+              java-version: 11.0.25
             # explicitly include tests against python 3.10 and one version of cassandra
             - python-version: "3.10"
-              cassandra-version: 4.0.0
+              cassandra-version: 4.0.15
               it-backend: gcs
               experimental: false
-            # explicitly include tests against python 3.8 and one version of cassandra
-            - python-version: 3.8
-              cassandra-version: 4.0.0
-              it-backend: gcs
-              experimental: false
+              java-version: 11.0.25
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
-            # fewer tests against cassandra 3.11.11 (exclude all but local storage backends)
-            - it-backend: s3
-              cassandra-version: "3.11.11"
+            # no tests for C* 2.2 with java 11
+            - cassandra-version: 2.2.19
+              java-version: 11.0.25
+            # no tests for C* 3.11 with java 11
+            - cassandra-version: 3.11.17
+              java-version: 11.0.25
+            # no tests for C* 4.0 with java 8
+            - cassandra-version: 4.0.15
+              java-version: 8.0.252
+            # fewer tests against cassandra 3.11.17 (exclude all but s3 storage backends)
+            # we are not doing the local because it would run a scenario with mgmt-api which no longer supports 3.11
+            # but we still want some tests against 3.11.17, so we use s3 for at least some coverage
+            - it-backend: local
+              cassandra-version: "3.11.17"
             - it-backend: gcs
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: minio
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: azure
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             - it-backend: azure-hierarchical
-              cassandra-version: "3.11.11"
+              cassandra-version: "3.11.17"
             # no tests against non-python3.9, except the explicitly allowed combinations
-            - python-version: 3.8
             - python-version: "3.10"
             - python-version: "3.11"
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       minio:
         image: lazybit/minio
@@ -167,10 +175,12 @@ jobs:
     - name: Setup Java Action
       uses: actions/setup-java@v1
       with:
-        java-version: '8.0.252'
+        java-version: ${{ matrix.java-version}}
         architecture: x64
     - name: Setup Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Install dependencies
       run: |
         poetry install
@@ -211,7 +221,7 @@ jobs:
         # Write GCS service account credentials to a file
         mkdir ~/.aws
         # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
-        ccm create test_cluster -v binary:3.11.4 -n 1 --vnodes
+        ccm create test_cluster -v binary:${{ matrix.cassandra-version }} -n 1 --vnodes
         ccm node1 updateconf 'storage_port: 7011'
         ccm node1 updateconf 'concurrent_reads: 4'
         ccm node1 updateconf 'concurrent_writes: 4'
@@ -219,6 +229,9 @@ jobs:
         ccm node1 updateconf 'num_tokens: 4'
         sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
+        # remove the ThreadPriorityPolicy option for cases where we run with java 11
+        sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm.options || true
+        sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm8-server.options || true
         ccm start -v
         ccm showlastlog|tail -100
         ccm stop
@@ -315,8 +328,14 @@ jobs:
         with:
           username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
           password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       - name: Set up Poetry
         uses: snok/install-poetry@v1
+        with:
+          version: 1.8.5
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -386,7 +405,7 @@ jobs:
   publish-docker-master:
     needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -407,6 +426,8 @@ jobs:
         echo "sha_short=$(git rev-parse --short=8 ${{ github.sha }})" >> $GITHUB_OUTPUT
     - name: Set up Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
@@ -429,26 +450,21 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [focal]
+        suite: [jammy]
         include:
-          - suite: focal
-            os-version: ubuntu-20.04
+          - suite: jammy
+            os-version: ubuntu-22.04
       fail-fast: false
     runs-on: ${{ matrix.os-version }}
     steps:
     - uses: actions/checkout@v3
-    - name: Install dependencies
-      run: |
-        sudo curl -L "https://github.com/docker/compose/releases/download/1.25.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
     - name: Build Debian
       run: |
         version=$(cat VERSION)
         echo "VERSION=$version" >> $GITHUB_ENV
         cd packaging/docker-build
-        docker-compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
-            && docker-compose run "cassandra-medusa-builder-${{ matrix.suite }}"
+        docker compose build "cassandra-medusa-builder-${{ matrix.suite }}" \
+            && docker compose run "cassandra-medusa-builder-${{ matrix.suite }}"
         
     - name: Push Debian to Cloudsmith
       id: push-deb
@@ -467,7 +483,7 @@ jobs:
   publish-docker:
     needs: [publish-debian]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -488,6 +504,8 @@ jobs:
         echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
     - name: Set up Poetry
       uses: snok/install-poetry@v1
+      with:
+        version: 1.8.5
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
@@ -508,14 +526,16 @@ jobs:
     # We can only release if the build above succeeded first
     needs: [publish-docker]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.8
+    - name: Set up Python 3.10
       uses: actions/setup-python@v1
       with:
-        python-version: 3.8
+        python-version: 3.10
     - name: Set up Poetry
+      with:
+        version: 1.8.5
       uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |

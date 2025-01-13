@@ -1,5 +1,24 @@
 ## Change Log
 
+### 0.22.3 (2024/10/02 16:00 +00:00)
+- Propagate Medusa process exit code in k8s docker-entrypoint (#806) (@c3-clement)
+
+### 0.22.2 (2024/08/16 16:00 +00:00)
+- Do not install docker-compose in release-debian CI step (#801) (@rzvoncek)
+
+### 0.22.1 (2024/08/15 16:00 +00:00)
+- Do not set storage class for GCP (it's not supported anyway) (#800) (@rzvoncek)
+- Fix backup man future registration and BackupStatus computation of the node backup state (#799) (@adejanovski)
+
+### 0.22.0 (2024/07/19 16:00 +00:00)
+- Bump urllib3 from 1.26.18 to 1.26.19 (#784) (@dependabot)
+- Ignore blank likes in host_list file (#761) (@VenkataNaladala94)
+- Allow specifying storage classes (#777) (@maburadeh, @adejanovski, @rzvoncek)
+- Bump azure-identity from 1.14.0 to 1.16.1 (#776) (@dependabot)
+- Adding support to build images for multiple architectures (#760) (@EmanuelSanchez, @adejanovski)
+- Make object store read timeout configurable (#763) (@rzvoncek)
+- Fix a bug where 'None' got into the path prefix we actually list with (#770) (@rzvoncek)
+
 ### 0.21.0 (2024/05/06 16:55 +00:00)
 - Prevent gRRPC's BackupStatus from canceling pending futures (#745) (@rzvoncek)
 - Fix to enable the creation of backups when a backup name is not provided (#758) (@VenkataNaladala94)

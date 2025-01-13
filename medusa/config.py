@@ -30,8 +30,9 @@ StorageConfig = collections.namedtuple(
     'StorageConfig',
     ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'storage_class',
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
-     'concurrent_transfers', 'multi_part_upload_threshold', 'host', 'region', 'port', 'secure', 'ssl_verify',
-     'aws_cli_path', 'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode', 'read_timeout']
+     'concurrent_transfers', 'multi_part_upload_threshold', 'multipart_chunksize', 'host', 'region', 'port', 'secure',
+     'ssl_verify', 'aws_cli_path', 'kms_id', 'backup_grace_period_in_days', 'use_sudo_for_restore', 'k8s_mode',
+     'read_timeout', 's3_addressing_style']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -45,7 +46,7 @@ CassandraConfig = collections.namedtuple(
 
 SSHConfig = collections.namedtuple(
     'SSHConfig',
-    ['username', 'key_file', 'port', 'cert_file']
+    ['username', 'key_file', 'port', 'cert_file', 'use_pty', 'keepalive_seconds', 'login_shell']
 )
 
 ChecksConfig = collections.namedtuple(
@@ -73,7 +74,7 @@ LoggingConfig = collections.namedtuple(
 
 GrpcConfig = collections.namedtuple(
     'GrpcConfig',
-    ['enabled', 'max_send_message_length', 'max_receive_message_length']
+    ['enabled', 'max_send_message_length', 'max_receive_message_length', 'port']
 )
 
 KubernetesConfig = collections.namedtuple(
@@ -93,6 +94,7 @@ CONFIG_SECTIONS = {
 }
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
+DEFAULT_GRPC_PORT = 50051
 
 
 def _build_default_config():
@@ -117,7 +119,9 @@ def _build_default_config():
         'region': 'default',
         'backup_grace_period_in_days': 10,
         'use_sudo_for_restore': 'True',
-        'read_timeout': 60
+        'multipart_chunksize': '50MB',
+        'read_timeout': 60,
+        's3_addressing_style': 'auto',
     }
 
     config['logging'] = {
@@ -146,7 +150,10 @@ def _build_default_config():
         'username': os.environ.get('USER') or '',
         'key_file': '',
         'port': '22',
-        'cert_file': ''
+        'cert_file': '',
+        'use_pty': 'False',
+        'keepalive_seconds': '60',
+        'login_shell': 'False'
     }
 
     config['checks'] = {
@@ -166,6 +173,7 @@ def _build_default_config():
         'enabled': 'False',
         'max_send_message_length': '536870912',
         'max_receive_message_length': '134217728',
+        'port': f'{DEFAULT_GRPC_PORT}'
     }
 
     config['kubernetes'] = {

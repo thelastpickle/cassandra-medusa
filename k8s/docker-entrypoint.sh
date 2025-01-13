@@ -11,12 +11,12 @@ set -e
 echo "MEDUSA_MODE = $MEDUSA_MODE"
 
 restore() {
-    # The BACKUP_NAME and RESTORE_KEY env vars have to be set in order for a 
+    # The BACKUP_NAME and RESTORE_KEY env vars have to be set in order for a
     # restore to be performed. BACKUP_NAME specifies the backup to restore.
     # RESTORE_KEY is written out to a file after the restore completes. We
     # compare the value in the file to RESTORE_KEY. We perform a restore if the
     # the file does not exist or if the values differ.
-   
+
     echo "Running Medusa in restore mode"
     last_restore_file=${MEDUSA_TMP_DIR:-'/var/lib/cassandra'}/.last-restore
 
@@ -38,7 +38,7 @@ restore() {
     fi
 
     if [ "$restore_key" == "$RESTORE_KEY" ]; then
-        echo "Skipping restore operation"    
+        echo "Skipping restore operation"
     else
         echo "Restoring backup $BACKUP_NAME"
         poetry run python -m medusa.service.grpc.restore -- "/etc/medusa/medusa.ini" $RESTORE_KEY
@@ -53,20 +53,25 @@ grpc() {
     exec poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
 
-    while true; do
+    # Loop while Medusa process is running
+    while kill -0 "$MEDUSA_PID" 2>/dev/null; do
       CURRENT_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
       if [ "$ORIGINAL_MEDUSA_INI_DIGEST" != "$CURRENT_DIGEST" ]; then
         echo "Detected change in medusa.ini, checking for running backups"
         if ! [ -f /tmp/medusa_backup_in_progress ]; then
           echo "No backups in progress, stopping Medusa"
           kill $MEDUSA_PID
-          break
+          # Always exit with 0 on config change.
+          exit 0
         else
-          echo "Backup in progress, postponing restart restart"
+          echo "Backup in progress, postponing restart"
         fi
       fi
       sleep 5
     done
+
+    # Exit with the Medusa process exit code.
+    wait "$MEDUSA_PID"
 }
 
 echo "sleeping for $DEBUG_SLEEP sec"

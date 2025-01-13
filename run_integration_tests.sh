@@ -125,6 +125,16 @@ then
     else
         STORAGE_TAGS="${STORAGE_TAGS},@s3"
     fi
+    # we will also enable the DSE IT if a) we dont have java 11 and b) we dont have minio
+    java -version 2>&1 | grep version | grep -q 11
+    if [ $? -ne 0 ]; then
+      # we're NOT having java 11, we can proceed
+      echo ${STORAGE_TAGS} | grep -q minio
+      if [ $? -eq 1 ]; then
+        # we dont have minio either, we can proceed
+        STORAGE_TAGS="${STORAGE_TAGS},@dse"
+      fi
+    fi
 fi
 
 if [ "$GCS" == "yes" ]

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG EXTRA_PACKAGES="python-dev python-pip"
-ARG BUILD_IMAGE=ubuntu:18.04
+ARG BUILD_IMAGE=ubuntu:22.04
 FROM ${BUILD_IMAGE}
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -65,7 +65,7 @@ RUN cd /tmp && \
 
 RUN pip3 install greenlet
 RUN pip3 install gevent
-RUN pip3 install poetry
+RUN pip3 install poetry==1.8.5
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}

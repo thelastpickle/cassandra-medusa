@@ -67,7 +67,10 @@ class OrchestrationTest(unittest.TestCase):
             'username': '',
             'key_file': '',
             'port': '22',
-            'cert_file': ''
+            'cert_file': '',
+            'keepalive_seconds': '60',
+            'use_pty': 'False',
+            'login_shell': 'False',
         }
         return config
 
@@ -91,12 +94,16 @@ class OrchestrationTest(unittest.TestCase):
         self.mock_pssh.run_command.return_value = output
         assert self.orchestration.pssh_run(list(self.hosts.keys()), 'fake command',
                                            ssh_client=self.fake_ssh_client_factory)
-        self.mock_pssh.run_command.assert_called_with('fake command', host_args=None, sudo=True)
+        self.mock_pssh.run_command.assert_called_with(
+            'fake command',
+            host_args=None, use_pty=False, shell=None, sudo=True
+        )
 
     def test_pssh_without_sudo(self):
         """Ensure that Parallel SSH honors configuration when we don't want to use sudo in commands"""
         conf = self.config
         conf['cassandra']['use_sudo'] = 'False'
+        conf['ssh']['login_shell'] = 'True'
         medusa_conf = self._build_medusa_config(conf)
         orchestration_no_sudo = Orchestration(medusa_conf)
 
@@ -105,7 +112,10 @@ class OrchestrationTest(unittest.TestCase):
         assert orchestration_no_sudo.pssh_run(list(self.hosts.keys()), 'fake command',
                                               ssh_client=self.fake_ssh_client_factory)
 
-        self.mock_pssh.run_command.assert_called_with('fake command', host_args=None, sudo=False)
+        self.mock_pssh.run_command.assert_called_with(
+            'fake command',
+            host_args=None, use_pty=False, shell='$SHELL -cl', sudo=False
+        )
 
     def test_pssh_run_failure(self):
         """Ensure that Parallel SSH detects a failed command on a host"""
@@ -118,7 +128,10 @@ class OrchestrationTest(unittest.TestCase):
         self.mock_pssh.run_command.return_value = output
         assert not self.orchestration.pssh_run(list(self.hosts.keys()), 'fake command',
                                                ssh_client=self.fake_ssh_client_factory)
-        self.mock_pssh.run_command.assert_called_with('fake command', host_args=None, sudo=True)
+        self.mock_pssh.run_command.assert_called_with(
+            'fake command',
+            host_args=None, use_pty=False, shell=None, sudo=True
+        )
 
 
 if __name__ == '__main__':

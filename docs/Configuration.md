@@ -71,6 +71,7 @@ bucket_name = cassandra_backups
 kms_id = <ARN of KMS key used for server-side bucket encryption>
 
 ; JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)
+; optional if using GCS (see ./Docs/gcs_setup.md)
 key_file = /etc/medusa/credentials
 
 ; Path of the local storage bucket (used only with 'local' storage provider)
@@ -122,13 +123,17 @@ backup_grace_period_in_days = 10
 ;aws_cli_path = <Location of the aws cli binary if not in PATH>
 
 [monitoring]
-;monitoring_provider = <Provider used for sending metrics. Currently either of "ffwd" or "local">
+;monitoring_provider = <Provider used for sending metrics. Currently just "local">
 
 [ssh]
 ;username = <SSH username to use for restoring clusters>
 ;key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
-;port = <SSH port for use for restoring clusters. Default to port 22.
+;port = <SSH port for use for restoring clusters. Default to port 22.>
 ;cert_file = <Path of public key signed certificate file to use for authentication. The corresponding private key must also be provided via key_file parameter>
+;keepalive_seconds = <seconds between ssh keepalive messages to the ssh server. Default to 60 seconds. Due to a limitation in parallel-ssh, if 'cert_file' is defined, then 'keepalive_seconds' will be ignored and no keep alive messages will be sent>
+;use_pty = <Boolean: Allocates pseudo-terminal. Default to False. Useful if sudo settings require a tty>
+; Enables the usage of a 'login' shell which, among other things, loads user's profile files.
+;login_shell = False
 
 [checks]
 ;health_check = <Which ports to check when verifying a node restored properly. Options are 'cql' (default), 'thrift', 'all'.>
@@ -156,6 +161,7 @@ backup_grace_period_in_days = 10
 ; Set to true when running in grpc server mode.
 ; Allows to propagate the exceptions instead of exiting the program.
 ;enabled = False
+;port = <grpc port the server listens to. Defaults to port 50051.>
 
 [kubernetes]
 ; The following settings are only intended to be configured if Medusa is running in containers, preferably in Kubernetes.
