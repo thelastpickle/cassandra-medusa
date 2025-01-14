@@ -1,3 +1,9 @@
+cassandra-medusa (0.23.0) stable; urgency=medium
+
+  * Release 0.23.0 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Tue, 14 Jan 2025 10:14:27 +0000
+
 cassandra-medusa (0.22.3) stable; urgency=medium
 
   * Release 0.22.3 of Medusa - Backups for Apache Cassandra.
