@@ -1,5 +1,22 @@
 ## Change Log
 
+### 0.23.0 (2025/01/14 12:00 +00:00)
+- Added ssh keepalive and pseudo terminal support to orchestrator (#804) (@alberto-bortolan)
+- Handle updated Summary.db components (#812) (@rzvoncek)
+- Make read_timeout default to None, only use it if set (#813) (@rzvoncek)
+- Added configuration parameter grpc.port to make the gRPC server port configurable (#821) (@alberto-bortolan)
+- Bump certifi from 2024.2.2 to 2024.7.4 (#788) (@dependabot)
+- Bump setuptools from 69.5.1 to 70.0.0 (#792) (@dependabot)
+- Add support for using an attached GCE service account (#827) 
+- Add flag to enable login shells (#828) (@rzvoncek, @pstef)
+- Update poetry-core version to be <2.0.0 (#844) (@andyfoston)
+- Fix the k8ssandra-operator ITs - MED-118 (#838) (@rzvoncek)
+- Disable the MD5 calculation when retrieving the list of files from local storage (#831) (@alberto-bortolan)
+- Multipart chunksize (#807) (@SoaigM)
+- Bump requests from 2.31.0 to 2.32.0 (#783) (@dependabot)
+- Support s3 address style config (#835) (@dispensable)
+- Bump aiohttp from 3.9.4 to 3.10.11 (#846) (@dependabot)
+
 ### 0.22.3 (2024/10/02 16:00 +00:00)
 - Propagate Medusa process exit code in k8s docker-entrypoint (#806) (@c3-clement)
 
