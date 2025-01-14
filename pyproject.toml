@@ -16,7 +16,7 @@
 
 [tool.poetry]
 name = "cassandra-medusa"
-version = "0.23.0"
+version = "0.23.1-dev"
 description = "Apache Cassandra backup and restore tool"
 authors = ["The Last Pickle <medusa@thelastpickle.com>"]
 license = "Apache"
