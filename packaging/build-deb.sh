@@ -19,6 +19,6 @@ cd docker-build
 
 for suite in "${suites[@]}"
 do
-  docker-compose build "cassandra-medusa-builder-${suite}"
-  docker-compose run "cassandra-medusa-builder-${suite}"
+  docker compose build "cassandra-medusa-builder-${suite}"
+  docker compose run "cassandra-medusa-builder-${suite}"
 done
