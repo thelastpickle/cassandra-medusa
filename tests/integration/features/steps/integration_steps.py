@@ -131,9 +131,9 @@ def get_client_encryption_opts(keystore_path, trustore_path):
     else:
         cipher_suite = "TLS_RSA_WITH_AES_256_CBC_SHA"
     return f"""ccm node1 updateconf -y 'client_encryption_options: {{ enabled: true,
-        optional: false,keystore: {keystore_path}, keystore_password: testdata1,
-        require_client_auth: true,truststore: {trustore_path},  truststore_password: truststorePass1,
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
+        optional: false, keystore: {keystore_path}, keystore_password: testdata1,
+        require_client_auth: true, truststore: {trustore_path},  truststore_password: truststorePass1,
+        protocol: TLS, algorithm: SunX509, store_type: JKS, cipher_suites: [{cipher_suite}]}}'"""
 
 
 def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):

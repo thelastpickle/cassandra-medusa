@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.9, "3.10", "3.11"]
+        python-version: [3.9, "3.10", "3.11", "3.12"]
         include:
           - python-version: 3.9
             tox-py: py39
@@ -21,6 +21,8 @@ jobs:
             tox-py: py310
           - python-version: "3.11"
             tox-py: py311
+          - python-version: "3.12"
+            tox-py: py312
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
@@ -99,7 +101,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: [3.9, "3.10", "3.11"]
+          python-version: [3.9, "3.10", "3.11", "3.12"]
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -185,7 +187,7 @@ jobs:
       run: |
         poetry install
         sudo apt-get remove azure-cli || true
-        pip install ccm
+        poetry run pip install git+https://github.com/riptano/ccm.git
 
     - name: Check if integration tests can run
       env:
@@ -221,26 +223,29 @@ jobs:
         # Write GCS service account credentials to a file
         mkdir ~/.aws
         # This fake cluster needs to be created first so that the integration tests pass in GH actions. Don't ask me why...
-        ccm create test_cluster -v binary:${{ matrix.cassandra-version }} -n 1 --vnodes
-        ccm node1 updateconf 'storage_port: 7011'
-        ccm node1 updateconf 'concurrent_reads: 4'
-        ccm node1 updateconf 'concurrent_writes: 4'
-        ccm node1 updateconf 'concurrent_counter_writes: 4'
-        ccm node1 updateconf 'num_tokens: 4'
+        poetry run ccm create test_cluster -v binary:${{ matrix.cassandra-version }} -n 1 --vnodes
+        poetry run ccm node1 updateconf 'storage_port: 7011'
+        poetry run ccm node1 updateconf 'concurrent_reads: 4'
+        poetry run ccm node1 updateconf 'concurrent_writes: 4'
+        poetry run ccm node1 updateconf 'concurrent_counter_writes: 4'
+        poetry run ccm node1 updateconf 'num_tokens: 4'
         sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         # remove the ThreadPriorityPolicy option for cases where we run with java 11
         sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm.options || true
         sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm8-server.options || true
-        ccm start -v
-        ccm showlastlog|tail -100
-        ccm stop
+        # switch to G1 GC when using java 11
+        sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
+        sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
+        poetry run ccm start -v
+        poetry run ccm showlastlog|tail -100
+        poetry run ccm stop
         # if we are dealing with C* 4.0+, we need to fix the java-driver dependency.
         # it has a bug that breaks sstableloader tests with client encryption enabled
         # if cassandra version starts with 4.0 or 4.1
         if [[ "${{ matrix.cassandra-version }}" =~ ^4\.[01]\. ]];
         then
-          ccm create driver-fix-cluster -v ${{ matrix.cassandra-version }} -n 1
+          poetry run ccm create driver-fix-cluster -v ${{ matrix.cassandra-version }} -n 1
           # enclosed in () so we return to current pwd once we are done fixing the driver
           (
             cd ~/.ccm/repository/${{ matrix.cassandra-version }}/lib
