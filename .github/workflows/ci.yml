@@ -228,7 +228,8 @@ jobs:
         poetry run ccm node1 updateconf 'concurrent_reads: 4'
         poetry run ccm node1 updateconf 'concurrent_writes: 4'
         poetry run ccm node1 updateconf 'concurrent_counter_writes: 4'
-        poetry run ccm node1 updateconf 'num_tokens: 4'
+        poetry run ccm node1 updateconf 'storage_port: 7000'
+        # poetry run ccm node1 updateconf 'num_tokens: 4'
         sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/test_cluster/node1/conf/cassandra-env.sh
         # remove the ThreadPriorityPolicy option for cases where we run with java 11
