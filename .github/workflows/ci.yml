@@ -408,7 +408,7 @@ jobs:
           echo "uploaddir_name=$uploaddir_name" >> $GITHUB_ENV
       - name: Archive k8s logs
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: k8s-logs-${{ env.uploaddir_name }}
           path: ./k8ssandra-operator/build/test
