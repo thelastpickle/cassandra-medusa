@@ -297,6 +297,11 @@ jobs:
         mv tests/integration/.coverage .
         poetry run coverage xml
 
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 15
+
     - uses: codecov/codecov-action@v1
       name: Report code coverage
 
