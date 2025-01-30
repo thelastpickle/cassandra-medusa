@@ -387,10 +387,10 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     conf_file = os.path.expanduser("~/.ccm/{}/node1/conf/cassandra-env.sh".format(context.cluster_name))
     with open(conf_file, "a") as config_file:
         config_file.write(
-            'JVM_OPTS="$JVM_OPTS -javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar"'
+            'JVM_OPTS="$JVM_OPTS -javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar"'
         )
     # get the Cassandra Management API jars
-    get_mgmt_api_jars(version=context.cassandra_version)
+    get_mgmt_api_jars(cassandra_version=context.cassandra_version)
 
 
 @given(r'I have a fresh DSE cluster version "{dse_version}" with "{client_encryption}" running named "{cluster_name}"')
@@ -1792,14 +1792,16 @@ def write_dummy_file(path, mtime_str, contents=None):
 
 
 def get_mgmt_api_jars(
-        version,
+        cassandra_version,
         url="https://api.github.com/repos/datastax/management-api-for-apache-cassandra/releases/latest"):
     # clear out any temp resources that might exist
     remove_temporary_mgmtapi_resources()
 
     result = requests.get(url=url)
+    release_data = json.loads(result.text)
 
-    zip_file = requests.get(json.loads(result.text)["assets"][0]["browser_download_url"], stream=True)
+    zip_file = requests.get(release_data["assets"][0]["browser_download_url"], stream=True)
+    mgmt_api_version = str(release_data["tag_name"]).replace("v", "")
 
     with open("/tmp/mgmt_api_jars.zip", "wb") as mgmt_api_jars:
         for chunk in zip_file.iter_content(chunk_size=4096):
@@ -1813,28 +1815,30 @@ def get_mgmt_api_jars(
                 if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
                     zip_ref.extract(file_name, '/tmp')
 
-    symlink_mgmt_api_jar(version)
+    symlink_mgmt_api_jar(cassandra_version, mgmt_api_version)
 
 
-def symlink_mgmt_api_jar(version):
-    management_api_jar_path = '/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar'
+def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
+    management_api_jar_path = f'/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar'
     if not Path(management_api_jar_path).is_file():
         # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
         # link the C* specific agent to the generic agent file name
         assert False is Path('/tmp/management-api-agent/target/').exists()
         Path('/tmp/management-api-agent/target/').mkdir(parents=True, exist_ok=False)
-        if str.startswith(version, '3'):
+        if str.startswith(cassandra_version, '3'):
             # C* is version 3.x, use 3.x agent
-            assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
+            p = Path(f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
+            assert p.is_file()
             Path(management_api_jar_path).symlink_to(
-                '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
-        elif str.startswith(version, '4') or 'github:apache/trunk' == version:
+                f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '4') or 'github:apache/trunk' == cassandra_version:
             # C* is version 4.x, use 4.x agent
-            assert Path('/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
+            p = Path(f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
+            assert p.is_file()
             Path(management_api_jar_path).symlink_to(
-                '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
+                f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
         else:
-            raise NotImplementedError('Cassandra version not supported: {}'.format(version))
+            raise NotImplementedError('Cassandra version not supported: {}'.format(cassandra_version))
 
 
 def rm_tree(pth):
