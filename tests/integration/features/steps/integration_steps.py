@@ -131,9 +131,9 @@ def get_client_encryption_opts(keystore_path, trustore_path):
     else:
         cipher_suite = "TLS_RSA_WITH_AES_256_CBC_SHA"
     return f"""ccm node1 updateconf -y 'client_encryption_options: {{ enabled: true,
-        optional: false,keystore: {keystore_path}, keystore_password: testdata1,
-        require_client_auth: true,truststore: {trustore_path},  truststore_password: truststorePass1,
-        protocol: TLS,algorithm: SunX509,store_type: JKS,cipher_suites: [{cipher_suite}]}}'"""
+        optional: false, keystore: {keystore_path}, keystore_password: testdata1,
+        require_client_auth: true, truststore: {trustore_path},  truststore_password: truststorePass1,
+        protocol: TLS, algorithm: SunX509, store_type: JKS, cipher_suites: [{cipher_suite}]}}'"""
 
 
 def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
@@ -218,7 +218,7 @@ class MgmtApiServer:
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
 
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
-        cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server-0.1.0-SNAPSHOT.jar",
+        cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server.jar",
                "--tlscacert=/tmp/mutual_auth_ca.pem",
                "--tlscert=/tmp/mutual_auth_server.crt",
                "--tlskey=/tmp/mutual_auth_server.key",
@@ -387,10 +387,10 @@ def _i_have_a_fresh_ccm_cluster_with_mgmt_api_running(context, cluster_name, cli
     conf_file = os.path.expanduser("~/.ccm/{}/node1/conf/cassandra-env.sh".format(context.cluster_name))
     with open(conf_file, "a") as config_file:
         config_file.write(
-            'JVM_OPTS="$JVM_OPTS -javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar"'
+            'JVM_OPTS="$JVM_OPTS -javaagent:/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar"'
         )
     # get the Cassandra Management API jars
-    get_mgmt_api_jars(version=context.cassandra_version)
+    get_mgmt_api_jars(cassandra_version=context.cassandra_version)
 
 
 @given(r'I have a fresh DSE cluster version "{dse_version}" with "{client_encryption}" running named "{cluster_name}"')
@@ -1792,14 +1792,16 @@ def write_dummy_file(path, mtime_str, contents=None):
 
 
 def get_mgmt_api_jars(
-        version,
+        cassandra_version,
         url="https://api.github.com/repos/datastax/management-api-for-apache-cassandra/releases/latest"):
     # clear out any temp resources that might exist
     remove_temporary_mgmtapi_resources()
 
     result = requests.get(url=url)
+    release_data = json.loads(result.text)
 
-    zip_file = requests.get(json.loads(result.text)["assets"][0]["browser_download_url"], stream=True)
+    zip_file = requests.get(release_data["assets"][0]["browser_download_url"], stream=True)
+    mgmt_api_version = str(release_data["tag_name"]).replace("v", "")
 
     with open("/tmp/mgmt_api_jars.zip", "wb") as mgmt_api_jars:
         for chunk in zip_file.iter_content(chunk_size=4096):
@@ -1813,28 +1815,39 @@ def get_mgmt_api_jars(
                 if 'mgmtapi-agent' in file_name or 'mgmtapi-server' in file_name:
                     zip_ref.extract(file_name, '/tmp')
 
-    symlink_mgmt_api_jar(version)
+    symlink_mgmt_api_jar(cassandra_version, mgmt_api_version)
 
 
-def symlink_mgmt_api_jar(version):
-    management_api_jar_path = '/tmp/management-api-agent/target/datastax-mgmtapi-agent-0.1.0-SNAPSHOT.jar'
-    if not Path(management_api_jar_path).is_file():
+def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
+    management_api_server_jar_path = '/tmp/management-api-server/target/datastax-mgmtapi-server.jar'
+    if not Path(management_api_server_jar_path).is_file():
+        assert True is Path('/tmp/management-api-server/target/').exists()
+        Path('/tmp/management-api-server/target/').mkdir(parents=True, exist_ok=True)
+        p = Path(f'/tmp/management-api-server/target/datastax-mgmtapi-server-{mgmt_api_version}.jar')
+        assert p.is_file()
+        assert not Path(management_api_server_jar_path).exists()
+        Path(management_api_server_jar_path).symlink_to(p)
+
+    management_api_agent_jar_path = f'/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar'
+    if not Path(management_api_agent_jar_path).is_file():
         # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
         # link the C* specific agent to the generic agent file name
         assert False is Path('/tmp/management-api-agent/target/').exists()
         Path('/tmp/management-api-agent/target/').mkdir(parents=True, exist_ok=False)
-        if str.startswith(version, '3'):
+        if str.startswith(cassandra_version, '3'):
             # C* is version 3.x, use 3.x agent
-            assert Path('/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar').is_file()
-            Path(management_api_jar_path).symlink_to(
-                '/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-0.1.0-SNAPSHOT.jar')
-        elif str.startswith(version, '4') or 'github:apache/trunk' == version:
+            p = Path(f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '4') or 'github:apache/trunk' == cassandra_version:
             # C* is version 4.x, use 4.x agent
-            assert Path('/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar').is_file()
-            Path(management_api_jar_path).symlink_to(
-                '/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-0.1.0-SNAPSHOT.jar')
+            p = Path(f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
         else:
-            raise NotImplementedError('Cassandra version not supported: {}'.format(version))
+            raise NotImplementedError('Cassandra version not supported: {}'.format(cassandra_version))
 
 
 def rm_tree(pth):
@@ -1844,7 +1857,10 @@ def rm_tree(pth):
             child.unlink()
         else:
             rm_tree(child)
-    pth.rmdir()
+    try:
+        pth.rmdir()
+    except NotADirectoryError:
+        pth.unlink()
 
 
 def remove_temporary_mgmtapi_resources():
