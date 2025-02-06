@@ -56,15 +56,8 @@ jobs:
     strategy:
       matrix:
         suite: [jammy, bullseye, bookworm]
-        include:
-          - suite: jammy
-            os-version: ubuntu-20.04
-          - suite: bullseye
-            os-version: ubuntu-22.04
-          - suite: bookworm
-            os-version: ubuntu-22.04
       fail-fast: false
-    runs-on: ${{ matrix.os-version }}
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian Package
@@ -454,14 +447,16 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [jammy, bionic]
+        suite: [jammy, bullseye, bookworm]
         include:
           - suite: jammy
-            os-version: ubuntu-20.04
-          - suite: bionic
-            os-version: ubuntu-18.04
+            distro: 'ubuntu'
+          - suite: bullseye
+            distro: 'debian'
+          - suite: bookworm 
+            distro: 'debian'
       fail-fast: false
-    runs-on: ${{ matrix.os-version }}
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian
@@ -481,7 +476,7 @@ jobs:
         format: 'deb'
         owner: 'thelastpickle'
         repo: 'medusa'
-        distro: 'ubuntu'
+        distro: ${{ matrix.distro }}
         release: ${{ matrix.suite }}
         republish: 'true'
         file: "packages/cassandra-medusa_${{ env.VERSION }}-0~${{ matrix.suite }}0_amd64.deb"
