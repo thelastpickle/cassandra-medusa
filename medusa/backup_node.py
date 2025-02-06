@@ -75,7 +75,8 @@ def stagger(fqdn, storage, tokenmap):
 # Called by async thread for backup, called in main thread as synchronous backup.
 # Kicks off the node backup unit of work and registers for backup queries.
 # No return value for async mode, throws back exception for failed kickoff.
-def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode, keep_snapshot=False):
+def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag, mode, keep_snapshot=False,
+                  use_existing_snapshot=False):
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H%M')
     monitoring = Monitoring(config=config.monitoring)
@@ -105,14 +106,15 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
                 name=backup_name,
                 differential_mode=differential_mode
             )
-            if node_backup.exists():
+            if node_backup.exists() and not use_existing_snapshot:
                 raise IOError('Error: Backup {} already exists'.format(backup_name))
 
             # Starting the backup
             logging.info("Starting backup using Stagger: {} Mode: {} Name: {}".format(stagger_time, mode, backup_name))
             BackupMan.update_backup_status(backup_name, BackupMan.STATUS_IN_PROGRESS)
             info = start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
-                                enable_md5_checks_flag, backup_name, config, monitoring, keep_snapshot)
+                                enable_md5_checks_flag, backup_name, config, monitoring, keep_snapshot,
+                                use_existing_snapshot)
             BackupMan.update_backup_status(backup_name, BackupMan.STATUS_SUCCESS)
 
             logging.debug("Done with backup, returning backup result information")
@@ -136,7 +138,14 @@ def handle_backup(config, backup_name_arg, stagger_time, enable_md5_checks_flag,
 
 
 def start_backup(storage, node_backup, cassandra, differential_mode, stagger_time, start, mode,
-                 enable_md5_checks_flag, backup_name, config, monitoring, keep_snapshot=False):
+                 enable_md5_checks_flag, backup_name, config, monitoring, keep_snapshot=False,
+                 use_existing_snapshot=False):
+
+    if use_existing_snapshot and not cassandra.snapshot_exists(backup_name):
+        raise IOError(
+            "Error: Snapshot {} does not exist and use_existing_snapshot is True. Please create the snapshot first."
+            .format(backup_name)
+        )
     try:
         # Make sure that priority remains to Cassandra/limiting backups resource usage
         throttle_backup()
@@ -172,7 +181,7 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
     actual_start = datetime.datetime.now()
     enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
     num_files, num_replaced, num_kept = do_backup(
-        cassandra, node_backup, storage, enable_md5, backup_name, keep_snapshot
+        cassandra, node_backup, storage, enable_md5, backup_name, keep_snapshot, use_existing_snapshot
     )
     end = datetime.datetime.now()
     actual_backup_duration = end - actual_start
@@ -209,13 +218,21 @@ def get_server_type_and_version(cassandra):
     return server_type, release_version
 
 
-def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, keep_snapshot=False):
+def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, keep_snapshot=False,
+              use_existing_snapshot=False):
+
+    if use_existing_snapshot:
+        logging.debug('Skipping snapshot creation')
+        logging.debug("Getting snapshot")
+        snapshot = cassandra.get_snapshot(backup_name, keep_snapshot)
+    else:
+        logging.debug("Creating snapshot")
+        snapshot = cassandra.create_snapshot(backup_name, keep_snapshot)
 
     # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
     # so even if exception is thrown, a new snapshot will be created on the next run
     # this is not too good and we will use just one snapshot in the future
-    logging.info('Creating snapshot')
-    with cassandra.create_snapshot(backup_name, keep_snapshot) as snapshot:
+    with snapshot:
         manifest = []
         num_files, num_replaced, num_kept = backup_snapshots(
             storage, manifest, node_backup, snapshot, enable_md5_checks
