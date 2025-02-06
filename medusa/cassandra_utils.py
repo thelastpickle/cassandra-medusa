@@ -493,16 +493,20 @@ class Cassandra(object):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
     class Snapshot(object):
-        def __init__(self, parent, tag):
+        def __init__(self, parent, tag, keep_snapshot=False):
             self._parent = parent
             self._tag = tag
+            self._keep_snapshot = keep_snapshot
 
         def __enter__(self):
             return self
 
         def __exit__(self, exc_type, exc_val, exc_tb):
-            logging.debug('Cleaning up Cassandra snapshot')
-            self.delete()
+            if not self._keep_snapshot:
+                logging.debug('Cleaning up Cassandra snapshot')
+                self.delete()
+            else:
+                logging.debug('Keeping snapshot {}'.format(self._tag))
 
         @property
         def cassandra(self):
@@ -535,12 +539,12 @@ class Cassandra(object):
         def __repr__(self):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
-    def create_snapshot(self, backup_name):
+    def create_snapshot(self, backup_name, keep_snapshot=False):
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
             self.snapshot_service.create_snapshot(tag=tag)
 
-        return Cassandra.Snapshot(self, tag)
+        return Cassandra.Snapshot(self, tag, keep_snapshot)
 
     def delete_snapshot(self, tag):
         if self.snapshot_exists(tag):
@@ -553,9 +557,9 @@ class Cassandra(object):
             if snapshot.is_dir()
         }
 
-    def get_snapshot(self, tag):
+    def get_snapshot(self, tag, keep_snapshot=False):
         if any(self.root.glob(self.SNAPSHOT_PATTERN.format(tag))):
-            return Cassandra.Snapshot(self, tag)
+            return Cassandra.Snapshot(self, tag, keep_snapshot)
 
         raise KeyError('Snapshot {} does not exist'.format(tag))
 
