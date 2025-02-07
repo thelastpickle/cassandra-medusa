@@ -28,29 +28,38 @@ from medusa.storage import Storage, format_bytes_str
 
 
 def main(config, max_backup_age=0, max_backup_count=0):
-    backups_to_purge = set()
+    node_backups_to_purge = set()
     monitoring = Monitoring(config=config.monitoring)
 
     try:
         logging.info('Starting purge')
         with Storage(config=config.storage) as storage:
-            # Get all backups for the local node
             logging.info('Listing backups for {}'.format(config.storage.fqdn))
             backup_index = storage.list_backup_index_blobs()
-            backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
 
-            # split backups by completion
-            complete_backups, incomplete_to_purge = backups_to_purge_by_completion(backups)
-            backups_to_purge |= set(incomplete_to_purge)
+            # Get all cluster backups
+            cluster_backups = storage.list_cluster_backups(backup_index=backup_index)
+
+            # Get all backups for the local node
+            node_backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
+
+            # Split node backups by completion. Incomplete ones go straight to the to-be-purged set
+            complete_node_backups, incomplete_node_backups_to_purge = backups_to_purge_by_completion(node_backups)
+            node_backups_to_purge |= set(incomplete_node_backups_to_purge)
+
+            # Also add complete node backups that belong to an incomplete cluster backup
+            node_backups_to_purge |= set(
+                backups_to_purge_by_cluster_backup_completion(complete_node_backups, cluster_backups)
+            )
 
             # list all backups to purge based on date conditions
-            backups_to_purge |= set(backups_to_purge_by_age(complete_backups, max_backup_age))
+            node_backups_to_purge |= set(backups_to_purge_by_age(complete_node_backups, max_backup_age))
             # list all backups to purge based on count conditions
-            backups_to_purge |= set(backups_to_purge_by_count(complete_backups, max_backup_count))
+            node_backups_to_purge |= set(backups_to_purge_by_count(complete_node_backups, max_backup_count))
 
             # purge all candidate backups
             object_counts = purge_backups(
-                storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
+                storage, node_backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
             )
             nb_objects_purged, total_purged_size, total_objects_within_grace = object_counts
 
@@ -58,7 +67,7 @@ def main(config, max_backup_age=0, max_backup_count=0):
             tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
             monitoring.send(tags, 0)
 
-        return nb_objects_purged, total_purged_size, total_objects_within_grace, len(backups_to_purge)
+        return nb_objects_purged, total_purged_size, total_objects_within_grace, len(node_backups_to_purge)
 
     except Exception as e:
         traceback.print_exc()
@@ -77,6 +86,11 @@ def backups_to_purge_by_completion(backups):
     incomplete_to_purge = set(incomplete[:-1]) if len(incomplete) > 1 else set()
 
     return complete, incomplete_to_purge
+
+
+def backups_to_purge_by_cluster_backup_completion(complete_node_backups, cluster_backups):
+    incomplete_cluster_backups_names = {cb.name for cb in cluster_backups if cb.finished is None}
+    return {cnb for cnb in complete_node_backups if cnb.name in incomplete_cluster_backups_names}
 
 
 def backups_to_purge_by_age(backups, max_backup_age):

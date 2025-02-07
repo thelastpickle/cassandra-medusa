@@ -17,11 +17,13 @@ import configparser
 import unittest
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.storage import Storage
+from medusa.storage import Storage, ClusterBackup
 from medusa.purge import (
-    backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name, backups_to_purge_by_completion
+    backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name, backups_to_purge_by_completion,
+    backups_to_purge_by_cluster_backup_completion
 )
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 
@@ -187,6 +189,37 @@ class PurgeTest(unittest.TestCase):
 
         # non-existent backup name raises KeyError
         self.assertRaises(KeyError, backups_to_purge_by_name, self.storage, cluster_backups, ["nonexistent"], False)
+
+    # patch a call of cluster_backup.missing_nodes because it'd actually go and read a blob off disk
+    # it's ok to do this because we are not testing missing nodes; we only test backup completion
+    # we will indicate cluster backup completion via marking one of its node backups as incomplete
+    @patch.object(ClusterBackup, 'missing_nodes', lambda _: {})
+    def test_purge_backups_by_cluster_backup_completion(self):
+        t = datetime.now()
+        complete_node_backups = [
+            make_node_backup(self.storage, "backup1", t, differential=True, complete=True, fqdn="node1"),
+            make_node_backup(self.storage, "backup2", t, differential=True, complete=True, fqdn="node1"),
+            make_node_backup(self.storage, "backup3", t, differential=True, complete=True, fqdn="node1"),
+        ]
+        cluster_backups = [
+            ClusterBackup("backup1", [
+                make_node_backup(self.storage, "backup1", t, differential=True, complete=True, fqdn="node1"),
+                make_node_backup(self.storage, "backup1", t, differential=True, complete=True, fqdn="node2"),
+            ]),
+            ClusterBackup("backup2", [
+                make_node_backup(self.storage, "backup2", t, differential=True, complete=True, fqdn="node1"),
+                # backup 2 has an unfinished node, this will render it purge-able by cluster backup completion
+                make_node_backup(self.storage, "backup2", t, differential=True, complete=False, fqdn="node2"),
+            ]),
+        ]
+        # verify the backup2 is not purge-able by looking at node backups alone
+        complete, incomplete_to_purge = backups_to_purge_by_completion(complete_node_backups)
+        self.assertEqual(3, len(complete))
+        self.assertEqual(0, len(incomplete_to_purge))
+        # verify that backup2 becomes eligible for purge if cross-checked with cluster backups
+        backups_to_purge = backups_to_purge_by_cluster_backup_completion(complete_node_backups, cluster_backups)
+        self.assertEqual(1, len(backups_to_purge))
+        self.assertEqual("backup2", backups_to_purge.pop().name)
 
 
 if __name__ == '__main__':
