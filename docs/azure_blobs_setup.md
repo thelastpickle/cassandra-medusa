@@ -13,6 +13,11 @@ Create a new storage account or use an existing one which will be used to store 
 ```
 Place this file on all Apache Cassandra™ nodes running medusa under `/etc/medusa/`and set the rights appropriately so that only users running Medusa can read/modify it.
 
+
+### Identity through roles
+
+TBC
+
 ### Create a container
 
 Create a new container in your storage account that will be used to store the backups and do not enable public access.
