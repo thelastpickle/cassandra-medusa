@@ -41,10 +41,10 @@ class GoogleStorage(AbstractStorage):
     def __init__(self, config):
         if config.key_file is not None:
             self.service_file = str(Path(config.key_file).expanduser())
-            logging.info("Using service file: {}".format(self.service_file))
+            logging.debug("Using service file: {}".format(self.service_file))
         else:
             self.service_file = None
-            logging.info("Using attached service account")
+            logging.debug("Using attached service account")
 
         self.bucket_name = config.bucket_name
 

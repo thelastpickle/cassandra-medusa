@@ -24,6 +24,7 @@ import pathlib
 import typing as t
 
 from azure.core.credentials import AzureNamedKeyCredential
+from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import BlobProperties, StandardBlobTier
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ObjectDoesNotExistError
@@ -40,14 +41,23 @@ class AzureStorage(AbstractStorage):
 
     def __init__(self, config):
 
-        credentials_file = Path(config.key_file).expanduser()
-        with open(credentials_file, "r") as f:
-            credentials_dict = json.loads(f.read())
-            self.credentials = AzureNamedKeyCredential(
-                name=credentials_dict["storage_account"],
-                key=credentials_dict["key"]
-            )
-        self.account_name = self.credentials.named_key.name
+        if config.key_file is not None:
+            credentials_file = Path(config.key_file).expanduser()
+            logging.debug(f"Loading identity from credentials file: {credentials_file.absolute()}")
+            with open(credentials_file, "r") as f:
+                credentials_dict = json.loads(f.read())
+                self.credentials = AzureNamedKeyCredential(
+                    name=credentials_dict["storage_account"],
+                    key=credentials_dict["key"]
+                )
+                self.account_name = self.credentials.named_key.name
+        else:
+            logging.debug("No credentials file specified, using DefaultAzureCredential")
+            self.credentials = DefaultAzureCredential()
+            self.account_name = os.environ.get('AZURE_STORAGE_ACCOUNT', None)
+            if self.account_name is None:
+                raise ValueError("No Azure storage account name specified in AZURE_STORAGE_ACCOUNT env variable")
+
         self.bucket_name = config.bucket_name
 
         self.azure_blob_service_url = self._make_blob_service_url(self.account_name, config)
