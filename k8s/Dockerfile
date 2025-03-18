@@ -45,7 +45,7 @@ ARG TARGETARCH
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
 
 # wget could happen in the build-phase
-RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
+RUN apt-get update && apt-get install -y python3 python3-setuptools wget curl jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Download the the latest grpc_health_probe binary build for the correct architecture
