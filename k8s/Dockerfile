@@ -45,13 +45,13 @@ ARG TARGETARCH
 RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
 
 # wget could happen in the build-phase
-RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
+RUN apt-get update && apt-get install -y python3 python3-setuptools wget curl jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Download the correct grpc_health_probe binary based on architecture
-RUN GRPC_HEALTH_PROBE_VERSION=v0.4.25 && \
-wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${TARGETARCH} && \
-chmod +x /bin/grpc_health_probe
+# Download the the latest grpc_health_probe binary build for the correct architecture
+RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
+    | jq --arg TARGETARCH $TARGETARCH -r ' .assets[] | select(.name | contains("linux")) | select(.name | contains($TARGETARCH)) | .browser_download_url' \
+    | xargs -I {} wget -qO/bin/grpc_health_probe {} &&  chmod +x /bin/grpc_health_probe
 
 USER cassandra
 WORKDIR /home/cassandra
