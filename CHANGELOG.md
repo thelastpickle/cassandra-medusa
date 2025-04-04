@@ -1,5 +1,10 @@
 ## Change Log
 
+### 0.24.0 (2025/04/04 12:00 +00:00)
+- Add Python 3.12 support (#849) (@rzvoncek)
+- Bump versions of some python deps + grpc health probe (#857) (@rzvoncek)
+- Allow using role-based identity for Azure storage (#854) (@rzvoncek)
+
 ### 0.23.0 (2025/01/14 12:00 +00:00)
 - Added ssh keepalive and pseudo terminal support to orchestrator (#804) (@alberto-bortolan)
 - Handle updated Summary.db components (#812) (@rzvoncek)
