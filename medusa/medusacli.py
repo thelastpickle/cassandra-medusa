@@ -123,15 +123,17 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
                    '(in addition to size, which is used by default)',
               is_flag=True, default=False)
 @click.option('--mode', default="differential", type=click.Choice(['full', 'differential']))
+@click.option('--exclude', help='Regex to exclude <keyspace>.<table>')
+@click.option('--include', help='Regex to include <keyspace>.<table>')
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
+def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode, exclude, include):
     """
     Backup single Cassandra node
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
     actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
     BackupMan.register_backup(actual_backup_name, is_async=False)
-    return backup_node.handle_backup(medusaconfig, actual_backup_name, stagger_time, enable_md5_checks, mode)
+    return backup_node.handle_backup(medusaconfig, actual_backup_name, stagger_time, enable_md5_checks, mode, exclude, include)
 
 
 @cli.command(name='backup-cluster')
@@ -149,22 +151,28 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode):
                                                   "ssh sessions started by pssh", default=500)
 @click.option('--parallel-uploads', '-pu', help="Number of concurrent synchronous (blocking) "
                                                 "ssh sessions started by pssh", default=1)
+@click.option('--exclude', help='Regex to exclude <keyspace>.<table>')
+@click.option('--include', help='Regex to include <keyspace>.<table>')
 @pass_MedusaConfig
 def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                   parallel_snapshots, parallel_uploads):
+                   parallel_snapshots, parallel_uploads, exclude, include):
     """
     Backup Cassandra cluster
     """
     actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
-    medusa.backup_cluster.orchestrate(medusaconfig,
-                                      actual_backup_name,
-                                      seed_target,
-                                      stagger,
-                                      enable_md5_checks,
-                                      mode,
-                                      Path(temp_dir),
-                                      int(parallel_snapshots),
-                                      int(parallel_uploads))
+    medusa.backup_cluster.orchestrate(
+        medusaconfig,
+        actual_backup_name,
+        seed_target,
+        stagger,
+        enable_md5_checks,
+        mode,
+        Path(temp_dir),
+        int(parallel_snapshots),
+        int(parallel_uploads),
+        exclude=exclude,
+        include=include
+    )
 
 
 @cli.command(name='fetch-tokenmap')
