@@ -87,6 +87,8 @@ STARTING_TESTS_MSG = "Starting the tests"
 CCM_STOP = "ccm stop"
 CCM_START = "ccm start"
 CCM_DIR = "~/.ccm"
+CCM_LISTSNAPSHOTS = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy listsnapshots"
+CCM_SNAPSHOT = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy snapshot -t {}"
 BUCKET_ROOT = "/tmp/medusa_it_bucket"
 CASSANDRA_YAML = "cassandra.yaml"
 AWS_CREDENTIALS = "~/.aws/credentials"
@@ -767,13 +769,51 @@ def _i_run_a_whatever_command(context, command):
     os.popen(command).read()
 
 
-@when(r'I perform a backup in "{backup_mode}" mode of the node named'
-      r' "{backup_name}" with md5 checks "{md5_enabled_str}"')
-def _i_perform_a_backup_of_the_node_named_backupname(context, backup_mode, backup_name, md5_enabled_str):
+@when(
+    r'I perform a backup in "{backup_mode}" mode of the node named '
+    r'"{backup_name}" with md5 checks "{md5_enabled_str}"'
+)
+@when(
+    r'I perform a backup in "{backup_mode}" mode of the node named '
+    r'"{backup_name}" with md5 checks "{md5_enabled_str}" and keep_snapshot "{keep_snapshot_enabled_str}"'
+)
+@when(
+    r'I perform a backup in "{backup_mode}" mode of the node named '
+    r'"{backup_name}" with md5 checks "{md5_enabled_str}" and use_existing_snapshot '
+    r'"{use_existing_snapshot_enabled_str}"'
+)
+@when(
+    r'I perform a backup in "{backup_mode}" mode of the node named '
+    r'"{backup_name}" with md5 checks "{md5_enabled_str}" and use_existing_snapshot '
+    r'"{use_existing_snapshot_enabled_str}" and keep_snapshot "{keep_snapshot_enabled_str}"'
+)
+def _i_perform_a_backup_of_the_node_named_backupname(
+    context,
+    backup_mode,
+    backup_name,
+    md5_enabled_str,
+    keep_snapshot_enabled_str=None,
+    use_existing_snapshot_enabled_str=None
+):
     BackupMan.register_backup(backup_name, is_async=False)
-    (_, _, _, _, num_files, num_replaced, num_kept, _, _) = backup_node.handle_backup(
-        context.medusa_config, backup_name, None, str(md5_enabled_str).lower() == "enabled", backup_mode
+
+    keep_snapshot = (
+        str(keep_snapshot_enabled_str).lower() == "enabled" if keep_snapshot_enabled_str else False
     )
+    use_existing_snapshot = (
+        str(use_existing_snapshot_enabled_str).lower() == "enabled" if use_existing_snapshot_enabled_str else False
+    )
+
+    (_, _, _, _, num_files, num_replaced, num_kept, _, _) = backup_node.handle_backup(
+        context.medusa_config,
+        backup_name,
+        None,
+        str(md5_enabled_str).lower() == "enabled",
+        backup_mode,
+        keep_snapshot=keep_snapshot,
+        use_existing_snapshot=use_existing_snapshot
+    )
+
     context.latest_num_files = num_files
     context.latest_backup_replaced = num_replaced
     context.latest_num_kept = num_kept
@@ -1764,6 +1804,30 @@ def _backup_is_or_is_not_in_progress(context, is_in_progress):
         assert Path(marker_file_path).exists()
     if 'is not' == is_in_progress:
         assert not Path(marker_file_path).exists()
+
+
+@when(r'I create a snapshot named "{snapshot_name}"')
+def _i_create_a_snapshot_named(context, snapshot_name):
+    snapshot_command = CCM_SNAPSHOT.format(snapshot_name)
+    stdout = os.popen(snapshot_command).read()
+    logging.debug(f"Snapshot created with command: {snapshot_command}")
+    logging.debug(stdout)
+
+
+@then(r'I verify the snapshot named "{backup_name}" is present on the node')
+def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, backup_name):
+    stdout = os.popen(CCM_LISTSNAPSHOTS).read()
+    logging.debug(stdout)
+    lines = stdout.strip().split('\n')[2:]
+    # If lines is empty, no snapshot was found
+    if not lines:
+        logging.error("No snapshot found")
+        assert False
+    # Extract the first word from first line (snapshot name)
+    first_snapshot_name = lines[0].split()[0]
+    logging.debug("First snapshot is : " + first_snapshot_name)
+    # Check if the first snapshot name matches the expected snapshot name
+    assert first_snapshot_name == backup_name
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

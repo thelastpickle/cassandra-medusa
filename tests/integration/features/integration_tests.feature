@@ -1188,3 +1188,34 @@ Feature: Integration tests
         | azure_blobs | without_client_encryption | HOT           |
         | azure_blobs | without_client_encryption | COOL          |
         | azure_blobs | without_client_encryption | COLD          |
+
+    @33
+    Scenario Outline: Create a backup with a name without deleting the snapshot once uploaded
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario33"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I perform a backup in "full" mode of the node named "backup-keep" with md5 checks "disabled" and keep_snapshot "enabled"
+        Then I can verify the backup named "backup-keep" with md5 checks "enabled" successfully
+        Then I verify the snapshot named "medusa-backup-keep" is present on the node
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  without_client_encryption |
+
+    @34
+    Scenario Outline: Manually create a snapshot with a name, create a backup with this snapshot
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario34"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I create a snapshot named "manual_snapshot"
+        When I perform a backup in "full" mode of the node named "manual_snapshot" with md5 checks "disabled" and use_existing_snapshot "enabled" and keep_snapshot "enabled"
+        Then I can verify the backup named "manual_snapshot" with md5 checks "enabled" successfully
+        Then I verify the snapshot named "manual_snapshot" is present on the node
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  without_client_encryption |
