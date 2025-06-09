@@ -1,4 +1,4 @@
-FROM --platform=linux/${TARGETARCH} ubuntu:22.04 AS base
+FROM --platform=linux/${TARGETARCH} ubuntu:24.04 AS base
 
 ARG TARGETARCH
 
@@ -30,13 +30,14 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poetry==1.8.5
+# RUN python3 -m pip install -U pip --break-system-packages && pip3 install --ignore-installed --user poetry==1.8.5 --break-system-packages
+RUN pip3 install --ignore-installed --user poetry==1.8.5 --break-system-packages
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${TARGETARCH} ubuntu:22.04
+FROM --platform=linux/${TARGETARCH} ubuntu:24.04
 
 # Reuse the architecture argument
 ARG TARGETARCH
@@ -76,4 +77,4 @@ ENV LANG=C.UTF-8
 
 WORKDIR /home/cassandra
 
-ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
+# ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
