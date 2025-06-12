@@ -192,7 +192,7 @@ class GRPCServer:
             # No running loop, create and set one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
+
         # Now create the gRPC server with the correct loop context
         self.grpc_server = medusa.service.grpc.server.Server(medusa_conf_file, testing=True)
         loop.run_until_complete(self.grpc_server.serve())
