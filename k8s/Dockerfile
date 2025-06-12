@@ -77,4 +77,4 @@ ENV LANG=C.UTF-8
 
 WORKDIR /home/cassandra
 
-# ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
+ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
