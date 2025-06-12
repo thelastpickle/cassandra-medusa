@@ -1849,12 +1849,24 @@ def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
-        elif str.startswith(cassandra_version, '4') or 'github:apache/trunk' == cassandra_version:
+        elif str.startswith(cassandra_version, '4.0') or 'github:apache/trunk' == cassandra_version:
             # C* is version 4.x, use 4.x agent
             p = Path(f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '4.1') or 'github:apache/trunk' == cassandra_version:
+            # C* is version 4.x, use 4.x agent
+            p = Path(f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '5.0') or 'github:apache/trunk' == cassandra_version:
+            # C* is version 4.x, use 4.x agent
+            p = Path(f'/tmp/management-api-agent-5.0.x/target/datastax-mgmtapi-agent-5.0.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-5.0.x/target/datastax-mgmtapi-agent-5.0.x-{mgmt_api_version}.jar')
         else:
             raise NotImplementedError('Cassandra version not supported: {}'.format(cassandra_version))
 
