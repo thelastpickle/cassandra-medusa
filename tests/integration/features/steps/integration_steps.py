@@ -220,8 +220,8 @@ class GRPCServer:
 
 class MgmtApiServer:
     @staticmethod
-    def init(config, cluster_name):
-        server = MgmtApiServer(config, cluster_name)
+    def init(config, cluster_name, cassandra_version):
+        server = MgmtApiServer(config, cluster_name, cassandra_version)
         server.start()
         return server
 
@@ -235,7 +235,7 @@ class MgmtApiServer:
                 pid = int(line.split(None, 2)[1])
                 os.kill(pid, signal.SIGKILL)
 
-    def __init__(self, config, cluster_name):
+    def __init__(self, config, cluster_name, cassandra_version):
         self.cluster_name = cluster_name
         shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
@@ -254,6 +254,7 @@ class MgmtApiServer:
                "true",
                "--no-keep-alive",
                "true",
+               "--db-home={}/.ccm/repository/{}".format(str(Path.home()), cassandra_version),
                ]
         subprocess.Popen(cmd, cwd=os.path.abspath("../"), env=env)
 
@@ -525,7 +526,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     )
 
     MgmtApiServer.destroy()
-    context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name)
+    context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name, context.cassandra_version)
 
     context.medusa_config = MedusaConfig(
         file_path=None,
