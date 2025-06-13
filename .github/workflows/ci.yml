@@ -107,16 +107,8 @@ jobs:
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: ['4.0.18', '4.1.9', '5.0.3','github:apache/trunk']
           java-version: ['11.0.25']
+          experimental: [false]
           include:
-            # tweak the experimental flag for cassandra versions
-            - cassandra-version: '4.0.18'
-              experimental: false
-            - cassandra-version: '4.1.9'
-              experimental: false
-            - cassandra-version: '5.0.3'
-              experimental: false
-            - cassandra-version: 'github:apache/trunk'
-              experimental: true
             # explicitly include tests against python 3.11 and one version of cassandra
             - python-version: '3.11'
               cassandra-version: '4.1.9'
@@ -130,8 +122,7 @@ jobs:
               experimental: false
               java-version: '11.0.25'
           exclude:
-            # we are not doing the local because it would run a scenario with mgmt-api which no longer supports 3.11
-            # fewer tests against cassandra 4.0.18. we do s3 and local only
+            # no tests against cassandra 4.0.18 but the local ones
             - cassandra-version: '4.0.18'
               it-backend: gcs
             - cassandra-version: '4.0.18'
@@ -140,6 +131,8 @@ jobs:
               it-backend: azure
             - cassandra-version: '4.0.18'
               it-backend: azure-hierarchical
+            # no tests against trunk
+            - cassandra-version: 'github:apache/trunk'
             # no tests against non-python 3.9, except the explicitly allowed combinations
             - python-version: '3.10'
             - python-version: '3.11'
