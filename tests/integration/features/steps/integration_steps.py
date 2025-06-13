@@ -240,6 +240,12 @@ class MgmtApiServer:
         shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
+        subprocess.check_call(
+            ["mkdir", "-p", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
+        )
+        subprocess.check_call(
+            ["chmod", "766", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
+        )
 
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
         cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server.jar",
