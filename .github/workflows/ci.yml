@@ -107,28 +107,28 @@ jobs:
           #it-backend: [local, s3, gcs, minio, ibm, azure]
           cassandra-version: ['2.2.19', '3.11.17', '4.0.15', '4.1.9', 'github:apache/trunk']
           java-version: ['8.0.252', '11.0.25']
-          #include:
-          #  # tweak the experimental flag for cassandra versions
-          #  - cassandra-version: '2.2.19'
-          #    experimental: false
-          #  - cassandra-version: '3.11.17'
-          #    experimental: false
-          #  - cassandra-version: '4.0.15'
-          #    experimental: false
-          #  - cassandra-version: '4.1.9'
-          #    experimental: false
-          #  # explicitly include tests against python 3.11 and one version of cassandra
-          #  - python-version: '3.11'
-          #    cassandra-version: '4.1.9'
-          #    it-backend: gcs
-          #    experimental: false
-          #    java-version: '11.0.25'
-          #  # explicitly include tests against python 3.10 and one version of cassandra
-          #  - python-version: '3.10'
-          #    cassandra-version: '4.1.9'
-          #    it-backend: gcs
-          #    experimental: false
-          #    java-version: '11.0.25'
+          include:
+            # tweak the experimental flag for cassandra versions
+            - cassandra-version: '2.2.19'
+              experimental: false
+            - cassandra-version: '3.11.17'
+              experimental: false
+            - cassandra-version: '4.0.15'
+              experimental: false
+            - cassandra-version: '4.1.9'
+              experimental: false
+            # explicitly include tests against python 3.11 and one version of cassandra
+            - python-version: '3.11'
+              cassandra-version: '4.1.9'
+              it-backend: gcs
+              experimental: false
+              java-version: '11.0.25'
+            # explicitly include tests against python 3.10 and one version of cassandra
+            - python-version: '3.10'
+              cassandra-version: '4.1.9'
+              it-backend: gcs
+              experimental: false
+              java-version: '11.0.25'
           exclude:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
