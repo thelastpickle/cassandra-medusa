@@ -308,7 +308,7 @@ jobs:
           ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         else
         # Local storage tests
-          ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }} -t 18
+          ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
         fi
 
         # Move and convert the coverage analysis file to XML

@@ -220,8 +220,8 @@ class GRPCServer:
 
 class MgmtApiServer:
     @staticmethod
-    def init(config, cluster_name, cassandra_version):
-        server = MgmtApiServer(config, cluster_name, cassandra_version)
+    def init(config, cluster_name):
+        server = MgmtApiServer(config, cluster_name)
         server.start()
         return server
 
@@ -235,20 +235,11 @@ class MgmtApiServer:
                 pid = int(line.split(None, 2)[1])
                 os.kill(pid, signal.SIGKILL)
 
-    def __init__(self, config, cluster_name, cassandra_version):
+    def __init__(self, config, cluster_name):
         self.cluster_name = cluster_name
         shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
-        subprocess.check_call(
-            ["sudo", "mkdir", "-p", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
-        )
-        subprocess.check_call(
-            ["sudo", "chmod", "777", "-R", "/var/log"], stdout=PIPE, stderr=PIPE
-        )
-        subprocess.check_call(
-            ["sudo", "chmod", "777", "-R", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
-        )
 
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
         cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server.jar",
@@ -258,11 +249,11 @@ class MgmtApiServer:
                "--db-socket=/tmp/db.sock",
                "--host=unix:///tmp/mgmtapi.sock",
                "--host=http://localhost:8080",
+               "--db-home={}/.ccm/{}/node1".format(str(Path.home()), self.cluster_name),
                "--explicit-start",
                "true",
                "--no-keep-alive",
                "true",
-               "--db-home={}/.ccm/repository/{}".format(str(Path.home()), cassandra_version),
                ]
         subprocess.Popen(cmd, cwd=os.path.abspath("../"), env=env)
 
@@ -534,7 +525,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     )
 
     MgmtApiServer.destroy()
-    context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name, context.cassandra_version)
+    context.mgmt_api_server = MgmtApiServer.init(config, context.cluster_name)
 
     context.medusa_config = MedusaConfig(
         file_path=None,
