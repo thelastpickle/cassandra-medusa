@@ -169,6 +169,9 @@ jobs:
             # no tests against non-python 3.9, except the explicitly allowed combinations
             - python-version: '3.10'
             - python-version: '3.11'
+            - cassandra-version: '4.1.9'
+            - cassandra-version: '2.2.19'
+            - cassandra-version: '3.11.17'
 
     runs-on: ubuntu-24.04
     services:
@@ -251,9 +254,7 @@ jobs:
         sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm8-server.options || true
         # switch to G1 GC when using java 11
         sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
-        sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm-server.options || true
         sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
-        sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm-server.options || true
         poetry run ccm start -v
         poetry run ccm showlastlog|tail -100
         poetry run ccm stop

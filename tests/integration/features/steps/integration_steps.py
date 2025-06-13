@@ -164,6 +164,8 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
     else:
         sed_option = ""
 
+    configure_garbage_collection(cluster_name, sed_option)
+
     if custom_settings:
         for file in custom_settings.keys():
             for setting in custom_settings[file].keys():
@@ -173,6 +175,19 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
                 ).read()
 
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+
+
+def configure_garbage_collection(cluster_name, sed_option):
+    jvm11_options_file = Path(f"~/.ccm/{cluster_name}/node1/conf/jvm11-server.options").expanduser()
+    if Path(jvm11_options_file).is_file():
+        os.popen(
+            f"""sed -i {sed_option} "s/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/" """
+            + f""" {jvm11_options_file.absolute()}"""
+        ).read()
+        os.popen(
+            f"""sed -i {sed_option} "s/#-XX:+UseG1GC/-XX:+UseG1GC/" """
+            + f""" {jvm11_options_file.absolute()}"""
+        ).read()
 
 
 class GRPCServer:
