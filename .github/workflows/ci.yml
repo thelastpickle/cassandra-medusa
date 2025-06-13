@@ -189,10 +189,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v2
       with:
         java-version: ${{ matrix.java-version}}
         architecture: x64
+        distribution: corretto
     - name: Setup Poetry
       uses: snok/install-poetry@v1
       with:
@@ -305,7 +306,7 @@ jobs:
           ./run_integration_tests.sh -v --azure --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         else
         # Local storage tests
-          ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }}
+          ./run_integration_tests.sh -v --cassandra-version=${{ matrix.cassandra-version }} -t 18
         fi
 
         # Move and convert the coverage analysis file to XML
