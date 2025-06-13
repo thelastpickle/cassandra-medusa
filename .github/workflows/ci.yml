@@ -189,11 +189,10 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
-      uses: actions/setup-java@v2
+      uses: actions/setup-java@v1
       with:
         java-version: ${{ matrix.java-version}}
         architecture: x64
-        distribution: corretto
     - name: Setup Poetry
       uses: snok/install-poetry@v1
       with:
@@ -252,7 +251,9 @@ jobs:
         sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/test_cluster/node1/conf/jvm8-server.options || true
         # switch to G1 GC when using java 11
         sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
+        sed -i 's/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/' ~/.ccm/test_cluster/node1/conf/jvm-server.options || true
         sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm11-server.options || true
+        sed -i 's/#-XX:+UseG1GC/-XX:+UseG1GC/' ~/.ccm/test_cluster/node1/conf/jvm-server.options || true
         poetry run ccm start -v
         poetry run ccm showlastlog|tail -100
         poetry run ccm stop
