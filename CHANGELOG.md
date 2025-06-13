@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.24.1 (2025/06/13 12:00 +00:00)
+- Build images off Ubuntu 24.04 + few python dep updates (#865) (@rzvoncek, @emerkle826)
+
 ### 0.24.0 (2025/04/04 12:00 +00:00)
 - Add Python 3.12 support (#849) (@rzvoncek)
 - Bump versions of some python deps + grpc health probe (#857) (@rzvoncek)
