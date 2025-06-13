@@ -241,10 +241,13 @@ class MgmtApiServer:
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
         subprocess.check_call(
-            ["mkdir", "-p", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
+            ["sudo", "mkdir", "-p", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
         )
         subprocess.check_call(
-            ["chmod", "766", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
+            ["sudo", "chmod", "777", "-R", "/var/log"], stdout=PIPE, stderr=PIPE
+        )
+        subprocess.check_call(
+            ["sudo", "chmod", "777", "-R", "/var/log/cassandra"], stdout=PIPE, stderr=PIPE
         )
 
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
