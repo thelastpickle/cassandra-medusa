@@ -38,6 +38,8 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 
 class GoogleStorage(AbstractStorage):
 
+    session = None
+
     def __init__(self, config):
         if config.key_file is not None:
             self.service_file = str(Path(config.key_file).expanduser())
@@ -57,11 +59,14 @@ class GoogleStorage(AbstractStorage):
         super().__init__(config)
 
     def connect(self):
-        self.session = aiohttp.ClientSession(
-            loop=self.get_or_create_event_loop(),
-        )
+        # we defer the actual connection to be called by the first async function that needs it
+        # otherwise, the aiohttp would try to do async stuff from a sync context, which is no good
+        pass
 
-        self.gcs_storage = Storage(session=self.session, service_file=self.service_file)
+    def _ensure_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+            self.gcs_storage = Storage(session=self.session, service_file=self.service_file)
 
     def disconnect(self):
         logging.debug('Disconnecting from Google Storage')
@@ -76,7 +81,7 @@ class GoogleStorage(AbstractStorage):
             logging.error('Error disconnecting from Google Storage: {}'.format(e))
 
     async def _list_blobs(self, prefix=None) -> t.List[AbstractBlob]:
-
+        self._ensure_session()
         objects = self._paginate_objects(prefix=prefix)
 
         return [
@@ -124,6 +129,7 @@ class GoogleStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
+        self._ensure_session()
         logging.debug(
             '[Storage] Uploading object from stream -> gcs://{}/{}'.format(
                 self.config.bucket_name, object_key
@@ -143,6 +149,7 @@ class GoogleStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _download_blob(self, src: str, dest: str):
+        self._ensure_session()
         blob = await self._stat_blob(src)
         object_key = blob.name
 
@@ -178,6 +185,7 @@ class GoogleStorage(AbstractStorage):
             raise cre
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
+        self._ensure_session()
         blob = await self.gcs_storage.download_metadata(
             bucket=self.bucket_name,
             object_name=object_key,
@@ -194,6 +202,7 @@ class GoogleStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
+        self._ensure_session()
         src_path = Path(src)
 
         # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
@@ -233,6 +242,7 @@ class GoogleStorage(AbstractStorage):
         return mo
 
     async def _get_object(self, object_key: str) -> AbstractBlob:
+        self._ensure_session()
         try:
             blob = await self._stat_blob(object_key)
             return blob
@@ -242,6 +252,7 @@ class GoogleStorage(AbstractStorage):
             raise cre
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        self._ensure_session()
         content = await self.gcs_storage.download(
             bucket=self.bucket_name,
             object_name=blob.name,
@@ -252,6 +263,7 @@ class GoogleStorage(AbstractStorage):
 
     @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
     async def _delete_object(self, obj: AbstractBlob):
+        self._ensure_session()
         await self.gcs_storage.delete(
             bucket=self.bucket_name,
             object_name=obj.name,

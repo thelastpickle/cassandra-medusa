@@ -164,6 +164,8 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
     else:
         sed_option = ""
 
+    configure_garbage_collection(cluster_name, sed_option)
+
     if custom_settings:
         for file in custom_settings.keys():
             for setting in custom_settings[file].keys():
@@ -173,6 +175,19 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
                 ).read()
 
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+
+
+def configure_garbage_collection(cluster_name, sed_option):
+    jvm11_options_file = Path(f"~/.ccm/{cluster_name}/node1/conf/jvm11-server.options").expanduser()
+    if Path(jvm11_options_file).is_file():
+        os.popen(
+            f"""sed -i {sed_option} "s/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/" """
+            + f""" {jvm11_options_file.absolute()}"""
+        ).read()
+        os.popen(
+            f"""sed -i {sed_option} "s/#-XX:+UseG1GC/-XX:+UseG1GC/" """
+            + f""" {jvm11_options_file.absolute()}"""
+        ).read()
 
 
 class GRPCServer:
@@ -185,8 +200,17 @@ class GRPCServer:
         with open(medusa_conf_file, "w") as config_file:
             self.config.write(config_file)
 
+        # Python 3.12 compatible asyncio pattern - set up loop FIRST
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop, create and set one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        # Now create the gRPC server with the correct loop context
         self.grpc_server = medusa.service.grpc.server.Server(medusa_conf_file, testing=True)
-        asyncio.get_event_loop().run_until_complete(self.grpc_server.serve())
+        loop.run_until_complete(self.grpc_server.serve())
 
     def destroy(self):
         self.grpc_server.shutdown(None, None)
@@ -1840,12 +1864,24 @@ def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
-        elif str.startswith(cassandra_version, '4') or 'github:apache/trunk' == cassandra_version:
+        elif str.startswith(cassandra_version, '4.0') or 'github:apache/trunk' == cassandra_version:
             # C* is version 4.x, use 4.x agent
             p = Path(f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '4.1') or 'github:apache/trunk' == cassandra_version:
+            # C* is version 4.x, use 4.x agent
+            p = Path(f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
+        elif str.startswith(cassandra_version, '5.0') or 'github:apache/trunk' == cassandra_version:
+            # C* is version 4.x, use 4.x agent
+            p = Path(f'/tmp/management-api-agent-5.0.x/target/datastax-mgmtapi-agent-5.0.x-{mgmt_api_version}.jar')
+            assert p.is_file()
+            Path(management_api_agent_jar_path).symlink_to(
+                f'/tmp/management-api-agent-5.0.x/target/datastax-mgmtapi-agent-5.0.x-{mgmt_api_version}.jar')
         else:
             raise NotImplementedError('Cassandra version not supported: {}'.format(cassandra_version))
 
