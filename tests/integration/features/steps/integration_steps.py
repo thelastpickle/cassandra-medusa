@@ -249,7 +249,6 @@ class MgmtApiServer:
                "--db-socket=/tmp/db.sock",
                "--host=unix:///tmp/mgmtapi.sock",
                "--host=http://localhost:8080",
-               "--db-home={}/.ccm/{}/node1".format(str(Path.home()), self.cluster_name),
                "--explicit-start",
                "true",
                "--no-keep-alive",
