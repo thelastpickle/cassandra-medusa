@@ -30,7 +30,8 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                 parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
-                cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None):
+                cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None,
+                exclude=None, include=None):
     backup = None
     backup_name = backup_name_arg
     monitoring = Monitoring(config=config.monitoring) if monitoring is None else monitoring
@@ -67,7 +68,7 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
             backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                                parallel_snapshots, parallel_uploads, orchestration_snapshots, orchestration_uploads,
-                               cassandra_config)
+                               cassandra_config, exclude, include)
             backup.execute(cql_session_provider)
 
             backup_end_time = datetime.datetime.now()
@@ -113,7 +114,7 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 class BackupJob(object):
     def __init__(self, config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
                  parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
-                 cassandra_config=None):
+                 cassandra_config=None, exclude=None, include=None):
         self.id = uuid.uuid4()
         # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
         self.orchestration_snapshots = Orchestration(config, parallel_snapshots) if orchestration_snapshots is None \
@@ -126,6 +127,8 @@ class BackupJob(object):
         self.seed_target = seed_target
         self.enable_md5_checks = enable_md5_checks
         self.mode = mode
+        self.exclude = exclude
+        self.include = include
         self.temp_dir = temp_dir
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.hosts = {}
@@ -199,6 +202,10 @@ class BackupJob(object):
                     stagger=stagger_option,
                     enable_md5_checks=enable_md5_checks_option,
                     mode=self.mode)
+        if self.exclude:
+            command += f" --exclude '{self.exclude}'"
+        if self.include:
+            command += f" --include '{self.include}'"
 
         logging.debug('Running backup on all nodes with the following command {}'.format(command))
 

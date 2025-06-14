@@ -30,6 +30,8 @@ Options:
                                   Number of concurrent synchronous (blocking)
                                   ssh sessions started by pssh
 
+  --exclude TEXT                  Regex to exclude <keyspace>.<table>
+  --include TEXT                  Regex to include <keyspace>.<table>
   --help                          Show this message and exit.
 ```
 
@@ -73,6 +75,8 @@ Options:
                               size, which is used by default)
 
   --mode [full|differential]
+  --exclude TEXT              Regex to exclude <keyspace>.<table>
+  --include TEXT              Regex to include <keyspace>.<table>
   --help                      Show this message and exit.
 ```
 
@@ -87,6 +91,8 @@ In order to perform an **full** backup, add the `--mode=full` argument to your c
 ```
 $ medusa backup --backup-name=<name of the backup> --mode=full
 ```
+
+You can pass regex to `--include` or `--exclude` to do partially backup. The regex will be passed to fqtn(keyspace.table-xxxx) to check if it should skip this ks or table.
 
 When executed like this Medusa will:
 
