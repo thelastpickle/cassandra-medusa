@@ -1,28 +1,29 @@
-FROM --platform=linux/${TARGETARCH} ubuntu:24.04 AS base
+FROM --platform=linux/${TARGETARCH} python:3.12-alpine AS base
 
 ARG TARGETARCH
 
 RUN mkdir /install
 WORKDIR /install
 
-RUN apt-get update && \
-    apt-get install -y software-properties-common curl gnupg
-
-RUN apt-get update \
-    && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
-        debhelper \
-        python3-all \
-        python3-all-dev \
-        python3-dev \
-        python3-pip \
-        python3-setuptools \
-        python3-venv \
-        build-essential \
-        devscripts \
-        equivs \
-        wget \
-        apt-transport-https \
-        ca-certificates
+# Install build dependencies
+RUN apk add --no-cache \
+    curl \
+    gnupg \
+    gcc \
+    musl-dev \
+    python3-dev \
+    py3-pip \
+    py3-setuptools \
+    py3-wheel \
+    build-base \
+    wget \
+    ca-certificates \
+    linux-headers \
+    openssl-dev \
+    libffi-dev \
+    cargo \
+    cmake \
+    zlib-dev
 
 ENV PATH=/root/.local/bin:$PATH
 
@@ -30,24 +31,33 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-# RUN python3 -m pip install -U pip --break-system-packages && pip3 install --ignore-installed --user poetry==1.8.5 --break-system-packages
-RUN pip3 install --ignore-installed --user poetry==1.8.5 --break-system-packages
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir poetry==1.8.5
+
+# Install ssh-python separately first
+RUN pip3 install --no-cache-dir ssh-python==1.1.0
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${TARGETARCH} ubuntu:24.04
+FROM --platform=linux/${TARGETARCH} python:3.12-alpine
 
 # Reuse the architecture argument
 ARG TARGETARCH
 
 ## add user
-RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
+RUN addgroup -S cassandra && adduser -S cassandra -G cassandra
 
-# wget could happen in the build-phase
-RUN apt-get update && apt-get install -y python3 python3-setuptools wget curl jq \
-    && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-setuptools \
+    wget \
+    curl \
+    jq \
+    tzdata \
+    && rm -rf /var/cache/apk/*
 
 # Download the the latest grpc_health_probe binary build for the correct architecture
 RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
@@ -57,8 +67,8 @@ RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releas
 USER cassandra
 WORKDIR /home/cassandra
 
-ENV DEBUG_VERSION 1
-ENV DEBUG_SLEEP 0
+ENV DEBUG_VERSION=1
+ENV DEBUG_SLEEP=0
 ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:/home/cassandra/bin:$PATH
 ENV PYTHONPATH=/home/cassandra
 
