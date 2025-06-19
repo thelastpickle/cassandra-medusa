@@ -87,7 +87,12 @@ STARTING_TESTS_MSG = "Starting the tests"
 CCM_STOP = "ccm stop"
 CCM_START = "ccm start"
 CCM_DIR = "~/.ccm"
-CCM_LISTSNAPSHOTS = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy listsnapshots"
+# we pipe the snapshot list through a sed command that skips lines before 'Snapshot name:'.
+# these lines come from ccm/jvm in some environments
+CCM_LISTSNAPSHOTS = (
+    "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy listsnapshots "
+    "|sed -n '/Snapshot name/,$p' | grep -v 'Snapshot name'"
+)
 CCM_SNAPSHOT = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy snapshot -t {}"
 BUCKET_ROOT = "/tmp/medusa_it_bucket"
 CASSANDRA_YAML = "cassandra.yaml"
@@ -1816,9 +1821,10 @@ def _i_create_a_snapshot_named(context, snapshot_name):
 
 @then(r'I verify the snapshot named "{backup_name}" is present on the node')
 def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, backup_name):
+    logging.debug(f"Listing snapshots with command: {CCM_LISTSNAPSHOTS}")
     stdout = os.popen(CCM_LISTSNAPSHOTS).read()
-    logging.debug(stdout)
-    lines = stdout.strip().split('\n')[2:]
+    logging.debug(f"Output of listing snapshots:\n{stdout}")
+    lines = stdout.strip().split('\n')
     # If lines is empty, no snapshot was found
     if not lines:
         logging.error("No snapshot found")
