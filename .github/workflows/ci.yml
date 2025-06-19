@@ -57,12 +57,9 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [jammy]
-        include:
-          - suite: jammy
-            os-version: ubuntu-22.04
+        suite: [jammy, bullseye, bookworm]
       fail-fast: false
-    runs-on: ${{ matrix.os-version }}
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian Package
@@ -90,9 +87,9 @@ jobs:
     - name: Install Debian Package and run Medusa
       run: |
         version=$(cat VERSION)
-        cd packages
-        sudo dpkg -i cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
-        medusa
+        cd packaging/docker-build
+        docker compose build cassandra-medusa-tester-${{ matrix.suite }}
+        docker compose run cassandra-medusa-tester-${{ matrix.suite }} cassandra-medusa_${version}-0~${{ matrix.suite }}0_amd64.deb
         exit $?
       
   integration-tests:
@@ -443,12 +440,16 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [jammy]
+        suite: [jammy, bullseye, bookworm]
         include:
           - suite: jammy
-            os-version: ubuntu-22.04
+            distro: 'ubuntu'
+          - suite: bullseye
+            distro: 'debian'
+          - suite: bookworm 
+            distro: 'debian'
       fail-fast: false
-    runs-on: ${{ matrix.os-version }}
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian
@@ -468,7 +469,7 @@ jobs:
         format: 'deb'
         owner: 'thelastpickle'
         repo: 'medusa'
-        distro: 'ubuntu'
+        distro: ${{ matrix.distro }}
         release: ${{ matrix.suite }}
         republish: 'true'
         file: "packages/cassandra-medusa_${{ env.VERSION }}-0~${{ matrix.suite }}0_amd64.deb"
