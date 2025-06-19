@@ -87,12 +87,7 @@ STARTING_TESTS_MSG = "Starting the tests"
 CCM_STOP = "ccm stop"
 CCM_START = "ccm start"
 CCM_DIR = "~/.ccm"
-# we pipe the snapshot list through a sed command that skips lines before 'Snapshot name:'.
-# these lines come from ccm/jvm in some environments
-CCM_LISTSNAPSHOTS = (
-    "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy listsnapshots "
-    "|sed -n '/Snapshot name/,$p' | grep -v 'Snapshot name'"
-)
+CCM_LISTSNAPSHOTS = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy listsnapshots | grep {}"
 CCM_SNAPSHOT = "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy snapshot -t {}"
 BUCKET_ROOT = "/tmp/medusa_it_bucket"
 CASSANDRA_YAML = "cassandra.yaml"
@@ -1819,21 +1814,32 @@ def _i_create_a_snapshot_named(context, snapshot_name):
     logging.debug(stdout)
 
 
-@then(r'I verify the snapshot named "{backup_name}" is present on the node')
-def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, backup_name):
-    logging.debug(f"Listing snapshots with command: {CCM_LISTSNAPSHOTS}")
-    stdout = os.popen(CCM_LISTSNAPSHOTS).read()
+@then(r'I verify the snapshot named "{backup_name}" "{snapshot_status}" on the node')
+def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, backup_name, snapshot_status):
+    snapshot_should_be_present = True if snapshot_status == "is present" else False
+    logging.debug(f"Listing snapshots with command: {CCM_LISTSNAPSHOTS.format(backup_name)}")
+    stdout = os.popen(CCM_LISTSNAPSHOTS.format(backup_name)).read()
     logging.debug(f"Output of listing snapshots:\n{stdout}")
+
     lines = stdout.strip().split('\n')
+    
     # If lines is empty, no snapshot was found
-    if not lines:
-        logging.error("No snapshot found")
-        assert False
-    # Extract the first word from first line (snapshot name)
-    first_snapshot_name = lines[0].split()[0]
-    logging.debug("First snapshot is : " + first_snapshot_name)
-    # Check if the first snapshot name matches the expected snapshot name
-    assert first_snapshot_name == backup_name
+    if not lines or not lines[0].strip():
+        logging.debug("No snapshot found")
+        if snapshot_should_be_present:
+            assert False
+        else:
+            assert True
+    else:            
+        # Extract the first word from first line (snapshot name)
+        first_snapshot_name = lines[0].split()[0]
+        logging.debug("First snapshot is : " + first_snapshot_name)
+        # Check if the first snapshot name matches the expected snapshot name
+        if snapshot_should_be_present:
+            assert first_snapshot_name == backup_name
+        else:
+            # we were not expecting to find a snapshot
+            assert False
 
 
 def connect_cassandra(is_client_encryption_enable, tls_version=PROTOCOL_TLS):

@@ -1197,7 +1197,7 @@ Feature: Integration tests
         When I load 100 rows in the "medusa.test" table
         When I perform a backup in "full" mode of the node named "backup-keep" with md5 checks "disabled" and keep_snapshot "enabled"
         Then I can verify the backup named "backup-keep" with md5 checks "enabled" successfully
-        Then I verify the snapshot named "medusa-backup-keep" is present on the node
+        Then I verify the snapshot named "medusa-backup-keep" "is present" on the node
 
         @local
         Examples: Local storage
@@ -1213,9 +1213,29 @@ Feature: Integration tests
         When I create a snapshot named "manual_snapshot"
         When I perform a backup in "full" mode of the node named "manual_snapshot" with md5 checks "disabled" and use_existing_snapshot "enabled" and keep_snapshot "enabled"
         Then I can verify the backup named "manual_snapshot" with md5 checks "enabled" successfully
-        Then I verify the snapshot named "manual_snapshot" is present on the node
-
+        Then I verify the snapshot named "manual_snapshot" "is present" on the node
         @local
         Examples: Local storage
         | storage           | client encryption |
+        | local      |  without_client_encryption |
+
+    @35
+    Scenario Outline: Verify a backup happens correctly from an older snapshot
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario35"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I create a snapshot named "backup_from_snapshot"
+        When I load 200 rows in the "medusa.test" table
+        When I create a snapshot named "never_used_snapshot"
+        When I perform a backup in "full" mode of the node named "regular_backup" with md5 checks "disabled"
+        When I perform a backup in "full" mode of the node named "backup_from_snapshot" with md5 checks "disabled" and use_existing_snapshot "enabled" and keep_snapshot "disabled"
+        Then I verify the snapshot named "backup_from_snapshot" "is not present" on the node
+        When I restore the backup named "backup_from_snapshot"
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        When I restore the backup named "regular_backup"
+        Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        @local
+        Examples: Local storage
+        | storage    | client encryption          |
         | local      |  without_client_encryption |
