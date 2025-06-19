@@ -120,7 +120,6 @@ def _build_default_config():
         'backup_grace_period_in_days': 10,
         'use_sudo_for_restore': 'True',
         'multipart_chunksize': '50MB',
-        'read_timeout': 60,
         's3_addressing_style': 'auto',
     }
 
