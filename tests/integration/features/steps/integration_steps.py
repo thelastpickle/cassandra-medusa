@@ -1822,7 +1822,7 @@ def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, back
     logging.debug(f"Output of listing snapshots:\n{stdout}")
 
     lines = stdout.strip().split('\n')
-    
+
     # If lines is empty, no snapshot was found
     if not lines or not lines[0].strip():
         logging.debug("No snapshot found")
@@ -1830,7 +1830,7 @@ def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, back
             assert False
         else:
             assert True
-    else:            
+    else:
         # Extract the first word from first line (snapshot name)
         first_snapshot_name = lines[0].split()[0]
         logging.debug("First snapshot is : " + first_snapshot_name)

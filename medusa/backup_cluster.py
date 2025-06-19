@@ -29,7 +29,8 @@ from medusa.network.hostname_resolver import HostnameResolver
 
 
 def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
+                parallel_snapshots, parallel_uploads, keep_snapshot=False, use_existing_snapshot=False,
+                orchestration_snapshots=None, orchestration_uploads=None,
                 cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None):
     backup = None
     backup_name = backup_name_arg
@@ -66,7 +67,8 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
                 logging.info(info_msg)
 
             backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                               parallel_snapshots, parallel_uploads, orchestration_snapshots, orchestration_uploads,
+                               parallel_snapshots, parallel_uploads, keep_snapshot, use_existing_snapshot,
+                               orchestration_snapshots, orchestration_uploads,
                                cassandra_config)
             backup.execute(cql_session_provider)
 
@@ -112,7 +114,8 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
 class BackupJob(object):
     def __init__(self, config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                 parallel_snapshots, parallel_uploads, orchestration_snapshots=None, orchestration_uploads=None,
+                 parallel_snapshots, parallel_uploads, keep_snapshot=False, use_existing_snapshot=False,
+                 orchestration_snapshots=None, orchestration_uploads=None,
                  cassandra_config=None):
         self.id = uuid.uuid4()
         # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
@@ -127,6 +130,8 @@ class BackupJob(object):
         self.enable_md5_checks = enable_md5_checks
         self.mode = mode
         self.temp_dir = temp_dir
+        self.keep_snapshot = keep_snapshot
+        self.use_existing_snapshot = use_existing_snapshot
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.hosts = {}
         self.cassandra = Cassandra(config) if cassandra_config is None else cassandra_config
@@ -147,10 +152,13 @@ class BackupJob(object):
             tokenmap = session.tokenmap()
             self.hosts = [host for host in tokenmap.keys()]
 
-        # First let's take a snapshot on all nodes at once
+        # First let's take a snapshot on all nodes at once, unless we're using an existing one
         # Here we will use parallelism of min(number of nodes, parallel_snapshots)
-        logging.info('Creating snapshots on all nodes')
-        self._create_snapshots()
+        if not self.use_existing_snapshot:
+            logging.info('Creating snapshots on all nodes')
+            self._create_snapshots()
+        else:
+            logging.info('Using existing snapshots on all nodes')
 
         # Second
         logging.info('Uploading snapshots from nodes to external storage')
@@ -188,17 +196,22 @@ class BackupJob(object):
     def _build_backup_cmd(self):
         stagger_option = '--in-stagger {}'.format(self.stagger) if self.stagger else ''
         enable_md5_checks_option = '--enable-md5-checks' if self.enable_md5_checks else ''
+        keep_snapshot_option = '--keep-snapshot' if self.keep_snapshot else ''
+        use_existing_snapshot_option = '--use-existing-snapshot' if self.use_existing_snapshot else ''
 
         # Use %s placeholders in the below command to have them replaced by pssh using per host command substitution
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper {sudo} medusa {config} -vvv backup-node ' \
-                  '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode}' \
+                  '--backup-name {backup_name} {stagger} {enable_md5_checks} --mode {mode} ' \
+                  '{keep_snapshot} {use_existing_snapshot}' \
             .format(work=self.work_dir,
                     sudo='sudo' if medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo) else '',
                     config=f'--config-file {self.config.file_path}' if self.config.file_path else '',
                     backup_name=self.backup_name,
                     stagger=stagger_option,
                     enable_md5_checks=enable_md5_checks_option,
-                    mode=self.mode)
+                    mode=self.mode,
+                    keep_snapshot=keep_snapshot_option,
+                    use_existing_snapshot=use_existing_snapshot_option)
 
         logging.debug('Running backup on all nodes with the following command {}'.format(command))
 

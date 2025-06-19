@@ -156,13 +156,19 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode, keep_sna
                                                   "ssh sessions started by pssh", default=500)
 @click.option('--parallel-uploads', '-pu', help="Number of concurrent synchronous (blocking) "
                                                 "ssh sessions started by pssh", default=1)
+@click.option('--keep-snapshot', help="Dont delete snapshot after successful backup.", is_flag=True, default=False)
+@click.option('--use-existing-snapshot',
+              help="Dont create snapshot, only backup it. The snapshot needs to be manually created beforehand.",
+              is_flag=True, default=False)
 @pass_MedusaConfig
 def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                   parallel_snapshots, parallel_uploads):
+                   parallel_snapshots, parallel_uploads, keep_snapshot, use_existing_snapshot):
     """
     Backup Cassandra cluster
     """
     actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
+    if use_existing_snapshot and not backup_name:
+        raise RuntimeError("Cannot use existing snapshot without providing a backup name")
     medusa.backup_cluster.orchestrate(medusaconfig,
                                       actual_backup_name,
                                       seed_target,
@@ -171,7 +177,9 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
                                       mode,
                                       Path(temp_dir),
                                       int(parallel_snapshots),
-                                      int(parallel_uploads))
+                                      int(parallel_uploads),
+                                      keep_snapshot,
+                                      use_existing_snapshot)
 
 
 @cli.command(name='fetch-tokenmap')
