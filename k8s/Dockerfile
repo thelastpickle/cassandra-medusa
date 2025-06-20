@@ -7,23 +7,14 @@ WORKDIR /install
 
 # Install build dependencies
 RUN apk add --no-cache \
-    curl \
-    gnupg \
-    gcc \
-    musl-dev \
-    python3-dev \
-    py3-pip \
-    py3-setuptools \
-    py3-wheel \
-    build-base \
-    wget \
-    ca-certificates \
-    linux-headers \
-    openssl-dev \
-    libffi-dev \
-    cargo \
+    make \
     cmake \
-    zlib-dev
+    gcc \
+    g++ \
+    musl-dev \
+    zlib-dev \
+    openssl-dev \
+    linux-headers
 
 ENV PATH=/root/.local/bin:$PATH
 
@@ -31,11 +22,10 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir poetry==1.8.5
+RUN pip install --no-cache-dir poetry==1.8.5
 
 # Install ssh-python separately first
-RUN pip3 install --no-cache-dir ssh-python==1.1.0
+RUN pip install --no-cache-dir ssh-python==1.1.0
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
@@ -51,8 +41,6 @@ RUN addgroup -S cassandra && adduser -S cassandra -G cassandra
 
 # Install runtime dependencies
 RUN apk add --no-cache \
-    python3 \
-    py3-setuptools \
     wget \
     curl \
     jq \
