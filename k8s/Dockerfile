@@ -1,4 +1,4 @@
-FROM --platform=linux/${TARGETARCH} python:3.12-alpine AS base
+FROM --platform=linux/${TARGETARCH} python:3.13-alpine AS base
 
 ARG TARGETARCH
 
@@ -18,20 +18,20 @@ RUN apk add --no-cache \
 
 ENV PATH=/root/.local/bin:$PATH
 
-COPY . /build/
-
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 RUN pip install --no-cache-dir poetry==1.8.5
 
 # Install ssh-python separately first
-RUN pip install --no-cache-dir ssh-python==1.1.0
+RUN pip install --no-cache-dir ssh-python==1.1.1
+
+COPY . /build/
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${TARGETARCH} python:3.12-alpine
+FROM --platform=linux/${TARGETARCH} python:3.13-alpine
 
 # Reuse the architecture argument
 ARG TARGETARCH
