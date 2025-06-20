@@ -88,7 +88,8 @@ class BackupClusterTest(unittest.TestCase):
         self.mock_orchestration.pssh_run.return_value = True
         medusa_conf = self._build_medusa_config(self.config)
         backup_job = BackupJob(medusa_conf, "backup1", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                               1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config)
+                               1, 2, False, False, self.mock_orchestration, self.mock_orchestration,
+                               self.mock_cassandra_config)
         backup_job.execute(self.mock_cql_session_provider)
         assert self.mock_orchestration.pssh_run.call_count == 2
 
@@ -97,7 +98,7 @@ class BackupClusterTest(unittest.TestCase):
         self.mock_storage.get_cluster_backup.return_value = None
         medusa_conf = self._build_medusa_config(self.config)
         orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                    1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
+                    1, 2, False, False, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
                     self.mock_monitoring, self.mock_storage, self.mock_cql_session_provider)
         assert self.mock_orchestration.pssh_run.call_count == 2
 
@@ -107,16 +108,16 @@ class BackupClusterTest(unittest.TestCase):
         medusa_conf = self._build_medusa_config(self.config)
         with self.assertRaises(SystemExit):
             orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                        1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
-                        self.mock_monitoring, self.mock_storage)
+                        1, 2, False, False, self.mock_orchestration, self.mock_orchestration,
+                        self.mock_cassandra_config, self.mock_monitoring, self.mock_storage)
 
     def test_backup_orchestration_already_exists(self):
         self.mock_orchestration.pssh_run.return_value = True
         medusa_conf = self._build_medusa_config(self.config)
         with self.assertRaises(SystemExit):
             orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                        1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
-                        self.mock_monitoring, self.mock_storage)
+                        1, 2, False, False, self.mock_orchestration, self.mock_orchestration,
+                        self.mock_cassandra_config, self.mock_monitoring, self.mock_storage)
 
     def test_backup_orchestration_pssh_snapshot_failure(self):
         self.mock_orchestration.pssh_run.return_value = False
@@ -124,8 +125,8 @@ class BackupClusterTest(unittest.TestCase):
         medusa_conf = self._build_medusa_config(self.config)
         with self.assertRaises(SystemExit):
             orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                        1, 2, self.mock_orchestration, self.mock_orchestration, self.mock_cassandra_config,
-                        self.mock_monitoring, self.mock_storage)
+                        1, 2, False, False, self.mock_orchestration, self.mock_orchestration,
+                        self.mock_cassandra_config, self.mock_monitoring, self.mock_storage)
 
     def test_backup_orchestration_pssh_backup_failure(self):
         mock_backup = create_autospec(Orchestration)
@@ -135,7 +136,7 @@ class BackupClusterTest(unittest.TestCase):
         medusa_conf = self._build_medusa_config(self.config)
         with self.assertRaises(SystemExit):
             orchestrate(medusa_conf, "backup2", "127.0.0.1", None, True, "differential", pathlib.Path("/tmp"),
-                        1, 2, self.mock_orchestration, self.mock_orchestration, mock_backup,
+                        1, 2, False, False, self.mock_orchestration, self.mock_orchestration, mock_backup,
                         self.mock_monitoring, self.mock_storage)
 
 
