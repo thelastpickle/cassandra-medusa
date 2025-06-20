@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.9, "3.10", "3.11", "3.12"]
+        python-version: [3.9, "3.10", "3.11", "3.12", "3.13"]
         include:
           - python-version: 3.9
             tox-py: py39
@@ -23,6 +23,8 @@ jobs:
             tox-py: py311
           - python-version: "3.12"
             tox-py: py312
+          - python-version: "3.13"
+            tox-py: py313
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
@@ -98,7 +100,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: ['3.9', '3.10', '3.11', '3.12']
+          python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -118,6 +120,12 @@ jobs:
               it-backend: gcs
               experimental: false
               java-version: '11.0.25'
+            # one test with python 3.13
+            - python-version: '3.13'
+              cassandra-version: '4.1.9'
+              it-backend: s3
+              experimental: false
+              java-version: '11.0.25'
           exclude:
             # no tests against cassandra 4.0.18 but the local ones
             - cassandra-version: '4.0.18'
@@ -133,6 +141,7 @@ jobs:
             # no tests against non-python 3.9, except the explicitly allowed combinations
             - python-version: '3.10'
             - python-version: '3.11'
+            - python-version: '3.13'
             - cassandra-version: '4.1.9'
 
     runs-on: ubuntu-24.04

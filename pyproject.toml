@@ -39,7 +39,7 @@ include = [
 ]
 
 [project]
-requires-python = ">=3.9.2,<=3.12"
+requires-python = ">=3.9.2,<=3.13"
 
 [tool.poetry.scripts]
 medusa = { reference = "medusa.medusacli:cli", type = "console" }
@@ -48,11 +48,11 @@ medusa-wrapper = { reference = "medusa.scripts.medusa_wrapper:main", type = "con
 [tool.poetry.dependencies]
 python = "^3.9.2"
 python-dateutil = "2.8.1"
-setuptools = "76.1.0"
+setuptools = "78.1.1"
 click = "8.1.7"
 click-aliases = "1.0.1"
 PyYAML = "6.0.1"
-cassandra-driver = "3.29.2"
+cassandra-driver = { version = "3.29.2", extras = ["libev", "eventlet"] }
 psutil = "5.9.6"
 lockfile = "0.12.2"
 pyOpenSSL = "25.0.0"
@@ -64,8 +64,8 @@ ssh-python = "1.1.0"
 parallel-ssh = "2.13.0"
 requests = "2.32.3"
 wheel = "0.38.1"
-gevent = "23.9.1"
-greenlet = "3.0.1"
+gevent = "25.5.1"
+greenlet = "3.2.3"
 fasteners = "0.16"
 datadog = "0.47.0"
 botocore = "1.38.32"
@@ -78,6 +78,7 @@ azure-core = "1.29.4"
 azure-identity = "1.16.1"
 azure-storage-blob = "12.17.0"
 urllib3 = "1.26.19"
+eventlet = "0.35.2"
 
 [tool.poetry.group.grpc.dependencies]
 protobuf = "5.29.3"
