@@ -37,7 +37,8 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 
-AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata', ['name', 'sse_enabled', 'sse_key_id'])
+AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata',
+                                              ['name', 'sse_enabled', 'sse_key_id', 'sse_customer_key_md5'])
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -320,7 +321,7 @@ class AbstractStorage(abc.ABC):
     async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
         # Only S3 really implements this because of the KMS support
         # Other storage providers don't do that for now
-        return AbstractBlobMetadata(blob_key, False, None)
+        return AbstractBlobMetadata(blob_key, False, None, None)
 
     @staticmethod
     def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
