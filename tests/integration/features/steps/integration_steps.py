@@ -1645,6 +1645,11 @@ def _the_schema_was_uploaded_with_kms_key_according_to_storage(context, backup_n
             # assert the KMS key is present and that it equals the one from the config
             assert None is not schema_blob_metadata.sse_key_id
             assert context.medusa_config.storage.kms_id == schema_blob_metadata.sse_key_id
+        # verify if the objects are SSE-C protected
+        elif context.medusa_config.storage.sse_c_key is not None:
+            assert True is schema_blob_metadata.sse_enabled
+            assert None is not schema_blob_metadata.sse_customer_key_md5
+            assert None is schema_blob_metadata.sse_key_id
         else:
             # if the KMS is not enabled, we check for SSE being disabled and the key being absent
             assert False is schema_blob_metadata.sse_enabled
@@ -1689,6 +1694,11 @@ def _all_files_of_table_in_backup_were_uploaded_with_key_configured_in_storage_c
                     # assert the KMS key is present and that it equals the one from the config
                     assert None is not blob_metadata.sse_key_id
                     assert context.medusa_config.storage.kms_id is blob_metadata.sse_key_id
+                # verify if the objects are SSE-C protected
+                elif context.medusa_config.storage.sse_c_key is not None:
+                    assert True is blob_metadata.sse_enabled
+                    assert None is not blob_metadata.sse_customer_key_md5
+                    assert None is blob_metadata.sse_key_id
                 else:
                     # if the KMS is not enabled, we check for SSE being disabled and the key being absent
                     assert False is blob_metadata.sse_enabled
