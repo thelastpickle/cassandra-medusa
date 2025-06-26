@@ -70,6 +70,9 @@ bucket_name = cassandra_backups
 ; storage_provider should be "s3"
 kms_id = <ARN of KMS key used for server-side bucket encryption>
 
+; storage_provider should be "s3"
+sse_c_key = <256-bit, base64-encoded encryption key for server-side encryption with customer-provided keys>
+
 ; JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)
 ; optional if using GCS (see ./Docs/gcs_setup.md)
 key_file = /etc/medusa/credentials

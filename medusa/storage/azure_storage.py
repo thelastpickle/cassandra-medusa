@@ -242,7 +242,7 @@ class AzureStorage(AbstractStorage):
         # if we ever start to support KMS in Azure, here we'd have to check for the encryption key id
         sse_enabled = False
         sse_key_id = None
-        return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
+        return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id, None)
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
