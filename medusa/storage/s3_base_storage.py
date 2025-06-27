@@ -535,10 +535,8 @@ class S3BaseStorage(AbstractStorage):
                 actual_hash == hash_in_manifest
             )
         else:
-            hashes_match = (
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                or actual_hash == hash_in_manifest
-            )
+            actual_matches_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+            manifest_matches_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
+            hashes_match = actual_matches_manifest or manifest_matches_actual or actual_hash == hash_in_manifest
 
         return sizes_match and hashes_match

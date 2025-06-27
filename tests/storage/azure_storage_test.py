@@ -40,7 +40,7 @@ class AzureStorageTest(unittest.TestCase):
                 'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
-            self.assertTrue(isinstance(azure_storage.credentials, AzureNamedKeyCredential))
+            self.assertIsInstance(azure_storage.credentials, AzureNamedKeyCredential)
             self.assertEqual(
                 'https://medusa-unit-test.blob.core.windows.net/',
                 azure_storage.azure_blob_service_url
@@ -61,7 +61,7 @@ class AzureStorageTest(unittest.TestCase):
                 'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
-            self.assertTrue(isinstance(azure_storage.credentials, AzureNamedKeyCredential))
+            self.assertIsInstance(azure_storage.credentials, AzureNamedKeyCredential)
             self.assertEqual(
                 'https://medusa-unit-test.blob.core.custom.host.net/',
                 azure_storage.azure_blob_service_url
@@ -82,7 +82,7 @@ class AzureStorageTest(unittest.TestCase):
                 'read_timeout': 60,
             })
             azure_storage = AzureStorage(config)
-            self.assertTrue(isinstance(azure_storage.credentials, AzureNamedKeyCredential))
+            self.assertIsInstance(azure_storage.credentials, AzureNamedKeyCredential)
             self.assertEqual(
                 'https://medusa-unit-test.blob.core.custom.host.net:123/',
                 azure_storage.azure_blob_service_url
@@ -101,7 +101,7 @@ class AzureStorageTest(unittest.TestCase):
         })
         os.environ['AZURE_STORAGE_ACCOUNT'] = 'testAccount'
         azure_storage = AzureStorage(config)
-        self.assertTrue(isinstance(azure_storage.credentials, DefaultAzureCredential))
+        self.assertIsInstance(azure_storage.credentials, DefaultAzureCredential)
         # we need the account name for making the connection url
         self.assertEqual(
             'https://testAccount.blob.core.windows.net/',

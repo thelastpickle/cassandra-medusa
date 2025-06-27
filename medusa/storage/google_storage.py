@@ -295,13 +295,10 @@ class GoogleStorage(AbstractStorage):
         if not actual_hash:
             return sizes_match
 
+        actual_equals_encoded_in_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+        manifest_equals_encoded_in_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
         hashes_match = (
-            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
-            actual_hash == base64.b64decode(hash_in_manifest).hex()
-            # this comes from comparing files to a cache
-            or hash_in_manifest == base64.b64decode(actual_hash).hex()
-            # and perhaps we need the to check for match even without base64 encoding
-            or actual_hash == hash_in_manifest
+            actual_hash == hash_in_manifest or actual_equals_encoded_in_manifest or manifest_equals_encoded_in_actual
         )
 
         return sizes_match and hashes_match

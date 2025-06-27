@@ -78,7 +78,6 @@ class CqlSessionProvider(object):
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
             ssl_context.load_verify_locations(self._cassandra_config.certfile)
             ssl_context.verify_mode = CERT_REQUIRED
-            ssl_context.check_hostname = True
             if self._cassandra_config.usercert is not None and self._cassandra_config.userkey is not None:
                 ssl_context.load_cert_chain(
                     certfile=self._cassandra_config.usercert,
