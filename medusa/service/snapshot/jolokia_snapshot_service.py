@@ -35,7 +35,7 @@ class JolokiaSnapshotService(AbstractSnapshotService):
         # raise an Exception if the POST was not successful
         if response.status_code != 200:
             err_msg = "failed to create snapshot: {}".format(json.loads(response.text)["error"])
-            raise Exception(err_msg)
+            raise requests.RequestException(err_msg)
 
     def delete_snapshot(self, *, tag):
         # get the Cassandra URL to POST the request
@@ -52,4 +52,4 @@ class JolokiaSnapshotService(AbstractSnapshotService):
         # raise an Exception if the POST was not successful
         if response.status_code != 200:
             err_msg = "failed to delete snapshot: {}".format(json.loads(response.text)["error"])
-            raise Exception(err_msg)
+            raise requests.RequestException(err_msg)
