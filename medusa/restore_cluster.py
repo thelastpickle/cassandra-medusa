@@ -157,7 +157,7 @@ class RestoreJob(object):
     def _validate_ringmap(self, tokenmap, target_tokenmap):
 
         def _ringmap_to_rack_topology(ringmap):
-            rack_topology = list()
+            rack_topology = []
             for rack in self._tokenmap_to_nodes_per_rack(ringmap):
                 rack_topology.append(len(rack[1]))
             return rack_topology
@@ -177,21 +177,65 @@ class RestoreJob(object):
 
         return True
 
-    def _populate_ringmap(self, tokenmap, target_tokenmap):
+    def _get_token_maps(self, tokenmap, target_tokenmap):
+        target_tokens = {self._tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
+        backup_tokens = {self._tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
+        return target_tokens, backup_tokens
 
-        def _tokens_from_ringitem(ringitem):
-            return ','.join(map(str, ringitem['tokens']))
+    def _check_token_counts(self, tokenmap, target_tokenmap):
+        target_tokens_per_host = self._token_counts_per_host(tokenmap)
+        backup_tokens_per_host = self._token_counts_per_host(target_tokenmap)
 
-        def _token_counts_per_host(tokenmap):
-            for host, ringitem in tokenmap.items():
-                return len(ringitem['tokens'])
+        if target_tokens_per_host != backup_tokens_per_host:
+            logging.info('Source/target rings have different number of tokens per node: {}/{}'.format(
+                backup_tokens_per_host, target_tokens_per_host))
+            return False, backup_tokens_per_host
+        return True, backup_tokens_per_host
 
-        def _hosts_from_tokenmap(tokenmap):
-            hosts = set()
-            for host, ringitem in tokenmap.items():
-                hosts.add(host)
-            return hosts
+    @staticmethod
+    def _tokens_from_ringitem(ringitem):
+        return ','.join(map(str, ringitem['tokens']))
 
+    @staticmethod
+    def _token_counts_per_host(tokenmap):
+        for host, ringitem in tokenmap.items():
+            return len(ringitem['tokens'])
+
+    @staticmethod
+    def _hosts_from_tokenmap(tokenmap):
+        return set(tokenmap.keys())
+
+    def _map_ignored_racks(self, tokenmap, target_tokenmap):
+        sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
+        sorted_target_nodes = self._tokenmap_to_sorted_nodes(target_tokenmap)
+        for i in range(len(sorted_backup_nodes)):
+            restore_host = sorted_target_nodes[i][0]
+            is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
+            self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
+
+    def _map_with_racks(self, tokenmap, target_tokenmap):
+        backup_nodes_per_rack = self._tokenmap_to_nodes_per_rack(tokenmap)
+        target_nodes_per_rack = self._tokenmap_to_nodes_per_rack(target_tokenmap)
+        for i in range(len(backup_nodes_per_rack)):
+            backup_rack = backup_nodes_per_rack[i][1]
+            target_rack = target_nodes_per_rack[i][1]
+            for j in range(len(backup_rack)):
+                backup_host = backup_rack[j][0]
+                restore_host = target_rack[j][0]
+                is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
+                self.host_map[restore_host] = {'source': [backup_host], 'seed': is_seed}
+
+    def _map_different_topologies(self, tokenmap, target_tokenmap):
+        self.use_sstableloader = True
+        backup_hosts = self._hosts_from_tokenmap(tokenmap)
+        restore_hosts = list(self._hosts_from_tokenmap(target_tokenmap))
+        grouped_backups = self._chunk_hosts(backup_hosts, restore_hosts)
+
+        for i in range(min([len(grouped_backups), len(restore_hosts)])):
+            self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
+
+    @staticmethod
+    def _chunk_hosts(backup_hosts, restore_hosts):
         def _chunk(my_list, nb_chunks):
             groups = []
             for i in range(nb_chunks):
@@ -200,90 +244,67 @@ class RestoreJob(object):
                 groups[i % nb_chunks].append(my_list[i])
             return groups
 
-        target_tokens = {}
-        backup_tokens = {}
+        if len(backup_hosts) >= len(restore_hosts):
+            return _chunk(list(backup_hosts), len(restore_hosts))
+        return _chunk(list(backup_hosts), len(backup_hosts))
+
+    def _populate_ringmap(self, tokenmap, target_tokenmap):
         topology_matches = self._validate_ringmap(tokenmap, target_tokenmap)
         self.in_place = self._is_restore_in_place(tokenmap, target_tokenmap)
+
         if self.in_place:
             logging.info("Restoring on the same cluster that was the backup was taken on (in place fashion)")
             self.keep_auth = False
         else:
             logging.info("Restoring on a different cluster than the backup one (remote fashion)")
-            if self.keep_auth:
-                logging.info('system_auth keyspace will be left untouched on the target nodes')
-            else:
-                # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
-                really_keep_auth = None
-                while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not self.bypass_checks:
-                    really_keep_auth = input('Do you want to skip restoring the system_auth keyspace and keep the'
-                                             + ' credentials of the target cluster? (Y/n)')
-                self.keep_auth = True if really_keep_auth == 'Y' else False
+            self._handle_auth_decision()
 
-        if topology_matches:
-            target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
-            backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
+        if not topology_matches:
+            self._map_different_topologies(tokenmap, target_tokenmap)
+            return
 
-            target_tokens_per_host = _token_counts_per_host(tokenmap)
-            backup_tokens_per_host = _token_counts_per_host(target_tokenmap)
+        target_tokens, backup_tokens = self._get_token_maps(tokenmap, target_tokenmap)
+        tokens_match, backup_tokens_per_host = self._check_token_counts(tokenmap, target_tokenmap)
 
-            # we must have the same number of tokens per host in both vnode and normal clusters
-            if target_tokens_per_host != backup_tokens_per_host:
-                logging.info('Source/target rings have different number of tokens per node: {}/{}'.format(
-                    backup_tokens_per_host,
-                    target_tokens_per_host
-                ))
-                topology_matches = False
+        if not tokens_match:
+            self._map_different_topologies(tokenmap, target_tokenmap)
+            return
 
-            # if not using vnodes, the tokens must match exactly
-            if backup_tokens_per_host == 1 and target_tokens.keys() != backup_tokens.keys():
-                extras = target_tokens.keys() ^ backup_tokens.keys()
-                logging.info('Tokenmap is differently distributed. Extra items: {}'.format(extras))
-                topology_matches = False
+        # if not using vnodes, the tokens must match exactly
+        if backup_tokens_per_host == 1 and target_tokens.keys() != backup_tokens.keys():
+            extras = target_tokens.keys() ^ backup_tokens.keys()
+            logging.info('Tokenmap is differently distributed. Extra items: {}'.format(extras))
+            self._map_different_topologies(tokenmap, target_tokenmap)
+            return
 
-        if topology_matches and self.ignore_racks:
-            # backup and restore nodes are ordered by smallest token and associated one by one
-            sorted_backup_nodes = self._tokenmap_to_sorted_nodes(tokenmap)
-            sorted_target_nodes = self._tokenmap_to_sorted_nodes(target_tokenmap)
-            for i in range(len(sorted_backup_nodes)):
-                restore_host = sorted_target_nodes[i][0]
-                is_seed = True if self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn() else False
-                self.host_map[restore_host] = {'source': [sorted_backup_nodes[i][0]], 'seed': is_seed}
-
-        elif topology_matches and not self.ignore_racks:
-            # restore data from the same backup rack into a single rack with matching node count
-            backup_nodes_per_rack = self._tokenmap_to_nodes_per_rack(tokenmap)
-            target_nodes_per_rack = self._tokenmap_to_nodes_per_rack(target_tokenmap)
-            for i in range(len(backup_nodes_per_rack)):
-                backup_rack = backup_nodes_per_rack[i][1]
-                target_rack = target_nodes_per_rack[i][1]
-                for j in range(len(backup_rack)):
-                    backup_host = backup_rack[j][0]
-                    restore_host = target_rack[j][0]
-                    is_seed = self.fqdn_resolver.resolve_fqdn(restore_host) in self._get_seeds_fqdn()
-                    self.host_map[restore_host] = {'source': [backup_host], 'seed': is_seed}
-
+        if self.ignore_racks:
+            self._map_ignored_racks(tokenmap, target_tokenmap)
         else:
-            # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
-            self.use_sstableloader = True
-            backup_hosts = _hosts_from_tokenmap(tokenmap)
-            restore_hosts = list(_hosts_from_tokenmap(target_tokenmap))
-            if len(backup_hosts) >= len(restore_hosts):
-                grouped_backups = _chunk(list(backup_hosts), len(restore_hosts))
-            else:
-                grouped_backups = _chunk(list(backup_hosts), len(backup_hosts))
-            for i in range(min([len(grouped_backups), len(restore_hosts)])):
-                # associate one restore host with several backups as we don't have the same number of nodes.
-                self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
+            self._map_with_racks(tokenmap, target_tokenmap)
+
+    def _handle_auth_decision(self):
+        if self.keep_auth:
+            logging.info('system_auth keyspace will be left untouched on the target nodes')
+            return
+
+        # ops might not be aware of the underlying behavior towards auth. Let's ask what to do...
+        really_keep_auth = None
+        while (really_keep_auth != 'Y' and really_keep_auth != 'n') and not self.bypass_checks:
+            really_keep_auth = input(
+                'Do you want to skip restoring the system_auth keyspace and keep the credentials '
+                'of the target cluster? (Y/n)'
+            )
+        self.keep_auth = really_keep_auth == 'Y'
 
     def _tokenmap_to_sorted_nodes(self, tokenmap):
-        nodes = dict()
+        nodes = {}
         for node in tokenmap.keys():
             nodes[node] = tokenmap[node]['tokens'][0]
         return sorted(nodes.items(), key=operator.itemgetter(1))
 
     def _tokenmap_to_nodes_per_rack(self, tokenmap):
         # Returns an alphabetically sorted list of racks
-        nodes_per_rack = dict()
+        nodes_per_rack = {}
         for node in tokenmap.keys():
             rack = tokenmap[node].get('rack', "")
             first_token = tokenmap[node].get('tokens', [""])[0]
@@ -299,7 +320,7 @@ class RestoreJob(object):
         return len(set(backup_tokenmap.keys()).intersection(set(target_tokenmap.keys()))) > 0
 
     def _get_seeds_fqdn(self):
-        seeds = list()
+        seeds = []
         for seed in self.cassandra.seeds:
             seeds.append(self.fqdn_resolver.resolve_fqdn(seed))
         logging.debug("seeds are: {}".format(seeds))
@@ -365,7 +386,7 @@ class RestoreJob(object):
         target_seeds = [t for t, s in self.host_map.items() if s['seed']]
         logging.info("target seeds : {}".format(target_seeds))
         # work out which nodes are seeds in the target cluster
-        target_hosts = [host for host in self.host_map.keys()]
+        target_hosts = list(self.host_map.keys())
         logging.info("target hosts : {}".format(target_hosts))
 
         if self.use_sstableloader is False:

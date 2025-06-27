@@ -78,6 +78,7 @@ class CqlSessionProvider(object):
             ssl_context = SSLContext(PROTOCOL_TLSv1_2)
             ssl_context.load_verify_locations(self._cassandra_config.certfile)
             ssl_context.verify_mode = CERT_REQUIRED
+            ssl_context.check_hostname = True
             if self._cassandra_config.usercert is not None and self._cassandra_config.userkey is not None:
                 ssl_context.load_cert_chain(
                     certfile=self._cassandra_config.usercert,
@@ -332,7 +333,7 @@ class CassandraConfigReader(object):
 
     @property
     def seeds(self):
-        seeds = list()
+        seeds = []
         if 'seed_provider' in self._config and self._config['seed_provider'] and \
                 self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
             return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')

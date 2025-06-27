@@ -18,6 +18,7 @@ import sys
 import uuid
 import datetime
 import traceback
+from typing import Optional
 from dataclasses import dataclass
 
 import medusa.config
@@ -33,8 +34,8 @@ from medusa.network.hostname_resolver import HostnameResolver
 class OrchestrationConfig:
     parallel_snapshots: int
     parallel_uploads: int
-    orchestration_snapshots: Orchestration | None = None
-    orchestration_uploads: Orchestration | None = None
+    orchestration_snapshots: Optional[Orchestration] = None
+    orchestration_uploads: Optional[Orchestration] = None
     keep_snapshot: bool = False
     use_existing_snapshot: bool = False
 

@@ -80,7 +80,6 @@ def configure_console_logging(verbosity, without_log_timestamp):
 
     if without_log_timestamp:
         log_format = logging.Formatter('%(levelname)s: %(message)s')
-        # log_format = '%(levelname)s: %(message)s'
     else:
         log_format = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
 
