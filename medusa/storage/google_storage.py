@@ -22,6 +22,7 @@ import itertools
 import logging
 import os
 import typing as t
+import aiofiles
 
 from pathlib import Path
 from retrying import retry
@@ -171,12 +172,12 @@ class GoogleStorage(AbstractStorage):
                 timeout=self.read_timeout,
             )
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'wb') as f:
+            async with aiofiles.open(file_path, 'wb') as f:
                 while True:
                     chunk = await stream.read(DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE)
                     if not chunk:
                         break
-                    f.write(chunk)
+                    await f.write(chunk)
 
         except aiohttp.client_exceptions.ClientResponseError as cre:
             logging.error('Error downloading file from gs://{}/{}: {}'.format(self.config.bucket_name, object_key, cre))
@@ -230,7 +231,7 @@ class GoogleStorage(AbstractStorage):
                     src, self.human_readable_size(file_size), self.config.bucket_name, object_key
                 )
             )
-            with open(src, 'rb') as src_file:
+            async with aiofiles.open(src, 'rb') as src_file:
                 resp = await self.gcs_storage.upload(
                     bucket=self.bucket_name,
                     object_name=object_key,
@@ -314,7 +315,6 @@ class GoogleStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return self.get_download_path(path)
-        # return path
 
 
 def _is_in_folder(file_path, folder_path):
