@@ -185,7 +185,10 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                     raise KeyError
 
                 response.startTime = datetime.fromtimestamp(backup.started).strftime(TIMESTAMP_FORMAT)
-                response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT) if backup.finished else ""
+                if backup.finished:
+                    response.finishTime = datetime.fromtimestamp(backup.finished).strftime(TIMESTAMP_FORMAT)
+                else:
+                    response.finishTime = ""
 
                 status = self._get_backup_status(request.backupName, backup)
                 BackupMan.update_backup_status(request.backupName, status)
@@ -215,15 +218,15 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
     def _get_backup_status(self, backup_name, backup):
         BackupMan.register_backup(backup_name, is_async=False, overwrite_existing=False)
         future = BackupMan.get_backup_future(backup_name)
-        
+
         status = self._determine_backup_status(backup_name, backup, future)
-        
+
         if status == BackupMan.STATUS_UNKNOWN:
             if backup.started:
                 status = BackupMan.STATUS_IN_PROGRESS
             if backup.finished:
                 status = BackupMan.STATUS_SUCCESS
-                
+
         return status
 
     def GetBackup(self, request, context):

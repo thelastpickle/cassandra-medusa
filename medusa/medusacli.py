@@ -49,6 +49,7 @@ import medusa.restore_node
 import medusa.status
 import medusa.verify
 import medusa.fetch_tokenmap
+from medusa.backup_cluster import OrchestrationConfig
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
@@ -169,6 +170,14 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
     actual_backup_name = backup_name or datetime.datetime.now().strftime('%Y%m%d%H%M')
     if use_existing_snapshot and not backup_name:
         raise RuntimeError("Cannot use existing snapshot without providing a backup name")
+
+    orchestration_config = OrchestrationConfig(
+        parallel_snapshots=int(parallel_snapshots),
+        parallel_uploads=int(parallel_uploads),
+        keep_snapshot=keep_snapshot,
+        use_existing_snapshot=use_existing_snapshot
+    )
+
     medusa.backup_cluster.orchestrate(medusaconfig,
                                       actual_backup_name,
                                       seed_target,
@@ -176,10 +185,7 @@ def backup_cluster(medusaconfig, backup_name, seed_target, stagger, enable_md5_c
                                       enable_md5_checks,
                                       mode,
                                       Path(temp_dir),
-                                      int(parallel_snapshots),
-                                      int(parallel_uploads),
-                                      keep_snapshot,
-                                      use_existing_snapshot)
+                                      orchestration_config)
 
 
 @cli.command(name='fetch-tokenmap')
