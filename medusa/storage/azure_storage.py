@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import typing as t
+import aiofiles
 
 from azure.core.credentials import AzureNamedKeyCredential
 from azure.identity import DefaultAzureCredential
@@ -172,7 +173,8 @@ class AzureStorage(AbstractStorage):
             timeout=self.read_timeout,
         )
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        await downloader.readinto(open(file_path, "wb"))
+        async with aiofiles.open(file_path, "wb") as f:
+            await downloader.readinto(f)
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
 
@@ -204,7 +206,7 @@ class AzureStorage(AbstractStorage):
             )
         )
         storage_class = self.get_storage_class()
-        with open(src, "rb") as data:
+        async with aiofiles.open(src, "rb") as data:
             blob_client = await self.azure_container_client.upload_blob(
                 name=object_key,
                 data=data,
