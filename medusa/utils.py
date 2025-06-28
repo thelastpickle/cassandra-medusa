@@ -25,9 +25,6 @@ class MedusaTempFile(object):
     _tempfile = None
     _tempfile_path = f'{tempfile.gettempdir()}/medusa_backup_in_progress'
 
-    def __init__(self):
-        pass
-
     def create(self):
         try:
             self._tempfile = open(self._tempfile_path, 'wb')

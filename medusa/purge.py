@@ -66,7 +66,7 @@ def backups_to_purge_by_age(backups, max_backup_age):
     if max_backup_age > 0:
         max_date = datetime.now() - timedelta(days=max_backup_age)
         return list(filter(lambda backup: backup.started < max_date.timestamp(), backups))
-    return list()
+    return []
 
 
 def backups_to_purge_by_count(backups, max_backup_count):
@@ -79,7 +79,7 @@ def backups_to_purge_by_count(backups, max_backup_count):
         )
         backups_to_remove_count = len(sorted_node_backups) - max_backup_count
         return sorted_node_backups[:backups_to_remove_count]
-    return list()
+    return []
 
 
 def purge_backups(storage, backups, backup_grace_period_in_days, local_fqdn):
@@ -195,7 +195,7 @@ def get_file_paths_from_manifests_for_complete_differential_backups(backups):
     differential_backups = filter_differential_backups(backups)
     complete_differential_backups = list(filter(lambda backup: backup.manifest is not None, differential_backups))
 
-    manifests = list(map(lambda backup: json.loads(backup.manifest), complete_differential_backups))
+    manifests = [json.loads(backup.manifest) for backup in complete_differential_backups]
 
     objects_in_manifests = [
         obj
@@ -226,7 +226,7 @@ def backups_to_purge_by_name(storage, cluster_backups, backup_names_to_purge, al
     :param all_nodes: purge for all nodes if true, otherwise for current node only
     :return: list of NodeBackups that should be purged
     """
-    backups_to_purge = list()
+    backups_to_purge = []
     cluster_backups_by_name = {bk.name: bk for bk in cluster_backups}
     for backup_name in backup_names_to_purge:
         if backup_name in cluster_backups_by_name:

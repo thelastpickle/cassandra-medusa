@@ -24,7 +24,6 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
         self.config = config
         self.session = requests.Session()
         if self.config.tls_cert is not None and len(self.config.tls_cert) > 0:
-            # self.session.verify = self.config.ca_cert
             self.session.verify = False
             self.session.cert = (self.config.tls_cert, self.config.tls_key)
             if self.config.cassandra_url.startswith('http://'):
@@ -42,7 +41,7 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
         # raise an Exception if the POST was not successful
         if response.status_code != 200:
             err_msg = "failed to create snapshot: {}".format(response.text)
-            raise Exception(err_msg)
+            raise requests.RequestException(err_msg)
 
     def delete_snapshot(self, *, tag):
         # get the Cassandra URL to DELETE
@@ -52,4 +51,4 @@ class ManagementAPISnapshotService(AbstractSnapshotService):
         # raise an Exception if the DELETE was not successful
         if response.status_code != 200:
             err_msg = "failed to delete snapshot: {}".format(response.text)
-            raise Exception(err_msg)
+            raise requests.RequestException(err_msg)

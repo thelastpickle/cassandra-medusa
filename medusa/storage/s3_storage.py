@@ -18,5 +18,5 @@ from medusa.storage.s3_base_storage import S3BaseStorage
 
 class S3Storage(S3BaseStorage):
 
-    def __int__(self, config):
-        super(config)
+    def __init__(self, config):
+        super().__init__(config)

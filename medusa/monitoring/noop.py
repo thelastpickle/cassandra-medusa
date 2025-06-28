@@ -22,4 +22,5 @@ class NoopMonitoring(AbstractMonitoring):
         super().__init__(config)
 
     def send(self, tags, value):
+        # no metrics to sent in noop mode
         pass

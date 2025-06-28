@@ -309,7 +309,7 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
             logging.info(f'Listing already backed up files for node {node_backup.fqdn}')
             files_in_storage = storage.list_files_per_table()
         else:
-            files_in_storage = dict()
+            files_in_storage = {}
 
         for snapshot_path in snapshot.find_dirs():
             fqtn = f"{snapshot_path.keyspace}.{snapshot_path.columnfamily}"
@@ -334,7 +334,7 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
             )
             logging.debug("Snapshot destination path: {}".format(dst_path))
 
-            manifest_objects = list()
+            manifest_objects = []
             needs_upload = needs_backup + needs_reupload
             if len(needs_upload) > 0:
                 manifest_objects += storage.storage_driver.upload_blobs(needs_upload, dst_path)
@@ -370,12 +370,12 @@ def check_already_uploaded(
         files_in_storage: t.Dict[str, t.Dict[str, t.Dict[str, ManifestObject]]],
         keyspace: str,
         srcs: t.List[pathlib.Path]
-) -> (t.List[pathlib.Path], t.List[ManifestObject]):
+) -> tuple[t.List[pathlib.Path], t.List[pathlib.Path], t.List[ManifestObject]]:
 
     NEVER_BACKED_UP = ['manifest.json', 'schema.cql']
-    needs_backup = list()
-    needs_reupload = list()
-    already_backed_up = list()
+    needs_backup = []
+    needs_reupload = []
+    already_backed_up = []
 
     # in full mode we upload always everything
     if node_backup.is_differential is False:

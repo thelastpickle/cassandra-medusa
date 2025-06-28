@@ -30,6 +30,11 @@ def display_output(host_outputs):
             logging.info("{}-stderr: {}".format(host_out.host, line))
 
 
+class OrchestrationError(RuntimeError):
+    """Raised when an unexpected error occurs during orchestration of commands across nodes."""
+    pass
+
+
 class Orchestration(object):
     def __init__(self, config, pool_size=10):
         self.pool_size = pool_size
@@ -62,25 +67,8 @@ class Orchestration(object):
                      .format(command=command, hosts=hosts, pool_size=self.pool_size))
 
         for parallel_hosts in divide_chunks(hosts, self.pool_size):
-
-            if cert_file is None:
-                client = ssh_client(parallel_hosts,
-                                    forward_ssh_agent=True,
-                                    pool_size=len(parallel_hosts),
-                                    user=username,
-                                    port=port,
-                                    pkey=pkey,
-                                    keepalive_seconds=keepalive_seconds)
-            else:
-                logging.debug('The ssh parameter "cert_file" is defined. Due to limitations in parallel-ssh '
-                              '"keep_alive" will be ignored and no ServerAlive messages will be generated')
-                client = ssh_client(parallel_hosts,
-                                    forward_ssh_agent=True,
-                                    pool_size=len(parallel_hosts),
-                                    user=username,
-                                    port=port,
-                                    pkey=pkey,
-                                    cert_file=cert_file)
+            client = self._init_ssh_client(parallel_hosts, ssh_client, cert_file, username, port, pkey,
+                                           keepalive_seconds)
 
             logging.debug(f'Batch #{i}: Running "{command}" nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
                           f'login_shell={use_login_shell}')
@@ -101,11 +89,31 @@ class Orchestration(object):
             pssh_run_success = True
         elif len(error) > 0:
             logging.error('Job executing "{}" ran and finished with errors on following nodes: {}'
-                          .format(command, sorted(set(map(lambda host_output: host_output.host, error)))))
+                          .format(command, sorted({host_output.host for host_output in error})))
             display_output(error)
         else:
             err_msg = 'Something unexpected happened while running pssh command'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise OrchestrationError(err_msg)
 
         return pssh_run_success
+
+    def _init_ssh_client(self, parallel_hosts, ssh_client, cert_file, username, port, pkey, keepalive_seconds):
+        if cert_file is None:
+            return ssh_client(parallel_hosts,
+                              forward_ssh_agent=True,
+                              pool_size=len(parallel_hosts),
+                              user=username,
+                              port=port,
+                              pkey=pkey,
+                              keepalive_seconds=keepalive_seconds)
+        else:
+            logging.debug('The ssh parameter "cert_file" is defined. Due to limitations in parallel-ssh '
+                          '"keep_alive" will be ignored and no ServerAlive messages will be generated')
+            return ssh_client(parallel_hosts,
+                              forward_ssh_agent=True,
+                              pool_size=len(parallel_hosts),
+                              user=username,
+                              port=port,
+                              pkey=pkey,
+                              cert_file=cert_file)

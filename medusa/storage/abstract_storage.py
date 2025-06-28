@@ -359,7 +359,7 @@ class AbstractStorage(abc.ABC):
     def md5_part(f):
         hash_md5 = hashlib.md5()
         eof = False
-        for i in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
+        for _ in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
             chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
             if chunk == b'':
                 eof = True

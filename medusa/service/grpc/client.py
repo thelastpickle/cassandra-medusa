@@ -104,7 +104,7 @@ class Client:
     async def backup_exists(self, name):
         try:
             backups = await self.get_backups()
-            for backup in list(backups):
+            for backup in backups:
                 if backup.backupName == name:
                     return True
             return False
