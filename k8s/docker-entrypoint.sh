@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # While not limited to k8s environments, this script is designed for running
 # Medusa in two containers in a Cassandra pod. One container runs the backup
@@ -30,19 +30,19 @@ restore() {
         exit 0
     fi
 
-    if [ -a $last_restore_file ]; then
-      restore_key=`cat $last_restore_file`
+    if [ -f "$last_restore_file" ]; then
+      restore_key=$(cat "$last_restore_file")
       echo "Last restore is $restore_key"
     else
       restore_key=""
     fi
 
-    if [ "$restore_key" == "$RESTORE_KEY" ]; then
+    if [ "$restore_key" = "$RESTORE_KEY" ]; then
         echo "Skipping restore operation"
     else
         echo "Restoring backup $BACKUP_NAME"
-        poetry run python -m medusa.service.grpc.restore -- "/etc/medusa/medusa.ini" $RESTORE_KEY
-        echo $RESTORE_KEY > $last_restore_file
+        poetry run python -m medusa.service.grpc.restore -- "/etc/medusa/medusa.ini" "$RESTORE_KEY"
+        echo "$RESTORE_KEY" > "$last_restore_file"
     fi
 }
 
@@ -50,7 +50,7 @@ grpc() {
     ORIGINAL_MEDUSA_INI_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
     echo "Starting Medusa gRPC service"
 
-    exec poetry run python -m medusa.service.grpc.server server.py &
+    poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
 
     # Loop while Medusa process is running
@@ -60,7 +60,7 @@ grpc() {
         echo "Detected change in medusa.ini, checking for running backups"
         if ! [ -f /tmp/medusa_backup_in_progress ]; then
           echo "No backups in progress, stopping Medusa"
-          kill $MEDUSA_PID
+          kill "$MEDUSA_PID"
           # Always exit with 0 on config change.
           exit 0
         else
@@ -75,11 +75,13 @@ grpc() {
 }
 
 echo "sleeping for $DEBUG_SLEEP sec"
-sleep $DEBUG_SLEEP
+sleep "$DEBUG_SLEEP"
 
-if [ "$MEDUSA_MODE" == "RESTORE" ]; then
+source .venv/bin/activate
+
+if [ "$MEDUSA_MODE" = "RESTORE" ]; then
     restore
-elif [ "$MEDUSA_MODE" == "GRPC" ]; then
+elif [ "$MEDUSA_MODE" = "GRPC" ]; then
     grpc
 else
     echo "MEDUSA_MODE env var must be set to either RESTORE or GRPC"
