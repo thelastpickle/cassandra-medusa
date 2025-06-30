@@ -174,7 +174,8 @@ class AzureStorage(AbstractStorage):
         )
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(file_path, "wb") as f:
-            await downloader.readinto(f)
+            data = await downloader.readall()
+            await f.write(data)
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
 
