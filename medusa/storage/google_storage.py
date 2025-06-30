@@ -231,12 +231,11 @@ class GoogleStorage(AbstractStorage):
                     src, self.human_readable_size(file_size), self.config.bucket_name, object_key
                 )
             )
-            async with aiofiles.open(src, 'rb') as src_file:
-                file_data = await src_file.read()
+            with open(src, 'rb') as src_file:
                 resp = await self.gcs_storage.upload(
                     bucket=self.bucket_name,
                     object_name=object_key,
-                    file_data=file_data,
+                    file_data=src_file,
                     force_resumable_upload=True,
                     timeout=-1,
                 )
