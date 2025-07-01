@@ -22,6 +22,7 @@ import itertools
 import logging
 import os
 import typing as t
+import aiofiles
 
 from pathlib import Path
 from retrying import retry
@@ -171,12 +172,12 @@ class GoogleStorage(AbstractStorage):
                 timeout=self.read_timeout,
             )
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'wb') as f:
+            async with aiofiles.open(file_path, 'wb') as f:
                 while True:
                     chunk = await stream.read(DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE)
                     if not chunk:
                         break
-                    f.write(chunk)
+                    await f.write(chunk)
 
         except aiohttp.client_exceptions.ClientResponseError as cre:
             logging.error('Error downloading file from gs://{}/{}: {}'.format(self.config.bucket_name, object_key, cre))
@@ -294,13 +295,10 @@ class GoogleStorage(AbstractStorage):
         if not actual_hash:
             return sizes_match
 
+        actual_equals_encoded_in_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+        manifest_equals_encoded_in_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
         hashes_match = (
-            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
-            actual_hash == base64.b64decode(hash_in_manifest).hex()
-            # this comes from comparing files to a cache
-            or hash_in_manifest == base64.b64decode(actual_hash).hex()
-            # and perhaps we need the to check for match even without base64 encoding
-            or actual_hash == hash_in_manifest
+            actual_hash == hash_in_manifest or actual_equals_encoded_in_manifest or manifest_equals_encoded_in_actual
         )
 
         return sizes_match and hashes_match
@@ -314,7 +312,6 @@ class GoogleStorage(AbstractStorage):
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
         return self.get_download_path(path)
-        # return path
 
 
 def _is_in_folder(file_path, folder_path):

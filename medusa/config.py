@@ -195,6 +195,18 @@ def parse_config(args, config_file):
     """
     config = _build_default_config()
 
+    _load_config_file(config, config_file)
+    _override_config_with_args(config, args)
+    _handle_k8s_and_grpc_settings(config, args)
+    _handle_env_vars(config)
+    _handle_k8s_secrets(config)
+    _handle_hostname_resolution(config)
+
+    return config
+
+
+def _load_config_file(config, config_file):
+    """Load configuration from file, handling default path if needed."""
     if config_file is None and not DEFAULT_CONFIGURATION_PATH.exists():
         logging.error(
             'No configuration file provided via CLI, nor no default file found in {}'.format(DEFAULT_CONFIGURATION_PATH)
@@ -206,9 +218,10 @@ def parse_config(args, config_file):
     with actual_config_file.open() as f:
         config.read_file(f)
 
-    # Override config file settings with command line options
+
+def _override_config_with_args(config, args):
+    """Override config with command line arguments."""
     for config_section in config.keys():
-        # Default section is not used in medusa.ini
         if config_section == 'DEFAULT':
             continue
         settings = CONFIG_SECTIONS[config_section]._fields
@@ -218,8 +231,9 @@ def parse_config(args, config_file):
             if value is not None
         }})
 
-    # the k8s mode and grpc server overlap in a keyword 'enabled'
-    # so we need to reconcile them explicitly
+
+def _handle_k8s_and_grpc_settings(config, args):
+    """Handle Kubernetes and gRPC specific settings."""
     k8s_enabled = evaluate_boolean(config['kubernetes']['enabled'])
     if args.get('k8s_enabled', 'False') == 'True' or k8s_enabled:
         config.set('kubernetes', 'enabled', 'True')
@@ -235,10 +249,9 @@ def parse_config(args, config_file):
         if "POD_IP" in os.environ:
             config['storage']['fqdn'] = os.environ["POD_IP"]
 
-    config.set('cassandra', 'resolve_ip_addresses', 'True'
-               if evaluate_boolean(config['cassandra']['resolve_ip_addresses']) else 'False')
-    kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
 
+def _handle_env_vars(config):
+    """Handle environment variable overrides."""
     for config_property in ['cql_username', 'cql_password']:
         config_property_upper_old = config_property.upper()
         config_property_upper_new = "MEDUSA_{}".format(config_property.upper())
@@ -262,6 +275,9 @@ def parse_config(args, config_file):
         if config_property_upper in os.environ:
             config.set('cassandra', config_property, os.environ[config_property_upper])
 
+
+def _handle_k8s_secrets(config):
+    """Handle Kubernetes secrets configuration."""
     if config.has_option('cassandra', 'cql_k8s_secrets_path'):
         cql_k8s_secrets_path = config.get('cassandra', 'cql_k8s_secrets_path')
         if cql_k8s_secrets_path:
@@ -278,18 +294,21 @@ def parse_config(args, config_file):
             config.set('cassandra', 'nodetool_username', nodetool_k8s_username)
             config.set('cassandra', 'nodetool_password', nodetool_k8s_password)
 
+
+def _handle_hostname_resolution(config):
+    """Handle hostname resolution settings."""
     resolve_ip_addresses = config['cassandra']['resolve_ip_addresses']
+    kubernetes_enabled = evaluate_boolean(config['kubernetes']['enabled'])
     hostname_resolver = HostnameResolver(resolve_ip_addresses, kubernetes_enabled)
+
     if config['storage']['fqdn'] == socket.getfqdn() and not resolve_ip_addresses:
-        # Use the ip address instead of the fqdn when DNS resolving is turned off
         config['storage']['fqdn'] = socket.gethostbyname(socket.getfqdn())
     elif config['storage']['fqdn'] == socket.getfqdn():
-        # The FQDN for the local node should comply with the hostname resolving rules.
         config.set('storage', 'fqdn', hostname_resolver.resolve_fqdn())
 
     config.set('storage', 'k8s_mode', str(kubernetes_enabled))
-
-    return config
+    config.set('cassandra', 'resolve_ip_addresses', 'True'
+               if evaluate_boolean(config['cassandra']['resolve_ip_addresses']) else 'False')
 
 
 def _load_k8s_secrets(k8s_secrets_path):

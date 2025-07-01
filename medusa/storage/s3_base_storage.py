@@ -37,6 +37,7 @@ from medusa.storage.abstract_storage import (
 
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
+AWS_KMS_ENCRYPTION = 'aws:kms'
 
 """
     S3BaseStorage supports all the S3 compatible storages. Certain providers might override this method
@@ -272,7 +273,7 @@ class S3BaseStorage(AbstractStorage):
 
         extra_args = {}
         if self.kms_id is not None:
-            extra_args['ServerSideEncryption'] = 'aws:kms'
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
             extra_args['SSEKMSKeyId'] = self.kms_id
 
         if self.sse_c_key is not None:
@@ -363,7 +364,7 @@ class S3BaseStorage(AbstractStorage):
                 raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
             else:
                 # Handle other exceptions if needed
-                logging.error("An error occurred:", e)
+                logging.error("An error occurred: %s", e)
                 logging.error('Error getting object from s3://{}/{}'.format(self.bucket_name, object_key))
 
     def __stat_blob(self, key):
@@ -385,7 +386,7 @@ class S3BaseStorage(AbstractStorage):
 
         extra_args = {}
         if self.kms_id is not None:
-            extra_args['ServerSideEncryption'] = 'aws:kms'
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
             extra_args['SSEKMSKeyId'] = self.kms_id
 
         if self.sse_c_key is not None:
@@ -472,7 +473,7 @@ class S3BaseStorage(AbstractStorage):
         elif sse_customer_key_md5 is not None:
             sse_enabled = True
             sse_key_id = None
-        elif sse_algo == 'aws:kms':
+        elif sse_algo == AWS_KMS_ENCRYPTION:
             sse_enabled = True
             # the metadata returns the entire ARN, so we just return the last part ~ the actual ID
             sse_key_id = blob_metadata['x-amz-server-side-encryption-aws-kms-key-id'].split('/')[-1]
@@ -534,10 +535,8 @@ class S3BaseStorage(AbstractStorage):
                 actual_hash == hash_in_manifest
             )
         else:
-            hashes_match = (
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                or actual_hash == hash_in_manifest
-            )
+            actual_matches_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+            manifest_matches_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
+            hashes_match = actual_matches_manifest or manifest_matches_actual or actual_hash == hash_in_manifest
 
         return sizes_match and hashes_match

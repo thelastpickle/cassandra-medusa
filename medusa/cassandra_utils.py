@@ -332,7 +332,7 @@ class CassandraConfigReader(object):
 
     @property
     def seeds(self):
-        seeds = list()
+        seeds = []
         if 'seed_provider' in self._config and self._config['seed_provider'] and \
                 self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
             return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')

@@ -73,6 +73,7 @@ from medusa.service.grpc import medusa_pb2
 from medusa.storage import Storage
 from medusa.utils import MedusaTempFile
 
+TRUNK_VERSION = 'github:apache/trunk'
 
 storage_prefix = "{}-{}".format(datetime.datetime.now().isoformat(), str(uuid.uuid4()))
 os.chdir("..")
@@ -93,6 +94,10 @@ BUCKET_ROOT = "/tmp/medusa_it_bucket"
 CASSANDRA_YAML = "cassandra.yaml"
 AWS_CREDENTIALS = "~/.aws/credentials"
 GCS_CREDENTIALS = "~/medusa_credentials.json"
+MUTUAL_AUTH_CA_PEM = "/tmp/mutual_auth_ca.pem"
+MUTUAL_AUTH_CLIENT_CRT = "/tmp/mutual_auth_client.crt"
+MUTUAL_AUTH_CLIENT_KEY = "/tmp/mutual_auth_client.key"
+TRUNK_VERSION = 'github:apache/trunk'
 
 # hide cassandra driver logs, they are overly verbose and we don't really need them for tests
 for logger_name in {'cassandra.io', 'cassandra.pool', 'cassandra.cluster', 'cassandra.connection'}:
@@ -102,7 +107,7 @@ for logger_name in {'cassandra.io', 'cassandra.pool', 'cassandra.cluster', 'cass
 
 def kill_cassandra():
     p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
-    out, err = p.communicate()
+    out, _ = p.communicate()
     for line in out.splitlines():
         if b"org.apache.cassandra.service.CassandraDaemon" in line or b"com.datastax.bdp.DseModul" in line:
             pid = int(line.split(None, 2)[1])
@@ -138,26 +143,23 @@ def get_client_encryption_opts(keystore_path, trustore_path):
         protocol: TLS, algorithm: SunX509, store_type: JKS, cipher_suites: [{cipher_suite}]}}'"""
 
 
-def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
+def tune_ccm_settings(cassandra_version, cluster, custom_settings=None):
     if os.uname().sysname == "Linux":
         os.popen(
-            """sed -i 's/#MAX_HEAP_SIZE="4G"/MAX_HEAP_SIZE="256m"/' ~/.ccm/"""
-            + cluster_name
-            + """/node1/conf/cassandra-env.sh"""
+            f"sed -i 's/#MAX_HEAP_SIZE=\"4G\"/MAX_HEAP_SIZE=\"256m\"/' ~/.ccm/{cluster}/node1/conf/cassandra-env.sh"
         ).read()
         os.popen(
-            """sed -i 's/#HEAP_NEWSIZE="800M"/HEAP_NEWSIZE="200M"/' ~/.ccm/"""
-            + cluster_name
-            + """/node1/conf/cassandra-env.sh"""
+            f"sed -i 's/#HEAP_NEWSIZE=\"800M\"/HEAP_NEWSIZE=\"200M\"/' ~/.ccm/{cluster}/node1/conf/cassandra-env.sh"
+        ).read()
+        os.popen(
+            f"sed -i 's/#HEAP_NEWSIZE=\"800M\"/HEAP_NEWSIZE=\"200M\"/' ~/.ccm/{cluster}/node1/conf/cassandra-env.sh"
         ).read()
         if cassandra_version.startswith("4") or cassandra_version.startswith("5"):
             jvm_options_file = "jvm8-server.options"
         else:
             jvm_options_file = "jvm.options"
         os.popen(
-            """sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/"""
-            + cluster_name
-            + """/node1/conf/""" + jvm_options_file
+            f"sed -i 's/-XX:ThreadPriorityPolicy=42//' ~/.ccm/{cluster}/node1/conf/{jvm_options_file}"
         )
 
     # sed on some macos needs `-i .bak` instead of just `-i`
@@ -166,14 +168,14 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
     else:
         sed_option = ""
 
-    configure_garbage_collection(cluster_name, sed_option)
+    configure_garbage_collection(cluster, sed_option)
 
     if custom_settings:
         for file in custom_settings.keys():
             for setting in custom_settings[file].keys():
+                f = f""" ~/.ccm/{cluster}/node1/conf/{file}"""
                 os.popen(
-                    f"""sed -i {sed_option} "s/{setting}: .*/{setting}: {custom_settings[file][setting]}/" """
-                    + f""" ~/.ccm/{cluster_name}/node1/conf/{file}"""
+                    f"""sed -i {sed_option} "s/{setting}: .*/{setting}: {custom_settings[file][setting]}/" {f}"""
                 ).read()
 
     os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
@@ -182,13 +184,12 @@ def tune_ccm_settings(cassandra_version, cluster_name, custom_settings=None):
 def configure_garbage_collection(cluster_name, sed_option):
     jvm11_options_file = Path(f"~/.ccm/{cluster_name}/node1/conf/jvm11-server.options").expanduser()
     if Path(jvm11_options_file).is_file():
+        f = f""" {jvm11_options_file.absolute()}"""
         os.popen(
-            f"""sed -i {sed_option} "s/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/" """
-            + f""" {jvm11_options_file.absolute()}"""
+            f"""sed -i {sed_option} "s/-XX:+UseConcMarkSweepGC/#-XX:+UseConcMarkSweepGC/" {f}"""
         ).read()
         os.popen(
-            f"""sed -i {sed_option} "s/#-XX:+UseG1GC/-XX:+UseG1GC/" """
-            + f""" {jvm11_options_file.absolute()}"""
+            f"""sed -i {sed_option} "s/#-XX:+UseG1GC/-XX:+UseG1GC/" {f}"""
         ).read()
 
 
@@ -215,7 +216,7 @@ class GRPCServer:
         loop.run_until_complete(self.grpc_server.serve())
 
     def destroy(self):
-        self.grpc_server.shutdown(None, None)
+        self.grpc_server.shutdown()
         if os.path.isdir(os.path.join("/tmp", "medusa_grpc")):
             shutil.rmtree(os.path.join("/tmp", "medusa_grpc"))
 
@@ -230,7 +231,7 @@ class MgmtApiServer:
     @staticmethod
     def destroy():
         p = subprocess.Popen(["ps", "-Af"], stdout=subprocess.PIPE)
-        out, err = p.communicate()
+        out, _ = p.communicate()
         for line in out.splitlines():
             if b"mgmtapi.sock" in line:
                 logging.info(line)
@@ -239,13 +240,13 @@ class MgmtApiServer:
 
     def __init__(self, config, cluster_name):
         self.cluster_name = cluster_name
-        shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
+        shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
         shutil.copyfile("resources/grpc/mutual_auth_server.crt", "/tmp/mutual_auth_server.crt")
         shutil.copyfile("resources/grpc/mutual_auth_server.key", "/tmp/mutual_auth_server.key")
 
         env = {**os.environ, "MGMT_API_LOG_DIR": '/tmp'}
         cmd = ["java", "-jar", "/tmp/management-api-server/target/datastax-mgmtapi-server.jar",
-               "--tlscacert=/tmp/mutual_auth_ca.pem",
+               "--tlscacert=" + MUTUAL_AUTH_CA_PEM,
                "--tlscert=/tmp/mutual_auth_server.crt",
                "--tlskey=/tmp/mutual_auth_server.key",
                "--db-socket=/tmp/db.sock",
@@ -266,8 +267,8 @@ class MgmtApiServer:
         while not started and start_count < 20:
             try:
                 start_count += 1
-                requests.post("https://127.0.0.1:8080/api/v0/lifecycle/start", verify="/tmp/mutual_auth_ca.pem",
-                              cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
+                requests.post("https://127.0.0.1:8080/api/v0/lifecycle/start", verify=MUTUAL_AUTH_CA_PEM,
+                              cert=(MUTUAL_AUTH_CLIENT_CRT, MUTUAL_AUTH_CLIENT_KEY))
                 started = True
             except Exception:
                 # wait for Cassandra to start
@@ -275,8 +276,8 @@ class MgmtApiServer:
 
     @staticmethod
     def stop():
-        requests.post("https://127.0.0.1:8080/api/v0/lifecycle/stop", verify="/tmp/mutual_auth_ca.pem",
-                      cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key"))
+        requests.post("https://127.0.0.1:8080/api/v0/lifecycle/stop", verify=MUTUAL_AUTH_CA_PEM,
+                      cert=(MUTUAL_AUTH_CLIENT_CRT, MUTUAL_AUTH_CLIENT_KEY))
 
 
 @given(r'I will set "{setting_name}" to "{setting_value}" in the "{file_name}" of the test cluster')
@@ -510,13 +511,13 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         cassandra_url="https://127.0.0.1:8080/api/v0/ops/node/snapshots",
         use_mgmt_api='True',
         grpc='True',
-        ca_cert='/tmp/mutual_auth_ca.pem',
-        tls_cert='/tmp/mutual_auth_client.crt',
-        tls_key='/tmp/mutual_auth_client.key'
+        ca_cert=MUTUAL_AUTH_CA_PEM,
+        tls_cert=MUTUAL_AUTH_CLIENT_CRT,
+        tls_key=MUTUAL_AUTH_CLIENT_KEY
     )
-    shutil.copyfile("resources/grpc/mutual_auth_ca.pem", "/tmp/mutual_auth_ca.pem")
-    shutil.copyfile("resources/grpc/mutual_auth_client.crt", "/tmp/mutual_auth_client.crt")
-    shutil.copyfile("resources/grpc/mutual_auth_client.key", "/tmp/mutual_auth_client.key")
+    shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
+    shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -552,8 +553,8 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     while ready_count < 20:
         ready = 0
         try:
-            ready = requests.get("https://127.0.0.1:8080/api/v0/probes/readiness", verify="/tmp/mutual_auth_ca.pem",
-                                 cert=("/tmp/mutual_auth_client.crt", "/tmp/mutual_auth_client.key")).status_code
+            ready = requests.get("https://127.0.0.1:8080/api/v0/probes/readiness", verify=MUTUAL_AUTH_CA_PEM,
+                                 cert=(MUTUAL_AUTH_CLIENT_CRT, MUTUAL_AUTH_CLIENT_KEY)).status_code
         except Exception:
             # wait for the server to be ready
             time.sleep(1)
@@ -567,7 +568,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
             time.sleep(1)
 
 
-def get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
+def get_args(context, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
              ca_cert=None, tls_cert=None, tls_key=None):
     logging.info(STARTING_TESTS_MSG)
     if not hasattr(context, "cluster_name"):
@@ -654,7 +655,7 @@ def get_args(context, storage_provider, client_encryption, cassandra_url, use_mg
 
 
 def get_medusa_config(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False'):
-    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc)
+    args = get_args(context, client_encryption, cassandra_url, use_mgmt_api, grpc)
 
     is_dse = hasattr(context, 'dse_version')
     if is_dse:
@@ -671,7 +672,7 @@ def parse_medusa_config(
         context, storage_provider, client_encryption, cassandra_url, use_mgmt_api='False', grpc='False',
         ca_cert=None, tls_cert=None, tls_key=None
 ):
-    args = get_args(context, storage_provider, client_encryption, cassandra_url, use_mgmt_api, grpc,
+    args = get_args(context, client_encryption, cassandra_url, use_mgmt_api, grpc,
                     ca_cert, tls_cert, tls_key)
     config_file = Path(os.path.join(os.path.abspath("."), f'resources/config/medusa-{storage_provider}.ini'))
     create_storage_specific_resources(storage_provider)
@@ -1015,8 +1016,7 @@ def _i_can_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacen
             manifest = json.loads(nb.manifest)
             for section in manifest:
                 if (
-                        section["keyspace"] == keyspace
-                        and section["columnfamily"][: len(table_name)] == table_name
+                        section["keyspace"] == keyspace and section["columnfamily"][: len(table_name)] == table_name
                 ):
                     for objects in section["objects"]:
                         nb_files[objects["path"]] = 0
@@ -1418,10 +1418,7 @@ def _backup_named_something_has_nb_files_in_the_manifest(
         # Parse its manifest
         manifest = json.loads(target_backup.manifest)
         for section in manifest:
-            if (
-                    section["keyspace"] == keyspace_name
-                    and section["columnfamily"][: len(table_name)] == table_name
-            ):
+            if section["keyspace"] == keyspace_name and section["columnfamily"][: len(table_name)] == table_name:
                 if len(section["objects"]) != int(nb_files):
                     logging.error(
                         "Was expecting {} files, got {}".format(
@@ -1515,7 +1512,7 @@ def _i_delete_the_manifest_from_the_backup_named(context, backup_name):
             path_root, storage.prefix_path, backup_name
         )
         path_manifest_backup = "{}/{}{}/{}/meta/manifest.json".format(
-            path_root, storage.prefix_path, fqdn, backup_name, fqdn
+            path_root, storage.prefix_path, fqdn, backup_name
         )
 
         os.remove(path_manifest_backup)
@@ -1836,10 +1833,7 @@ def _i_verify_the_snapshot_named_backupname_is_present_on_the_node(context, back
     # If lines is empty, no snapshot was found
     if not lines or not lines[0].strip():
         logging.debug("No snapshot found")
-        if snapshot_should_be_present:
-            assert False
-        else:
-            assert True
+        assert not snapshot_should_be_present, "Expected to find snapshot but none was found"
     else:
         # Extract the first word from first line (snapshot name)
         first_snapshot_name = lines[0].split()[0]
@@ -1938,7 +1932,7 @@ def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
         assert not Path(management_api_server_jar_path).exists()
         Path(management_api_server_jar_path).symlink_to(p)
 
-    management_api_agent_jar_path = f'/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar'
+    management_api_agent_jar_path = '/tmp/management-api-agent/target/datastax-mgmtapi-agent.jar'
     if not Path(management_api_agent_jar_path).is_file():
         # the bundle has split agents (maybe), one for C* 3.x and one for C* 4.x
         # link the C* specific agent to the generic agent file name
@@ -1950,19 +1944,19 @@ def symlink_mgmt_api_jar(cassandra_version, mgmt_api_version):
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-3.x/target/datastax-mgmtapi-agent-3.x-{mgmt_api_version}.jar')
-        elif str.startswith(cassandra_version, '4.0') or 'github:apache/trunk' == cassandra_version:
+        elif str.startswith(cassandra_version, '4.0') or TRUNK_VERSION == cassandra_version:
             # C* is version 4.x, use 4.x agent
             p = Path(f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-4.x/target/datastax-mgmtapi-agent-4.x-{mgmt_api_version}.jar')
-        elif str.startswith(cassandra_version, '4.1') or 'github:apache/trunk' == cassandra_version:
+        elif str.startswith(cassandra_version, '4.1') or TRUNK_VERSION == cassandra_version:
             # C* is version 4.x, use 4.x agent
             p = Path(f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
             assert p.is_file()
             Path(management_api_agent_jar_path).symlink_to(
                 f'/tmp/management-api-agent-4.1.x/target/datastax-mgmtapi-agent-4.1.x-{mgmt_api_version}.jar')
-        elif str.startswith(cassandra_version, '5.0') or 'github:apache/trunk' == cassandra_version:
+        elif str.startswith(cassandra_version, '5.0') or TRUNK_VERSION == cassandra_version:
             # C* is version 4.x, use 4.x agent
             p = Path(f'/tmp/management-api-agent-5.0.x/target/datastax-mgmtapi-agent-5.0.x-{mgmt_api_version}.jar')
             assert p.is_file()
@@ -1986,5 +1980,5 @@ def rm_tree(pth):
 
 
 def remove_temporary_mgmtapi_resources():
-    for tempDir in Path('/tmp').glob('management-api-*'):
-        rm_tree(tempDir)
+    for temp_dir in Path('/tmp').glob('management-api-*'):
+        rm_tree(temp_dir)

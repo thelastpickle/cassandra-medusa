@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import typing as t
+import aiofiles
 
 from azure.core.credentials import AzureNamedKeyCredential
 from azure.identity import DefaultAzureCredential
@@ -204,7 +205,7 @@ class AzureStorage(AbstractStorage):
             )
         )
         storage_class = self.get_storage_class()
-        with open(src, "rb") as data:
+        async with aiofiles.open(src, "rb") as data:
             blob_client = await self.azure_container_client.upload_blob(
                 name=object_key,
                 data=data,
@@ -271,13 +272,10 @@ class AzureStorage(AbstractStorage):
         if not actual_hash:
             return sizes_match
 
+        actual_equals_encoded_in_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+        manifest_equals_encoded_in_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
         hashes_match = (
-            # and perhaps we need the to check for match even without base64 encoding
-            actual_hash == hash_in_manifest
-            # this case comes from comparing blob hashes to manifest entries (in context of GCS)
-            or actual_hash == base64.b64decode(hash_in_manifest).hex()
-            # this comes from comparing files to a cache
-            or hash_in_manifest == base64.b64decode(actual_hash).hex()
+            actual_hash == hash_in_manifest or actual_equals_encoded_in_manifest or manifest_equals_encoded_in_actual
         )
 
         return sizes_match and hashes_match

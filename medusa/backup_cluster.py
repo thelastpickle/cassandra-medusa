@@ -18,6 +18,8 @@ import sys
 import uuid
 import datetime
 import traceback
+from typing import Optional
+from dataclasses import dataclass
 
 import medusa.config
 import medusa.utils
@@ -28,9 +30,18 @@ from medusa.storage import Storage
 from medusa.network.hostname_resolver import HostnameResolver
 
 
+@dataclass
+class OrchestrationConfig:
+    parallel_snapshots: int
+    parallel_uploads: int
+    orchestration_snapshots: Optional[Orchestration] = None
+    orchestration_uploads: Optional[Orchestration] = None
+    keep_snapshot: bool = False
+    use_existing_snapshot: bool = False
+
+
 def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                parallel_snapshots, parallel_uploads, keep_snapshot=False, use_existing_snapshot=False,
-                orchestration_snapshots=None, orchestration_uploads=None,
+                orchestration_config: OrchestrationConfig,
                 cassandra_config=None, monitoring=None, existing_storage=None, cql_session_provider=None):
     backup = None
     backup_name = backup_name_arg
@@ -48,12 +59,12 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
             if not config.storage.fqdn:
                 err_msg = "The fqdn was not provided nor calculated properly."
                 logging.error(err_msg)
-                raise Exception(err_msg)
+                raise ValueError(err_msg)
 
             if not temp_dir.is_dir():
                 err_msg = '{} is not a directory'.format(temp_dir)
                 logging.error(err_msg)
-                raise Exception(err_msg)
+                raise ValueError(err_msg)
 
             try:
                 # Try to get a backup with backup_name. If it exists then we cannot take another backup with that name
@@ -61,15 +72,13 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
                 if cluster_backup and cluster_backup.name == backup_name:
                     err_msg = 'Backup named {} already exists.'.format(backup_name)
                     logging.error(err_msg)
-                    raise Exception(err_msg)
+                    raise ValueError(err_msg)
             except KeyError:
                 info_msg = 'Starting backup {}'.format(backup_name)
                 logging.info(info_msg)
 
             backup = BackupJob(config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                               parallel_snapshots, parallel_uploads, keep_snapshot, use_existing_snapshot,
-                               orchestration_snapshots, orchestration_uploads,
-                               cassandra_config)
+                               orchestration_config, cassandra_config)
             backup.execute(cql_session_provider)
 
             backup_end_time = datetime.datetime.now()
@@ -114,15 +123,18 @@ def orchestrate(config, backup_name_arg, seed_target, stagger, enable_md5_checks
 
 class BackupJob(object):
     def __init__(self, config, backup_name, seed_target, stagger, enable_md5_checks, mode, temp_dir,
-                 parallel_snapshots, parallel_uploads, keep_snapshot=False, use_existing_snapshot=False,
-                 orchestration_snapshots=None, orchestration_uploads=None,
-                 cassandra_config=None):
+                 orchestration_config: OrchestrationConfig, cassandra_config=None):
         self.id = uuid.uuid4()
-        # TODO expose the argument below (Note that min(1000, <number_of_hosts>) will be used)
-        self.orchestration_snapshots = Orchestration(config, parallel_snapshots) if orchestration_snapshots is None \
-            else orchestration_snapshots
-        self.orchestration_uploads = Orchestration(config, parallel_uploads) if orchestration_uploads is None \
-            else orchestration_uploads
+        self.orchestration_snapshots = (
+            Orchestration(config, orchestration_config.parallel_snapshots)
+            if orchestration_config.orchestration_snapshots is None
+            else orchestration_config.orchestration_snapshots
+        )
+        self.orchestration_uploads = (
+            Orchestration(config, orchestration_config.parallel_uploads)
+            if orchestration_config.orchestration_uploads is None
+            else orchestration_config.orchestration_uploads
+        )
         self.config = config
         self.backup_name = backup_name
         self.stagger = stagger
@@ -130,8 +142,8 @@ class BackupJob(object):
         self.enable_md5_checks = enable_md5_checks
         self.mode = mode
         self.temp_dir = temp_dir
-        self.keep_snapshot = keep_snapshot
-        self.use_existing_snapshot = use_existing_snapshot
+        self.keep_snapshot = orchestration_config.keep_snapshot
+        self.use_existing_snapshot = orchestration_config.use_existing_snapshot
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.hosts = {}
         self.cassandra = Cassandra(config) if cassandra_config is None else cassandra_config
@@ -150,7 +162,7 @@ class BackupJob(object):
             if cql_session_provider is None else cql_session_provider
         with session_provider.new_session() as session:
             tokenmap = session.tokenmap()
-            self.hosts = [host for host in tokenmap.keys()]
+            self.hosts = list(tokenmap.keys())
 
         # First let's take a snapshot on all nodes at once, unless we're using an existing one
         # Here we will use parallelism of min(number of nodes, parallel_snapshots)
@@ -175,7 +187,7 @@ class BackupJob(object):
             # we could implement a retry.
             err_msg = 'Some nodes failed to create the snapshot.'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         logging.info('A snapshot {} was created on all nodes.'.format(self.snapshot_tag))
 
@@ -189,7 +201,7 @@ class BackupJob(object):
             # we could implement a retry.
             err_msg = 'Some nodes failed to upload the backup.'
             logging.error(err_msg)
-            raise Exception(err_msg)
+            raise RuntimeError(err_msg)
 
         logging.info('A new backup {} was created on all nodes.'.format(self.backup_name))
 

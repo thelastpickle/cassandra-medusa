@@ -31,42 +31,54 @@ class AttributeDict(dict):
 
 class TestAbstractStorage(AbstractStorage):
     def connect(self):
+        # nothing to connect when running locally
         pass
 
     def disconnect(self):
+        # nothing to disconnect when running locally
         pass
 
     async def _list_blobs(self, prefix=None):
+        # nothing to list when running locally
         pass
 
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
+        # nothing to upload when running locally
         pass
 
     async def _download_blob(self, src: str, dest: str):
+        # nothing to download when running locally
         pass
 
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
+        # nothing to upload when running locally
         pass
 
     async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
+        # nothing to get when running locally
         pass
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        # nothing to read when running locally
         pass
 
     async def _delete_object(self, obj: AbstractBlob):
+        # nothing to delete when running locally
         pass
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
+        # nothing to match when running locally
         pass
 
     @staticmethod
     def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+        # nothing to match when running locally
         pass
 
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+        # nothing to compare when running locally
         pass
 
     def __init__(self, config):
@@ -103,6 +115,6 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertEqual('HOT', storage.get_storage_class())
 
         config.storage_class = None
-        self.assertEqual(None, storage.get_storage_class())
+        self.assertIsNone(storage.get_storage_class())
         storage_class = storage.get_storage_class()
         self.assertEqual('unset', storage_class.capitalize() if storage_class else 'unset')

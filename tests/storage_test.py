@@ -42,6 +42,8 @@ class AttributeDict(dict):
 
 
 class StorageTest(unittest.TestCase):
+    TEST_FILE_CONTENT = "content of the test file1"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.local_storage_dir = "/tmp/medusa_local_storage"
@@ -85,13 +87,13 @@ class StorageTest(unittest.TestCase):
         self.storage = Storage(config=self.config.storage)
 
     def test_add_object_from_string(self):
-        file_content = "content of the test file"
+        file_content = self.TEST_FILE_CONTENT
         self.storage.storage_driver.upload_blob_from_string("test1/file.txt", file_content)
         self.assertEqual(self.storage.storage_driver.get_blob_content_as_string("test1/file.txt"), file_content)
 
     def test_download_blobs(self):
         files_to_download = list()
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         file2_content = "content of the test file2"
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         files_to_download.append("test_download_blobs1/file1.txt")
@@ -102,7 +104,7 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(os.listdir(self.local_storage_dir)), 2)
 
     def test_list_objects(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         file2_content = "content of the test file2"
         file3_content = ""
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
@@ -114,26 +116,26 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(len(one_object), 1)
 
     def test_read_blob(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         objects = self.storage.storage_driver.list_objects("test_download_blobs1")
         object_content = self.storage.storage_driver.read_blob_as_string(objects[0])
         self.assertEqual(object_content, file1_content)
 
     def test_get_blob(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
         self.assertEqual(obj.name, "test_download_blobs1/file1.txt")
 
     def test_read_blob_as_bytes(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         object_content = self.storage.storage_driver.get_blob_content_as_bytes("test_download_blobs1/file1.txt")
-        self.assertEqual(object_content, b"content of the test file1")
+        self.assertEqual(object_content, self.TEST_FILE_CONTENT.encode())
 
     def test_verify_hash(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         manifest = self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
         self.assertEqual(manifest.MD5, obj.hash)
@@ -194,7 +196,7 @@ class StorageTest(unittest.TestCase):
             self.assertNotEqual(digest_full, AbstractStorage.generate_md5_hash(tf.name, block_size=0))
 
     def test_get_object_datetime(self):
-        file1_content = "content of the test file1"
+        file1_content = self.TEST_FILE_CONTENT
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs1/file1.txt", file1_content)
         obj = self.storage.storage_driver.get_blob("test_download_blobs1/file1.txt")
         self.assertEqual(

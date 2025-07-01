@@ -98,8 +98,8 @@ def _check_available_space(manifest, destination):
             f'(Missing roughly {AbstractStorage.human_readable_size(missing)})'
         )
         logging.error(
-            f'Please add --temp-dir pointing to a directory with enough space to your restore command '
-            f'(or change where --download-destination of your download command points to).'
+            'Please add --temp-dir pointing to a directory with enough space to your restore command '
+            '(or change where --download-destination of your download command points to).'
         )
         raise RuntimeError('Not enough space available')
 
