@@ -144,7 +144,8 @@ class S3BaseStorage(AbstractStorage):
             region_name=self.credentials.region,
             tcp_keepalive=True,
             max_pool_connections=max_pool_size,
-            read_timeout=self.read_timeout
+            read_timeout=self.read_timeout,
+            s3={'addressing_style': self.config.s3_addressing_style},
         )
         if self.credentials.access_key_id is not None:
             self.s3_client = boto3.client(
