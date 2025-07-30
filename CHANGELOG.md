@@ -1,5 +1,16 @@
 ## Change Log
 
+### 0.25.0 (2025/07/30 12:17 +00:00)
+- Change how the Boto S3 client is created with default parameters (#882) (@adejanovski)
+- Build a ubi9-minimal based image for Medusa (#880) (@adejanovski)
+- Upgrade dependencies to fix CVEs (#879) (@adejanovski)
+- Sonarcloud improvements (#875) (@rzvoncek)
+- Fix tests for - Support for S3 SSE-C #867 (#872) (@rzvoncek)
+- 851 Backup Without Snapshot Creation & Deletion - Finishing Touches (#871) (@rzvoncek)
+- Bump idna to >= 3.7 (#848) (@dannf)
+- enable build for Debian/Bullseye+Bookworm (#529) (@rtib)
+- Remove default value for storage read_timeout (#864) (@mlallaouret)
+
 ### 0.24.1 (2025/06/13 12:00 +00:00)
 - Build images off Ubuntu 24.04 + few python dep updates (#865) (@rzvoncek, @emerkle826)
 
