@@ -64,7 +64,7 @@ if [ -z "$version_exists" ]
 then
     echo "Updating debian changelog..."
     cd packaging/docker-build
-    docker compose build release && docker compose run release
+    docker-compose build release && docker-compose run release
     changelog_updated="y"
     cd ../..
 fi
