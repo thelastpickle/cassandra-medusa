@@ -142,7 +142,6 @@ class S3BaseStorage(AbstractStorage):
 
         boto_config = Config(
             region_name=self.credentials.region,
-            signature_version='v4',
             tcp_keepalive=True,
             max_pool_connections=max_pool_size,
             read_timeout=self.read_timeout,
