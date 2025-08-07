@@ -53,9 +53,10 @@ class AbstractStorage(abc.ABC):
     # sometimes we store Cassandra version in this it seems
     api_version = None
 
-    def __init__(self, config):
+    def __init__(self, config, bucket_name=None):
         self.config = config
-        self.bucket_name = config.bucket_name
+        self.bucket_name = bucket_name if bucket_name is not None else config.bucket_name
+        logging.debug(f'Using bucket {self.bucket_name}')
 
     @abc.abstractmethod
     def connect(self):

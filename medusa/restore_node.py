@@ -38,12 +38,12 @@ MAX_ATTEMPTS = 60
 
 
 def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, keyspaces, tables,
-                 use_sstableloader=False, version_target=None):
+                 use_sstableloader=False, version_target=None, bucket_name=None, prefix=None):
     if in_place and keep_auth:
         logging.error('Cannot keep system_auth when restoring in-place. It would be overwritten')
         sys.exit(1)
 
-    with Storage(config=config.storage) as storage:
+    with Storage(config=config.storage, bucket_name=bucket_name, prefix=prefix) as storage:
         capture_release_version(storage, version_target)
 
         if not use_sstableloader:
