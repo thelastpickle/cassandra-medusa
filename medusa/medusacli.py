@@ -43,6 +43,7 @@ import medusa.download
 import medusa.index
 import medusa.listing
 import medusa.purge
+import medusa.purge_decommissioned
 import medusa.report_latest
 import medusa.restore_cluster
 import medusa.restore_node
