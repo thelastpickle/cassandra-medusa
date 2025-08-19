@@ -83,7 +83,7 @@ class AzureStorage(AbstractStorage):
         self.azure_blob_service = BlobServiceClient(
             account_url=self.azure_blob_service_url,
             credential=self.credentials,
-            max_block_size=20 * 1024 * 1024,        # 50k 20 MB chunks gives ~1 TB max file size
+            max_block_size=4 * 1024 * 1024,        # 50k 20 MB chunks gives ~1 TB max file size
         )
         self.azure_container_client = self.azure_blob_service.get_container_client(self.bucket_name)
 
