@@ -144,8 +144,10 @@ class GoogleStorage(AbstractStorage):
 
     @backoff.on_exception(
         backoff.expo,
-        (aiohttp.ClientError, Exception),
+        aiohttp.ClientResponseError,
         max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        jitter=JITTER_SETTING,
+        giveup=lambda e: not is_retryable_gcs_error(e),
         on_backoff=log_backoff,
     )
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
@@ -169,8 +171,10 @@ class GoogleStorage(AbstractStorage):
 
     @backoff.on_exception(
         backoff.expo,
-        (aiohttp.ClientError, Exception),
+        aiohttp.ClientResponseError,
         max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        jitter=JITTER_SETTING,
+        giveup=lambda e: not is_retryable_gcs_error(e),
         on_backoff=log_backoff,
     )
     async def _download_blob(self, src: str, dest: str):
@@ -202,7 +206,6 @@ class GoogleStorage(AbstractStorage):
                     if not chunk:
                         break
                     await f.write(chunk)
-
         except aiohttp.client_exceptions.ClientResponseError as cre:
             logging.error('Error downloading file from gs://{}/{}: {}'.format(self.config.bucket_name, object_key, cre))
             if cre.status == 404:
@@ -227,8 +230,10 @@ class GoogleStorage(AbstractStorage):
 
     @backoff.on_exception(
         backoff.expo,
-        (aiohttp.ClientError, Exception),
+        aiohttp.ClientResponseError,
         max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        jitter=JITTER_SETTING,
+        giveup=lambda e: not is_retryable_gcs_error(e),
         on_backoff=log_backoff,
     )
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
@@ -293,8 +298,10 @@ class GoogleStorage(AbstractStorage):
 
     @backoff.on_exception(
         backoff.expo,
-        (aiohttp.ClientError, Exception),
+        aiohttp.ClientResponseError,
         max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        jitter=JITTER_SETTING,
+        giveup=lambda e: not is_retryable_gcs_error(e),
         on_backoff=log_backoff,
     )
     async def _delete_object(self, obj: AbstractBlob):
