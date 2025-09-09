@@ -12,14 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import io
 import itertools
 import types
 import unittest
 
 from pathlib import Path
+from unittest import mock
 
-from medusa.storage.google_storage import _group_by_parent, _is_in_folder
+import aiohttp
+import asyncio
+
+from medusa.storage.google_storage import _group_by_parent, _is_in_folder, GoogleStorage, MAX_UP_DOWN_LOAD_RETRIES
 
 
 class GoogleStorageTest(unittest.TestCase):
@@ -59,3 +63,43 @@ class GoogleStorageTest(unittest.TestCase):
         rr = list(c)
         self.assertTrue(isinstance(rr, list))
         self.assertTrue(isinstance(rr[0], int))
+
+    def test_upload_object_rate_limit_retry(self):
+
+        # Create a dummy config
+        class DummyConfig:
+            key_file = None
+            bucket_name = 'dummy-bucket'
+            read_timeout = -1
+        storage = GoogleStorage(DummyConfig())
+        storage._ensure_session = lambda: None  # Bypass session creation
+        storage.gcs_storage = mock.Mock()
+
+        # Simulate upload always raising 429
+        async def always_429(*args, **kwargs):
+            raise aiohttp.ClientResponseError(
+                request_info=mock.Mock(),
+                history=(),
+                status=429,
+                message='Too Many Requests',
+                headers={}
+            )
+        storage.gcs_storage.upload = always_429
+
+        # Count how many times the upload is called
+        call_counter = {'count': 0}
+        async def counting_upload(*args, **kwargs):
+            call_counter['count'] += 1
+            raise aiohttp.ClientResponseError(
+                request_info=mock.Mock(),
+                history=(),
+                status=429,
+                message='Too Many Requests',
+                headers={}
+            )
+        storage.gcs_storage.upload = counting_upload
+
+        # Run the upload and expect it to raise after max retries
+        with self.assertRaises(aiohttp.ClientResponseError):
+            asyncio.run(storage._upload_object(io.BytesIO(b'data'), 'key', {}))
+        self.assertEqual(call_counter['count'], MAX_UP_DOWN_LOAD_RETRIES)

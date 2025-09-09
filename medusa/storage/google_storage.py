@@ -15,6 +15,7 @@
 import pathlib
 
 import aiohttp
+import backoff
 import base64
 import datetime
 import io
@@ -25,7 +26,6 @@ import typing as t
 import aiofiles
 
 from pathlib import Path
-from retrying import retry
 
 from gcloud.aio.storage import Storage
 
@@ -35,6 +35,20 @@ from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, Manif
 DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE = 1024 * 1024 * 5
 GOOGLE_MAX_FILES_PER_CHUNK = 64
 MAX_UP_DOWN_LOAD_RETRIES = 5
+
+
+# Helper to check if error is retryable (429 or 5xx)
+def is_retryable_gcs_error(exc):
+    status = getattr(exc, 'status', None)
+    return status == 429 or (status is not None and 500 <= status < 600)
+
+
+def log_backoff(details):
+    logging.warning(f"Backing off {details['wait']:.2f}s after {details['tries']} tries due to: {details['exception']}")
+
+
+# Allow jitter to be set for testing
+JITTER_SETTING = backoff.full_jitter  # Default is jitter on
 
 
 class GoogleStorage(AbstractStorage):
@@ -128,7 +142,12 @@ class GoogleStorage(AbstractStorage):
             # otherwise, prepare params for the next page
             params['pageToken'] = next_page_token
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @backoff.on_exception(
+        backoff.expo,
+        (aiohttp.ClientError, Exception),
+        max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        on_backoff=log_backoff,
+    )
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         self._ensure_session()
         logging.debug(
@@ -148,7 +167,12 @@ class GoogleStorage(AbstractStorage):
             resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @backoff.on_exception(
+        backoff.expo,
+        (aiohttp.ClientError, Exception),
+        max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        on_backoff=log_backoff,
+    )
     async def _download_blob(self, src: str, dest: str):
         self._ensure_session()
         blob = await self._stat_blob(src)
@@ -201,7 +225,12 @@ class GoogleStorage(AbstractStorage):
             blob['storageClass']
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @backoff.on_exception(
+        backoff.expo,
+        (aiohttp.ClientError, Exception),
+        max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        on_backoff=log_backoff,
+    )
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         self._ensure_session()
         src_path = Path(src)
@@ -262,7 +291,12 @@ class GoogleStorage(AbstractStorage):
         )
         return content
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @backoff.on_exception(
+        backoff.expo,
+        (aiohttp.ClientError, Exception),
+        max_tries=MAX_UP_DOWN_LOAD_RETRIES,
+        on_backoff=log_backoff,
+    )
     async def _delete_object(self, obj: AbstractBlob):
         self._ensure_session()
         await self.gcs_storage.delete(
