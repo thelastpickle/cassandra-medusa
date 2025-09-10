@@ -88,6 +88,7 @@ class GoogleStorageTest(unittest.TestCase):
 
         # Count how many times the upload is called
         call_counter = {'count': 0}
+
         async def counting_upload(*args, **kwargs):
             call_counter['count'] += 1
             raise aiohttp.ClientResponseError(
