@@ -19,7 +19,6 @@ import io
 import itertools
 import types
 import unittest
-import backoff
 
 from unittest import mock
 from pathlib import Path
