@@ -1,5 +1,10 @@
 ## Change Log
 
+
+### 0.25.1 (2025/09/25 16:09 +00:00)
+- Change how the Boto S3 client is created with default parameters (#888) (@idleyoungman)
+
+
 ### 0.25.0 (2025/07/30 12:17 +00:00)
 - Change how the Boto S3 client is created with default parameters (#882) (@adejanovski)
 - Build a ubi9-minimal based image for Medusa (#880) (@adejanovski)
