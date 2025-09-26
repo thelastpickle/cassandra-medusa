@@ -29,7 +29,9 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from pathlib import Path
-from retrying import retry
+from tenacity import retry
+from tenacity.stop import stop_after_attempt
+from tenacity.wait import wait_fixed
 
 from medusa.storage.abstract_storage import (
     AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject, ObjectDoesNotExistError
@@ -267,7 +269,7 @@ class S3BaseStorage(AbstractStorage):
 
         return blobs
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
 
         extra_args = {}
@@ -304,7 +306,7 @@ class S3BaseStorage(AbstractStorage):
         blob = await self._stat_blob(object_key)
         return blob
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _download_blob(self, src: str, dest: str):
         # boto has a connection pool, but it does not support the asyncio API
         # so we make things ugly and submit the whole download as a task to an executor
@@ -376,7 +378,7 @@ class S3BaseStorage(AbstractStorage):
         item_hash = resp['ETag'].replace('"', '')
         return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'], None)
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
 
@@ -444,7 +446,7 @@ class S3BaseStorage(AbstractStorage):
 
         return self.s3_client.get_object(Bucket=self.bucket_name, Key=blob.name, **extra_args)['Body'].read()
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _delete_object(self, obj: AbstractBlob):
         self.s3_client.delete_object(
             Bucket=self.bucket_name,

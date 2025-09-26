@@ -20,7 +20,9 @@ import pathlib
 import re
 import typing as t
 
-from retrying import retry
+from tenacity import retry
+from tenacity.stop import stop_after_attempt
+from tenacity.wait import wait_exponential
 
 import medusa.index
 
@@ -106,7 +108,7 @@ class Storage(object):
     def config(self):
         return self._config
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def get_node_backup(self, *, fqdn, name, differential_mode=False):
         return NodeBackup(
             storage=self,
