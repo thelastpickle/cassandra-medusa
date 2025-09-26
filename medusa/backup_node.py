@@ -23,7 +23,7 @@ import traceback
 import typing as t
 import psutil
 
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 import medusa.utils
 from medusa.backup_manager import BackupMan
@@ -203,7 +203,7 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
 
 # Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
 # attempt on which it waited for 60 seconds
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+@retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
 def get_schema_and_tokenmap(cassandra):
     with cassandra.new_session() as cql_session:
         schema = cql_session.dump_schema()
@@ -211,7 +211,7 @@ def get_schema_and_tokenmap(cassandra):
     return schema, tokenmap
 
 
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+@retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
 def get_server_type_and_version(cassandra):
     with cassandra.new_session() as cql_session:
         server_type, release_version = cql_session.get_server_type_and_release_version()
