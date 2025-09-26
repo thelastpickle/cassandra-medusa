@@ -30,7 +30,7 @@ from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import BlobProperties, StandardBlobTier
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ObjectDoesNotExistError
 from pathlib import Path
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
@@ -121,7 +121,7 @@ class AzureStorage(AbstractStorage):
             md5_hash_str = base64.encodebytes(md5_hash).decode('UTF-8').strip()
         return md5_hash_str
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         logging.debug(
             '[Azure Storage] Uploading object from stream -> azure://{}/{}'.format(
@@ -144,7 +144,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.blob_tier
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _download_blob(self, src: str, dest: str):
 
         # _stat_blob throws if the blob does not exist
@@ -191,7 +191,7 @@ class AzureStorage(AbstractStorage):
             blob_properties.blob_tier
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
 
@@ -233,7 +233,7 @@ class AzureStorage(AbstractStorage):
         )
         return await downloader.readall()
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _delete_object(self, obj: AbstractBlob):
         await self.azure_container_client.delete_blob(obj.name, delete_snapshots='include')
 

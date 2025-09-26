@@ -25,8 +25,10 @@ import typing as t
 import aiofiles
 
 from pathlib import Path
-from retrying import retry
 
+from tenacity import retry
+from tenacity.stop import stop_after_attempt
+from tenacity.wait import wait_fixed
 from gcloud.aio.storage import Storage
 
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject, ObjectDoesNotExistError
@@ -128,7 +130,7 @@ class GoogleStorage(AbstractStorage):
             # otherwise, prepare params for the next page
             params['pageToken'] = next_page_token
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         self._ensure_session()
         logging.debug(
@@ -148,7 +150,7 @@ class GoogleStorage(AbstractStorage):
             resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _download_blob(self, src: str, dest: str):
         self._ensure_session()
         blob = await self._stat_blob(src)
@@ -201,7 +203,7 @@ class GoogleStorage(AbstractStorage):
             blob['storageClass']
         )
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         self._ensure_session()
         src_path = Path(src)
@@ -262,7 +264,7 @@ class GoogleStorage(AbstractStorage):
         )
         return content
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _delete_object(self, obj: AbstractBlob):
         self._ensure_session()
         await self.gcs_storage.delete(

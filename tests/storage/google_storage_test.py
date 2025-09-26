@@ -23,6 +23,7 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+from tenacity import RetryError
 from medusa.storage.google_storage import _group_by_parent, _is_in_folder,GoogleStorage, MAX_UP_DOWN_LOAD_RETRIES
 
 
@@ -101,6 +102,6 @@ class GoogleStorageTest(unittest.TestCase):
         storage.gcs_storage.upload = counting_upload
 
         # Run the upload and expect it to raise after max retries
-        with self.assertRaises(aiohttp.ClientResponseError):
+        with self.assertRaises(RetryError):
             asyncio.run(storage._upload_object(io.BytesIO(b'data'), 'key', {}))
         self.assertEqual(call_counter['count'], MAX_UP_DOWN_LOAD_RETRIES)
