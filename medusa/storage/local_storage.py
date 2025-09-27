@@ -32,13 +32,13 @@ BUFFER_SIZE = 4 * 1024 * 1024
 class LocalStorage(AbstractStorage):
 
     def __init__(self, config):
+        # in Python we usually put this last, bur we need it to set the bucket_name
+        super().__init__(config)
+
         self.config = config
-        self.bucket_name = self.config.bucket_name
 
         self.root_dir = Path(config.base_path) / self.bucket_name
         self.root_dir.mkdir(parents=True, exist_ok=True)
-
-        super().__init__(config)
 
     def connect(self):
         # nothing to connect when running locally
@@ -183,7 +183,7 @@ class LocalStorage(AbstractStorage):
 
     def get_cache_path(self, path):
         # Full path for files that will be taken from previous backups
-        return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)
+        return "{}/{}/{}".format(self.config.base_path, self.bucket_name, path)
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
