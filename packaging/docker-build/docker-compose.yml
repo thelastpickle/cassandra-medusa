@@ -20,7 +20,7 @@ services:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile-ubuntu
       args:
-        - BUILD_IMAGE=ubuntu:22.04
+        - BUILD_IMAGE=ubuntu:24.04
         - EXTRA_PACKAGES=""
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
@@ -33,7 +33,7 @@ services:
       context: ../..
       dockerfile: packaging/docker-build/Dockerfile-tester
       args:
-        - BUILD_IMAGE=ubuntu:22.04
+        - BUILD_IMAGE=ubuntu:24.04
     volumes:
       - ../../packages:/usr/src/app/packages
   cassandra-medusa-builder-bullseye:
@@ -48,16 +48,6 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-tester-bullseye:
-    build:
-      platforms:
-        - linux/amd64
-      context: ../..
-      dockerfile: packaging/docker-build/Dockerfile-tester
-      args:
-        - BUILD_IMAGE=debian:bullseye
-    volumes:
-      - ../../packages:/usr/src/app/packages
   cassandra-medusa-builder-bookworm:
     build:
       platforms:
