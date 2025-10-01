@@ -13,17 +13,15 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: [3.9, "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
         include:
-          - python-version: 3.9
-            tox-py: py39
           - python-version: "3.10"
             tox-py: py310
           - python-version: "3.11"
             tox-py: py311
           - python-version: "3.12"
             tox-py: py312
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -33,7 +31,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 1.8.5
+        version: 2.2.1
     - name: Install dependencies
       run: |
         poetry install
@@ -57,9 +55,9 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [jammy, bullseye, bookworm]
+        suite: [jammy, bookworm]
       fail-fast: false
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian Package
@@ -98,7 +96,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: ['3.9', '3.10', '3.11', '3.12']
+          python-version: ['3.10', '3.11', '3.12']
           it-backend: [local, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -130,8 +128,7 @@ jobs:
               it-backend: azure-hierarchical
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
-            # no tests against non-python 3.9, except the explicitly allowed combinations
-            - python-version: '3.10'
+            # no tests against non-python 3.10, except the explicitly allowed combinations
             - python-version: '3.11'
             - cassandra-version: '4.1.9'
 
@@ -161,7 +158,7 @@ jobs:
     - name: Setup Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 1.8.5
+        version: 2.2.1
     - name: Install dependencies
       run: |
         poetry install
@@ -325,7 +322,7 @@ jobs:
       - name: Set up Poetry
         uses: snok/install-poetry@v1
         with:
-          version: 1.8.5
+          version: 2.2.1
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -395,7 +392,7 @@ jobs:
   publish-docker-master:
     needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -417,7 +414,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 1.8.5
+        version: 2.2.1
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
@@ -440,16 +437,14 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [jammy, bullseye, bookworm]
+        suite: [jammy, bookworm]
         include:
           - suite: jammy
             distro: 'ubuntu'
-          - suite: bullseye
-            distro: 'debian'
           - suite: bookworm 
             distro: 'debian'
       fail-fast: false
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Build Debian
@@ -477,7 +472,7 @@ jobs:
   publish-docker:
     needs: [publish-debian]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -499,7 +494,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 1.8.5
+        version: 2.2.1
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
@@ -520,7 +515,7 @@ jobs:
     # We can only release if the build above succeeded first
     needs: [publish-docker]
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 3.10
@@ -529,7 +524,7 @@ jobs:
         python-version: "3.10"
     - name: Set up Poetry
       with:
-        version: 1.8.5
+        version: 2.2.1
       uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |

@@ -1,4 +1,4 @@
-FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi9/ubi-minimal:latest AS base
+FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi10/ubi-minimal:latest AS base
 
 ARG TARGETARCH
 
@@ -22,19 +22,22 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN pip3 install --ignore-installed --user poetry==1.8.5
+RUN pip3 install --ignore-installed --user poetry==2.2.1
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi10/ubi-minimal:latest
 
 # Reuse the architecture argument
 ARG TARGETARCH
 
 ## add user
-RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
+RUN microdnf install -y shadow-utils \
+    && groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra \
+    && microdnf remove -y shadow-utils \
+    && microdnf clean all
 
 # wget could happen in the build-phase
 RUN microdnf install -y python3 python3-setuptools wget jq findutils \
