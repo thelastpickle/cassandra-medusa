@@ -990,19 +990,19 @@ pyjwt = ">=1.5.3,<3.0.0"
 
 [[package]]
 name = "gcloud-aio-storage"
-version = "9.2.0"
+version = "9.6.0"
 description = "Python Client for Google Cloud Storage"
 optional = false
-python-versions = ">=3.8,<4.0"
+python-versions = "<4.0,>=3.9"
 files = [
-    {file = "gcloud_aio_storage-9.2.0-py3-none-any.whl", hash = "sha256:0a8cc27223cea05ad27117fa574ce8697ec32a252382cbfdfe54df0678e92d03"},
-    {file = "gcloud_aio_storage-9.2.0.tar.gz", hash = "sha256:47be865222d22fdf873cd5a4af9a285d7b64b176d4d92f1773ecacd52a6a8c6f"},
+    {file = "gcloud_aio_storage-9.6.0-py3-none-any.whl", hash = "sha256:259d2f0a9da4ed8ac3b23b59c2effb7f89b2c2504d4ef6e30102d08e1cba02aa"},
+    {file = "gcloud_aio_storage-9.6.0.tar.gz", hash = "sha256:d89323212e092f233a4bde28a6543acf68297ba087dd76f63a3d57c3f689a6c4"},
 ]
 
 [package.dependencies]
-aiofiles = ">=0.6.0,<24.0.0"
-gcloud-aio-auth = ">=3.6.0,<6.0.0"
-pyasn1-modules = ">=0.2.1,<0.4.0"
+aiofiles = ">=0.6.0,<25.0.0"
+gcloud-aio-auth = ">=5.3.0,<6.0.0"
+pyasn1-modules = ">=0.2.1,<0.4.2"
 rsa = ">=3.1.4,<5.0.0"
 
 [[package]]
@@ -1785,28 +1785,28 @@ test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
 
 [[package]]
 name = "pyasn1"
-version = "0.5.1"
+version = "0.6.1"
 description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
 optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
+python-versions = ">=3.8"
 files = [
-    {file = "pyasn1-0.5.1-py2.py3-none-any.whl", hash = "sha256:4439847c58d40b1d0a573d07e3856e95333f1976294494c325775aeca506eb58"},
-    {file = "pyasn1-0.5.1.tar.gz", hash = "sha256:6d391a96e59b23130a5cfa74d6fd7f388dbbe26cc8f1edf39fdddf08d9d6676c"},
+    {file = "pyasn1-0.6.1-py3-none-any.whl", hash = "sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629"},
+    {file = "pyasn1-0.6.1.tar.gz", hash = "sha256:6f580d2bdd84365380830acf45550f2511469f673cb4a5ae3857a3170128b034"},
 ]
 
 [[package]]
 name = "pyasn1-modules"
-version = "0.3.0"
+version = "0.4.1"
 description = "A collection of ASN.1-based protocols modules"
 optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
+python-versions = ">=3.8"
 files = [
-    {file = "pyasn1_modules-0.3.0-py2.py3-none-any.whl", hash = "sha256:d3ccd6ed470d9ffbc716be08bd90efbd44d0734bc9303818f7336070984a162d"},
-    {file = "pyasn1_modules-0.3.0.tar.gz", hash = "sha256:5bd01446b736eb9d31512a30d46c1ac3395d676c6f3cafa4c03eb54b9925631c"},
+    {file = "pyasn1_modules-0.4.1-py3-none-any.whl", hash = "sha256:49bfa96b45a292b711e986f222502c1c9a5e1f4e568fc30e2574a6c7d07838fd"},
+    {file = "pyasn1_modules-0.4.1.tar.gz", hash = "sha256:c28e2dbf9c06ad61c71a075c7e0f9fd0f1b0bb2d2ad4377f240d33ac2ab60a7c"},
 ]
 
 [package.dependencies]
-pyasn1 = ">=0.4.6,<0.6.0"
+pyasn1 = ">=0.4.6,<0.7.0"
 
 [[package]]
 name = "pycodestyle"
@@ -2567,4 +2567,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9.2"
-content-hash = "c3c45bb04b735248b4d1e075d30721f03c482ae7666e5adc08979b0e42e9ad83"
+content-hash = "67a2f4822e6138335614e975a3aa173ca53d325955948078779d025d4c7d4168"
