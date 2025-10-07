@@ -46,6 +46,8 @@ RUN apt-get update \
         python3-setuptools \
         python3-venv \
         python3-wheel \
+        python3-gevent \
+        python3-greenlet \
         build-essential \
         cmake \
         devscripts \
@@ -53,19 +55,18 @@ RUN apt-get update \
         libevent-dev \
         zlib1g-dev \
         libssl-dev \
+        pipx \
         wget $EXTRA_PACKAGES
 
-RUN pip3 install --upgrade pip
+# RUN pip3 install --upgrade pip
 
 RUN cd /tmp && \
     wget http://mirrors.kernel.org/ubuntu/pool/universe/d/dh-virtualenv/dh-virtualenv_1.2.2-1.4build1_all.deb && \
     gdebi -n dh-virtualenv*.deb && \
     rm dh-virtualenv_*.deb
         
-
-RUN pip3 install greenlet
-RUN pip3 install gevent
-RUN pip3 install poetry==1.8.5
+RUN pipx ensurepath
+RUN pipx install poetry==2.2.1
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}
