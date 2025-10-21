@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from datetime import datetime
+import json
 from medusa.storage import Storage
 
 
@@ -36,13 +37,19 @@ def get_backups(storage, config, show_all):
     return cluster_backups
 
 
-def list_backups(config, show_all):
+def list_backups(config, show_all, output):
     with Storage(config=config.storage) as storage:
-        list_backups_w_storage(config, show_all, storage)
+        list_backups_w_storage(config, show_all, storage, output)
 
 
-def list_backups_w_storage(config, show_all, storage):
+def list_backups_w_storage(config, show_all, storage, output):
     cluster_backups = get_backups(storage, config, show_all)
+    if output == 'json':
+        backups_json = []
+        for cluster_backup in cluster_backups:
+            backups_json.append(cluster_backup.to_json_dict())
+        print(json.dumps(backups_json, ensure_ascii=False, sort_keys=True))
+        return cluster_backups
     seen_incomplete_backup = False
     for cluster_backup in cluster_backups:
         finished = cluster_backup.finished

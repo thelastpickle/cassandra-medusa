@@ -200,12 +200,13 @@ def fetch_tokenmap(medusaconfig, backup_name):
 
 @cli.command(name='list-backups')
 @click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
+@click.option('--output', type=click.Choice(['text', 'json']), default='text', help='Output format (default: text)')
 @pass_MedusaConfig
-def list_backups(medusaconfig, show_all):
+def list_backups(medusaconfig, show_all, output):
     """
     List backups
     """
-    medusa.listing.list_backups(medusaconfig, show_all)
+    medusa.listing.list_backups(medusaconfig, show_all, output)
 
 
 @cli.command(name='download')
@@ -299,12 +300,14 @@ def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds
 
 @cli.command(name='status')
 @click.option('--backup-name', help='Backup name', required=True)
+@click.option('-o', '--output', type=click.Choice(['text', 'json']), default='text',
+              help='Output format (default: text)')
 @pass_MedusaConfig
-def status(medusaconfig, backup_name):
+def status(medusaconfig, backup_name, output):
     """
     Show status of backups.
     """
-    medusa.status.status(medusaconfig, backup_name)
+    medusa.status.status(medusaconfig, backup_name, output)
 
 
 @cli.command(name='verify')
