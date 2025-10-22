@@ -1553,7 +1553,9 @@ def _i_delete_the_manifest_from_the_backup_named_from_the_storage(context, backu
 @then(r'the backup named "{backup_name}" is incomplete')
 def _the_backup_named_is_incomplete(context, backup_name):
     with Storage(config=context.medusa_config.storage) as storage:
-        backups = medusa.listing.list_backups_w_storage(config=context.medusa_config, show_all=True, storage=storage, output='text')
+        backups = medusa.listing.list_backups_w_storage(
+            config=context.medusa_config, show_all=True, storage=storage, output='text'
+        )
         for backup in backups:
             if backup.name == backup_name:
                 assert not backup.finished
