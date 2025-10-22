@@ -1029,7 +1029,7 @@ def _i_can_see_purged_backup_files_for_the_tablename_table_in_keyspace_keyspacen
 
 @then('I can see the backup status for "{backup_name}" when I run the status command')
 def _i_can_see_backup_status_when_i_run_the_status_command(context, backup_name):
-    medusa.status.status(config=context.medusa_config, backup_name=backup_name)
+    medusa.status.status(config=context.medusa_config, backup_name=backup_name, output='text')
 
 
 @then(r"I can see no backups when I list the backups")
@@ -1321,7 +1321,7 @@ def _there_is_no_latest_complete_backup(context):
 
 @then(r"I can list and print backups without errors")
 def _can_list_print_backups_without_error(context):
-    medusa.listing.list_backups(config=context.medusa_config, show_all=True)
+    medusa.listing.list_backups(config=context.medusa_config, show_all=True, output='text')
 
 
 @then(r'the latest complete cluster backup is "{expected_backup_name}"')
@@ -1553,7 +1553,7 @@ def _i_delete_the_manifest_from_the_backup_named_from_the_storage(context, backu
 @then(r'the backup named "{backup_name}" is incomplete')
 def _the_backup_named_is_incomplete(context, backup_name):
     with Storage(config=context.medusa_config.storage) as storage:
-        backups = medusa.listing.list_backups_w_storage(config=context.medusa_config, show_all=True, storage=storage)
+        backups = medusa.listing.list_backups_w_storage(config=context.medusa_config, show_all=True, storage=storage, output='text')
         for backup in backups:
             if backup.name == backup_name:
                 assert not backup.finished
