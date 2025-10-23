@@ -83,41 +83,37 @@ class StubClusterBackup:
         incomplete_nodes_list = []
         total_size = 0
         total_objects = 0
+
         for node_backup in self._node_backups:
+            node_dict = {
+                'fqdn': node_backup.fqdn,
+                'started': node_backup.started,
+                'finished': node_backup.finished,
+                'server_type': node_backup.server_type,
+                'release_version': node_backup.release_version
+            }
+
             if node_backup.finished:
                 node_size = node_backup.size()
                 node_objects = node_backup.num_objects()
-                nodes_list.append({
-                    'fqdn': node_backup.fqdn,
-                    'started': node_backup.started,
-                    'finished': node_backup.finished,
-                    'size': node_size,
-                    'num_objects': node_objects,
-                    'server_type': node_backup.server_type,
-                    'release_version': node_backup.release_version
-                })
+                node_dict['size'] = node_size
+                node_dict['num_objects'] = node_objects
+                nodes_list.append(node_dict)
                 total_size += node_size
                 total_objects += node_objects
             else:
-                incomplete_nodes_list.append({
-                    'fqdn': node_backup.fqdn,
-                    'started': node_backup.started,
-                    'finished': None,
-                    'size': 0,
-                    'num_objects': 0,
-                    'server_type': node_backup.server_type,
-                    'release_version': node_backup.release_version
-                })
+                node_dict['size'] = 0
+                node_dict['num_objects'] = 0
+                incomplete_nodes_list.append(node_dict)
+
         missing_nodes = self.missing_nodes()
         return {
             'name': self.name,
             'started': self.started,
             'finished': self.finished,
-            'complete': self.is_complete(),
             'backup_type': self.backup_type,
             'size': total_size,
             'num_objects': total_objects,
-            'total_nodes': len(self.tokenmap),
             'completed_nodes': len(nodes_list),
             'nodes': nodes_list,
             'incomplete_nodes': len(incomplete_nodes_list),
@@ -154,9 +150,7 @@ def test_status_json_complete_backup(capsys):
     assert result['name'] == 'test_backup_complete'
     assert result['started'] == EPOCH_BASE
     assert result['finished'] == EPOCH_BASE + 2000
-    assert result['complete'] is True
     assert result['backup_type'] == 'full'
-    assert result['total_nodes'] == 3
     assert result['completed_nodes'] == 3
     assert result['incomplete_nodes'] == 0
     assert result['missing_nodes'] == 0
@@ -199,8 +193,6 @@ def test_status_json_incomplete_backup(capsys):
 
     assert result['name'] == 'test_backup_incomplete'
     assert result['finished'] is None
-    assert result['complete'] is False
-    assert result['total_nodes'] == 3
     assert result['completed_nodes'] == 1
     assert result['incomplete_nodes'] == 1
     assert result['missing_nodes'] == 1
@@ -258,8 +250,8 @@ def test_status_json_all_keys_present(capsys):
 
     # Check all expected top-level keys
     expected_keys = {
-        'name', 'started', 'finished', 'complete', 'backup_type',
-        'size', 'num_objects', 'total_nodes',
+        'name', 'started', 'finished', 'backup_type',
+        'size', 'num_objects',
         'completed_nodes', 'nodes',
         'incomplete_nodes', 'incomplete_nodes_list',
         'missing_nodes', 'missing_nodes_list'

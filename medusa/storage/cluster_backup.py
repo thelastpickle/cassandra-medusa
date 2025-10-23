@@ -101,30 +101,25 @@ class ClusterBackup(object):
         total_size = 0
         total_objects = 0
         for node_backup in self.node_backups.values():
+            node_dict = {
+                'fqdn': node_backup.fqdn,
+                'started': node_backup.started,
+                'finished': node_backup.finished,
+                'server_type': node_backup.server_type,
+                'release_version': node_backup.release_version
+            }
             if node_backup.finished:
                 node_size = node_backup.size()
                 node_objects = node_backup.num_objects()
-                nodes_list.append({
-                    'fqdn': node_backup.fqdn,
-                    'started': node_backup.started,
-                    'finished': node_backup.finished,
-                    'size': node_size,
-                    'num_objects': node_objects,
-                    'server_type': node_backup.server_type,
-                    'release_version': node_backup.release_version
-                })
+                node_dict['size'] = node_size
+                node_dict['num_objects'] = node_objects
+                nodes_list.append(node_dict)
                 total_size += node_size
                 total_objects += node_objects
             else:
-                incomplete_nodes_list.append({
-                    'fqdn': node_backup.fqdn,
-                    'started': node_backup.started,
-                    'finished': None,
-                    'size': 0,
-                    'num_objects': 0,
-                    'server_type': node_backup.server_type,
-                    'release_version': node_backup.release_version
-                })
+                node_dict['size'] = 0
+                node_dict['num_objects'] = 0
+                incomplete_nodes_list.append(node_dict)
         missing_nodes = self.missing_nodes()
         return {
             'name': self.name,

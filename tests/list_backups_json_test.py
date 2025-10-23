@@ -97,11 +97,9 @@ class StubClusterBackup:
             'name': self.name,
             'started': self.started,
             'finished': self.finished,
-            'complete': self.is_complete(),
             'backup_type': self.backup_type,
             'size': total_size,
             'num_objects': total_objects,
-            'total_nodes': len(self.tokenmap),
             'completed_nodes': len(nodes_list),
             'nodes': nodes_list,
             'incomplete_nodes': len(incomplete_nodes_list),
@@ -127,16 +125,14 @@ def test_list_backups_json_all_complete(monkeypatch, capsys):
     assert len(backups_json) == 2
     for b in backups_json:
         expected_keys = {
-            "name", "started", "finished", "complete", "backup_type",
-            "size", "num_objects", "total_nodes",
+            "name", "started", "finished", "backup_type",
+            "size", "num_objects",
             "completed_nodes", "nodes",
             "incomplete_nodes", "incomplete_nodes_list",
             "missing_nodes", "missing_nodes_list"
         }
         assert set(b.keys()) == expected_keys
         assert b['finished'] is not None
-        assert b['complete'] is True
-        assert b['completed_nodes'] == b['total_nodes']
         assert b['incomplete_nodes'] == 0
         assert b['missing_nodes'] == 0
         assert len(b['nodes']) == b['completed_nodes']
@@ -159,9 +155,7 @@ def test_list_backups_json_with_incomplete(monkeypatch, capsys):
     assert len(backups_json) == 2
     incomplete = next(b for b in backups_json if b['name'] == 'b2')
     assert incomplete['finished'] is None
-    assert incomplete['complete'] is False
     assert incomplete['completed_nodes'] == 3
-    assert incomplete['total_nodes'] == 5
     assert incomplete['incomplete_nodes'] == 1
     assert incomplete['missing_nodes'] == 1
     assert len(incomplete['nodes']) == 3
@@ -171,8 +165,6 @@ def test_list_backups_json_with_incomplete(monkeypatch, capsys):
     assert incomplete['size'] == 800000
     assert incomplete['num_objects'] == 80
     complete = next(b for b in backups_json if b['name'] == 'b1')
-    assert complete['complete'] is True
-    assert complete['completed_nodes'] == complete['total_nodes']
     assert complete['incomplete_nodes'] == 0
     assert complete['missing_nodes'] == 0
     assert len(complete['nodes']) == 4
