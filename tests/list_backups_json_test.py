@@ -113,13 +113,17 @@ def _dummy_config():
     return SimpleNamespace(storage=SimpleNamespace(fqdn='dummy'))
 
 
+def _dummy_storage():
+    return SimpleNamespace()
+
+
 def test_list_backups_json_all_complete(monkeypatch, capsys):
     backups = [
         StubClusterBackup('b1', 0, 3600, 3, 3, 0, 0, 'full', 1000000, 100),
         StubClusterBackup('b2', 7200, 10800, 5, 5, 0, 0, 'differential', 2000000, 200),
     ]
     monkeypatch.setattr(listing, 'get_backups', lambda storage, config, show_all: backups)
-    listing.list_backups_w_storage(_dummy_config(), True, storage=None, output='json')
+    listing.list_backups_w_storage(_dummy_config(), True, storage=_dummy_storage(), output='json')
     out = capsys.readouterr().out.strip()
     backups_json = json.loads(out)
     assert len(backups_json) == 2
@@ -149,7 +153,7 @@ def test_list_backups_json_with_incomplete(monkeypatch, capsys):
         StubClusterBackup('b2', 4000, None, 5, 3, 1, 1, 'differential', 800000, 80),
     ]
     monkeypatch.setattr(listing, 'get_backups', lambda storage, config, show_all: backups)
-    listing.list_backups_w_storage(_dummy_config(), True, storage=None, output='json')
+    listing.list_backups_w_storage(_dummy_config(), True, storage=_dummy_storage(), output='json')
     out = capsys.readouterr().out.strip()
     backups_json = json.loads(out)
     assert len(backups_json) == 2
@@ -178,7 +182,7 @@ def test_list_backups_json_with_incomplete(monkeypatch, capsys):
 def test_list_backups_json_empty(monkeypatch, capsys):
     backups = []
     monkeypatch.setattr(listing, 'get_backups', lambda storage, config, show_all: backups)
-    listing.list_backups_w_storage(_dummy_config(), True, storage=None, output='json')
+    listing.list_backups_w_storage(_dummy_config(), True, storage=_dummy_storage(), output='json')
     out = capsys.readouterr().out.strip()
     backups_json = json.loads(out)
     assert len(backups_json) == 0
