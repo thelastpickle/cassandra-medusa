@@ -95,7 +95,7 @@ Java is required for Cassandra and CCM. We'll install OpenJDK 8 and 11 since dif
 sudo apt install -y zip unzip
 
 curl -s "https://get.sdkman.io" | bash
-source "/home/ubuntu/.sdkman/bin/sdkman-init.sh"
+source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 sdk install java 11.0.28-tem
 sdk use java 11.0.28-tem
@@ -115,7 +115,6 @@ Create the python env for cassandra-medusa
 
 ```bash
 pyenv install 3.10.19
-pyenv virtualenv 3.10.19 venv-medusa
 ```
 
 Need poetry project file in cassandra-medusa repo:
@@ -135,7 +134,7 @@ pip install keyring secretstorage
 # Install Test helpers
 poetry install
 poetry run pip install git+https://github.com/riptano/ccm.git
-cd .
+cd .   # This is important. Otherwise, CCM will not work. Or restart shell session.
 ccm
 ```
 
@@ -146,7 +145,7 @@ If `ccm` application is not working, restart your shell and go in cassandra-medu
 ```bash
 # Check Python syntax errors or undefined names
 poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-# An other check
+# Another check
 poetry run flake8 . --count --exit-zero --max-complexity=10 --statistics --ignore=W503
 # Run unit test
 poetry run tox
