@@ -12,6 +12,10 @@ import medusa.status as status_module
 
 
 EPOCH_BASE = 1700000000
+NODE1_FQDN = 'node1.example.com'
+NODE2_FQDN = 'node2.example.com'
+NODE3_FQDN = 'node3.example.com'
+MEDUSA_STATUS_STORAGE_PATH = 'medusa.status.Storage'
 
 
 class StubNodeBackup:
@@ -130,13 +134,13 @@ def _dummy_config():
 def test_status_json_complete_backup(capsys):
     """Test status with JSON output for a complete backup."""
     node_backups = [
-        StubNodeBackup('node1.example.com', 0, 1800, 500000, 50, 'cassandra', '5.0.4'),
-        StubNodeBackup('node2.example.com', 100, 1900, 600000, 60, 'cassandra', '5.0.4'),
-        StubNodeBackup('node3.example.com', 200, 2000, 700000, 70, 'cassandra', '5.0.4'),
+        StubNodeBackup(NODE1_FQDN, 0, 1800, 500000, 50, 'cassandra', '5.0.4'),
+        StubNodeBackup(NODE2_FQDN, 100, 1900, 600000, 60, 'cassandra', '5.0.4'),
+        StubNodeBackup(NODE3_FQDN, 200, 2000, 700000, 70, 'cassandra', '5.0.4'),
     ]
     backup = StubClusterBackup('test_backup_complete', 0, 2000, node_backups, 3)
 
-    with patch('medusa.status.Storage') as mock_storage:
+    with patch(MEDUSA_STATUS_STORAGE_PATH) as mock_storage:
         mock_storage_instance = MagicMock()
         mock_storage_instance.__enter__.return_value = mock_storage_instance
         mock_storage_instance.get_cluster_backup.return_value = backup
@@ -174,13 +178,13 @@ def test_status_json_complete_backup(capsys):
 def test_status_json_incomplete_backup(capsys):
     """Test status with JSON output for an incomplete backup."""
     node_backups = [
-        StubNodeBackup('node1.example.com', 0, 1800, 500000, 50, 'cassandra', '5.0.4'),
-        StubNodeBackup('node2.example.com', 100, None, 0, 0, 'cassandra', '5.0.4'),  # incomplete
+        StubNodeBackup(NODE1_FQDN, 0, 1800, 500000, 50, 'cassandra', '5.0.4'),
+        StubNodeBackup(NODE2_FQDN, 100, None, 0, 0, 'cassandra', '5.0.4'),
     ]
     backup = StubClusterBackup('test_backup_incomplete', 0, None, node_backups, 3,
-                               missing_nodes_list=['node3.example.com'])
+                               missing_nodes_list=[NODE3_FQDN])
 
-    with patch('medusa.status.Storage') as mock_storage:
+    with patch(MEDUSA_STATUS_STORAGE_PATH) as mock_storage:
         mock_storage_instance = MagicMock()
         mock_storage_instance.__enter__.return_value = mock_storage_instance
         mock_storage_instance.get_cluster_backup.return_value = backup
@@ -198,22 +202,22 @@ def test_status_json_incomplete_backup(capsys):
     assert result['missing_nodes'] == 1
 
     assert len(result['nodes']) == 1
-    assert result['nodes'][0]['fqdn'] == 'node1.example.com'
+    assert result['nodes'][0]['fqdn'] == NODE1_FQDN
     assert result['nodes'][0]['finished'] is not None
 
     assert len(result['incomplete_nodes_list']) == 1
-    assert result['incomplete_nodes_list'][0]['fqdn'] == 'node2.example.com'
+    assert result['incomplete_nodes_list'][0]['fqdn'] == NODE2_FQDN
     assert result['incomplete_nodes_list'][0]['finished'] is None
     assert result['incomplete_nodes_list'][0]['size'] == 0
     assert result['incomplete_nodes_list'][0]['num_objects'] == 0
 
     # Check missing nodes list
-    assert result['missing_nodes_list'] == ['node3.example.com']
+    assert result['missing_nodes_list'] == [NODE3_FQDN]
 
 
 def test_status_json_backup_not_found(capsys):
     """Test status with JSON output when backup is not found."""
-    with patch('medusa.status.Storage') as mock_storage:
+    with patch(MEDUSA_STATUS_STORAGE_PATH) as mock_storage:
         mock_storage_instance = MagicMock()
         mock_storage_instance.__enter__.return_value = mock_storage_instance
         mock_storage_instance.get_cluster_backup.side_effect = KeyError('Backup not found')
@@ -233,11 +237,11 @@ def test_status_json_backup_not_found(capsys):
 def test_status_json_all_keys_present(capsys):
     """Test that all expected keys are present in JSON output."""
     node_backups = [
-        StubNodeBackup('node1.example.com', 0, 1800, 100000, 10, 'cassandra', '4.0.0'),
+        StubNodeBackup(NODE1_FQDN, 0, 1800, 100000, 10, 'cassandra', '4.0.0'),
     ]
     backup = StubClusterBackup('test_backup', 0, 1800, node_backups, 1)
 
-    with patch('medusa.status.Storage') as mock_storage:
+    with patch(MEDUSA_STATUS_STORAGE_PATH) as mock_storage:
         mock_storage_instance = MagicMock()
         mock_storage_instance.__enter__.return_value = mock_storage_instance
         mock_storage_instance.get_cluster_backup.return_value = backup
