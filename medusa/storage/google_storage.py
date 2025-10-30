@@ -52,7 +52,7 @@ class GoogleStorage(AbstractStorage):
 
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
-        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else -1
+        self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
 
         super().__init__(config)
 
@@ -135,7 +135,7 @@ class GoogleStorage(AbstractStorage):
             object_name=object_key,
             file_data=data,
             force_resumable_upload=True,
-            timeout=-1,
+            timeout=None,
         )
         return AbstractBlob(
             resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
@@ -211,7 +211,7 @@ class GoogleStorage(AbstractStorage):
                 object_name=f'{src}'.replace(f'gs://{self.bucket_name}/', ''),
                 destination_bucket=self.bucket_name,
                 new_name=object_key,
-                timeout=-1,
+                timeout=None,
             )
             resp = resp['resource']
         else:
@@ -227,7 +227,7 @@ class GoogleStorage(AbstractStorage):
                     object_name=object_key,
                     file_data=src_file,
                     force_resumable_upload=True,
-                    timeout=-1,
+                    timeout=None,
                 )
         mo = ManifestObject(resp['name'], int(resp['size']), resp['md5Hash'])
         return mo
@@ -255,7 +255,7 @@ class GoogleStorage(AbstractStorage):
         await self.gcs_storage.delete(
             bucket=self.bucket_name,
             object_name=obj.name,
-            timeout=-1,
+            timeout=None,
         )
 
     @staticmethod
