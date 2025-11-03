@@ -1,28 +1,20 @@
-FROM --platform=linux/${TARGETARCH} ubuntu:22.04 AS base
+FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi10/ubi-minimal:latest AS base
 
 ARG TARGETARCH
 
 RUN mkdir /install
 WORKDIR /install
-
-RUN apt-get update && \
-    apt-get install -y software-properties-common curl gnupg
-
-RUN apt-get update \
-    && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
-        debhelper \
-        python3-all \
-        python3-all-dev \
-        python3-dev \
+RUN microdnf install -y \
+        python3 \
+        python3-devel \
         python3-pip \
         python3-setuptools \
-        python3-venv \
-        build-essential \
-        devscripts \
-        equivs \
+        gcc \
+        gcc-c++ \
+        make \
         wget \
-        apt-transport-https \
-        ca-certificates
+        ca-certificates \
+    && microdnf clean all
 
 ENV PATH=/root/.local/bin:$PATH
 
@@ -30,28 +22,31 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN python3 -m pip install -U pip && pip3 install --ignore-installed --user poetry
+RUN pip3 install --ignore-installed --user poetry==2.2.1
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install
 
 # Could be python:slim, but we have a .sh entrypoint
-FROM --platform=linux/${TARGETARCH} ubuntu:22.04
+FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi10/ubi-minimal:latest
 
 # Reuse the architecture argument
 ARG TARGETARCH
 
 ## add user
-RUN groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra
+RUN microdnf install -y shadow-utils \
+    && groupadd -r cassandra --gid=999 && useradd -r -g cassandra --uid=999 --create-home cassandra \
+    && microdnf remove -y shadow-utils \
+    && microdnf clean all
 
 # wget could happen in the build-phase
-RUN apt-get update && apt-get install -y python3 python3-setuptools wget \
-    && rm -rf /var/lib/apt/lists/*
+RUN microdnf install -y python3 python3-setuptools wget jq findutils \
+    && microdnf clean all
 
-# Download the correct grpc_health_probe binary based on architecture
-RUN GRPC_HEALTH_PROBE_VERSION=v0.4.25 && \
-wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-${TARGETARCH} && \
-chmod +x /bin/grpc_health_probe
+# Download the the latest grpc_health_probe binary build for the correct architecture
+RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
+    | jq --arg TARGETARCH $TARGETARCH -r ' .assets[] | select(.name | contains("linux")) | select(.name | contains($TARGETARCH)) | .browser_download_url' \
+    | xargs -I {} wget -qO/bin/grpc_health_probe {} &&  chmod +x /bin/grpc_health_probe
 
 USER cassandra
 WORKDIR /home/cassandra

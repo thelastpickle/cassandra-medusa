@@ -57,6 +57,7 @@ Feature: Integration tests
         | storage           | client encryption |
         | s3_us_west_oregon     | without_client_encryption |
         | s3_us_west_oregon_encrypted     | without_client_encryption |
+        | s3_us_west_oregon_encrypted_sse_c | without_client_encryption |
 
         @gcs
         Examples: Google Cloud Storage
@@ -752,34 +753,35 @@ Feature: Integration tests
         | storage           | client encryption |
         | s3_us_west_oregon     |  without_client_encryption |
 
-    @18 @skip-cassandra-2
-    Scenario Outline: Perform differential backups over gRPC , verify its index, then delete it over gRPC with management API
-        Given I have a fresh ccm cluster with mgmt api "<client encryption>" named "scenario18"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with mgmt api
-        Then the gRPC server is up
-        When I create the "test" table in keyspace "medusa"
-        When I load 100 rows in the "medusa.test" table
-        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2"
-        Then the backup index exists
-        Then I verify over gRPC that the backup "grpc_backup_2" exists and is of type "differential"
-        Then I can see the backup index entry for "grpc_backup_2"
-        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
-        Then I wait for 10 seconds
-        When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
-        Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
-        Then I can see the backup index entry for "grpc_backup_2_2"
-        Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
-        When I perform a purge over gRPC
-        Then 1 backup has been purged
-        Then I verify over gRPC that the backup "grpc_backup_2" does not exist
-        Then I shutdown the gRPC server
-        Then I shutdown the mgmt api server
-
-        @local
-        Examples: Local storage
-        | storage           | client encryption |
-        | local      |  with_client_encryption |
+    # TODO: Uncomment this when we have a way to run the management API server on the new Ubuntu 24 runners
+    #@18 @skip-cassandra-2
+    #Scenario Outline: Perform differential backups over gRPC , verify its index, then delete it over gRPC with management API
+    #    Given I have a fresh ccm cluster with mgmt api "<client encryption>" named "scenario18"
+    #    Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with mgmt api
+    #    Then the gRPC server is up
+    #    When I create the "test" table in keyspace "medusa"
+    #    When I load 100 rows in the "medusa.test" table
+    #    When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+    #    When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2"
+    #    Then the backup index exists
+    #    Then I verify over gRPC that the backup "grpc_backup_2" exists and is of type "differential"
+    #    Then I can see the backup index entry for "grpc_backup_2"
+    #    Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2"
+    #    Then I wait for 10 seconds
+    #    When I perform a backup over gRPC in "differential" mode of the node named "grpc_backup_2_2"
+    #    Then I verify over gRPC that the backup "grpc_backup_2_2" exists and is of type "differential"
+    #    Then I can see the backup index entry for "grpc_backup_2_2"
+    #    Then I can see the latest backup for "127.0.0.1" being called "grpc_backup_2_2"
+    #    When I perform a purge over gRPC
+    #    Then 1 backup has been purged
+    #    Then I verify over gRPC that the backup "grpc_backup_2" does not exist
+    #    Then I shutdown the gRPC server
+    #    Then I shutdown the mgmt api server
+    #
+    #    @local
+    #    Examples: Local storage
+    #    | storage           | client encryption |
+    #    | local      |  with_client_encryption |
     
     @19
     Scenario Outline: Test backup gc grace period with purge
@@ -1187,3 +1189,54 @@ Feature: Integration tests
         | azure_blobs | without_client_encryption | HOT           |
         | azure_blobs | without_client_encryption | COOL          |
         | azure_blobs | without_client_encryption | COLD          |
+
+    @33
+    Scenario Outline: Create a backup with a name without deleting the snapshot once uploaded
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario33"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I perform a backup in "full" mode of the node named "backup-keep" with md5 checks "disabled" and keep_snapshot "enabled"
+        Then I can verify the backup named "backup-keep" with md5 checks "enabled" successfully
+        Then I verify the snapshot named "medusa-backup-keep" "is present" on the node
+
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  without_client_encryption |
+
+    @34
+    Scenario Outline: Manually create a snapshot with a name, create a backup with this snapshot
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario34"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I create a snapshot named "manual_snapshot"
+        When I perform a backup in "full" mode of the node named "manual_snapshot" with md5 checks "disabled" and use_existing_snapshot "enabled" and keep_snapshot "enabled"
+        Then I can verify the backup named "manual_snapshot" with md5 checks "enabled" successfully
+        Then I verify the snapshot named "manual_snapshot" "is present" on the node
+        @local
+        Examples: Local storage
+        | storage           | client encryption |
+        | local      |  without_client_encryption |
+
+    @35
+    Scenario Outline: Verify a backup happens correctly from an older snapshot
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario35"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I create a snapshot named "backup_from_snapshot"
+        When I load 200 rows in the "medusa.test" table
+        When I create a snapshot named "never_used_snapshot"
+        When I perform a backup in "full" mode of the node named "regular_backup" with md5 checks "disabled"
+        When I perform a backup in "full" mode of the node named "backup_from_snapshot" with md5 checks "disabled" and use_existing_snapshot "enabled" and keep_snapshot "disabled"
+        Then I verify the snapshot named "backup_from_snapshot" "is not present" on the node
+        When I restore the backup named "backup_from_snapshot"
+        Then I have 100 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        When I restore the backup named "regular_backup"
+        Then I have 300 rows in the "medusa.test" table in ccm cluster "<client encryption>"
+        @local
+        Examples: Local storage
+        | storage    | client encryption          |
+        | local      |  without_client_encryption |

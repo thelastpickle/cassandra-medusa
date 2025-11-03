@@ -1,3 +1,33 @@
+cassandra-medusa (0.25.1) stable; urgency=medium
+
+  * Release 0.25.1 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Thu, 25 Sep 2025 16:12:02 +0000
+
+cassandra-medusa (0.25.0) stable; urgency=medium
+
+  * Release 0.25.0 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Wed, 30 Jul 2025 12:27:40 +0000
+
+cassandra-medusa (0.24.1) stable; urgency=medium
+
+  * Release 0.24.1 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Fri, 13 Jun 2025 16:52:50 +0000
+
+cassandra-medusa (0.24.0) stable; urgency=medium
+
+  * Release 0.24.0 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Fri, 04 Apr 2025 07:29:47 +0000
+
+cassandra-medusa (0.23.0) stable; urgency=medium
+
+  * Release 0.23.0 of Medusa - Backups for Apache Cassandra.
+
+ -- The Last Pickle <oss@thelastpickle.com>  Tue, 14 Jan 2025 10:14:27 +0000
+
 cassandra-medusa (0.22.3) stable; urgency=medium
 
   * Release 0.22.3 of Medusa - Backups for Apache Cassandra.

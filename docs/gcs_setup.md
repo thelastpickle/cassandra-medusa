@@ -35,7 +35,7 @@ gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
 
 ### Create a service account and download its keys
 
-Medusa will require a `credentials.json` file with the information and keys for a service account with the appropriate role in order to interact with the bucket.
+Medusa will require a `credentials.json` file with the information and keys for a service account with the appropriate role in order to interact with the bucket.
 
 Create the service account (if it doesn't exist yet):
 
@@ -43,7 +43,7 @@ Create the service account (if it doesn't exist yet):
 gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
 ```
 
-### Configure the service account with the role
+### Configure the service account with the role
 
 Once the service account has been created, and considering [jq](https://stedolan.github.io/jq/) is installed, run the following command to add the `MedusaStorageRole` to it, for our backup bucket:
 

@@ -12,40 +12,64 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version: '2.1'
-
 services:
-  cassandra-medusa-builder-focal:
+  cassandra-medusa-builder-jammy:
     build:
+      platforms:
+        - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu
       args:
-        - BUILD_IMAGE=ubuntu:20.04
+        - BUILD_IMAGE=ubuntu:22.04
         - EXTRA_PACKAGES=""
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-bionic:
+  cassandra-medusa-tester-jammy:
     build:
+      platforms:
+        - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-tester
       args:
-        - BUILD_IMAGE=ubuntu:18.04
+        - BUILD_IMAGE=ubuntu:22.04
+    volumes:
+      - ../../packages:/usr/src/app/packages
+  cassandra-medusa-builder-bullseye:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian-11
+      args:
+        - BUILD_IMAGE=debian:bullseye
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
-  cassandra-medusa-builder-buster:
+  cassandra-medusa-builder-bookworm:
     build:
+      platforms:
+        - linux/amd64
       context: ../..
-      dockerfile: packaging/docker-build/Dockerfile
+      dockerfile: packaging/docker-build/Dockerfile-debian-12
       args:
-        - BUILD_IMAGE=debian:buster
+        - BUILD_IMAGE=debian:bookworm
     volumes:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-bookworm:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-tester
+      args:
+        - BUILD_IMAGE=debian:bookworm
+    volumes:
+      - ../../packages:/usr/src/app/packages
   release:
     build:
       context: ../..

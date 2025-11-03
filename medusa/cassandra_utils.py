@@ -34,7 +34,7 @@ from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.util import Version
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from medusa.host_man import HostMan
 from medusa.network.hostname_resolver import HostnameResolver
@@ -332,7 +332,7 @@ class CassandraConfigReader(object):
 
     @property
     def seeds(self):
-        seeds = list()
+        seeds = []
         if 'seed_provider' in self._config and self._config['seed_provider'] and \
                 self._config['seed_provider'][0]['class_name'].endswith('SimpleSeedProvider'):
             return self._config.get('seed_provider')[0]['parameters'][0]['seeds'].replace(' ', '').split(',')
@@ -493,16 +493,20 @@ class Cassandra(object):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
     class Snapshot(object):
-        def __init__(self, parent, tag):
+        def __init__(self, parent, tag, keep_snapshot=False):
             self._parent = parent
             self._tag = tag
+            self._keep_snapshot = keep_snapshot
 
         def __enter__(self):
             return self
 
         def __exit__(self, exc_type, exc_val, exc_tb):
-            logging.debug('Cleaning up Cassandra snapshot')
-            self.delete()
+            if not self._keep_snapshot:
+                logging.debug('Cleaning up Cassandra snapshot')
+                self.delete()
+            else:
+                logging.debug('Keeping snapshot {}'.format(self._tag))
 
         @property
         def cassandra(self):
@@ -535,12 +539,12 @@ class Cassandra(object):
         def __repr__(self):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
-    def create_snapshot(self, backup_name):
+    def create_snapshot(self, backup_name, keep_snapshot=False):
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.snapshot_exists(tag):
             self.snapshot_service.create_snapshot(tag=tag)
 
-        return Cassandra.Snapshot(self, tag)
+        return Cassandra.Snapshot(self, tag, keep_snapshot)
 
     def delete_snapshot(self, tag):
         if self.snapshot_exists(tag):
@@ -553,9 +557,9 @@ class Cassandra(object):
             if snapshot.is_dir()
         }
 
-    def get_snapshot(self, tag):
+    def get_snapshot(self, tag, keep_snapshot=False):
         if any(self.root.glob(self.SNAPSHOT_PATTERN.format(tag))):
-            return Cassandra.Snapshot(self, tag)
+            return Cassandra.Snapshot(self, tag, keep_snapshot)
 
         raise KeyError('Snapshot {} does not exist'.format(tag))
 
@@ -684,7 +688,7 @@ class Cassandra(object):
                 cassandra_yaml.write('\nauto_bootstrap: false')
 
 
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=5000, wait_exponential_max=120000)
+@retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=5, max=120))
 def wait_for_node_to_come_up(config, host):
     logging.info('Waiting for Cassandra to come up on {}'.format(host))
 
@@ -695,7 +699,7 @@ def wait_for_node_to_come_up(config, host):
         return True
 
 
-@retry(stop_max_attempt_number=7, wait_exponential_multiplier=5000, wait_exponential_max=120000)
+@retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=5, max=120))
 def wait_for_node_to_go_down(config, host):
     logging.info('Waiting for Cassandra to go down on {}'.format(host))
 
@@ -834,7 +838,7 @@ def is_open(host, port):
     return is_accessible
 
 
-@retry(stop_max_attempt_number=5, wait_exponential_multiplier=5000, wait_exponential_max=120000)
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=5, max=120))
 def is_cassandra_up(host, port):
     if is_open(host, port):
         return True

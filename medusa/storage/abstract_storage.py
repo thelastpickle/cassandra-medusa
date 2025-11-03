@@ -25,7 +25,7 @@ import pathlib
 import typing as t
 
 from pathlib import Path
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
 
 
 BLOCK_SIZE_BYTES = 65536
@@ -37,7 +37,8 @@ MAX_UP_DOWN_LOAD_RETRIES = 5
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 
-AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata', ['name', 'sse_enabled', 'sse_key_id'])
+AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata',
+                                              ['name', 'sse_enabled', 'sse_key_id', 'sse_customer_key_md5'])
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -64,7 +65,7 @@ class AbstractStorage(abc.ABC):
     def disconnect(self):
         raise NotImplementedError
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
@@ -75,7 +76,7 @@ class AbstractStorage(abc.ABC):
 
         return objects
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def list_blobs(self, prefix=None):
         loop = self.get_or_create_event_loop()
         objects = loop.run_until_complete(self._list_blobs(prefix))
@@ -116,7 +117,7 @@ class AbstractStorage(abc.ABC):
             ]
             await asyncio.gather(*coros)
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         headers = self.additional_upload_headers()
 
@@ -184,7 +185,7 @@ class AbstractStorage(abc.ABC):
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         raise NotImplementedError()
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def get_blob(self, path: t.Union[Path, str]):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
@@ -205,14 +206,14 @@ class AbstractStorage(abc.ABC):
     async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
         raise NotImplementedError()
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def get_blob_content_as_string(self, path: t.Union[Path, str]):
         blob = self.get_blob(str(path))
         if blob is None:
             return None
         return self.read_blob_as_string(blob)
 
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def get_blob_content_as_bytes(self, path: t.Union[Path, str]):
         blob = self.get_blob(str(path))
         return self.read_blob_as_bytes(blob)
@@ -297,12 +298,12 @@ class AbstractStorage(abc.ABC):
     async def _delete_object(self, obj: AbstractBlob):
         raise NotImplementedError()
 
-    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
     def get_blobs_metadata(self, blob_keys):
         loop = self.get_or_create_event_loop()
         return loop.run_until_complete(self._get_blobs_metadata(blob_keys))
 
-    @retry(stop_max_attempt_number=5, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
     def get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
         loop = self.get_or_create_event_loop()
         return loop.run_until_complete(self._get_blob_metadata(blob_key))
@@ -320,7 +321,7 @@ class AbstractStorage(abc.ABC):
     async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
         # Only S3 really implements this because of the KMS support
         # Other storage providers don't do that for now
-        return AbstractBlobMetadata(blob_key, False, None)
+        return AbstractBlobMetadata(blob_key, False, None, None)
 
     @staticmethod
     def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
@@ -358,7 +359,7 @@ class AbstractStorage(abc.ABC):
     def md5_part(f):
         hash_md5 = hashlib.md5()
         eof = False
-        for i in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
+        for _ in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
             chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
             if chunk == b'':
                 eof = True

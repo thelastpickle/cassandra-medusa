@@ -15,13 +15,11 @@
 
 import logging
 
-from medusa.monitoring.ffwd import FfwdMonitoring
 from medusa.monitoring.noop import NoopMonitoring
 from medusa.monitoring.local import LocalMonitoring
 from medusa.monitoring.dogstatsd import DogStatsdMonitoring
 
 
-PROVIDER_FFWD = 'ffwd'
 PROVIDER_DOG_STATSD = 'dog-statsd'
 PROVIDER_NONE = 'None'
 PROVIDER_INMEM = 'local'
@@ -35,10 +33,7 @@ class Monitoring(object):
 
     def _connect_monitoring(self):
 
-        if self._config.monitoring_provider == PROVIDER_FFWD:
-            logging.info('Monitoring provider is ffwd')
-            return FfwdMonitoring(self._config)
-        elif self._config.monitoring_provider == PROVIDER_NONE:
+        if self._config.monitoring_provider == PROVIDER_NONE:
             logging.info('Monitoring provider is noop')
             return NoopMonitoring(self._config)
         elif self._config.monitoring_provider == PROVIDER_DOG_STATSD:

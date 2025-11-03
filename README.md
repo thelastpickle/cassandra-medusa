@@ -60,6 +60,8 @@ You can find the Docker images for Cassandra Medusa at [https://hub.docker.com/r
 Dependencies
 ------------
 
-Medusa requires Python 3.8 or newer.
+Medusa requires Python 3.9 or newer.
 
 For information on the packaged dependencies of Medusa for Apache Cassandra&reg; and their licenses, check out our [open source report](https://app.fossa.com/reports/cac72e73-1214-4e6d-8476-76567e08db21).
+
+

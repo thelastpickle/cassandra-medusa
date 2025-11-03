@@ -29,7 +29,7 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from pathlib import Path
-from retrying import retry
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from medusa.storage.abstract_storage import (
     AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject, ObjectDoesNotExistError
@@ -37,6 +37,7 @@ from medusa.storage.abstract_storage import (
 
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
+AWS_KMS_ENCRYPTION = 'aws:kms'
 
 """
     S3BaseStorage supports all the S3 compatible storages. Certain providers might override this method
@@ -107,6 +108,11 @@ class S3BaseStorage(AbstractStorage):
             logging.debug("Using KMS key {}".format(config.kms_id))
             self.kms_id = config.kms_id
 
+        self.sse_c_key = None
+        if config.sse_c_key is not None:
+            logging.debug("Using SSE-C key *****")
+            self.sse_c_key = base64.b64decode(config.sse_c_key)
+
         self.credentials = self._consolidate_credentials(config)
         logging.info('Using credentials {}'.format(self.credentials))
 
@@ -136,10 +142,10 @@ class S3BaseStorage(AbstractStorage):
 
         boto_config = Config(
             region_name=self.credentials.region,
-            signature_version='v4',
             tcp_keepalive=True,
             max_pool_connections=max_pool_size,
             read_timeout=self.read_timeout,
+            s3={'addressing_style': self.config.s3_addressing_style},
         )
         if self.credentials.access_key_id is not None:
             self.s3_client = boto3.client(
@@ -187,6 +193,7 @@ class S3BaseStorage(AbstractStorage):
     def _make_transfer_config(self, config):
 
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
+        multipart_chunksize = config.multipart_chunksize or None
 
         # we hard-code this one because the parallelism is for now applied to chunking the files
         transfer_config = {
@@ -196,6 +203,8 @@ class S3BaseStorage(AbstractStorage):
         if transfer_max_bandwidth is not None:
             transfer_config['max_bandwidth'] = AbstractStorage._human_size_to_bytes(transfer_max_bandwidth)
 
+        if multipart_chunksize is not None:
+            transfer_config['multipart_chunksize'] = AbstractStorage._human_size_to_bytes(multipart_chunksize)
         return TransferConfig(**transfer_config)
 
     @staticmethod
@@ -258,17 +267,21 @@ class S3BaseStorage(AbstractStorage):
 
         return blobs
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
 
-        kms_args = {}
+        extra_args = {}
         if self.kms_id is not None:
-            kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.kms_id
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
+            extra_args['SSEKMSKeyId'] = self.kms_id
+
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
 
         storage_class = self.get_storage_class()
         if storage_class is not None:
-            kms_args['StorageClass'] = storage_class
+            extra_args['StorageClass'] = storage_class
 
         logging.debug(
             '[S3 Storage] Uploading object from stream -> s3://{}/{}'.format(
@@ -283,7 +296,7 @@ class S3BaseStorage(AbstractStorage):
                 Bucket=self.bucket_name,
                 Key=object_key,
                 Body=data,
-                **kms_args,
+                **extra_args,
             )
         except Exception as e:
             logging.error(e)
@@ -291,7 +304,7 @@ class S3BaseStorage(AbstractStorage):
         blob = await self._stat_blob(object_key)
         return blob
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _download_blob(self, src: str, dest: str):
         # boto has a connection pool, but it does not support the asyncio API
         # so we make things ugly and submit the whole download as a task to an executor
@@ -316,12 +329,18 @@ class S3BaseStorage(AbstractStorage):
             )
         )
 
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
         try:
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
             self.s3_client.download_file(
                 Bucket=self.bucket_name,
                 Key=object_key,
                 Filename=file_path,
+                ExtraArgs=extra_args,
                 Config=self.transfer_config,
             )
         except Exception as e:
@@ -330,7 +349,12 @@ class S3BaseStorage(AbstractStorage):
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
         try:
-            resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_key)
+            extra_args = {}
+            if self.sse_c_key is not None:
+                extra_args['SSECustomerAlgorithm'] = 'AES256'
+                extra_args['SSECustomerKey'] = self.sse_c_key
+
+            resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_key, **extra_args)
             item_hash = resp['ETag'].replace('"', '')
             return AbstractBlob(object_key, int(resp['ContentLength']), item_hash, resp['LastModified'], None)
         except ClientError as e:
@@ -339,29 +363,38 @@ class S3BaseStorage(AbstractStorage):
                 raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
             else:
                 # Handle other exceptions if needed
-                logging.error("An error occurred:", e)
+                logging.error("An error occurred: %s", e)
                 logging.error('Error getting object from s3://{}/{}'.format(self.bucket_name, object_key))
 
     def __stat_blob(self, key):
-        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=key, **extra_args)
         item_hash = resp['ETag'].replace('"', '')
         return AbstractBlob(key, int(resp['ContentLength']), item_hash, resp['LastModified'], None)
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
 
         # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
         object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        kms_args = {}
+        extra_args = {}
         if self.kms_id is not None:
-            kms_args['ServerSideEncryption'] = 'aws:kms'
-            kms_args['SSEKMSKeyId'] = self.kms_id
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
+            extra_args['SSEKMSKeyId'] = self.kms_id
+
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
 
         storage_class = self.get_storage_class()
         if storage_class is not None:
-            kms_args['StorageClass'] = storage_class
+            extra_args['StorageClass'] = storage_class
 
         file_size = os.stat(src).st_size
         logging.debug(
@@ -375,7 +408,7 @@ class S3BaseStorage(AbstractStorage):
             'Bucket': self.bucket_name,
             'Key': object_key,
             'Config': self.transfer_config,
-            'ExtraArgs': kms_args,
+            'ExtraArgs': extra_args,
         }
         # we are going to combine asyncio with boto's threading
         # we do this by submitting the upload into an executor
@@ -387,7 +420,13 @@ class S3BaseStorage(AbstractStorage):
 
     def __upload_file(self, upload_conf):
         self.s3_client.upload_file(**upload_conf)
-        resp = self.s3_client.head_object(Bucket=upload_conf['Bucket'], Key=upload_conf['Key'])
+
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        resp = self.s3_client.head_object(Bucket=upload_conf['Bucket'], Key=upload_conf['Key'], **extra_args)
         blob_name = upload_conf['Key']
         blob_size = int(resp['ContentLength'])
         blob_hash = resp['ETag'].replace('"', '')
@@ -398,9 +437,14 @@ class S3BaseStorage(AbstractStorage):
         return blob
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
-        return self.s3_client.get_object(Bucket=self.bucket_name, Key=blob.name)['Body'].read()
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
 
-    @retry(stop_max_attempt_number=MAX_UP_DOWN_LOAD_RETRIES, wait_fixed=5000)
+        return self.s3_client.get_object(Bucket=self.bucket_name, Key=blob.name, **extra_args)['Body'].read()
+
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
     async def _delete_object(self, obj: AbstractBlob):
         self.s3_client.delete_object(
             Bucket=self.bucket_name,
@@ -408,7 +452,12 @@ class S3BaseStorage(AbstractStorage):
         )
 
     async def _get_blob_metadata(self, blob_key: str) -> AbstractBlobMetadata:
-        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=blob_key)
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        resp = self.s3_client.head_object(Bucket=self.bucket_name, Key=blob_key, **extra_args)
 
         # the headers come as some non-default dict, so we need to re-package them
         blob_metadata = resp.get('ResponseMetadata', {}).get('HTTPHeaders', {})
@@ -417,9 +466,13 @@ class S3BaseStorage(AbstractStorage):
             raise ValueError('No metadata found for blob {}'.format(blob_key))
 
         sse_algo = blob_metadata.get('x-amz-server-side-encryption', None)
-        if sse_algo == 'AES256':
+        sse_customer_key_md5 = blob_metadata.get('x-amz-server-side-encryption-customer-key-md5', None)
+        if sse_algo == 'AES256' and sse_customer_key_md5 is None:
             sse_enabled, sse_key_id = False, None
-        elif sse_algo == 'aws:kms':
+        elif sse_customer_key_md5 is not None:
+            sse_enabled = True
+            sse_key_id = None
+        elif sse_algo == AWS_KMS_ENCRYPTION:
             sse_enabled = True
             # the metadata returns the entire ARN, so we just return the last part ~ the actual ID
             sse_key_id = blob_metadata['x-amz-server-side-encryption-aws-kms-key-id'].split('/')[-1]
@@ -427,7 +480,7 @@ class S3BaseStorage(AbstractStorage):
             logging.warning('No SSE info found in blob {} metadata'.format(blob_key))
             sse_enabled, sse_key_id = False, None
 
-        return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id)
+        return AbstractBlobMetadata(blob_key, sse_enabled, sse_key_id, sse_customer_key_md5)
 
     @staticmethod
     def blob_matches_manifest(blob: AbstractBlob, object_in_manifest: dict, enable_md5_checks=False):
@@ -481,10 +534,8 @@ class S3BaseStorage(AbstractStorage):
                 actual_hash == hash_in_manifest
             )
         else:
-            hashes_match = (
-                actual_hash == base64.b64decode(hash_in_manifest).hex()
-                or hash_in_manifest == base64.b64decode(actual_hash).hex()
-                or actual_hash == hash_in_manifest
-            )
+            actual_matches_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
+            manifest_matches_actual = hash_in_manifest == base64.b64decode(actual_hash).hex()
+            hashes_match = actual_matches_manifest or manifest_matches_actual or actual_hash == hash_in_manifest
 
         return sizes_match and hashes_match
