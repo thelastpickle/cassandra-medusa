@@ -94,7 +94,14 @@ max_backup_count = 0
 ; Used to throttle S3 backups/restores:
 transfer_max_bandwidth = 50MB/s
 
-; Max number of downloads/uploads. Not used by the GCS backend.
+; Regardless of the storage provider, determines the number of files to process in parallel when uploading or downloading.
+; Each group of concurrently processed files has to have all files processed before the next group starts
+; (so the groups are synchronous, example).
+; Then there is the storage-provider specific behaviour:
+; - For Google, it has no extra meaning. 
+; - For Azure, we pass it to the SDK library we use if the file is bigger than the multipart threshold (100MB in your case). 
+; - For S3, this controls the size of the executor we submit transfer tasks into. We do not propagate is to the 
+;   boto's concurrency parameter.
 concurrent_transfers = 1
 
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
