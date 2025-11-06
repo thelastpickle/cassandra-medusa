@@ -111,3 +111,4 @@ We are happily accepting pull requests to improve Medusa.
 Every push to a PR will automatically trigger a build, which will run code style checking, unit tests and integration tests.
 
 Build must be passing for the PR to be eligible for merge.
+
