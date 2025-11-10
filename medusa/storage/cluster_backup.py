@@ -94,3 +94,44 @@ class ClusterBackup(object):
             for node_backup in self.node_backups.values()
             if node_backup.finished
         )
+
+    def to_json_dict(self):
+        nodes_list = []
+        incomplete_nodes_list = []
+        total_size = 0
+        total_objects = 0
+        for node_backup in self.node_backups.values():
+            node_dict = {
+                'fqdn': node_backup.fqdn,
+                'started': node_backup.started,
+                'finished': node_backup.finished,
+                'server_type': node_backup.server_type,
+                'release_version': node_backup.release_version
+            }
+            if node_backup.finished:
+                node_size = node_backup.size()
+                node_objects = node_backup.num_objects()
+                node_dict['size'] = node_size
+                node_dict['num_objects'] = node_objects
+                nodes_list.append(node_dict)
+                total_size += node_size
+                total_objects += node_objects
+            else:
+                node_dict['size'] = 0
+                node_dict['num_objects'] = 0
+                incomplete_nodes_list.append(node_dict)
+        missing_nodes = self.missing_nodes()
+        return {
+            'name': self.name,
+            'started': self.started,
+            'finished': self.finished,
+            'backup_type': self.backup_type,
+            'size': total_size,
+            'num_objects': total_objects,
+            'completed_nodes': len(nodes_list),
+            'nodes': nodes_list,
+            'incomplete_nodes': len(incomplete_nodes_list),
+            'incomplete_nodes_list': incomplete_nodes_list,
+            'missing_nodes': len(missing_nodes),
+            'missing_nodes_list': list(missing_nodes)
+        }

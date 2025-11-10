@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import sys
 from datetime import datetime
@@ -23,14 +24,21 @@ from medusa.storage import Storage, format_bytes_str
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def status(config, backup_name):
+def status(config, backup_name, output):
     with Storage(config=config.storage) as storage:
 
         try:
             cluster_backup = storage.get_cluster_backup(backup_name)
         except KeyError:
             logging.error('No such backup')
+            if output == 'json':
+                print(json.dumps({}))
             sys.exit(1)
+
+        if output == 'json':
+            status_json = cluster_backup.to_json_dict()
+            print(json.dumps(status_json, ensure_ascii=False, sort_keys=True))
+            return
 
         if cluster_backup.is_complete():
             print('{.name}'.format(cluster_backup))
