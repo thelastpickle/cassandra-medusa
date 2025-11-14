@@ -70,9 +70,10 @@ class Server:
         medusa_pb2_grpc.add_MedusaServicer_to_server(MedusaService(config), self.grpc_server)
         health_pb2_grpc.add_HealthServicer_to_server(grpc_health.v1.health.HealthServicer(), self.grpc_server)
 
+        grpc_interface = self.medusa_config.grpc.interface
         grpc_port = int(self.medusa_config.grpc.port)
         logging.info(f"Starting server. Listening on port {grpc_port}.")
-        self.grpc_server.add_insecure_port(f"[::]:{grpc_port}")
+        self.grpc_server.add_insecure_port(f"{grpc_interface}:{grpc_port}")
         await self.grpc_server.start()
 
         if not self.testing:
