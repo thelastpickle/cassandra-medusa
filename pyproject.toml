@@ -79,7 +79,7 @@ gcloud-aio-storage = "9.6.0"
 azure-core = "1.29.4"
 azure-identity = "1.16.1"
 azure-storage-blob = "12.17.0"
-urllib3 = "2.5.0"
+urllib3 = "2.6.0"
 
 [tool.poetry.group.grpc.dependencies]
 protobuf = "5.29.5"
