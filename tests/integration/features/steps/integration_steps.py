@@ -467,17 +467,26 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
     cleanup_monitoring(context)
 
 
-@given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server configured {tls}')
+@given(
+    r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server '
+    + r'configured {tls}'
+)
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption, tls):
-    config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8778/jolokia/", grpc='True', use_mgmt_api='False', ca_cert=MUTUAL_AUTH_CA_PEM,
+    config = parse_medusa_config(
+        context,
+        storage_provider,
+        client_encryption,
+        "http://127.0.0.1:8778/jolokia/",
+        grpc='True',
+        use_mgmt_api='False',
+        ca_cert=MUTUAL_AUTH_CA_PEM,
         tls_cert=MUTUAL_AUTH_CLIENT_CRT,
         tls_key=MUTUAL_AUTH_CLIENT_KEY
     )
     shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
     shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
     shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
-    
+
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)

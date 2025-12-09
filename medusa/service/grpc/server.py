@@ -46,6 +46,7 @@ BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
 
+
 class Server:
     def __init__(self, config_file_path, testing=False):
         self.config_file_path = config_file_path
@@ -447,10 +448,12 @@ def handle_backup_removal_all():
     if not BackupMan.remove_all_backups():
         logging.error("Failed to cleanup all backups")
 
+
 def _load_credential_from_file(filepath):
     real_path = os.path.join(os.path.dirname(__file__), filepath)
     with open(real_path, "rb") as f:
         return f.read()
+
 
 async def main():
     if len(sys.argv) > 2:
