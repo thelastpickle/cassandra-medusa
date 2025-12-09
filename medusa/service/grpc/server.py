@@ -46,7 +46,6 @@ BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
 
-
 class Server:
     def __init__(self, config_file_path, testing=False):
         self.config_file_path = config_file_path
@@ -72,7 +71,22 @@ class Server:
 
         grpc_port = int(self.medusa_config.grpc.port)
         logging.info(f"Starting server. Listening on port {grpc_port}.")
-        self.grpc_server.add_insecure_port(f"[::]:{grpc_port}")
+
+        if len(self.medusa_config.grpc.tls_cert) > 0:
+            tlsCert = _load_credential_from_file(self.medusa_config.grpc.tls_cert)
+            tlsKey = _load_credential_from_file(self.medusa_config.grpc.tls_key)
+            caCert = _load_credential_from_file(self.medusa_config.grpc.ca_cert)
+
+            server_credentials = grpc.ssl_server_credentials(
+                [(tlsKey, tlsCert)],
+                root_certificates=caCert,
+                require_client_auth=False
+            )
+
+            self.grpc_server.add_secure_port(f"[::]:{grpc_port}", server_credentials)
+        else:
+            self.grpc_server.add_insecure_port(f"[::]:{grpc_port}")
+
         await self.grpc_server.start()
 
         if not self.testing:
@@ -433,6 +447,10 @@ def handle_backup_removal_all():
     if not BackupMan.remove_all_backups():
         logging.error("Failed to cleanup all backups")
 
+def _load_credential_from_file(filepath):
+    real_path = os.path.join(os.path.dirname(__file__), filepath)
+    with open(real_path, "rb") as f:
+        return f.read()
 
 async def main():
     if len(sys.argv) > 2:

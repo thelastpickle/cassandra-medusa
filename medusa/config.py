@@ -74,7 +74,7 @@ LoggingConfig = collections.namedtuple(
 
 GrpcConfig = collections.namedtuple(
     'GrpcConfig',
-    ['enabled', 'max_send_message_length', 'max_receive_message_length', 'port']
+    ['enabled', 'max_send_message_length', 'max_receive_message_length', 'port', 'ca_cert', 'tls_cert', 'tls_key']
 )
 
 KubernetesConfig = collections.namedtuple(

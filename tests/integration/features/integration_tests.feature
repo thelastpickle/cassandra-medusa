@@ -699,7 +699,7 @@ Feature: Integration tests
     @16
     Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with Jolokia
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario16"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -722,13 +722,13 @@ Feature: Integration tests
 
         @local
         Examples: Local storage
-        | storage           | client encryption |
-        | local      |  with_client_encryption |
+        | storage           | client encryption | tls |
+        | local      |  with_client_encryption | with_tls |
 
     @17
     Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with failures
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario17"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>" configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -745,13 +745,13 @@ Feature: Integration tests
 
         @local
         Examples: Local storage
-        | storage           | client encryption |
-        | local      |  with_client_encryption |
+        | storage           | client encryption | tls |
+        | local      |  with_client_encryption | without_tls |
 
         @s3
         Examples: S3 storage
-        | storage           | client encryption |
-        | s3_us_west_oregon     |  without_client_encryption |
+        | storage           | client encryption | tls |
+        | s3_us_west_oregon     |  without_client_encryption | without_tls |
 
     # TODO: Uncomment this when we have a way to run the management API server on the new Ubuntu 24 runners
     #@18 @skip-cassandra-2
@@ -922,7 +922,7 @@ Feature: Integration tests
     @23
     Scenario Outline: Perform a differential async backup over gRPC, verify its index, then delete it over gRPC with Jolokia
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario23"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -1042,7 +1042,7 @@ Feature: Integration tests
     @28
     Scenario Outline: Make a 2 node cluster, backup 1 node, check getting status works
         Given I have a fresh "2" node ccm cluster with jolokia "<client encryption>" running named "scenario28"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -1070,7 +1070,7 @@ Feature: Integration tests
     @29
     Scenario Outline: Backup and restore a DSE cluster with search enabled
         Given I have a fresh DSE cluster version "6.8.38" with "<client encryption>" running named "scenario29"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         And I create a search index on the "test" table in keyspace "medusa"
@@ -1136,7 +1136,7 @@ Feature: Integration tests
     @31
     Scenario Outline: Perform a backup, then forget about it, then get its status over gRPC
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario31"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
@@ -1156,7 +1156,7 @@ Feature: Integration tests
     Scenario Outline: Perform a differential backup with explicit storage class, then verify it
         Given I have a fresh ccm cluster "<client encryption>" running named "scenario32"
         Given I will use "<storage class>" as storage class in the storage
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         When I create the "test" table with secondary index in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
         When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
