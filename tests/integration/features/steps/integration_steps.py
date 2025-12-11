@@ -494,6 +494,8 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     if tls == 'with_tls':
         channel_credential = grpc.ssl_channel_credentials(
             root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
+            private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
+            certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
         )
 
     context.grpc_client = medusa.service.grpc.client.Client(
