@@ -81,7 +81,7 @@ class Server:
             server_credentials = grpc.ssl_server_credentials(
                 [(tlsKey, tlsCert)],
                 root_certificates=caCert,
-                require_client_auth=False
+                require_client_auth=True
             )
 
             self.grpc_server.add_secure_port(f"[::]:{grpc_port}", server_credentials)
