@@ -547,10 +547,18 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
+
     context.grpc_server = GRPCServer(config)
+    channel_credential = grpc.ssl_channel_credentials(
+        root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
+        private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
+        certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
+    )
+
     context.grpc_client = medusa.service.grpc.client.Client(
         f"127.0.0.1:{config['grpc']['port']}",
-        channel_options=[('grpc.enable_retries', 0)]
+        channel_options=[('grpc.enable_retries', 0)],
+        tls_credentials=channel_credential
     )
 
     MgmtApiServer.destroy()
