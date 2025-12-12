@@ -728,7 +728,7 @@ Feature: Integration tests
     @17
     Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with failures
         Given I have a fresh ccm cluster with jolokia "<client encryption>" running named "scenario17"
-        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>" configured "<tls>"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>" with gRPC server configured "<tls>"
         Then the gRPC server is up
         When I create the "test" table in keyspace "medusa"
         When I load 100 rows in the "medusa.test" table
