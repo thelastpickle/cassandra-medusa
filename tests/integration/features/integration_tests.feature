@@ -746,7 +746,7 @@ Feature: Integration tests
         @local
         Examples: Local storage
         | storage           | client encryption | tls |
-        | local      |  with_client_encryption | without_tls |
+        | local      |  with_client_encryption | with_tls |
 
         @s3
         Examples: S3 storage
@@ -943,8 +943,8 @@ Feature: Integration tests
 
         @local
         Examples: Local storage
-        | storage                    | client encryption |
-        | local_backup_gc_grace      |  with_client_encryption |
+        | storage                    | client encryption | tls |
+        | local_backup_gc_grace      |  with_client_encryption | with_tls |
     
     @24
     Scenario Outline: Run purge with nodes sharing the same prefix as fqdn
@@ -1064,8 +1064,8 @@ Feature: Integration tests
 
         @local
         Examples: Local storage
-        | storage                    | client encryption |
-        | local_backup_gc_grace      | without_client_encryption |
+        | storage                    | client encryption | tls |
+        | local_backup_gc_grace      | without_client_encryption | without_tls |
 
     @29
     Scenario Outline: Backup and restore a DSE cluster with search enabled
@@ -1100,9 +1100,9 @@ Feature: Integration tests
 
         @dse
         Examples: DSE Scenario
-        | storage           | client encryption |
-        | local             | without_client_encryption |
-        | s3_us_west_oregon | without_client_encryption |
+        | storage           | client encryption | tls |
+        | local             | without_client_encryption | without_tls |
+        | s3_us_west_oregon | without_client_encryption | without_tls |
 
 
     @30
@@ -1149,8 +1149,8 @@ Feature: Integration tests
 
     @local
     Examples: Local storage
-    | storage    | client encryption |
-    | local      |  with_client_encryption |
+    | storage    | client encryption | tls |
+    | local      |  with_client_encryption | without_tls |
 
     @32
     Scenario Outline: Perform a differential backup with explicit storage class, then verify it
@@ -1167,17 +1167,17 @@ Feature: Integration tests
 
         @s3
         Examples: S3 storage
-        | storage           | client encryption         | storage class       |
-        | s3_us_west_oregon | without_client_encryption | STANDARD            |
-        | s3_us_west_oregon | without_client_encryption | REDUCED_REDUNDANCY  |
-        | s3_us_west_oregon | without_client_encryption | STANDARD_IA         |
-        | s3_us_west_oregon | without_client_encryption | ONEZONE_IA          |
-        | s3_us_west_oregon | without_client_encryption | INTELLIGENT_TIERING |
+        | storage           | client encryption         | storage class       | tls |
+        | s3_us_west_oregon | without_client_encryption | STANDARD            | without_tls |
+        | s3_us_west_oregon | without_client_encryption | REDUCED_REDUNDANCY  | without_tls |
+        | s3_us_west_oregon | without_client_encryption | STANDARD_IA         | without_tls |
+        | s3_us_west_oregon | without_client_encryption | ONEZONE_IA          | without_tls |
+        | s3_us_west_oregon | without_client_encryption | INTELLIGENT_TIERING | without_tls |
 
         @gcs
         Examples: Google Cloud Storage
-        | storage        | client encryption         | storage class |
-        | google_storage | without_client_encryption | STANDARD      |
+        | storage        | client encryption         | storage class | tls |
+        | google_storage | without_client_encryption | STANDARD      | without_tls |
 # this is buggy for now, the library does not propagate the custom storage class headers
 #        | google_storage | without_client_encryption | NEARLINE      |
 #        | google_storage | without_client_encryption | COLDLINE      |
@@ -1185,10 +1185,10 @@ Feature: Integration tests
 
         @azure
         Examples: Azure Blob Storage
-        | storage     | client encryption         | storage class |
-        | azure_blobs | without_client_encryption | HOT           |
-        | azure_blobs | without_client_encryption | COOL          |
-        | azure_blobs | without_client_encryption | COLD          |
+        | storage     | client encryption         | storage class | tls |
+        | azure_blobs | without_client_encryption | HOT           | without_tls |
+        | azure_blobs | without_client_encryption | COOL          | without_tls |
+        | azure_blobs | without_client_encryption | COLD          | without_tls |
 
     @33
     Scenario Outline: Create a backup with a name without deleting the snapshot once uploaded
