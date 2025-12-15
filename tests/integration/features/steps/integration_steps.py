@@ -468,7 +468,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
 
 @given(
-    r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server '
+    r'We are using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server '
     + r'configured "{tls}"'
 )
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption, tls):
