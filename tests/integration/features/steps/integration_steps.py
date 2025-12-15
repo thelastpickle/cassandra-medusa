@@ -470,7 +470,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 @given(
     r'We are using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mTLS gRPC server'
 )
-def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption, tls):
+def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
     config = parse_medusa_config(
         context,
         storage_provider,
