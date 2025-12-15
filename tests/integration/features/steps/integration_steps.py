@@ -98,6 +98,8 @@ GCS_CREDENTIALS = "~/medusa_credentials.json"
 MUTUAL_AUTH_CA_PEM = "/tmp/mutual_auth_ca.pem"
 MUTUAL_AUTH_CLIENT_CRT = "/tmp/mutual_auth_client.crt"
 MUTUAL_AUTH_CLIENT_KEY = "/tmp/mutual_auth_client.key"
+MUTUAL_AUTH_SERVER_CRT = "/tmp/mutual_auth_server.crt"
+MUTUAL_AUTH_SERVER_KEY = "/tmp/mutual_auth_server.key"
 TRUNK_VERSION = 'github:apache/trunk'
 
 # hide cassandra driver logs, they are overly verbose and we don't really need them for tests
@@ -479,12 +481,14 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
         grpc='True',
         use_mgmt_api='False',
         ca_cert=MUTUAL_AUTH_CA_PEM,
-        tls_cert=MUTUAL_AUTH_CLIENT_CRT,
-        tls_key=MUTUAL_AUTH_CLIENT_KEY
+        tls_cert=MUTUAL_AUTH_SERVER_CRT,
+        tls_key=MUTUAL_AUTH_SERVER_KEY
     )
     shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
     shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
     shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
+    shutil.copyfile("resources/grpc/mutual_auth_server.crt", MUTUAL_AUTH_SERVER_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_server.key", MUTUAL_AUTH_SERVER_KEY)
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -535,12 +539,14 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         use_mgmt_api='True',
         grpc='True',
         ca_cert=MUTUAL_AUTH_CA_PEM,
-        tls_cert=MUTUAL_AUTH_CLIENT_CRT,
-        tls_key=MUTUAL_AUTH_CLIENT_KEY
+        tls_cert=MUTUAL_AUTH_SERVER_CRT,
+        tls_key=MUTUAL_AUTH_SERVER_KEY
     )
     shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
     shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
     shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
+    shutil.copyfile("resources/grpc/mutual_auth_server.crt", MUTUAL_AUTH_SERVER_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_server.key", MUTUAL_AUTH_SERVER_KEY)
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
@@ -553,8 +559,9 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
     )
 
     context.grpc_client = medusa.service.grpc.client.Client(
-        f"127.0.0.1:{config['grpc']['port']}",
-        channel_options=[('grpc.enable_retries', 0)],
+        f"localhost:{config['grpc']['port']}",
+        channel_options=[('grpc.enable_retries', 0),
+                         ('grpc.default_authority', 'localhost')],
         tls_credentials=channel_credential
     )
 
