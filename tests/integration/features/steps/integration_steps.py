@@ -499,7 +499,7 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
         f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[
             ('grpc.enable_retries', 0),
-            ('grpc.ssl_target_name_override', 'localhost')
+            ('grpc.ssl_target_name_override', 'NettyTestServer')
         ],
         tls_credentials=channel_credential
     )
@@ -559,7 +559,7 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         f"127.0.0.1:{config['grpc']['port']}",
         channel_options=[
             ('grpc.enable_retries', 0),
-            ('grpc.ssl_target_name_override', 'localhost')
+            ('grpc.ssl_target_name_override', 'NettyTestServer')
         ],
         tls_credentials=channel_credential
     )
