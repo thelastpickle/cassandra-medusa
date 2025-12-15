@@ -73,7 +73,7 @@ class Server:
         grpc_port = int(self.medusa_config.grpc.port)
         logging.info(f"Starting server. Listening on port {grpc_port}.")
 
-        if len(self.medusa_config.grpc.tls_cert) > 0:
+        if hasattr(self.medusa_config.grpc, "tls_cert") and self.medusa_config.grpc.tls_cert:
             tlsCert = _load_credential_from_file(self.medusa_config.grpc.tls_cert)
             tlsKey = _load_credential_from_file(self.medusa_config.grpc.tls_key)
             caCert = _load_credential_from_file(self.medusa_config.grpc.ca_cert)

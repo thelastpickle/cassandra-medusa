@@ -468,8 +468,7 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
 
 
 @given(
-    r'We are using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server '
-    + r'configured "{tls}"'
+    r'We are using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mTLS gRPC server'
 )
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption, tls):
     config = parse_medusa_config(
@@ -490,13 +489,11 @@ def i_am_using_storage_provider_with_grpc_server(context, storage_provider, clie
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
-    channel_credential = None
-    if tls == 'with_tls':
-        channel_credential = grpc.ssl_channel_credentials(
-            root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
-            private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
-            certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
-        )
+    channel_credential = grpc.ssl_channel_credentials(
+        root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
+        private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
+        certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
+    )
 
     context.grpc_client = medusa.service.grpc.client.Client(
         f"127.0.0.1:{config['grpc']['port']}",
