@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 import uuid
+import grpc
 from pathlib import Path
 from ssl import SSLContext, PROTOCOL_TLS, PROTOCOL_TLSv1_2, CERT_REQUIRED
 from subprocess import PIPE
@@ -97,6 +98,8 @@ GCS_CREDENTIALS = "~/medusa_credentials.json"
 MUTUAL_AUTH_CA_PEM = "/tmp/mutual_auth_ca.pem"
 MUTUAL_AUTH_CLIENT_CRT = "/tmp/mutual_auth_client.crt"
 MUTUAL_AUTH_CLIENT_KEY = "/tmp/mutual_auth_client.key"
+MUTUAL_AUTH_SERVER_CRT = "/tmp/mutual_auth_server.crt"
+MUTUAL_AUTH_SERVER_KEY = "/tmp/mutual_auth_server.key"
 TRUNK_VERSION = 'github:apache/trunk'
 
 # hide cassandra driver logs, they are overly verbose and we don't really need them for tests
@@ -466,16 +469,40 @@ def i_am_using_storage_provider(context, storage_provider, client_encryption):
     cleanup_monitoring(context)
 
 
-@given(r'I am using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with gRPC server')
+@given(
+    r'We are using "{storage_provider}" as storage provider in ccm cluster "{client_encryption}" with mTLS gRPC server'
+)
 def i_am_using_storage_provider_with_grpc_server(context, storage_provider, client_encryption):
-    config = parse_medusa_config(context, storage_provider, client_encryption,
-                                 "http://127.0.0.1:8778/jolokia/", grpc='True', use_mgmt_api='False')
+    config = parse_medusa_config(
+        context,
+        storage_provider,
+        client_encryption,
+        "http://127.0.0.1:8778/jolokia/",
+        grpc='True',
+        use_mgmt_api='False',
+        ca_cert=MUTUAL_AUTH_CA_PEM,
+        tls_cert=MUTUAL_AUTH_SERVER_CRT,
+        tls_key=MUTUAL_AUTH_SERVER_KEY
+    )
+    shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
+    shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
+    shutil.copyfile("resources/grpc/mutual_auth_server.crt", MUTUAL_AUTH_SERVER_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_server.key", MUTUAL_AUTH_SERVER_KEY)
+
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
     context.grpc_server = GRPCServer(config)
+    channel_credential = grpc.ssl_channel_credentials(
+        root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
+        private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
+        certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
+    )
+
     context.grpc_client = medusa.service.grpc.client.Client(
         f"127.0.0.1:{config['grpc']['port']}",
-        channel_options=[('grpc.enable_retries', 0)]
+        channel_options=[('grpc.enable_retries', 0)],
+        tls_credentials=channel_credential
     )
 
     context.medusa_config = MedusaConfig(
@@ -512,19 +539,30 @@ def i_am_using_storage_provider_with_grpc_server_and_mgmt_api(context, storage_p
         use_mgmt_api='True',
         grpc='True',
         ca_cert=MUTUAL_AUTH_CA_PEM,
-        tls_cert=MUTUAL_AUTH_CLIENT_CRT,
-        tls_key=MUTUAL_AUTH_CLIENT_KEY
+        tls_cert=MUTUAL_AUTH_SERVER_CRT,
+        tls_key=MUTUAL_AUTH_SERVER_KEY
     )
     shutil.copyfile("resources/grpc/mutual_auth_ca.pem", MUTUAL_AUTH_CA_PEM)
     shutil.copyfile("resources/grpc/mutual_auth_client.crt", MUTUAL_AUTH_CLIENT_CRT)
     shutil.copyfile("resources/grpc/mutual_auth_client.key", MUTUAL_AUTH_CLIENT_KEY)
+    shutil.copyfile("resources/grpc/mutual_auth_server.crt", MUTUAL_AUTH_SERVER_CRT)
+    shutil.copyfile("resources/grpc/mutual_auth_server.key", MUTUAL_AUTH_SERVER_KEY)
 
     context.storage_provider = storage_provider
     context.client_encryption = client_encryption
+
     context.grpc_server = GRPCServer(config)
+    channel_credential = grpc.ssl_channel_credentials(
+        root_certificates=open(MUTUAL_AUTH_CA_PEM, 'rb').read(),
+        private_key=open(MUTUAL_AUTH_CLIENT_KEY, 'rb').read(),
+        certificate_chain=open(MUTUAL_AUTH_CLIENT_CRT, 'rb').read()
+    )
+
     context.grpc_client = medusa.service.grpc.client.Client(
-        f"127.0.0.1:{config['grpc']['port']}",
-        channel_options=[('grpc.enable_retries', 0)]
+        f"localhost:{config['grpc']['port']}",
+        channel_options=[('grpc.enable_retries', 0),
+                         ('grpc.default_authority', 'localhost')],
+        tls_credentials=channel_credential
     )
 
     MgmtApiServer.destroy()
@@ -638,7 +676,10 @@ def get_args(context, client_encryption, cassandra_url, use_mgmt_api='False', gr
         )
 
     grpc_args = {
-        "grpc_enabled": grpc
+        "grpc_enabled": grpc,
+        "ca_cert": ca_cert,
+        "tls_cert": tls_cert,
+        "tls_key": tls_key
     }
 
     kubernetes_args = {
