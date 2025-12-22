@@ -23,8 +23,11 @@ from medusa.service.grpc import medusa_pb2_grpc
 
 
 class Client:
-    def __init__(self, target, channel_options=[]):
-        self.channel = grpc.aio.insecure_channel(target, options=channel_options)
+    def __init__(self, target, channel_options=[], tls_credentials=None):
+        if tls_credentials:
+            self.channel = grpc.aio.secure_channel(target, tls_credentials, options=channel_options)
+        else:
+            self.channel = grpc.aio.insecure_channel(target, options=channel_options)
 
     async def health_check(self):
         try:

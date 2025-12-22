@@ -18,57 +18,138 @@
 
 This document describes how to setup Medusa straight from Github.
 
-## Requirements
+It is tested on a fresh installation of debian 13 and ubuntu 24.04 for medusa 0.26.
 
-### Ubuntu
+For exact tool versions used in CI see:
+https://github.com/thelastpickle/cassandra-medusa/blob/master/.github/workflows/ci.yml
 
-For debian users, install the required Debian packages:
+## Installation for Debian/Ubuntu
 
-```
-sudo apt-get install -y debhelper python3 dh-virtualenv libffi-dev libssl-dev python3-dev libxml2-dev libxslt-dev build-essential python3-pip
-```
+This setup guide is tested on Debian/Ubuntu systems. For other Linux distributions or macOS, you may need to adjust package manager commands accordingly.
 
-There is a problem with setuptools. The required package has lower apt priority. Needs manual intervention.
+## System Dependencies
 
-```
-# manually, aptitude, say no until it proposes installing the right version
-sudo aptitude install -y python3-setuptools=20.7.0-1
-```
+**System packages (needed to build Python and native wheels):**
 
-**Alternatve:** we had good result with just running this instead of the previous command.
+```bash
+sudo apt update
+sudo apt install -y build-essential libssl-dev \
+    libxml2-dev  libffi-dev  libxslt-dev zlib1g-dev \
+    xz-utils git curl
 
-```
-sudo pip3 install setuptools --upgrade
-```
-
-### Other OSes
-
-Install Python 3.6+, pip3 and virtualenv through your favorite method.
-
-## Create a virtualenv for Medusa
-
-Run the following command to create the Python virtual environment in the current directory:
-
-```
-virtualenv medusa
+# Optional lib for installing python with pyenv
+sudo apt install -y libncursesw5-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev liblzma-dev
 ```
 
-Activate the virtual environment:
+**File descriptor limits (temporary + persistent):**
 
-```
-source medusa/bin/activate
+```bash
+ulimit -n 8192
+echo "$USER soft nofile 4096" | sudo tee -a /etc/security/limits.conf
+echo "$USER hard nofile 8192" | sudo tee -a /etc/security/limits.conf
 ```
 
 
-Then, install the python packages. It will take some time to build the Cassandra driver:
+## System installation
 
+**Medusa requires Python 3.9.2 or higher (up to Python 3.12):**
+
+```bash
+curl https://pyenv.run | bash
+# add pyenv init lines to ~/.bashrc (the installer prints them)
+PATH="$HOME/.pyenv/bin/:$PATH"
+cat << 'EOF' >> ~/.bashrc
+
+PATH="$HOME/.pyenv/bin/:$PATH"
+
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - bash)"
+# Load pyenv-virtualenv automatically
+eval "$(pyenv virtualenv-init -)"
+
+EOF
+source ~/.bashrc
 ```
-sudo pip3 install -r requirements.txt
-sudo pip3 install -r requirements-test.txt
+
+**Install Poetry 2.2.1:**
+
+Poetry is used for dependency management and virtual environment handling:
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 - --version 2.2.1
+export PATH="$HOME/.local/bin:$PATH"
+echo "" >> "$HOME/.bashrc"
+echo 'PATH="$HOME/.local/bin/:$PATH"' >> "$HOME/.bashrc"
+
+poetry --version
 ```
 
-Finally, install Medusa from source:
+**Java setup:**
 
-````
-sudo pip3 install git+https://you@github.com/spotify/medusa.git@branch --upgrade
+Java is required for Cassandra and CCM. We'll install OpenJDK 8 and 11 since different Cassandra versions have different Java requirements.
+
+
+```bash
+sudo apt install -y zip unzip
+
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+sdk install java 11.0.28-tem
+sdk use java 11.0.28-tem
+sdk default java 11.0.28-tem
+```
+
+Check if all is good with:
+
+```bash
+java --version
+echo $JAVA_HOME
+```
+
+## Setup python env
+
+Create the python env for cassandra-medusa
+
+```bash
+pyenv install 3.10.19
+```
+
+Need poetry project file in cassandra-medusa repo:
+
+```bash
+git clone https://github.com/thelastpickle/cassandra-medusa.git
+cd cassandra-medusa
+pyenv virtualenv 3.10.19 venv-medusa
+echo "venv-medusa" > .python-version
+```
+
+Install libs for cassandra-medusa
+
+```bash
+# For debian only:
+pip install keyring secretstorage
+# Install Test helpers
+poetry install
+poetry run pip install git+https://github.com/riptano/ccm.git
+cd .   # This is important. Otherwise, CCM will not work. Or restart shell session.
+ccm
+```
+
+If `ccm` application is not working, restart your shell and go in cassandra-medusa folder.  
+
+## Test installation
+
+```bash
+# Check Python syntax errors or undefined names
+poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+# Another check
+poetry run flake8 . --count --exit-zero --max-complexity=10 --statistics --ignore=W503
+# Run unit test
+poetry run tox
+
+# run integration tests (local/minio/gcs/s3 etc.)
+./run_integration_tests.sh --cassandra-version=4.1.9
 ```

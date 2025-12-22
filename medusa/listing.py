@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from datetime import datetime
+import json
 from medusa.storage import Storage
 
 
@@ -36,30 +37,36 @@ def get_backups(storage, config, show_all):
     return cluster_backups
 
 
-def list_backups(config, show_all):
+def list_backups(config, show_all, output):
     with Storage(config=config.storage) as storage:
-        list_backups_w_storage(config, show_all, storage)
+        list_backups_w_storage(config, show_all, storage, output)
 
 
-def list_backups_w_storage(config, show_all, storage):
+def list_backups_w_storage(config, show_all, storage, output):
     cluster_backups = get_backups(storage, config, show_all)
-    seen_incomplete_backup = False
-    for cluster_backup in cluster_backups:
-        finished = cluster_backup.finished
-        if finished is not None:
-            finished = datetime.fromtimestamp(finished).strftime(TIMESTAMP_FORMAT)
-        else:
-            seen_incomplete_backup = True
-            finished_nodes = len(cluster_backup.complete_nodes())
-            total_nodes = len(cluster_backup.tokenmap)
-            finished = 'Incomplete [{} of {} nodes finished]'.format(
-                finished_nodes,
-                total_nodes
-            )
-        started = datetime.fromtimestamp(cluster_backup.started).strftime(TIMESTAMP_FORMAT)
-        print('{} (started: {}, finished: {})'.format(cluster_backup.name, started, finished))
+    if output == 'json':
+        backups_json = []
+        for cluster_backup in cluster_backups:
+            backups_json.append(cluster_backup.to_json_dict())
+        print(json.dumps(backups_json, ensure_ascii=False, sort_keys=True))
+    else:
+        seen_incomplete_backup = False
+        for cluster_backup in cluster_backups:
+            finished = cluster_backup.finished
+            if finished is not None:
+                finished = datetime.fromtimestamp(finished).strftime(TIMESTAMP_FORMAT)
+            else:
+                seen_incomplete_backup = True
+                finished_nodes = len(cluster_backup.complete_nodes())
+                total_nodes = len(cluster_backup.tokenmap)
+                finished = 'Incomplete [{} of {} nodes finished]'.format(
+                    finished_nodes,
+                    total_nodes
+                )
+            started = datetime.fromtimestamp(cluster_backup.started).strftime(TIMESTAMP_FORMAT)
+            print('{} (started: {}, finished: {})'.format(cluster_backup.name, started, finished))
 
-    if seen_incomplete_backup:
-        print('')
-        print('Incomplete backups found. You can run "medusa status --backup-name <name>" for more details')
+        if seen_incomplete_backup:
+            print('')
+            print('Incomplete backups found. You can run "medusa status --backup-name <name>" for more details')
     return cluster_backups
