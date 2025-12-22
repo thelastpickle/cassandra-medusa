@@ -175,13 +175,14 @@ class GoogleStorage(AbstractStorage):
         src_path = Path(src)
         file_path = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        logging.debug(
-            '[Storage] Downloading gcs://{}/{} -> {}'.format(
-                self.config.bucket_name, object_key, file_path
-            )
-        )
-
+        if self.semaphore:
+            await self.semaphore.acquire()
         try:
+            logging.debug(
+                '[Storage] Downloading gcs://{}/{} -> {}'.format(
+                    self.config.bucket_name, object_key, file_path
+                )
+            )
             stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
@@ -200,6 +201,9 @@ class GoogleStorage(AbstractStorage):
             if cre.status == 404:
                 raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
             raise cre
+        finally:
+            if self.semaphore:
+                self.semaphore.release()
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
         self._ensure_session()
