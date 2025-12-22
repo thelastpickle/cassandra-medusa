@@ -15,7 +15,7 @@
 import json
 import logging
 import pathlib
-
+import re
 
 class NodeBackup(object):
 
@@ -156,6 +156,10 @@ class NodeBackup(object):
     @property
     def is_dse(self):
         return self.server_type == "dse"
+
+    @property
+    def is_dse_6(self):
+        return  ( self.server_type == "dse") and bool(re.match( r'^4\.0\.0\.\d+$', self.release_version))
 
     @property
     def schema_path(self):
