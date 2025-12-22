@@ -94,7 +94,7 @@ max_backup_count = 0
 ; Used to throttle S3 backups/restores:
 transfer_max_bandwidth = 50MB/s
 
-; Max number of downloads/uploads. Not used by the GCS backend.
+; Max number of downloads/uploads.
 concurrent_transfers = 1
 
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
@@ -106,7 +106,7 @@ backup_grace_period_in_days = 10
 ; When not using sstableloader to restore data on a node, Medusa will copy snapshot files from a
 ; temporary location into the cassandra data directroy. Medusa will then attempt to change the
 ; ownership of the snapshot files so the cassandra user can access them.
-; Depending on how users/file permissions are set up on the cassandra instance, the medusa user 
+; Depending on how users/file permissions are set up on the cassandra instance, the medusa user
 ; may need elevated permissions to manipulate the files in the cassandra data directory.
 ;
 ; This option does NOT replace the `use_sudo` option under the 'cassandra' section!
