@@ -14,6 +14,7 @@
 # limitations under the License.
 import pathlib
 
+import asyncio
 import aiohttp
 import base64
 import datetime
@@ -58,6 +59,13 @@ class GoogleStorage(AbstractStorage):
         logging.getLogger('gcloud.aio.storage.storage').setLevel(logging.WARNING)
 
         self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
+
+        concurrent_transfers = int(config.concurrent_transfers) if 'concurrent_transfers' in dir(config) else 0
+        if concurrent_transfers > 0:
+            logging.debug('Using concurrent transfers: {}'.format(concurrent_transfers))
+            self.semaphore = asyncio.Semaphore(concurrent_transfers)
+        else:
+            self.semaphore = None
 
         super().__init__(config)
 
@@ -133,19 +141,26 @@ class GoogleStorage(AbstractStorage):
     @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         self._ensure_session()
-        logging.debug(
-            '[Storage] Uploading object from stream -> gcs://{}/{}'.format(
-                self.config.bucket_name, object_key
-            )
-        )
+        if self.semaphore:
+            await self.semaphore.acquire()
 
-        resp = await self.gcs_storage.upload(
-            bucket=self.bucket_name,
-            object_name=object_key,
-            file_data=data,
-            force_resumable_upload=True,
-            timeout=None,
-        )
+        try:
+            logging.debug(
+                '[Storage] Uploading object from stream -> gcs://{}/{}'.format(
+                    self.config.bucket_name, object_key
+                )
+            )
+            resp = await self.gcs_storage.upload(
+                bucket=self.bucket_name,
+                object_name=object_key,
+                file_data=data,
+                force_resumable_upload=True,
+                timeout=None,
+            )
+        finally:
+            if self.semaphore:
+                self.semaphore.release()
+
         return AbstractBlob(
             resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
         )
@@ -161,13 +176,14 @@ class GoogleStorage(AbstractStorage):
         src_path = Path(src)
         file_path = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        logging.debug(
-            '[Storage] Downloading gcs://{}/{} -> {}'.format(
-                self.config.bucket_name, object_key, file_path
-            )
-        )
-
+        if self.semaphore:
+            await self.semaphore.acquire()
         try:
+            logging.debug(
+                '[Storage] Downloading gcs://{}/{} -> {}'.format(
+                    self.config.bucket_name, object_key, file_path
+                )
+            )
             stream = await self.gcs_storage.download_stream(
                 bucket=self.bucket_name,
                 object_name=object_key,
@@ -186,6 +202,9 @@ class GoogleStorage(AbstractStorage):
             if cre.status == 404:
                 raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
             raise cre
+        finally:
+            if self.semaphore:
+                self.semaphore.release()
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
         self._ensure_session()
