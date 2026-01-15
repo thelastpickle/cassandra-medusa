@@ -86,6 +86,7 @@ class BackupNodeTest(unittest.TestCase):
     @patch("medusa.storage")
     @patch("medusa.storage.node_backup.NodeBackup")
     def test_check_already_uploaded(self, mock_storage, mock_node_backup):
+        mock_storage.config.key_secret_base64 = None
 
         def mo(path, size, hash='whatever'):
             return ManifestObject(path, size, hash)
@@ -173,6 +174,66 @@ class BackupNodeTest(unittest.TestCase):
         # the file shows up in the reupload list because it's in the storage, but not at a different shape
         self.assertEqual([table2_srcs[0]], t2_reupload)
         self.assertEqual([], t2_already_up)
+
+    def test_url_to_path(self):
+        """
+        Test the url_to_path function which converts storage URLs to manifest paths.
+        """
+        # Create a mock storage object with different prefix configurations
+        # Test case 1: Full backup with prefix
+        mock_storage_with_prefix = MagicMock()
+        mock_storage_with_prefix.prefix_path = 's3://my-bucket/backups/'
+        
+        url1 = 's3://my-bucket/backups/node1.example.com/backup-20240101/data/keyspace1/table1/file.db'
+        fqdn1 = 'node1.example.com'
+        result1 = backup_node.url_to_path(url1, fqdn1, mock_storage_with_prefix)
+        expected1 = 's3://my-bucket/backups/node1.example.com/backup-20240101/data/keyspace1/table1/file.db'
+        self.assertEqual(expected1, result1)
+        
+        # Test case 2: Differential backup path (no backup_name in path)
+        url2 = 's3://my-bucket/backups/node2.example.com/data/keyspace2/table2/file2.db'
+        fqdn2 = 'node2.example.com'
+        result2 = backup_node.url_to_path(url2, fqdn2, mock_storage_with_prefix)
+        expected2 = 's3://my-bucket/backups/node2.example.com/data/keyspace2/table2/file2.db'
+        self.assertEqual(expected2, result2)
+        
+        # Test case 3: Path without prefix (empty prefix)
+        mock_storage_no_prefix = MagicMock()
+        mock_storage_no_prefix.prefix_path = ''
+        
+        url3 = 'node3.example.com/backup-20240102/data/system/peers/file3.db'
+        fqdn3 = 'node3.example.com'
+        result3 = backup_node.url_to_path(url3, fqdn3, mock_storage_no_prefix)
+        expected3 = 'node3.example.com/backup-20240102/data/system/peers/file3.db'
+        self.assertEqual(expected3, result3)
+        
+        # Test case 5: Minimal path (only fqdn and file)
+        url5 = 'node5.example.com/file.db'
+        fqdn5 = 'node5.example.com'
+        result5 = backup_node.url_to_path(url5, fqdn5, mock_storage_no_prefix)
+        expected5 = 'node5.example.com/file.db'
+        self.assertEqual(expected5, result5)
+
+        # Test case 4: Path with no prefix
+        mock_storage_nested_prefix = MagicMock()
+        mock_storage_nested_prefix.prefix_path = 'azure://container/env/prod/'
+        
+        url4 = 'node4.dc1.example.com/backup-20240103/data/app/users/file4.db'
+        fqdn4 = 'node4.dc1.example.com'
+        result4 = backup_node.url_to_path(url4, fqdn4, mock_storage_nested_prefix)
+        expected4 = 'azure://container/env/prod/node4.dc1.example.com/backup-20240103/data/app/users/file4.db'
+        self.assertEqual(expected4, result4 )
+        
+        # Test case 6: URL that contains storage prefix but also has extra parts before fqdn
+        # This simulates when storage driver returns full URL including bucket/prefix
+        url6 = 'some/extra/path/node6.example.com/backup-20240104/data/keyspace/table/file.db'
+        fqdn6 = 'node6.example.com'
+        mock_storage_simple_prefix = MagicMock()
+        mock_storage_simple_prefix.prefix_path = 'prefix/'
+        result6 = backup_node.url_to_path(url6, fqdn6, mock_storage_simple_prefix)
+        # Should extract from fqdn onwards and prepend prefix
+        expected6 = 'prefix/node6.example.com/backup-20240104/data/keyspace/table/file.db'
+        self.assertEqual(expected6, result6)
 
 
 if __name__ == '__main__':

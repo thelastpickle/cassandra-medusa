@@ -28,12 +28,10 @@ from azure.core.credentials import AzureNamedKeyCredential
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import BlobProperties, StandardBlobTier
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ObjectDoesNotExistError
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject, ObjectDoesNotExistError
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-
-ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 MAX_UP_DOWN_LOAD_RETRIES = 5
 

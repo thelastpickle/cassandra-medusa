@@ -31,7 +31,7 @@ from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str, NodeBackup
-from medusa.storage.abstract_storage import ManifestObject
+from medusa.storage.abstract_storage import ManifestObject, AbstractStorage
 
 
 def throttle_backup():
@@ -307,7 +307,13 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
 
         if node_backup.is_differential:
             logging.info(f'Listing already backed up files for node {node_backup.fqdn}')
-            files_in_storage = storage.list_files_per_table()
+            if storage.config.key_secret_base64:
+                # When encryption is enabled, source_MD5 and source_size in manifest file  store the 
+                # the original file metadata before encryption, allowing us to compare local files 
+                # without needing to decrypt S3 files.
+                files_in_storage = storage.get_files_from_all_differential_backups()
+            else:
+                files_in_storage = storage.list_files_per_table()
         else:
             files_in_storage = {}
 
@@ -394,6 +400,31 @@ def check_already_uploaded(
             if item_in_storage is None:
                 needs_backup.append(src)
                 continue
+
+            # Check for source match if available (Encrypted case)
+            if item_in_storage.source_MD5:
+                # Check size and MD5
+                local_size = src.stat().st_size
+                if local_size != item_in_storage.source_size:
+                    needs_reupload.append(src)
+                    continue
+
+                if enable_md5_checks:
+                    local_md5 = AbstractStorage.generate_md5_hash(src)
+                    if local_md5 != item_in_storage.source_MD5:
+                        needs_reupload.append(src)
+                        continue
+
+                # Match
+                already_backed_up.append(item_in_storage)
+                continue
+
+            # If encryption is enabled, we cannot reuse unencrypted files (missing source_MD5)
+            # because the restore process expects encrypted files.
+            if storage.config.key_secret_base64:
+                needs_reupload.append(src)
+                continue
+
             # object is in storage but with different size or digest
             storage_driver = storage.storage_driver
             if not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks):
@@ -413,6 +444,8 @@ def make_manifest_object(fqdn, snapshot_path, manifest_objects, storage):
             'path': url_to_path(manifest_object.path, fqdn, storage),
             'MD5': manifest_object.MD5,
             'size': manifest_object.size,
+            'source_MD5': manifest_object.source_MD5,
+            'source_size': manifest_object.source_size,
         } for manifest_object in manifest_objects]
     }
 

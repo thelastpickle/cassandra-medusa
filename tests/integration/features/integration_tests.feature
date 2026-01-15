@@ -78,6 +78,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @2
     Scenario Outline: Perform a backup and verify its index
@@ -126,6 +127,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @3
     Scenario Outline: Perform a backup and verify the latest backup is updated correctly
@@ -170,6 +172,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @4
     Scenario Outline: Perform a fake backup (by just writing an index) on different days and verify reports are correct
@@ -359,6 +362,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @9
     Scenario Outline: Run a purge on backups
@@ -425,6 +429,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @10
     Scenario Outline: Run a backup and restore and verify metrics
@@ -467,6 +472,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @11
     Scenario Outline: Perform a backup, and restore it using the sstableloader
@@ -516,6 +522,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @12
     Scenario Outline: Backup two tables but restore only one
@@ -567,6 +574,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @13
     Scenario Outline: Perform a backup and a restore, then verify the restore
@@ -609,6 +617,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @14
     Scenario Outline: Perform a backup & restore of a table with secondary index
@@ -653,6 +662,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @15
     Scenario Outline: Do a full backup, then a differential one
@@ -695,6 +705,7 @@ Feature: Integration tests
         Examples: MinIO storage
         | storage           | client encryption         |
         | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
     @16
     Scenario Outline: Perform a differential backup over gRPC , verify its index, then delete it over gRPC with Jolokia
@@ -915,8 +926,9 @@ Feature: Integration tests
 
         @minio
         Examples: MinIO storage
-        | storage | client encryption         |
-        | minio   | without_client_encryption |
+        | storage           | client encryption         |
+        | minio             | without_client_encryption |
+        | minio-encrypted   | without_client_encryption |
 
 
     @23
@@ -1024,8 +1036,9 @@ Feature: Integration tests
 
     @minio
     Examples: MinIO storage
-    | storage | client encryption         |
-    | minio   | without_client_encryption |
+    | storage           | client encryption         |
+    | minio             | without_client_encryption |
+    | minio-encrypted   | without_client_encryption |
 
     # skipping s3 because we don't have good enough parallelization yet and this scenario takes too long
 
