@@ -102,6 +102,7 @@ transfer_max_bandwidth = 50MB/s
 ; concurrent uploads and downloads of GCS objects.
 ; - For Azure, we pass it to the SDK library we use if the file is bigger than the multipart threshold (100MB in your case). 
 ; - For S3, this controls the size of the executor we submit transfer tasks into. We do not propagate is to the 
+; boto's concurrency parameter.
 concurrent_transfers = 1
 
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
