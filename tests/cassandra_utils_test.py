@@ -44,7 +44,8 @@ class CassandraUtilsTest(unittest.TestCase):
             'host_file_separator': ','
         }
         config['cassandra'] = {
-            'resolve_ip_addresses': 'False'
+            'resolve_ip_addresses': 'False',
+            'ssl': 'False'
         }
         config["grpc"] = {
             "enabled": "0"
