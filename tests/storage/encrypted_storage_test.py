@@ -82,7 +82,7 @@ class MockStorage(AbstractStorage):
 class EncryptedStorageTest(unittest.TestCase):
     # Define constant for secondary index suffix used in tests
     TEST_INDEX_SUFFIX = ".test_idx"
-    
+
     def setUp(self):
         self.key = Fernet.generate_key().decode('utf-8')
 

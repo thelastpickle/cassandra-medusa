@@ -33,7 +33,7 @@ class EncryptionManager:
     def __init__(self, key_secret_base64):
         if not key_secret_base64:
             raise ValueError("Encryption key is not provided")
-        
+
         # Validate base64 encoding and key length
         # Fernet uses URL-safe base64 encoding (44 chars for a 32-byte key)
         try:
@@ -46,7 +46,7 @@ class EncryptionManager:
                 f"Encryption key is not properly base64-encoded. "
                 f"Please ensure the key is base64-encoded. Details: {e}"
             )
-        
+
         # Validate key length (Fernet requires exactly 32 bytes when decoded)
         if len(decoded_key) != 32:
             raise ValueError(
@@ -56,7 +56,7 @@ class EncryptionManager:
                 f"python3 -c \"from cryptography.fernet import Fernet; "
                 f"print(Fernet.generate_key().decode())\""
             )
-        
+
         try:
             self.fernet = Fernet(key_secret_base64)
         except Exception as e:
