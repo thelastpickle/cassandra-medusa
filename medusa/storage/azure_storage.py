@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import base64
-import collections
 import io
 import json
 import logging
@@ -28,7 +27,8 @@ from azure.core.credentials import AzureNamedKeyCredential
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
 from azure.storage.blob import BlobProperties, StandardBlobTier
-from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject, ObjectDoesNotExistError
+from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, AbstractBlobMetadata
+from medusa.storage.abstract_storage import ManifestObject, ObjectDoesNotExistError
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_fixed
 

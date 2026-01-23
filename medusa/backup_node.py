@@ -308,8 +308,8 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
         if node_backup.is_differential:
             logging.info(f'Listing already backed up files for node {node_backup.fqdn}')
             if storage.config.key_secret_base64:
-                # When encryption is enabled, source_MD5 and source_size in manifest file  store the 
-                # the original file metadata before encryption, allowing us to compare local files 
+                # When encryption is enabled, source_MD5 and source_size in manifest file store the
+                # original file metadata before encryption, allowing us to compare local files
                 # without needing to decrypt S3 files.
                 files_in_storage = storage.get_files_from_all_differential_backups()
             else:

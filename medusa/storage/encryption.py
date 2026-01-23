@@ -29,7 +29,7 @@ MAX_CHUNK_SIZE = 2 * 1024 * 1024
 
 class EncryptionManager:
     """Manages encryption and decryption of backup files using Fernet symmetric encryption."""
-    
+
     def __init__(self, key_secret_base64):
         if not key_secret_base64:
             raise ValueError("Encryption key is not provided")

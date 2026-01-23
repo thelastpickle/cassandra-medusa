@@ -39,7 +39,9 @@ MULTIPART_BLOCKS_PER_MB = 16
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
 # Metadata files that are always stored as plaintext (not encrypted) for compatibility and accessibility
-PLAINTEXT_FILES_REGEX = re.compile(r'(manifest.*\.json|schema.*\.cql|server_version.*\.json|tokenmap.*\.json|backup_name\.txt)')
+PLAINTEXT_FILES_REGEX = re.compile(
+    r'(manifest.*\.json|schema.*\.cql|server_version.*\.json|tokenmap.*\.json|backup_name\.txt)'
+)
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 

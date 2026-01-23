@@ -18,12 +18,13 @@ import json
 from unittest.mock import MagicMock
 from medusa.storage import Storage
 
+
 class GetAllManifestsTest(unittest.TestCase):
     def setUp(self):
         self.config = MagicMock()
         self.config.fqdn = "test-fqdn"
         self.config.prefix = "prefix"
-        self.config.storage_provider = "local" # Just to pass initialization check
+        self.config.storage_provider = "local"  # Just to pass initialization check
         self.config.k8s_mode = None
         self.storage = Storage(config=self.config)
 
@@ -54,7 +55,7 @@ class GetAllManifestsTest(unittest.TestCase):
         backup2.name = "backup2"
         backup2.is_differential = True
         backup2.manifest = json.dumps([
-             {
+            {
                 "keyspace": "ks1",
                 "columnfamily": "cf1",
                 "objects": [
@@ -74,7 +75,7 @@ class GetAllManifestsTest(unittest.TestCase):
         backup3.name = "backup3"
         backup3.is_differential = True
         backup3.manifest = json.dumps([
-             {
+            {
                 "keyspace": "ks1",
                 "columnfamily": "cf1",
                 "objects": [
@@ -122,6 +123,7 @@ class GetAllManifestsTest(unittest.TestCase):
         self.assertIn("f_diff2.db", cf_files)
         f_diff2 = cf_files["f_diff2.db"]
         self.assertEqual(f_diff2.source_MD5, "src_md5_3")
+
 
 if __name__ == '__main__':
     unittest.main()

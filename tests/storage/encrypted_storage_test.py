@@ -25,36 +25,50 @@ from cryptography.fernet import Fernet
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
 from medusa.storage.encryption import EncryptionManager
 
+
 class MockStorage(AbstractStorage):
     def connect(self):
         pass
+
     def disconnect(self):
         pass
+
     async def _list_blobs(self, prefix=None):
         return []
+
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
         return MagicMock()
+
     async def _download_blob(self, src: str, dest: str):
         pass
+
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = pathlib.Path(src)
         object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
         return ManifestObject(path=object_key, size=100, MD5="enc_hash")
+
     async def _get_object(self, object_key):
         pass
+
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
         pass
+
     async def _delete_object(self, obj: AbstractBlob):
         pass
+
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
         pass
+
     @staticmethod
     def file_matches_storage(src, cached_item, threshold=None, enable_md5_checks=False):
         pass
+
     @staticmethod
-    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
+    def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None,
+                              threshold=None):
         pass
+
 
 class EncryptedStorageTest(unittest.TestCase):
     def setUp(self):
@@ -129,12 +143,12 @@ class EncryptedStorageTest(unittest.TestCase):
                 # It should reside in a .test_idx subdir of the temp dir.
                 src_path = pathlib.Path(src)
                 if not src_path.parent.name.startswith("."):
-                     raise ValueError(f"Temp file {src} is not in a secondary index folder")
+                    raise ValueError(f"Temp file {src} is not in a secondary index folder")
 
                 # Check that path_maybe_with_parent works as expected
                 key = AbstractStorage.path_maybe_with_parent(dest, src_path)
                 if ".test_idx" not in key:
-                     raise ValueError(f"Object key {key} does not contain index name")
+                    raise ValueError(f"Object key {key} does not contain index name")
 
                 return await original_upload_blob(src, dest)
 
@@ -153,9 +167,10 @@ class EncryptedStorageTest(unittest.TestCase):
         self.storage.config.encryption_tmp_dir = tempfile.gettempdir()
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            manager = EncryptionManager(self.key)
+            manager = EncryptionManager(self.key)  # noqa: F841
             # We need to mock the internal _download_blobs to simulate downloading the ENCRYPTED file
             # to the temporary directory. To do that, we setup side_effect to mock_download_blobs_impl
+
             async def side_effect(srcs, dest_dir):
                 # srcs is list of strings (paths relative to bucket)
                 # dest_dir is the temp dir
@@ -186,8 +201,6 @@ class EncryptedStorageTest(unittest.TestCase):
     @patch("medusa.storage.abstract_storage.AbstractStorage._download_blobs")
     def test_download_encrypted_blobs_skips_plaintext_files(self, mock_download_blobs_impl):
         # Verify that metadata files are NOT decrypted but moved directly
-        manager = EncryptionManager(self.key)
-
         # Test with a specific temp dir configuration
         self.storage.config.encryption_tmp_dir = tempfile.gettempdir()
 
@@ -226,6 +239,7 @@ class EncryptedStorageTest(unittest.TestCase):
 
                 with open(final_file, "rb") as f:
                     self.assertEqual(f.read(), original_content, f"Content mismatch for {final_file}")
+
 
 if __name__ == '__main__':
     unittest.main()

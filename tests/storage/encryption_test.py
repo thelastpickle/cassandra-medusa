@@ -16,7 +16,6 @@
 import unittest
 import os
 import tempfile
-import base64
 from cryptography.fernet import Fernet
 from medusa.storage.encryption import EncryptionManager
 
@@ -50,7 +49,7 @@ class EncryptionManagerTest(unittest.TestCase):
 
             self.assertEqual(src_size, len(content))
             self.assertTrue(os.path.exists(enc_path))
-            self.assertGreater(enc_size, src_size) # Encrypted file should be larger due to overhead
+            self.assertGreater(enc_size, src_size)  # Encrypted file should be larger due to overhead
 
             # Decrypt
             self.manager.decrypt_file(enc_path, dec_path)
@@ -83,6 +82,7 @@ class EncryptionManagerTest(unittest.TestCase):
                 decrypted_content = f.read()
 
             self.assertEqual(content, decrypted_content)
+
 
 if __name__ == '__main__':
     unittest.main()
