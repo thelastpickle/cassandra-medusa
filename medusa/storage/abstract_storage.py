@@ -208,7 +208,7 @@ class AbstractStorage(abc.ABC):
                     try:
                         os.remove(temp_file_path)
                     except OSError:
-                        pass
+                        logging.warning(f"Failed to remove temporary file: {temp_file_path}")
             else:
                 logging.warning("Encrypted file not found after download: {}".format(temp_file_path))
 
@@ -280,7 +280,7 @@ class AbstractStorage(abc.ABC):
                     try:
                         os.remove(temp_file)
                     except OSError:
-                        pass
+                        logging.warning(f"Failed to remove temporary file: {temp_file_path}")
 
         return manifest_objects
 
