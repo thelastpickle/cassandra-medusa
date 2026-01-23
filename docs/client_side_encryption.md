@@ -59,6 +59,23 @@ key_secret_base64 = DrMxa6NEhBuKcBqffvw675eHo/9J/W3WqXZ3spyI1/U=
 encryption_tmp_dir = /tmp
 ```
 
+## Security Best Practices
+
+The configuration file containing the encryption key must be protected with restricted file permissions:
+
+```bash
+chmod 0600 /path/to/medusa.ini
+```
+
+Ensure that:
+- Only the user running Medusa has read/write access to the configuration file
+- Group and other users have no access to the file
+- The configuration file is owned by the appropriate user/service account
+
+
+The encryption key is required to decrypt all encrypted backups. Without it, **data cannot be recovered**.
+So backup the key and test recovery procedures to verify you can restore encrypted backups
+
 ## Usage
 
 ### Creating Encrypted Backups
