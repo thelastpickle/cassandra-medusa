@@ -69,7 +69,7 @@ class EncryptionManagerTest(unittest.TestCase):
                 f.write(content)
 
             # Encrypt
-            enc_md5, enc_size, src_md5, src_size = self.manager.encrypt_file(src_path, enc_path)
+            _, enc_size, _, src_size = self.manager.encrypt_file(src_path, enc_path)
 
             self.assertEqual(src_size, len(content))
             self.assertTrue(os.path.exists(enc_path))

@@ -280,7 +280,7 @@ class AbstractStorage(abc.ABC):
                     try:
                         os.remove(temp_file)
                     except OSError:
-                        logging.warning(f"Failed to remove temporary file: {temp_file_path}")
+                        logging.warning(f"Failed to remove temporary file: {temp_file}")
 
         return manifest_objects
 
@@ -297,7 +297,7 @@ class AbstractStorage(abc.ABC):
             else:
                 temp_path = Path(temp_dir) / src_path.name
 
-            enc_md5, enc_size, src_md5, src_size = manager.encrypt_file(src, temp_path)
+            _, _, src_md5, src_size = manager.encrypt_file(src, temp_path)
             results.append((str(temp_path), src_md5, src_size))
         return results
 

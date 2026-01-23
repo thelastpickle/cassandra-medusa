@@ -28,9 +28,11 @@ from medusa.storage.encryption import EncryptionManager
 
 class MockStorage(AbstractStorage):
     def connect(self):
+        # Mock implementation - no connection needed for testing
         pass
 
     def disconnect(self):
+        # Mock implementation - no disconnection needed for testing
         pass
 
     async def _list_blobs(self, prefix=None):
@@ -40,6 +42,7 @@ class MockStorage(AbstractStorage):
         return MagicMock()
 
     async def _download_blob(self, src: str, dest: str):
+        # Mock implementation - actual download behavior is mocked in individual tests
         pass
 
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
@@ -48,29 +51,38 @@ class MockStorage(AbstractStorage):
         return ManifestObject(path=object_key, size=100, MD5="enc_hash")
 
     async def _get_object(self, object_key):
+        # Mock implementation - not used in encryption tests
         pass
 
     async def _read_blob_as_bytes(self, blob: AbstractBlob) -> bytes:
+        # Mock implementation - not used in encryption tests
         pass
 
     async def _delete_object(self, obj: AbstractBlob):
+        # Mock implementation - not used in encryption tests
         pass
 
     @staticmethod
     def blob_matches_manifest(blob, object_in_manifest, enable_md5_checks=False):
+        # Mock implementation - not used in encryption tests
         pass
 
     @staticmethod
     def file_matches_storage(src, cached_item, threshold=None, enable_md5_checks=False):
+        # Mock implementation - not used in encryption tests
         pass
 
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None,
                               threshold=None):
+        # Mock implementation - not used in encryption tests
         pass
 
 
 class EncryptedStorageTest(unittest.TestCase):
+    # Define constant for secondary index suffix used in tests
+    TEST_INDEX_SUFFIX = ".test_idx"
+    
     def setUp(self):
         self.key = Fernet.generate_key().decode('utf-8')
 
@@ -123,7 +135,7 @@ class EncryptedStorageTest(unittest.TestCase):
         test_msg = b"index content"
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a structure like .../table/.index_name/file.db
-            index_dir = os.path.join(temp_dir, ".test_idx")
+            index_dir = os.path.join(temp_dir, self.TEST_INDEX_SUFFIX)
             os.mkdir(index_dir)
 
             src_file = os.path.join(index_dir, "test.db")
@@ -147,7 +159,7 @@ class EncryptedStorageTest(unittest.TestCase):
 
                 # Check that path_maybe_with_parent works as expected
                 key = AbstractStorage.path_maybe_with_parent(dest, src_path)
-                if ".test_idx" not in key:
+                if self.TEST_INDEX_SUFFIX not in key:
                     raise ValueError(f"Object key {key} does not contain index name")
 
                 return await original_upload_blob(src, dest)
@@ -157,7 +169,7 @@ class EncryptedStorageTest(unittest.TestCase):
 
             self.assertEqual(len(manifests), 1)
             mo = manifests[0]
-            self.assertIn(".test_idx", mo.path)
+            self.assertIn(self.TEST_INDEX_SUFFIX, mo.path)
 
     @patch("medusa.storage.abstract_storage.AbstractStorage._download_blobs")
     def test_download_encrypted_blobs(self, mock_download_blobs_impl):
@@ -171,7 +183,7 @@ class EncryptedStorageTest(unittest.TestCase):
             # We need to mock the internal _download_blobs to simulate downloading the ENCRYPTED file
             # to the temporary directory. To do that, we setup side_effect to mock_download_blobs_impl
 
-            async def side_effect(srcs, dest_dir):
+            def side_effect(srcs, dest_dir):
                 # srcs is list of strings (paths relative to bucket)
                 # dest_dir is the temp dir
                 for src in srcs:
@@ -208,7 +220,7 @@ class EncryptedStorageTest(unittest.TestCase):
             # Create a plaintext content
             original_content = b'{"json": "plaintext"}'
 
-            async def side_effect(srcs, dest_dir):
+            def side_effect(srcs, dest_dir):
                 for src in srcs:
                     file_name = pathlib.Path(src).name
                     dest_path = os.path.join(dest_dir, file_name)
