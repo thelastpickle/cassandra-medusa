@@ -16,6 +16,7 @@
 import unittest
 import os
 import tempfile
+import base64
 from cryptography.fernet import Fernet
 from medusa.storage.encryption import EncryptionManager
 
@@ -32,6 +33,29 @@ class EncryptionManagerTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             EncryptionManager(None)
+
+    def test_init_invalid_base64_encoding(self):
+        """Test that non-base64 strings are rejected with a clear error message"""
+        # Use a string with invalid base64 characters that will fail decoding
+        with self.assertRaises(ValueError) as context:
+            EncryptionManager("not!@#$%^&*()invalid")
+        self.assertIn("base64-encoded", str(context.exception))
+
+    def test_init_invalid_key_length(self):
+        """Test that keys with incorrect length are rejected"""
+        # Too short key (not 32 bytes when decoded)
+        short_key = base64.b64encode(b"short").decode()
+        with self.assertRaises(ValueError) as context:
+            EncryptionManager(short_key)
+        self.assertIn("invalid length", str(context.exception))
+        self.assertIn("32 bytes", str(context.exception))
+
+        # Too long key (not 32 bytes when decoded)
+        long_key = base64.b64encode(b"x" * 50).decode()
+        with self.assertRaises(ValueError) as context:
+            EncryptionManager(long_key)
+        self.assertIn("invalid length", str(context.exception))
+        self.assertIn("32 bytes", str(context.exception))
 
     def test_encrypt_decrypt_file(self):
         content = b"Hello, Medusa!" * 1000  # 14KB
