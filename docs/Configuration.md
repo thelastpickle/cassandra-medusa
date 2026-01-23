@@ -132,6 +132,14 @@ backup_grace_period_in_days = 10
 
 ;aws_cli_path = <Location of the aws cli binary if not in PATH>
 
+; Base64-encoded 32-byte encryption key (required for CSE)
+;key_secret_base64 = 
+
+; Temporary directory for encryption/decryption operations (optional)
+; Defaults to system temp directory if not specified
+; Directory must have sufficient space for concurrent file operations
+;encryption_tmp_dir = /tmp
+
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently just "local">
 
