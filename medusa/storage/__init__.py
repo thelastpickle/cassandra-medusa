@@ -553,7 +553,6 @@ class Storage(object):
                         except RuntimeError:
                             # Skip files that don't match SSTable path structure (e.g. if path is weird)
                             logging.debug(f"Skipping {path} from manifest as it doesn't look like an SSTable")
-                            pass
 
             except Exception as e:
                 logging.warning(f"Failed to process manifest for backup {backup.name}: {e}")
