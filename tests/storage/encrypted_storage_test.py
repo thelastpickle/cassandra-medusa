@@ -39,7 +39,27 @@ class MockStorage(AbstractStorage):
         return []
 
     async def _upload_object(self, data: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> AbstractBlob:
-        return MagicMock()
+        # Mock implementation: return a Blob with a fixed size/hash for basic tests
+        return AbstractBlob(name=object_key, size=100, hash="enc_hash", last_modified=None, storage_class=None)
+
+    async def _upload_object_from_stream(self, stream: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+        # Consume the stream so that size/md5 are calculated
+        data = stream.read()
+
+        # In a real scenario, this 'data' is the encrypted data
+        blob_size = len(data)
+
+        # If the stream is an EncryptedStream, we can get the source info from it
+        source_size = getattr(stream, 'source_size', None)
+        source_md5 = getattr(stream, 'md5_source', None)
+
+        return ManifestObject(
+            path=object_key,
+            size=blob_size,
+            MD5="enc_hash_of_stream",
+            source_size=source_size,
+            source_MD5=source_md5
+        )
 
     async def _download_blob(self, src: str, dest: str):
         # Mock implementation - actual download behavior is mocked in individual tests
@@ -114,19 +134,19 @@ class EncryptedStorageTest(unittest.TestCase):
             dest = "backup/data"
 
             # We want to check the result of upload_blobs.
-            # upload_blobs use MockStorage._upload_blob internally and return a constant ManifestObject.
             manifests = self.storage.upload_blobs(srcs, dest)
 
             self.assertEqual(len(manifests), 1)
             mo = manifests[0]
 
-            # Check if source metadata is populated
+            # Check if source metadata is populated correctly from the stream
             self.assertEqual(mo.source_size, test_msg_size)
             self.assertIsNotNone(mo.source_MD5)
 
-            # The MockStorage._upload_blob returns size=100, MD5="enc_hash"
-            self.assertEqual(mo.size, 100)
-            self.assertEqual(mo.MD5, "enc_hash")
+            # Check encrypted metadata (calculated by MockStorage._upload_object_from_stream)
+            # The size should be > 0 (encrypted content)
+            self.assertTrue(mo.size > 0)
+            self.assertEqual(mo.MD5, "enc_hash_of_stream")
 
             # Verify the path is correct
             self.assertEqual(mo.path, f"{dest}/test.txt")
@@ -145,31 +165,21 @@ class EncryptedStorageTest(unittest.TestCase):
             srcs = [pathlib.Path(src_file)]
             dest = "backup/data"
 
-            # Mock _upload_blob to verify the object key passed to it
-            # We want to ensure it includes the .test_idx/ parent
-            original_upload_blob = self.storage._upload_blob
+            # Mock _upload_encrypted_blob to verify parameters if needed,
+            # or rely on MockStorage implementation.
+            # But the test wants to ensure the OBJECT KEY includes the index suffix.
 
-            async def mock_upload_blob(src, dest):
-                # We can inspect the src path here.
-                # src should be the path to the encrypted temp file.
-                # It should reside in a .test_idx subdir of the temp dir.
-                src_path = pathlib.Path(src)
-                if not src_path.parent.name.startswith("."):
-                    raise ValueError(f"Temp file {src} is not in a secondary index folder")
+            # Since we can't easily patch the inner logic of _upload_encrypted_blobs loop without being invasive,
+            # we can inspect the returned manifest object which contains the path.
 
-                # Check that path_maybe_with_parent works as expected
-                key = AbstractStorage.path_maybe_with_parent(dest, src_path)
-                if self.TEST_INDEX_SUFFIX not in key:
-                    raise ValueError(f"Object key {key} does not contain index name")
-
-                return await original_upload_blob(src, dest)
-
-            with patch.object(self.storage, '_upload_blob', side_effect=mock_upload_blob):
-                manifests = self.storage.upload_blobs(srcs, dest)
+            manifests = self.storage.upload_blobs(srcs, dest)
 
             self.assertEqual(len(manifests), 1)
             mo = manifests[0]
             self.assertIn(self.TEST_INDEX_SUFFIX, mo.path)
+
+            # Verify it preserved the file name
+            self.assertTrue(mo.path.endswith("/test.db"))
 
     @patch("medusa.storage.abstract_storage.AbstractStorage._download_blobs")
     def test_download_encrypted_blobs(self, mock_download_blobs_impl):

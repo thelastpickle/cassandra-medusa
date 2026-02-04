@@ -18,6 +18,7 @@ import hashlib
 import struct
 import logging
 import os
+import io
 from cryptography.fernet import Fernet
 
 # Chunk size for reading/encrypting.
@@ -128,3 +129,78 @@ class EncryptionManager:
 
                 decrypted_chunk = self.fernet.decrypt(encrypted_chunk)
                 f_out.write(decrypted_chunk)
+
+
+class EncryptedStream(io.RawIOBase):
+    def __init__(self, source_stream, key_secret_base64):
+        self.source_stream = source_stream
+        self.manager = EncryptionManager(key_secret_base64)
+        self.source_hash = hashlib.md5()
+        self.encrypted_hash = hashlib.md5()
+        self.source_size = 0
+        self.encrypted_size = 0
+        self.buffer = io.BytesIO()
+        self.eof = False
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return False
+
+    def read(self, size=-1):
+        if size == -1:
+            # Read everything
+            output = bytearray()
+            while True:
+                chunk = self.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                output.extend(chunk)
+            return bytes(output)
+
+        if self.buffer.tell() == self.buffer.getbuffer().nbytes and self.eof:
+            return b""
+
+        while self.buffer.getbuffer().nbytes - self.buffer.tell() < size and not self.eof:
+            chunk = self.source_stream.read(CHUNK_SIZE)
+            if not chunk:
+                self.eof = True
+                break
+
+            self.source_size += len(chunk)
+            self.source_hash.update(chunk)
+
+            encrypted_chunk = self.manager.fernet.encrypt(chunk)
+            chunk_len = len(encrypted_chunk)
+            len_bytes = struct.pack('>I', chunk_len)
+
+            # Important: Write to the buffer at the *end*, but preserve the current read position
+            current_pos = self.buffer.tell()
+            self.buffer.seek(0, io.SEEK_END)
+            self.buffer.write(len_bytes)
+            self.buffer.write(encrypted_chunk)
+            self.buffer.seek(current_pos)
+
+            self.encrypted_size += 4 + chunk_len
+            self.encrypted_hash.update(len_bytes)
+            self.encrypted_hash.update(encrypted_chunk)
+
+        data = self.buffer.read(size)
+
+        # Optimization: Clear the buffer if we've read everything to save memory
+        if self.buffer.tell() == self.buffer.getbuffer().nbytes:
+             self.buffer = io.BytesIO()
+
+        return data
+
+    def readall(self):
+        return self.read()
+
+    @property
+    def md5_source(self):
+        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
+
+    @property
+    def md5_encrypted(self):
+        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()

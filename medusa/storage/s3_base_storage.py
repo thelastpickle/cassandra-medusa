@@ -432,6 +432,58 @@ class S3BaseStorage(AbstractStorage):
         blob_hash = resp['ETag'].replace('"', '')
         return ManifestObject(blob_name, blob_size, blob_hash)
 
+    async def _upload_object_from_stream(self, stream: t.BinaryIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+        extra_args = {}
+        if self.kms_id is not None:
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
+            extra_args['SSEKMSKeyId'] = self.kms_id
+
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            extra_args['StorageClass'] = storage_class
+
+        upload_conf = {
+            'Fileobj': stream,
+            'Bucket': self.bucket_name,
+            'Key': object_key,
+            'Config': self.transfer_config,
+            'ExtraArgs': extra_args,
+        }
+
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(self.executor, self.__upload_fileobj, upload_conf)
+        mo = await future
+
+        # Gather metadata from the stream after upload (since it's an EncryptedStream)
+        if hasattr(stream, 'source_size') and hasattr(stream, 'md5_source'):
+             return ManifestObject(
+                mo.path,
+                mo.size,
+                mo.MD5,
+                stream.source_size,
+                stream.md5_source
+            )
+
+        return mo
+
+    def __upload_fileobj(self, upload_conf):
+        self.s3_client.upload_fileobj(**upload_conf)
+
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        resp = self.s3_client.head_object(Bucket=upload_conf['Bucket'], Key=upload_conf['Key'], **extra_args)
+        blob_name = upload_conf['Key']
+        blob_size = int(resp['ContentLength'])
+        blob_hash = resp['ETag'].replace('"', '')
+        return ManifestObject(blob_name, blob_size, blob_hash)
+
     async def _get_object(self, object_key: t.Union[Path, str]) -> AbstractBlob:
         blob = await self._stat_blob(str(object_key))
         return blob

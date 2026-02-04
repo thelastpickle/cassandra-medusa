@@ -239,9 +239,8 @@ class AbstractStorage(abc.ABC):
             return manifest_objects
 
     async def _upload_encrypted_blobs(self, srcs, dest):
-        from medusa.storage.encryption import EncryptionManager
+        from medusa.storage.encryption import EncryptedStream
 
-        manager = EncryptionManager(self.config.key_secret_base64)
         loop = asyncio.get_running_loop()
         manifest_objects = []
         chunk_size = int(self.config.concurrent_transfers)
@@ -251,55 +250,80 @@ class AbstractStorage(abc.ABC):
         # Split into chunks
         src_chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
 
-        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
-        with tempfile.TemporaryDirectory(dir=encryption_tmp_dir) as temp_dir:
-            for chunk in src_chunks:
-                # Prepare this chunk
-                # We use run_in_executor for the encryption process
-                encryption_results = await loop.run_in_executor(None, self._encrypt_chunk, manager, chunk, temp_dir)
-                # encryption_results is list of (temp_path_str, src_md5, src_size)
+        for chunk in src_chunks:
+            # We want to process uploads in parallel, but we can't easily do parallel
+            # stream uploads if they block the event loop with CPU work (encryption).
+            # However, EncryptedStream does work in small chunks inside read(), which is called
+            # by the underlying storage driver (boto3, etc.).
+            # Most storage drivers run uploads in a thread pool (boto3) or async loop.
+            # If boto3 runs in a thread pool, the encryption (CPU bound) will happen in that thread,
+            # which is fine.
 
-                temp_files = [r[0] for r in encryption_results]
-                metadata_map = {r[0]: (r[1], r[2]) for r in encryption_results}
+            coros = []
+            for src in chunk:
+                coros.append(self._upload_encrypted_blob(src, dest, EncryptedStream))
 
-                # Upload this chunk
-                chunk_results = await self._upload_blobs(temp_files, dest)
-
-                # Process results
-                for i, mo in enumerate(chunk_results):
-                    # corresponding temp file
-                    temp_file = temp_files[i]
-                    src_md5, src_size = metadata_map[temp_file]
-
-                    # Create new ManifestObject.
-                    new_mo = ManifestObject(mo.path, mo.size, mo.MD5, src_size, src_md5)
-                    manifest_objects.append(new_mo)
-
-                # Clean up temp files for this chunk (sync is fine, it's fast)
-                for temp_file in temp_files:
-                    try:
-                        os.remove(temp_file)
-                    except OSError:
-                        logging.warning(f"Failed to remove temporary file: {temp_file}")
+            chunk_results = await asyncio.gather(*coros)
+            manifest_objects.extend(chunk_results)
 
         return manifest_objects
 
-    def _encrypt_chunk(self, manager, chunk, temp_dir):
-        results = []
-        for src in chunk:
-            src_path = Path(src)
-            # Recreate special subdirectories (e.g. secondary indexes) in temp_dir
-            # to preserve structure for upload path calculation.
-            if src_path.parent.name.startswith(".") or src_path.parent.name.endswith('nodes'):
-                sub_dir = Path(temp_dir) / src_path.parent.name
-                sub_dir.mkdir(parents=True, exist_ok=True)
-                temp_path = sub_dir / src_path.name
-            else:
-                temp_path = Path(temp_dir) / src_path.name
+    async def _upload_encrypted_blob(self, src, dest, encrypted_stream_cls):
+        src_path = Path(src)
+        # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
+        object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-            _, _, src_md5, src_size = manager.encrypt_file(src, temp_path)
-            results.append((str(temp_path), src_md5, src_size))
-        return results
+        file_size = os.stat(src).st_size
+        logging.debug(
+            '[Storage] Uploading encrypted stream {} ({}) -> {}'.format(
+                src, self.human_readable_size(file_size), object_key
+            )
+        )
+
+        # We need to run the upload in an executor to avoid blocking the loop with file I/O and encryption
+        loop = asyncio.get_running_loop()
+        # But wait, _upload_object_from_stream implementations might be async or sync depending on driver.
+        # Let's assume the driver implementation handles the concurrency or offloading.
+        # But for S3BaseStorage, we will implement it using run_in_executor if it uses blocking boto3.
+
+        # Open the file and wrap it in EncryptedStream
+        with open(src, 'rb') as f:
+            stream = encrypted_stream_cls(f, self.config.key_secret_base64)
+            manifest_object = await self._upload_object_from_stream(stream, object_key, {})
+
+        return manifest_object
+
+    async def _upload_object_from_stream(self, stream: t.BinaryIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+        """
+        Uploads a stream to the storage.
+        Child classes should override this to support streaming uploads (e.g. boto3 upload_fileobj).
+        Default implementation spools the stream to a temporary file on disk to avoid OOM on large files.
+        """
+        logging.debug(f"Using default file-spooling fallback for upload of {object_key}")
+
+        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
+        with tempfile.NamedTemporaryFile(dir=encryption_tmp_dir, delete=True) as tmp:
+            # Spool stream to disk
+            shutil.copyfileobj(stream, tmp)
+            tmp.flush()
+            tmp.seek(0)
+
+            # Now upload from the temp file using the standard upload mechanism
+            # (which usually expects a file path or file-like object)
+
+            # Ideally we would call _upload_blob(path, ...) but that takes a path and recalculates stuff.
+            # _upload_object takes a BytesIO or file-like object.
+
+            # Since _upload_object implementations typically expect to read from the object:
+            blob = await self._upload_object(tmp, object_key, headers)
+
+        return ManifestObject(
+            blob.name,
+            blob.size,
+            blob.hash,
+            stream.source_size if hasattr(stream, 'source_size') else None,
+            stream.md5_source if hasattr(stream, 'md5_source') else None
+        )
 
     async def _upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         coros = [self._upload_blob(src, dest) for src in map(str, srcs)]
