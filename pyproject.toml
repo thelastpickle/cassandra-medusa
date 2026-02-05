@@ -82,7 +82,7 @@ azure-storage-blob = "12.17.0"
 urllib3 = "2.6.0"
 
 [tool.poetry.group.grpc.dependencies]
-protobuf = "5.29.5"
+protobuf = "5.29.6"
 grpcio = "1.69.0"
 grpcio-health-checking = "1.69.0"
 grpcio-tools = "1.69.0"
