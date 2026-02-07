@@ -239,38 +239,31 @@ class AbstractStorage(abc.ABC):
             return manifest_objects
 
     async def _upload_encrypted_blobs(self, srcs, dest):
-        from medusa.storage.encryption import EncryptedStream
-
         loop = asyncio.get_running_loop()
         manifest_objects = []
         chunk_size = int(self.config.concurrent_transfers)
 
         srcs = [str(s) for s in srcs]
 
-        # Split into chunks
+        # Split jobs into chunks. Each jobs wait for the previous one to finish before
+        # starting, to avoid overloading the system with encryption and file I/O
         src_chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
 
         for chunk in src_chunks:
-            # We want to process uploads in parallel, but we can't easily do parallel
-            # stream uploads if they block the event loop with CPU work (encryption).
-            # However, EncryptedStream does work in small chunks inside read(), which is called
-            # by the underlying storage driver (boto3, etc.).
-            # Most storage drivers run uploads in a thread pool (boto3) or async loop.
-            # If boto3 runs in a thread pool, the encryption (CPU bound) will happen in that thread,
-            # which is fine.
-
-            coros = []
+            # First, build the coroutines list of functions to execute.
+            coroutines = []
             for src in chunk:
-                coros.append(self._upload_encrypted_blob(src, dest, EncryptedStream))
-
-            chunk_results = await asyncio.gather(*coros)
+                coroutines.append(self._upload_encrypted_blob(src, dest))
+            # Then, execute coroutines concurrently and get ManifestObject in chunk_results list.
+            chunk_results = await asyncio.gather(*coroutines)
             manifest_objects.extend(chunk_results)
 
         return manifest_objects
 
-    async def _upload_encrypted_blob(self, src, dest, encrypted_stream_cls):
+    async def _upload_encrypted_blob(self, src: str, dest: str) -> ManifestObject:
+        from medusa.storage.encryption import EncryptedStream
+
         src_path = Path(src)
-        # check if objects resides in a sub-folder (e.g. secondary index). if it does, use the sub-folder in object path
         object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
         file_size = os.stat(src).st_size
@@ -280,15 +273,9 @@ class AbstractStorage(abc.ABC):
             )
         )
 
-        # We need to run the upload in an executor to avoid blocking the loop with file I/O and encryption
-        loop = asyncio.get_running_loop()
-        # But wait, _upload_object_from_stream implementations might be async or sync depending on driver.
-        # Let's assume the driver implementation handles the concurrency or offloading.
-        # But for S3BaseStorage, we will implement it using run_in_executor if it uses blocking boto3.
-
         # Open the file and wrap it in EncryptedStream
         with open(src, 'rb') as f:
-            stream = encrypted_stream_cls(f, self.config.key_secret_base64)
+            stream = EncryptedStream(f, self.config.key_secret_base64)
             manifest_object = await self._upload_object_from_stream(stream, object_key, {})
 
         return manifest_object

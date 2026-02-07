@@ -134,7 +134,7 @@ class EncryptionManager:
 class EncryptedStream(io.RawIOBase):
     def __init__(self, source_stream, key_secret_base64):
         self.source_stream = source_stream
-        self.manager = EncryptionManager(key_secret_base64)
+        self.fernet = Fernet(key_secret_base64)
         self.source_hash = hashlib.md5()
         self.encrypted_hash = hashlib.md5()
         self.source_size = 0
@@ -171,7 +171,7 @@ class EncryptedStream(io.RawIOBase):
             self.source_size += len(chunk)
             self.source_hash.update(chunk)
 
-            encrypted_chunk = self.manager.fernet.encrypt(chunk)
+            encrypted_chunk = self.fernet.encrypt(chunk)
             chunk_len = len(encrypted_chunk)
             len_bytes = struct.pack('>I', chunk_len)
 

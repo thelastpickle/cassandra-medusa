@@ -454,8 +454,11 @@ class S3BaseStorage(AbstractStorage):
             'ExtraArgs': extra_args,
         }
 
+        # we are going to combine asyncio with boto's threading
+        # we do this by submitting the upload into an executor
         loop = asyncio.get_event_loop()
         future = loop.run_in_executor(self.executor, self.__upload_fileobj, upload_conf)
+        # and then ask asyncio to yield until it completes
         mo = await future
 
         # Gather metadata from the stream after upload (since it's an EncryptedStream)
