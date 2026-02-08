@@ -432,7 +432,9 @@ class S3BaseStorage(AbstractStorage):
         blob_hash = resp['ETag'].replace('"', '')
         return ManifestObject(blob_name, blob_size, blob_hash)
 
-    async def _upload_object_from_stream(self, stream: t.BinaryIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+    async def _upload_object_from_stream(
+            self, stream: t.BinaryIO, object_key: str,
+            headers: t.Dict[str, str]) -> ManifestObject:
         extra_args = {}
         if self.kms_id is not None:
             extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
@@ -463,7 +465,7 @@ class S3BaseStorage(AbstractStorage):
 
         # Gather metadata from the stream after upload (since it's an EncryptedStream)
         if hasattr(stream, 'source_size') and hasattr(stream, 'md5_source'):
-             return ManifestObject(
+            return ManifestObject(
                 mo.path,
                 mo.size,
                 mo.MD5,

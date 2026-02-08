@@ -19,7 +19,7 @@ import tempfile
 import pathlib
 import io
 import typing as t
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from cryptography.fernet import Fernet
 
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
@@ -42,7 +42,9 @@ class MockStorage(AbstractStorage):
         # Mock implementation: return a Blob with a fixed size/hash for basic tests
         return AbstractBlob(name=object_key, size=100, hash="enc_hash", last_modified=None, storage_class=None)
 
-    async def _upload_object_from_stream(self, stream: io.BytesIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+    async def _upload_object_from_stream(
+            self, stream: io.BytesIO, object_key: str,
+            headers: t.Dict[str, str]) -> ManifestObject:
         # Consume the stream so that size/md5 are calculated
         data = stream.read()
 
@@ -62,7 +64,8 @@ class MockStorage(AbstractStorage):
         )
 
     async def _download_blob(self, src: str, dest: str):
-        # Mock implementation - actual download behavior is mocked in individual tests
+        # Mock implementation - actual download behavior is mocked in individual tests.
+        # Behavior will be defined by the side_effect of the mock in the test case with AsyncMock.
         pass
 
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
@@ -165,13 +168,8 @@ class EncryptedStorageTest(unittest.TestCase):
             srcs = [pathlib.Path(src_file)]
             dest = "backup/data"
 
-            # Mock _upload_encrypted_blob to verify parameters if needed,
-            # or rely on MockStorage implementation.
-            # But the test wants to ensure the OBJECT KEY includes the index suffix.
-
-            # Since we can't easily patch the inner logic of _upload_encrypted_blobs loop without being invasive,
-            # we can inspect the returned manifest object which contains the path.
-
+            # This funcion will call our MockStorage._upload_object_from_stream which will
+            # return a ManifestObject with the path set to dest + filename
             manifests = self.storage.upload_blobs(srcs, dest)
 
             self.assertEqual(len(manifests), 1)
@@ -181,31 +179,32 @@ class EncryptedStorageTest(unittest.TestCase):
             # Verify it preserved the file name
             self.assertTrue(mo.path.endswith("/test.db"))
 
-    @patch("medusa.storage.abstract_storage.AbstractStorage._download_blobs")
-    def test_download_encrypted_blobs(self, mock_download_blobs_impl):
+    def test_download_encrypted_blobs(self):
+        from unittest.mock import AsyncMock
         original_content = b"restored content"
 
         # Test with a specific temp dir configuration
         self.storage.config.encryption_tmp_dir = tempfile.gettempdir()
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            manager = EncryptionManager(self.key)  # noqa: F841
-            # We need to mock the internal _download_blobs to simulate downloading the ENCRYPTED file
-            # to the temporary directory. To do that, we setup side_effect to mock_download_blobs_impl
+            manager = EncryptionManager(self.key)
 
-            def side_effect(srcs, dest_dir):
-                # srcs is list of strings (paths relative to bucket)
+            # We need to mock the internal _download_blob to simulate downloading the ENCRYPTED file
+            # to the temporary directory
+            async def side_effect(src, dest_dir):
+                # src is a string (path relative to bucket)
                 # dest_dir is the temp dir
-                for src in srcs:
-                    file_name = pathlib.Path(src).name
-                    dest_path = os.path.join(dest_dir, file_name)
-                    # encrypt content to file
-                    with tempfile.NamedTemporaryFile() as tmp_src:
-                        tmp_src.write(original_content)
-                        tmp_src.flush()
-                        manager.encrypt_file(tmp_src.name, dest_path)
+                file_name = pathlib.Path(src).name
+                dest_path = os.path.join(dest_dir, file_name)
+                # encrypt content to file
+                with tempfile.NamedTemporaryFile(delete=False) as tmp_src:
+                    tmp_src.write(original_content)
+                    tmp_src.flush()
+                    manager.encrypt_file(tmp_src.name, dest_path)
+                    os.remove(tmp_src.name)
 
-            mock_download_blobs_impl.side_effect = side_effect
+            # Mock the _download_blob method directly on the instance
+            self.storage._download_blob = AsyncMock(side_effect=side_effect)
 
             # Test parameters
             srcs = ["backup/data/restored.txt"]
@@ -220,9 +219,9 @@ class EncryptedStorageTest(unittest.TestCase):
             with open(final_file, "rb") as f:
                 self.assertEqual(f.read(), original_content)
 
-    @patch("medusa.storage.abstract_storage.AbstractStorage._download_blobs")
-    def test_download_encrypted_blobs_skips_plaintext_files(self, mock_download_blobs_impl):
-        # Verify that metadata files are NOT decrypted but moved directly
+    def test_download_encrypted_blobs_skips_plaintext_files(self):
+        from unittest.mock import AsyncMock
+        # Verify that metadata files are NOT decrypted but moved directly.
         # Test with a specific temp dir configuration
         self.storage.config.encryption_tmp_dir = tempfile.gettempdir()
 
@@ -230,15 +229,17 @@ class EncryptedStorageTest(unittest.TestCase):
             # Create a plaintext content
             original_content = b'{"json": "plaintext"}'
 
-            def side_effect(srcs, dest_dir):
-                for src in srcs:
-                    file_name = pathlib.Path(src).name
-                    dest_path = os.path.join(dest_dir, file_name)
-                    # Write PLAINTEXT, do NOT encrypt
-                    with open(dest_path, 'wb') as f:
-                        f.write(original_content)
+            async def side_effect(src, dest_dir):
+                # src is a string (path relative to bucket)
+                # dest_dir is the temp dir
+                file_name = pathlib.Path(src).name
+                dest_path = os.path.join(dest_dir, file_name)
+                # Write PLAINTEXT, do NOT decrypt
+                with open(dest_path, 'wb') as f:
+                    f.write(original_content)
 
-            mock_download_blobs_impl.side_effect = side_effect
+            # Mock the _download_blob method directly on the instance
+            self.storage._download_blob = AsyncMock(side_effect=side_effect)
 
             # Test parameters with various metadata files matching the regex
             srcs = [

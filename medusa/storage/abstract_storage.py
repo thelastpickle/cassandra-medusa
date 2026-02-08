@@ -60,7 +60,6 @@ class ObjectDoesNotExistError(Exception):
 
 
 class AbstractStorage(abc.ABC):
-
     # still not certain what precisely this is used for
     # sometimes we store Cassandra version in this it seems
     api_version = None
@@ -169,7 +168,6 @@ class AbstractStorage(abc.ABC):
         from medusa.storage.encryption import EncryptionManager
 
         manager = EncryptionManager(self.config.key_secret_base64)
-        # Use loop from self.get_or_create_event_loop() if needed, but we are inside async func
         loop = asyncio.get_running_loop()
 
         chunk_size = int(self.config.concurrent_transfers)
@@ -180,7 +178,8 @@ class AbstractStorage(abc.ABC):
         with tempfile.TemporaryDirectory(dir=encryption_tmp_dir) as temp_dir:
             for chunk in chunks:
                 # Download chunk to temp_dir
-                await self._download_blobs(chunk, temp_dir)
+                coros = [self._download_blob(src, temp_dir) for src in chunk]
+                await asyncio.gather(*coros)
 
                 # Decrypt
                 # Offload decryption to executor to keep the loop responsive
@@ -239,7 +238,6 @@ class AbstractStorage(abc.ABC):
             return manifest_objects
 
     async def _upload_encrypted_blobs(self, srcs, dest):
-        loop = asyncio.get_running_loop()
         manifest_objects = []
         chunk_size = int(self.config.concurrent_transfers)
 
@@ -280,7 +278,9 @@ class AbstractStorage(abc.ABC):
 
         return manifest_object
 
-    async def _upload_object_from_stream(self, stream: t.BinaryIO, object_key: str, headers: t.Dict[str, str]) -> ManifestObject:
+    async def _upload_object_from_stream(
+            self, stream: t.BinaryIO, object_key: str,
+            headers: t.Dict[str, str]) -> ManifestObject:
         """
         Uploads a stream to the storage.
         Child classes should override this to support streaming uploads (e.g. boto3 upload_fileobj).
@@ -296,12 +296,6 @@ class AbstractStorage(abc.ABC):
             tmp.seek(0)
 
             # Now upload from the temp file using the standard upload mechanism
-            # (which usually expects a file path or file-like object)
-
-            # Ideally we would call _upload_blob(path, ...) but that takes a path and recalculates stuff.
-            # _upload_object takes a BytesIO or file-like object.
-
-            # Since _upload_object implementations typically expect to read from the object:
             blob = await self._upload_object(tmp, object_key, headers)
 
         return ManifestObject(

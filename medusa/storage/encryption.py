@@ -190,7 +190,7 @@ class EncryptedStream(io.RawIOBase):
 
         # Optimization: Clear the buffer if we've read everything to save memory
         if self.buffer.tell() == self.buffer.getbuffer().nbytes:
-             self.buffer = io.BytesIO()
+            self.buffer = io.BytesIO()
 
         return data
 
