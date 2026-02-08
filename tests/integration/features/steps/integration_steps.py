@@ -1626,6 +1626,8 @@ def _i_manipulate_a_random_sstable(context, operation, backup_type, backup_name,
         sstable_files = [x for x in sstable_files if ('-Statistics.db' not in x) and ('idx') not in x]
         random.shuffle(sstable_files)
 
+        logging.info(f"Deleting sstable file: {sstable_files[0]} from table {table} in keyspace {keyspace}")
+
         file_path = Path(os.path.join(table_path, sstable_files[0]))
         if operation == "delete":
             os.remove(file_path)

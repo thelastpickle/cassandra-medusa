@@ -90,6 +90,21 @@ def validate_manifest(storage, node_backup, enable_md5_checks):
         blob = objects_in_storage.get('{}{}'.format(data_path_prefix, object_in_manifest['path']))
 
         if blob is None:
+            # If the blob is not found in the backup directory listing, it might be a referenced file
+            # from a previous backup (differential). We try to fetch it directly.
+            try:
+                blob = storage.storage_driver.get_blob(object_in_manifest['path'])
+            except FileNotFoundError:
+                # Blob does not exist in storage; leave `blob` as None and let subsequent logic handle it.
+                logging.debug(f"Blob not found when fetching directly: {object_in_manifest['path']}")
+            except Exception as e:
+                # Unexpected error; log with full traceback and re-raise to avoid silently hiding serious issues.
+                logging.exception(
+                    f"Unexpected error when fetching blob directly: {object_in_manifest['path']}. Error: {e}"
+                )
+                raise
+
+        if blob is None:
             yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
             continue
 

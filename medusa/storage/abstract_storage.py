@@ -22,7 +22,11 @@ import hashlib
 import io
 import logging
 import pathlib
+import tempfile
+import os
+import shutil
 import typing as t
+import re
 
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
@@ -34,13 +38,21 @@ MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
+# Metadata files that are always stored as plaintext (not encrypted) for compatibility and accessibility
+PLAINTEXT_FILES_REGEX = re.compile(
+    r'(manifest.*\.json|schema.*\.cql|server_version.*\.json|tokenmap.*\.json|backup_name\.txt)'
+)
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 
 AbstractBlobMetadata = collections.namedtuple('AbstractBlobMetadata',
                                               ['name', 'sse_enabled', 'sse_key_id', 'sse_customer_key_md5'])
 
-ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
+ManifestObject = collections.namedtuple(
+    'ManifestObject',
+    ['path', 'size', 'MD5', 'source_size', 'source_MD5'],
+    defaults=[None, None]
+)
 
 
 class ObjectDoesNotExistError(Exception):
@@ -48,7 +60,6 @@ class ObjectDoesNotExistError(Exception):
 
 
 class AbstractStorage(abc.ABC):
-
     # still not certain what precisely this is used for
     # sometimes we store Cassandra version in this it seems
     api_version = None
@@ -148,7 +159,57 @@ class AbstractStorage(abc.ABC):
         :return:
         """
         loop = self.get_or_create_event_loop()
-        loop.run_until_complete(self._download_blobs(srcs, dest))
+        if hasattr(self.config, 'key_secret_base64') and self.config.key_secret_base64:
+            loop.run_until_complete(self._download_encrypted_blobs(srcs, dest))
+        else:
+            loop.run_until_complete(self._download_blobs(srcs, dest))
+
+    async def _download_encrypted_blobs(self, srcs, dest):
+        from medusa.storage.encryption import EncryptionManager
+
+        manager = EncryptionManager(self.config.key_secret_base64)
+        loop = asyncio.get_running_loop()
+
+        chunk_size = int(self.config.concurrent_transfers)
+        srcs = [str(s) for s in srcs]
+        chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
+
+        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
+        with tempfile.TemporaryDirectory(dir=encryption_tmp_dir) as temp_dir:
+            for chunk in chunks:
+                # Download chunk to temp_dir
+                coros = [self._download_blob(src, temp_dir) for src in chunk]
+                await asyncio.gather(*coros)
+
+                # Decrypt
+                # Offload decryption to executor to keep the loop responsive
+                await loop.run_in_executor(None, self._decrypt_chunk, manager, chunk, temp_dir, dest)
+
+    def _decrypt_chunk(self, manager, chunk, temp_dir, dest):
+        for src in chunk:
+            src_path = Path(src)
+            # Use the same logic as storage driver to find where it landed
+            temp_file_path = Path(AbstractStorage.path_maybe_with_parent(temp_dir, src_path))
+            final_file_path = Path(AbstractStorage.path_maybe_with_parent(dest, src_path))
+
+            # Ensure dest dir exists
+            final_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if temp_file_path.exists():
+                # Metadata files are always uploaded as plaintext.
+                # If they appear in the download list (which happens during restore),
+                # we must skip decryption and just move them.
+                if PLAINTEXT_FILES_REGEX.match(src_path.name):
+                    shutil.move(str(temp_file_path), str(final_file_path))
+                else:
+                    manager.decrypt_file(temp_file_path, final_file_path)
+                    # remove temp file immediately
+                    try:
+                        os.remove(temp_file_path)
+                    except OSError:
+                        logging.warning(f"Failed to remove temporary file: {temp_file_path}")
+            else:
+                logging.warning("Encrypted file not found after download: {}".format(temp_file_path))
 
     async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         chunk_size = int(self.config.concurrent_transfers)
@@ -170,8 +231,80 @@ class AbstractStorage(abc.ABC):
         :return: a list of ManifestObject describing all the uploaded files
         """
         loop = self.get_or_create_event_loop()
-        manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
+        if hasattr(self.config, 'key_secret_base64') and self.config.key_secret_base64:
+            return loop.run_until_complete(self._upload_encrypted_blobs(srcs, dest))
+        else:
+            manifest_objects = loop.run_until_complete(self._upload_blobs(srcs, dest))
+            return manifest_objects
+
+    async def _upload_encrypted_blobs(self, srcs, dest):
+        manifest_objects = []
+        chunk_size = int(self.config.concurrent_transfers)
+
+        srcs = [str(s) for s in srcs]
+
+        # Split jobs into chunks. Each jobs wait for the previous one to finish before
+        # starting, to avoid overloading the system with encryption and file I/O
+        src_chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
+
+        for chunk in src_chunks:
+            # First, build the coroutines list of functions to execute.
+            coroutines = []
+            for src in chunk:
+                coroutines.append(self._upload_encrypted_blob(src, dest))
+            # Then, execute coroutines concurrently and get ManifestObject in chunk_results list.
+            chunk_results = await asyncio.gather(*coroutines)
+            manifest_objects.extend(chunk_results)
+
         return manifest_objects
+
+    async def _upload_encrypted_blob(self, src: str, dest: str) -> ManifestObject:
+        from medusa.storage.encryption import EncryptedStream
+
+        src_path = Path(src)
+        object_key = AbstractStorage.path_maybe_with_parent(dest, src_path)
+
+        file_size = os.stat(src).st_size
+        logging.debug(
+            '[Storage] Uploading encrypted stream {} ({}) -> {}'.format(
+                src, self.human_readable_size(file_size), object_key
+            )
+        )
+
+        # Open the file and wrap it in EncryptedStream
+        with open(src, 'rb') as f:
+            stream = EncryptedStream(f, self.config.key_secret_base64)
+            manifest_object = await self._upload_object_from_stream(stream, object_key, {})
+
+        return manifest_object
+
+    async def _upload_object_from_stream(
+            self, stream: t.BinaryIO, object_key: str,
+            headers: t.Dict[str, str]) -> ManifestObject:
+        """
+        Uploads a stream to the storage.
+        Child classes should override this to support streaming uploads (e.g. boto3 upload_fileobj).
+        Default implementation spools the stream to a temporary file on disk to avoid OOM on large files.
+        """
+        logging.debug(f"Using default file-spooling fallback for upload of {object_key}")
+
+        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
+        with tempfile.NamedTemporaryFile(dir=encryption_tmp_dir, delete=True) as tmp:
+            # Spool stream to disk
+            shutil.copyfileobj(stream, tmp)
+            tmp.flush()
+            tmp.seek(0)
+
+            # Now upload from the temp file using the standard upload mechanism
+            blob = await self._upload_object(tmp, object_key, headers)
+
+        return ManifestObject(
+            blob.name,
+            blob.size,
+            blob.hash,
+            stream.source_size if hasattr(stream, 'source_size') else None,
+            stream.md5_source if hasattr(stream, 'md5_source') else None
+        )
 
     async def _upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
         coros = [self._upload_blob(src, dest) for src in map(str, srcs)]
