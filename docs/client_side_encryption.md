@@ -6,35 +6,48 @@ Medusa supports client-side encryption (CSE) to encrypt backup files before uplo
 This provides an additional layer of security, ensuring that data is encrypted in transit and at rest, independent of server-side encryption capabilities.
 
 **Important**: Encrypted and unencrypted backups are **not compatible** in differential backup chains.
+**Important**: Medusa has migrated from a custom Fernet encryption implementation to the official `aws-encryption-sdk`. The old Fernet format is no longer supported.
+
+## Prerequisites
+
+To use client-side encryption, you must install Medusa with the optional `encryption` dependency, which installs the `aws-encryption-sdk` library. Note that Medusa requires `aws-encryption-sdk` version 3.x (versions >=4.0.0 are not supported due to incompatible API changes):
+
+```bash
+pip install "cassandra-medusa[encryption]"
+```
 
 ## How It Works
 
 When client-side encryption is enabled:
 
 1. **During Backup**:
-   - SSTable files are encrypted locally using Fernet symmetric encryption
-   - Each file is processed in 1MB chunks to manage memory usage
-   - Encrypted files are uploaded to cloud storage
-   - Metadata files (`manifest.json`, `schema.cql`, etc.) remain unencrypted for compatibility
+   - SSTable files are encrypted locally using the AWS Encryption SDK.
+   - The stream is processed on-the-fly to manage memory usage.
+   - Encrypted files are uploaded to cloud storage.
+   - Metadata files (`manifest.json`, `schema.cql`, etc.) remain unencrypted for compatibility.
 
 2. **During Restore**:
-   - Encrypted files are downloaded from cloud storage
-   - Files are decrypted locally before being restored to Cassandra
-   - Metadata files are copied directly without decryption
+   - Encrypted files are downloaded from cloud storage.
+   - Files are decrypted locally using the AWS Encryption SDK stream decryptor before being restored to the Cassandra data directory.
+   - Metadata files are copied directly without decryption.
 
 3. **Differential Backups**:
-   - The manifest stores both encrypted and original file metadata (`source_MD5`, `source_size`)
-   - This allows comparison with local files without decrypting remote files
-   - Reduces unnecessary uploads and improves backup efficiency
+   - The manifest stores both encrypted and original file metadata (`source_MD5`, `source_size`).
+   - This allows comparison with local files without decrypting remote files.
+   - Reduces unnecessary uploads and improves backup efficiency.
+
+## File Format
+
+Medusa delegates the encryption frame and metadata format entirely to the `aws-encryption-sdk`. The SDK automatically adds necessary headers, message IDs, and authentication tags to ensure strong security and integrity of the encrypted stream. The underlying cryptographic material manager wraps a user-provided raw AES 256-bit key.
 
 ## Configuration
 
 ### Encryption Key Generation
 
-Generate a Fernet-compatible 32-byte key:
+Generate a 32-byte (256-bit) key and base64-encode it. For example:
 
 ```bash
-python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+python3 -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
 ```
 
 This will output a base64-encoded key like:
@@ -75,7 +88,7 @@ Ensure that:
 
 
 The encryption key is required to decrypt all encrypted backups. Without it, **data cannot be recovered**.
-So backup the key and test recovery procedures to verify you can restore encrypted backups
+So backup the key and test recovery procedures to verify you can restore encrypted backups.
 
 ## Usage
 
@@ -132,10 +145,8 @@ These metadata files must be accessible without decryption for backup discovery 
 - **Disk**: Temporary encrypted files are stored in `encryption_tmp_dir` during upload/download.
   - Ensure sufficient disk space (at least `concurrent_transfers * largest_file_size`)
   - **S3**: S3 storage supports streaming for encryption and decryption. Temporary files are **not** created when using S3.
-- **Memory**: Processing is chunked (1MB) to limit memory usage.
 
 ### Optimization
 
 - Adjust `concurrent_transfers` in `medusa.ini` to balance throughput and resource usage
 - Use dedicated `encryption_tmp_dir` on fast storage (SSD) for better performance
-

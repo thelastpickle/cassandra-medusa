@@ -17,13 +17,13 @@ import unittest
 import os
 import tempfile
 import base64
-from cryptography.fernet import Fernet
 from medusa.storage.encryption import EncryptionManager
 
 
 class EncryptionManagerTest(unittest.TestCase):
     def setUp(self):
-        self.key = Fernet.generate_key()
+        self.key_bytes = os.urandom(32)
+        self.key = base64.b64encode(self.key_bytes)
         self.key_b64 = self.key.decode('utf-8')
         self.manager = EncryptionManager(self.key_b64)
 

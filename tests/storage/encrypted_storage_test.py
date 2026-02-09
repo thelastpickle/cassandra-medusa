@@ -20,7 +20,7 @@ import pathlib
 import io
 import typing as t
 from unittest.mock import MagicMock
-from cryptography.fernet import Fernet
+import base64
 
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
 from medusa.storage.encryption import EncryptionManager
@@ -107,7 +107,7 @@ class EncryptedStorageTest(unittest.TestCase):
     TEST_INDEX_SUFFIX = ".test_idx"
 
     def setUp(self):
-        self.key = Fernet.generate_key().decode('utf-8')
+        self.key = base64.b64encode(os.urandom(32)).decode('utf-8')
 
         # Setup config
         config_dict = {

@@ -15,83 +15,132 @@
 
 import base64
 import hashlib
-import struct
-import logging
-import os
 import io
-from cryptography.fernet import Fernet, InvalidToken
+
+try:
+    import aws_encryption_sdk
+    from aws_encryption_sdk import CommitmentPolicy
+    from aws_encryption_sdk.identifiers import WrappingAlgorithm
+    from aws_encryption_sdk.key_providers.raw import RawMasterKeyProvider
+    from aws_encryption_sdk.identifiers import EncryptionKeyType
+    from aws_encryption_sdk.internal.crypto.wrapping_keys import WrappingKey
+    HAS_AWS_CRYPT = True
+except ImportError:
+    HAS_AWS_CRYPT = False
+
 
 # Chunk size for reading/encrypting.
 # 1MB seems reasonable balance between memory usage and overhead.
 CHUNK_SIZE = 1024 * 1024
-# Max reasonable chunk size (1MB + Fernet overhead + padding). Safety check.
-MAX_CHUNK_SIZE = 2 * 1024 * 1024
+
+
+class HashingStreamWrapper(io.RawIOBase):
+    """
+    Wraps a stream to calculate MD5 and size of data read from it.
+    """
+    def __init__(self, stream):
+        self.stream = stream
+        self.hash = hashlib.md5()
+        self.size = 0
+
+    def read(self, size=-1):
+        chunk = self.stream.read(size)
+        if chunk:
+            self.hash.update(chunk)
+            self.size += len(chunk)
+        return chunk
+
+    def readall(self):
+        return self.read()
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return False
 
 
 class EncryptionManager:
-    """Manages encryption and decryption of backup files using Fernet symmetric encryption."""
+    """Manages encryption and decryption of backup files using AWS Encryption SDK."""
 
     def __init__(self, key_secret_base64):
+        if not HAS_AWS_CRYPT:
+            raise ImportError(
+                "aws-encryption-sdk is not installed. "
+                "Please install it using 'pip install cassandra-medusa[encryption]'"
+            )
+
         if not key_secret_base64:
             raise ValueError("Encryption key is not provided")
 
         # Validate base64 encoding and key length
-        # Fernet uses URL-safe base64 encoding (44 chars for a 32-byte key)
         try:
             # Convert to bytes if string
             key_bytes = key_secret_base64 if isinstance(key_secret_base64, bytes) else key_secret_base64.encode('utf-8')
-            # Decode using URL-safe base64 (Fernet standard)
-            decoded_key = base64.urlsafe_b64decode(key_bytes)
+            # Decode with strict validation: altchars=b'-_' supports URL-safe base64 (- and _ instead of + and /),
+            # and validate=True raises an error on any invalid characters or padding.
+            self.decoded_key = base64.b64decode(key_bytes, altchars=b'-_', validate=True)
         except Exception as e:
             raise ValueError(
                 f"Encryption key is not properly base64-encoded. "
                 f"Please ensure the key is base64-encoded. Details: {e}"
             )
 
-        # Validate key length (Fernet requires exactly 32 bytes when decoded)
-        if len(decoded_key) != 32:
+        # Validate key length (AWS Encryption SDK supports 128, 192, 256 bits for AES)
+        if len(self.decoded_key) != 32:
             raise ValueError(
                 f"Encryption key has invalid length. "
-                f"Expected 32 bytes when base64-decoded, but got {len(decoded_key)} bytes. "
-                f"Generate a valid key using: "
-                f"python3 -c \"from cryptography.fernet import Fernet; "
-                f"print(Fernet.generate_key().decode())\""
+                f"Expected 32 bytes (256 bits) when base64-decoded, but got {len(self.decoded_key)} bytes."
             )
 
-        try:
-            self.fernet = Fernet(key_secret_base64)
-        except Exception as e:
-            logging.error(f"Failed to initialize encryption with provided key: {e}")
-            raise ValueError(f"Failed to initialize encryption with provided key: {e}")
+        # Initialize AWS Encryption SDK client
+        self.client = aws_encryption_sdk.EncryptionSDKClient(
+            commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_REQUIRE_DECRYPT
+        )
+
+        self.key_provider = "medusa-backup"
+        self.key_name = "raw-aes-key"
+
+        class StaticKeyProvider(RawMasterKeyProvider):
+            provider_id = self.key_provider
+
+            def _get_raw_key(self, key_id):
+                key_id_str = key_id.decode('utf-8') if isinstance(key_id, bytes) else key_id
+                expected_id = self._key_name.decode('utf-8') if isinstance(self._key_name, bytes) else self._key_name
+                if hasattr(self, '_key_name') and key_id_str == expected_id:
+                    return WrappingKey(
+                        wrapping_algorithm=WrappingAlgorithm.AES_256_GCM_IV12_TAG16_NO_PADDING,
+                        wrapping_key=self._key_bytes,
+                        wrapping_key_type=EncryptionKeyType.SYMMETRIC
+                    )
+                raise ValueError("Invalid key id")
+
+        self.master_key_provider = StaticKeyProvider()
+        self.master_key_provider._key_bytes = self.decoded_key
+        self.master_key_provider._key_name = self.key_name
+        self.master_key_provider.add_master_key(self.key_name)
 
     def encrypt_file(self, src_path, dst_path):
-        source_hash = hashlib.md5()
         encrypted_hash = hashlib.md5()
-        source_size = 0
         encrypted_size = 0
 
         with open(src_path, 'rb') as f_in, open(dst_path, 'wb') as f_out:
-            while True:
-                chunk = f_in.read(CHUNK_SIZE)
-                if not chunk:
-                    break
+            # Wrap f_in to calculate MD5 on the fly
+            hashing_source = HashingStreamWrapper(f_in)
 
-                source_size += len(chunk)
-                source_hash.update(chunk)
+            with self.client.stream(
+                mode='e',
+                source=hashing_source,
+                key_provider=self.master_key_provider
+            ) as encryptor:
+                for chunk in encryptor:
+                    # Update encrypted metrics
+                    f_out.write(chunk)
+                    encrypted_size += len(chunk)
+                    encrypted_hash.update(chunk)
 
-                encrypted_chunk = self.fernet.encrypt(chunk)
-
-                # Write length of the encrypted chunk (4 bytes, big endian)
-                chunk_len = len(encrypted_chunk)
-                len_bytes = struct.pack('>I', chunk_len)
-                f_out.write(len_bytes)
-                # Write the encrypted chunk
-                f_out.write(encrypted_chunk)
-
-                encrypted_size += 4 + chunk_len
-                # For encrypted hash, we hash the exact bytes we write to disk
-                encrypted_hash.update(len_bytes)
-                encrypted_hash.update(encrypted_chunk)
+            source_size = hashing_source.size
+            source_hash = hashing_source.hash
 
         return (
             base64.b64encode(encrypted_hash.digest()).decode('utf-8').strip(),
@@ -102,45 +151,33 @@ class EncryptionManager:
 
     def decrypt_file(self, src_path, dst_path):
         with open(src_path, 'rb') as f_in, open(dst_path, 'wb') as f_out:
-            while True:
-                len_bytes = f_in.read(4)
-                if not len_bytes:
-                    break
-
-                chunk_len = struct.unpack('>I', len_bytes)[0]
-
-                # Sanity check for chunk length to detect non-encrypted files or corruption early
-                if chunk_len > MAX_CHUNK_SIZE:
-                    file_size = os.path.getsize(src_path)
-                    header_hex = len_bytes.hex()
-                    raise IOError(
-                        f"Corrupted encrypted file or plaintext file detected: {src_path} "
-                        f"(size: {file_size}). Chunk length {chunk_len} exceeds max {MAX_CHUNK_SIZE}. "
-                        f"Header bytes: {header_hex}"
-                    )
-
-                encrypted_chunk = f_in.read(chunk_len)
-
-                if len(encrypted_chunk) != chunk_len:
-                    raise IOError(
-                        f"Corrupted encrypted file: {src_path}. "
-                        f"Expected {chunk_len} bytes, got {len(encrypted_chunk)}"
-                    )
-
-                decrypted_chunk = self.fernet.decrypt(encrypted_chunk)
-                f_out.write(decrypted_chunk)
+            with self.client.stream(
+                mode='d',
+                source=f_in,
+                key_provider=self.master_key_provider
+            ) as decryptor:
+                for chunk in decryptor:
+                    f_out.write(chunk)
 
 
 class EncryptionStreamBase(io.RawIOBase):
     def __init__(self, source_stream, key_secret_base64):
+        if not HAS_AWS_CRYPT:
+            raise ImportError(
+                "aws-encryption-sdk is not installed. "
+                "Please install it using 'pip install cassandra-medusa[encryption]'"
+            )
+
+        self.manager = EncryptionManager(key_secret_base64)
         self.source_stream = source_stream
-        self.fernet = Fernet(key_secret_base64)
-        self.source_hash = hashlib.md5()
+
         self.encrypted_hash = hashlib.md5()
-        self.source_size = 0
         self.encrypted_size = 0
+
         self.buffer = io.BytesIO()
         self.eof = False
+
+        self.aws_stream = None
 
     def readable(self):
         return True
@@ -152,138 +189,65 @@ class EncryptionStreamBase(io.RawIOBase):
         return self.read()
 
     @property
-    def md5_source(self):
-        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
-
-    @property
     def md5_encrypted(self):
         return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()
 
 
 class EncryptedStream(EncryptionStreamBase):
+    def __init__(self, source_stream, key_secret_base64):
+        super().__init__(source_stream, key_secret_base64)
+
+        self.hashing_source = HashingStreamWrapper(source_stream)
+
+        self.aws_stream = self.manager.client.stream(
+            mode='e',
+            source=self.hashing_source,
+            key_provider=self.manager.master_key_provider
+        )
+        self.iterator = iter(self.aws_stream)
+
     def read(self, size=-1):
         if size == -1:
             # Read everything
             output = bytearray()
-            while True:
-                chunk = self.read(CHUNK_SIZE)
-                if not chunk:
-                    break
+            # read remaining buffer
+            remaining_buffer_data = self.buffer.read()
+            if remaining_buffer_data:
+                output.extend(remaining_buffer_data)
+
+            # consume the rest of the stream
+            for chunk in self.iterator:
                 output.extend(chunk)
-            return bytes(output)
+                self.encrypted_size += len(chunk)
+                self.encrypted_hash.update(chunk)
 
-        if self.buffer.tell() == self.buffer.getbuffer().nbytes and self.eof:
-            return b""
-
-        while self.buffer.getbuffer().nbytes - self.buffer.tell() < size and not self.eof:
-            chunk = self.source_stream.read(CHUNK_SIZE)
-            if not chunk:
-                self.eof = True
-                break
-
-            self.source_size += len(chunk)
-            self.source_hash.update(chunk)
-
-            encrypted_chunk = self.fernet.encrypt(chunk)
-            chunk_len = len(encrypted_chunk)
-            len_bytes = struct.pack('>I', chunk_len)
-
-            # Important: Write to the buffer at the *end*, but preserve the current read position
-            current_pos = self.buffer.tell()
-            self.buffer.seek(0, io.SEEK_END)
-            self.buffer.write(len_bytes)
-            self.buffer.write(encrypted_chunk)
-            self.buffer.seek(current_pos)
-
-            self.encrypted_size += 4 + chunk_len
-            self.encrypted_hash.update(len_bytes)
-            self.encrypted_hash.update(encrypted_chunk)
-
-        data = self.buffer.read(size)
-
-        # Optimization: Clear the buffer if we've read everything to save memory
-        if self.buffer.tell() == self.buffer.getbuffer().nbytes:
+            # buffer is now empty
             self.buffer = io.BytesIO()
-
-        return data
-
-
-class DecryptedStream(EncryptionStreamBase):
-    """
-    Wraps a file-like object (source_stream) containing encrypted data.
-    DecryptedStream.read() returns decrypted bytes.
-    It calculates source MD5 and source size on the fly.
-    """
-    def _read_from_source(self, size):
-        # Helper to read exactly size bytes (or until EOF) from the underlying stream
-        data = bytearray()
-        while len(data) < size:
-            chunk = self.source_stream.read(size - len(data))
-            if not chunk:
-                break
-            data.extend(chunk)
-        return bytes(data)
-
-    def read(self, size=-1):
-        if size == -1:
-            # Read everything
-            output = bytearray()
-            while True:
-                chunk = self.read(CHUNK_SIZE)
-                if not chunk:
-                    break
-                output.extend(chunk)
+            self.eof = True
             return bytes(output)
 
-        # If buffer is empty and we hit EOF, return empty
-        if self.buffer.tell() == self.buffer.getbuffer().nbytes and self.eof:
-            return b""
+        # Return from buffer if we have enough data (without altering buffer position if we don't)
+        current_buffer_pos = self.buffer.tell()
+        available_in_buffer = self.buffer.getbuffer().nbytes - current_buffer_pos
 
-        # Fill buffer until we have enough data or hit EOF
-        while self.buffer.getbuffer().nbytes - self.buffer.tell() < size and not self.eof:
-            # We expect a 4-byte length prefix
-            len_bytes = self._read_from_source(4)
-            if not len_bytes:
+        if available_in_buffer >= size:
+            return self.buffer.read(size)
+
+        # If buffer is empty or exhausted (has fewer than 'size' bytes), read from iterator
+        while (self.buffer.getbuffer().nbytes - self.buffer.tell()) < size:
+            try:
+                chunk = next(self.iterator)
+                self.encrypted_size += len(chunk)
+                self.encrypted_hash.update(chunk)
+
+                # Append to buffer
+                current_pos = self.buffer.tell()
+                self.buffer.seek(0, io.SEEK_END)
+                self.buffer.write(chunk)
+                self.buffer.seek(current_pos)
+            except StopIteration:
                 self.eof = True
                 break
-
-            if len(len_bytes) != 4:
-                raise IOError(f"Incomplete length prefix in encrypted stream. Expected 4 bytes, got {len(len_bytes)}")
-
-            chunk_len = struct.unpack('>I', len_bytes)[0]
-
-            # Sanity check for chunk length
-            if chunk_len > MAX_CHUNK_SIZE:
-                raise IOError(
-                    f"Corrupted encrypted stream or plaintext stream detected. "
-                    f"Chunk length {chunk_len} exceeds max {MAX_CHUNK_SIZE}."
-                )
-
-            # Read the encrypted chunk
-            encrypted_chunk = self._read_from_source(chunk_len)
-            if len(encrypted_chunk) != chunk_len:
-                raise IOError(f"Incomplete encrypted chunk. Expected {chunk_len} bytes, got {len(encrypted_chunk)}")
-
-            self.encrypted_size += 4 + chunk_len
-            self.encrypted_hash.update(len_bytes)
-            self.encrypted_hash.update(encrypted_chunk)
-
-            # Decrypt
-            try:
-                decrypted_chunk = self.fernet.decrypt(encrypted_chunk)
-            except InvalidToken as e:
-                raise IOError("Invalid encryption token or key mismatch") from e
-            except Exception as e:
-                raise IOError("Decryption failed") from e
-
-            self.source_size += len(decrypted_chunk)
-            self.source_hash.update(decrypted_chunk)
-
-            # Append to buffer
-            current_pos = self.buffer.tell()
-            self.buffer.seek(0, io.SEEK_END)
-            self.buffer.write(decrypted_chunk)
-            self.buffer.seek(current_pos)
 
         data = self.buffer.read(size)
 
@@ -292,3 +256,89 @@ class DecryptedStream(EncryptionStreamBase):
             self.buffer = io.BytesIO()
 
         return data
+
+    @property
+    def source_size(self):
+        return self.hashing_source.size
+
+    @property
+    def md5_source(self):
+        return base64.b64encode(self.hashing_source.hash.digest()).decode('utf-8').strip()
+
+
+class DecryptedStream(EncryptionStreamBase):
+    def __init__(self, source_stream, key_secret_base64):
+        super().__init__(source_stream, key_secret_base64)
+
+        self.aws_stream = self.manager.client.stream(
+            mode='d',
+            source=source_stream,
+            key_provider=self.manager.master_key_provider
+        )
+        self.iterator = iter(self.aws_stream)
+
+        self.plaintext_hash = hashlib.md5()
+        self.plaintext_size = 0
+
+    def read(self, size=-1):
+        if size == -1:
+            # Read everything
+            output = bytearray()
+            # Read everything remaining in buffer first
+            remaining_buffer_data = self.buffer.read()
+            if remaining_buffer_data:
+                output.extend(remaining_buffer_data)
+
+            # Consume the rest of the stream
+            for chunk in self.iterator:
+                output.extend(chunk)
+                self.plaintext_size += len(chunk)
+                self.plaintext_hash.update(chunk)
+
+            # buffer is now empty
+            self.buffer = io.BytesIO()
+            self.eof = True
+            return bytes(output)
+
+        # Return from buffer if we have enough data (without altering buffer position if we don't)
+        current_buffer_pos = self.buffer.tell()
+        available_in_buffer = self.buffer.getbuffer().nbytes - current_buffer_pos
+
+        if available_in_buffer >= size:
+            return self.buffer.read(size)
+
+        # Fill buffer from iterator
+        while (self.buffer.getbuffer().nbytes - self.buffer.tell()) < size:
+            try:
+                chunk = next(self.iterator)
+                self.plaintext_size += len(chunk)
+                self.plaintext_hash.update(chunk)
+
+                # Append to buffer
+                current_pos = self.buffer.tell()
+                self.buffer.seek(0, io.SEEK_END)
+                self.buffer.write(chunk)
+                self.buffer.seek(current_pos)
+            except StopIteration:
+                self.eof = True
+                break
+
+        data = self.buffer.read(size)
+
+        # Optimization: Clear buffer if fully read
+        if self.buffer.tell() == self.buffer.getbuffer().nbytes:
+            self.buffer = io.BytesIO()
+
+        return data
+
+    @property
+    def source_size(self):
+        return self.plaintext_size
+
+    @property
+    def md5_source(self):
+        return base64.b64encode(self.plaintext_hash.digest()).decode('utf-8').strip()
+
+    @property
+    def md5_encrypted(self):
+        return "N/A"

@@ -32,9 +32,18 @@ class S3StorageTest(unittest.TestCase):
 
     def setUp(self):
         self.original_call = botocore.utils.FileWebIdentityTokenLoader.__call__
+        self.old_env = dict(os.environ)
+        # Point to /dev/null to prevent Boto3 from loading the host machine's local AWS configuration
+        # and credentials, ensuring tests remain isolated and do not fail due to external environment states.
+        os.environ['AWS_SHARED_CREDENTIALS_FILE'] = '/dev/null'
+        os.environ['AWS_CONFIG_FILE'] = '/dev/null'
 
     def tearDown(self):
         botocore.utils.FileWebIdentityTokenLoader.__call__ = self.original_call
+        # Restore the original environment variables to ensure clean state and prevent side effects
+        # on other tests running in the same process.
+        os.environ.clear()
+        os.environ.update(self.old_env)
 
     def test_legacy_provider_region_replacement(self):
         assert S3BaseStorage._region_from_provider_name("s3_us_west_oregon") == "us-west-2"
