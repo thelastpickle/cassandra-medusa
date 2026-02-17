@@ -227,53 +227,77 @@ class BackupMan:
             return
 
         try:
-            current_time = time.time()
-            completed_backups = []
+            completed_backups = BackupMan.__collect_completed_backups()
+            if not completed_backups:
+                return
 
-            # Collect completed backups with their completion times
-            for backup_name, backup_state in list(BackupMan.__instance.__backups.items()):
-                status = backup_state[BackupMan.__IDX_STATUS]
-                completed_at = (backup_state[BackupMan.__IDX_COMPLETED_AT]
-                                if len(backup_state) > BackupMan.__IDX_COMPLETED_AT else None)
+            backups_to_remove = BackupMan.__identify_backups_to_remove(completed_backups)
+            BackupMan.__remove_backups_safely(backups_to_remove)
 
-                if status in [BackupMan.STATUS_SUCCESS, BackupMan.STATUS_FAILED] and completed_at is not None:
-                    completed_backups.append((backup_name, completed_at))
+        except (KeyError, IndexError, AttributeError) as e:
+            logging.warning(f"Error during backup cleanup: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error during backup cleanup: {e}")
 
-            # Sort by completion time (oldest first)
-            completed_backups.sort(key=lambda x: x[1])
+    @staticmethod
+    def __collect_completed_backups():
+        """Collect completed backups with their completion times."""
+        completed_backups = []
+        for backup_name, backup_state in BackupMan.__instance.__backups.items():
+            status = backup_state[BackupMan.__IDX_STATUS]
+            completed_at = (backup_state[BackupMan.__IDX_COMPLETED_AT]
+                            if len(backup_state) > BackupMan.__IDX_COMPLETED_AT else None)
 
-            backups_to_remove = []
+            if status in [BackupMan.STATUS_SUCCESS, BackupMan.STATUS_FAILED] and completed_at is not None:
+                completed_backups.append((backup_name, completed_at))
 
-            # Remove backups older than retention period
-            for backup_name, completed_at in completed_backups:
-                age_seconds = current_time - completed_at
-                if age_seconds > BackupMan.BACKUP_RETENTION_SECONDS:
+        completed_backups.sort(key=lambda x: x[1])
+        return completed_backups
+
+    @staticmethod
+    def __identify_backups_to_remove(completed_backups):
+        """Identify backups to remove based on age and count limits."""
+        current_time = time.time()
+        backups_to_remove = []
+
+        # Remove backups older than retention period
+        for backup_name, completed_at in completed_backups:
+            age_seconds = current_time - completed_at
+            if age_seconds > BackupMan.BACKUP_RETENTION_SECONDS:
+                backups_to_remove.append(backup_name)
+                logging.debug(f"Marking backup {backup_name} for cleanup (age: {age_seconds:.0f}s)")
+
+        # Also remove excess backups beyond MAX_COMPLETED_BACKUPS
+        remaining_completed = len(completed_backups) - len(backups_to_remove)
+        if remaining_completed > BackupMan.MAX_COMPLETED_BACKUPS:
+            excess_count = remaining_completed - BackupMan.MAX_COMPLETED_BACKUPS
+            for backup_name, _ in completed_backups:
+                if backup_name not in backups_to_remove and excess_count > 0:
                     backups_to_remove.append(backup_name)
-                    logging.debug(f"Marking backup {backup_name} for cleanup (age: {age_seconds:.0f}s)")
+                    excess_count -= 1
 
-            # Also remove excess backups beyond MAX_COMPLETED_BACKUPS
-            remaining_completed = len(completed_backups) - len(backups_to_remove)
-            if remaining_completed > BackupMan.MAX_COMPLETED_BACKUPS:
-                excess_count = remaining_completed - BackupMan.MAX_COMPLETED_BACKUPS
-                for backup_name, _ in completed_backups:
-                    if backup_name not in backups_to_remove and excess_count > 0:
-                        backups_to_remove.append(backup_name)
-                        excess_count -= 1
+        return backups_to_remove
 
-            # Perform cleanup
-            for backup_name in backups_to_remove:
-                # Double-check: Never remove backups that are still in progress
-                if backup_name in BackupMan.__instance.__backups:
-                    backup_state = BackupMan.__instance.__backups[backup_name]
-                    status = backup_state[BackupMan.__IDX_STATUS]
-                    if status == BackupMan.STATUS_IN_PROGRESS:
-                        logging.warning(f"Skipping cleanup of backup {backup_name} - still in progress")
-                        continue
+    @staticmethod
+    def __remove_backups_safely(backups_to_remove):
+        """Safely remove backups, skipping those still in progress."""
+        for backup_name in backups_to_remove:
+            try:
+                if backup_name not in BackupMan.__instance.__backups:
+                    continue
+
+                backup_state = BackupMan.__instance.__backups[backup_name]
+                status = backup_state[BackupMan.__IDX_STATUS]
+                if status == BackupMan.STATUS_IN_PROGRESS:
+                    logging.warning(f"Skipping cleanup of backup {backup_name} - still in progress")
+                    continue
+
                 BackupMan.__clean(backup_name)
                 logging.info(f"Cleaned up old backup from memory: {backup_name}")
-
-        except Exception as e:
-            logging.warning(f"Error during backup cleanup: {e}")
+            except (KeyError, IndexError, AttributeError) as e:
+                logging.warning(f"Error cleaning up backup {backup_name}: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error during backup cleanup for {backup_name}: {e}")
 
     # PATCH: Added public method to get current backup count (for monitoring)
     @staticmethod

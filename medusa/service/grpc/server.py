@@ -141,7 +141,7 @@ class Server:
 
             except asyncio.CancelledError:
                 logging.info("Memory cleanup task cancelled")
-                break
+                raise
             except Exception as e:
                 logging.warning(f"Error during periodic memory cleanup: {e}")
 
