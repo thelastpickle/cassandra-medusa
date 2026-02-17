@@ -32,8 +32,10 @@ class BackupMan:
     NO_FUTURE_ERR_MSG = "No future supplied"
 
     # Cleanup configuration - PATCH: Added for memory leak prevention
-    MAX_COMPLETED_BACKUPS = int(os.environ.get('MEDUSA_MAX_COMPLETED_BACKUPS', 10))  # Maximum number of completed backups to keep in memory
-    BACKUP_RETENTION_SECONDS = int(os.environ.get('MEDUSA_BACKUP_RETENTION_SECONDS', 3600))  # 1 hour - time to keep completed backups in memory
+    # Maximum number of completed backups to keep in memory
+    MAX_COMPLETED_BACKUPS = int(os.environ.get('MEDUSA_MAX_COMPLETED_BACKUPS', 10))
+    # 1 hour - time to keep completed backups in memory
+    BACKUP_RETENTION_SECONDS = int(os.environ.get('MEDUSA_BACKUP_RETENTION_SECONDS', 3600))
 
     # [future ref | None]
     __IDX_FUTURE = 0
@@ -104,7 +106,7 @@ class BackupMan:
             # PATCH: Added __IDX_COMPLETED_AT field
             BackupMan.__instance.__backups[backup_name] = [future, BackupMan.STATUS_UNKNOWN, True, None]
             logging.info("Registered backup id {}".format(backup_name))
-            
+
             # PATCH: Trigger cleanup of old completed backups
             BackupMan.__cleanup_old_backups()
 
@@ -129,7 +131,7 @@ class BackupMan:
                 # PATCH: Added __IDX_COMPLETED_AT field
                 BackupMan.__instance.__backups[backup_name] = [None, BackupMan.STATUS_UNKNOWN, is_async, None]
             logging.info("Registered backup id {}".format(backup_name))
-            
+
             # PATCH: Trigger cleanup of old completed backups
             BackupMan.__cleanup_old_backups()
 
@@ -199,7 +201,7 @@ class BackupMan:
                         .format(old_status, status, backup_name)
                     )
                     BackupMan.__instance.__backups[backup_name][BackupMan.__IDX_STATUS] = status
-                    
+
                     # PATCH: Set completion timestamp for SUCCESS or FAILED status
                     if status in [BackupMan.STATUS_SUCCESS, BackupMan.STATUS_FAILED]:
                         BackupMan.__instance.__backups[backup_name][BackupMan.__IDX_COMPLETED_AT] = time.time()
@@ -218,36 +220,37 @@ class BackupMan:
         Removes backups that are:
         1. Completed (SUCCESS or FAILED) AND older than BACKUP_RETENTION_SECONDS
         2. Keeps at most MAX_COMPLETED_BACKUPS completed backups
-        
+
         NOTE: This method should be called while holding the instance lock.
         """
         if not BackupMan.__instance or not BackupMan.__instance.__backups:
             return
-        
+
         try:
             current_time = time.time()
             completed_backups = []
-            
+
             # Collect completed backups with their completion times
             for backup_name, backup_state in list(BackupMan.__instance.__backups.items()):
                 status = backup_state[BackupMan.__IDX_STATUS]
-                completed_at = backup_state[BackupMan.__IDX_COMPLETED_AT] if len(backup_state) > BackupMan.__IDX_COMPLETED_AT else None
-                
+                completed_at = (backup_state[BackupMan.__IDX_COMPLETED_AT]
+                                if len(backup_state) > BackupMan.__IDX_COMPLETED_AT else None)
+
                 if status in [BackupMan.STATUS_SUCCESS, BackupMan.STATUS_FAILED] and completed_at is not None:
                     completed_backups.append((backup_name, completed_at))
-            
+
             # Sort by completion time (oldest first)
             completed_backups.sort(key=lambda x: x[1])
-            
+
             backups_to_remove = []
-            
+
             # Remove backups older than retention period
             for backup_name, completed_at in completed_backups:
                 age_seconds = current_time - completed_at
                 if age_seconds > BackupMan.BACKUP_RETENTION_SECONDS:
                     backups_to_remove.append(backup_name)
                     logging.debug(f"Marking backup {backup_name} for cleanup (age: {age_seconds:.0f}s)")
-            
+
             # Also remove excess backups beyond MAX_COMPLETED_BACKUPS
             remaining_completed = len(completed_backups) - len(backups_to_remove)
             if remaining_completed > BackupMan.MAX_COMPLETED_BACKUPS:
@@ -256,7 +259,7 @@ class BackupMan:
                     if backup_name not in backups_to_remove and excess_count > 0:
                         backups_to_remove.append(backup_name)
                         excess_count -= 1
-            
+
             # Perform cleanup
             for backup_name in backups_to_remove:
                 # Double-check: Never remove backups that are still in progress
@@ -268,7 +271,7 @@ class BackupMan:
                         continue
                 BackupMan.__clean(backup_name)
                 logging.info(f"Cleaned up old backup from memory: {backup_name}")
-                
+
         except Exception as e:
             logging.warning(f"Error during backup cleanup: {e}")
 
@@ -285,7 +288,7 @@ class BackupMan:
     def force_cleanup():
         """
         Force cleanup of old completed backups. Can be called externally.
-        
+
         NOTE: Uses a local lock for consistency with other methods in this class.
         For full thread-safety, all methods should use the instance lock, but that
         would require a broader refactoring of the existing codebase.
@@ -308,7 +311,7 @@ class BackupMan:
             if status == BackupMan.STATUS_IN_PROGRESS:
                 logging.warning(f"Attempted to clean backup {backup_name} that is still IN_PROGRESS - skipping")
                 return False
-            
+
             backup_future = backup_state[BackupMan.__IDX_FUTURE]
             logging.debug("Cancelling backup id: {}".format(backup_name))
             if backup_future is not None and asyncio.isfuture(backup_future):

@@ -120,25 +120,25 @@ class Server:
             try:
                 await asyncio.sleep(MEMORY_CLEANUP_INTERVAL_SECONDS)
                 logging.info("Running periodic memory cleanup...")
-                
+
                 # Force cleanup of old backups in BackupMan
                 if BackupMan.is_active():
                     BackupMan.force_cleanup()
-                
+
                 # Force full garbage collection
                 collected = gc.collect()
                 logging.info(f"Memory cleanup completed. GC collected {collected} objects.")
-                
+
                 # Log memory usage for monitoring
                 try:
                     import psutil
                     process = psutil.Process(os.getpid())
                     mem_info = process.memory_info()
                     logging.info(f"Current memory usage: RSS={mem_info.rss / 1024 / 1024:.1f}MB, "
-                               f"VMS={mem_info.vms / 1024 / 1024:.1f}MB")
+                                 f"VMS={mem_info.vms / 1024 / 1024:.1f}MB")
                 except ImportError:
                     pass
-                    
+
             except asyncio.CancelledError:
                 logging.info("Memory cleanup task cancelled")
                 break
@@ -189,7 +189,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
         try:
             response.backupName = request.name
-            response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
+            response.status = medusa_pb2.StatusType.IN_PROGRESS
             BackupMan.register_backup(request.name, is_async=True)
             executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=request.name)
             loop = asyncio.get_running_loop()
@@ -228,11 +228,11 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
                                       enable_md5_checks_flag=False, mode=mode)
             record_status_in_response(response, request.name)
-            
+
             # PATCH: Force GC after sync backup
             if FORCE_GC_AFTER_BACKUP:
                 gc.collect()
-                
+
             return response
         except Exception as e:
             response.status = medusa_pb2.StatusType.FAILED
@@ -369,7 +369,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             response.totalPurgedSize = total_purged_size
             response.totalObjectsWithinGcGrace = total_objects_within_grace
             response.nbBackupsPurged = nb_backups_purged
-            
+
             # PATCH: Force GC after purge to reclaim memory
             gc.collect()
 
