@@ -59,6 +59,31 @@ class ObjectDoesNotExistError(Exception):
     pass
 
 
+class DeleteDirectoryOnCloseWrapper:
+    def __init__(self, file_obj, dir_path):
+        self.file_obj = file_obj
+        self.dir_path = dir_path
+
+    def __getattr__(self, name):
+        return getattr(self.file_obj, name)
+
+    def read(self, *args, **kwargs):
+        return self.file_obj.read(*args, **kwargs)
+
+    def close(self):
+        self.file_obj.close()
+        try:
+            shutil.rmtree(self.dir_path)
+        except OSError:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
 class AbstractStorage(abc.ABC):
     # still not certain what precisely this is used for
     # sometimes we store Cassandra version in this it seems
@@ -67,6 +92,29 @@ class AbstractStorage(abc.ABC):
     def __init__(self, config):
         self.config = config
         self.bucket_name = config.bucket_name
+
+    async def _download_object_as_stream(self, blob_key: str) -> t.BinaryIO:
+        """
+        Returns a file-like object for the blob.
+        Default implementation downloads the blob to a temporary file on disk.
+        """
+        logging.debug(f"Using default file-spooling fallback for download of {blob_key}")
+        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
+
+        temp_dir = tempfile.mkdtemp(dir=encryption_tmp_dir)
+
+        try:
+            await self._download_blob(blob_key, temp_dir)
+            # Determine where the file landed
+            src_path = Path(blob_key)
+            file_path = AbstractStorage.path_maybe_with_parent(temp_dir, src_path)
+
+            f = open(file_path, 'rb')
+            return DeleteDirectoryOnCloseWrapper(f, temp_dir)
+        except Exception:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            raise
 
     @abc.abstractmethod
     def connect(self):
@@ -165,51 +213,62 @@ class AbstractStorage(abc.ABC):
             loop.run_until_complete(self._download_blobs(srcs, dest))
 
     async def _download_encrypted_blobs(self, srcs, dest):
-        from medusa.storage.encryption import EncryptionManager
-
-        manager = EncryptionManager(self.config.key_secret_base64)
-        loop = asyncio.get_running_loop()
-
         chunk_size = int(self.config.concurrent_transfers)
         srcs = [str(s) for s in srcs]
         chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
 
-        encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
-        with tempfile.TemporaryDirectory(dir=encryption_tmp_dir) as temp_dir:
-            for chunk in chunks:
-                # Download chunk to temp_dir
-                coros = [self._download_blob(src, temp_dir) for src in chunk]
-                await asyncio.gather(*coros)
+        for chunk in chunks:
+            # First, build the coroutines list of functions to execute.
+            coroutines = []
+            for src in chunk:
+                coroutines.append(self._download_encrypted_blob(src, dest))
+            # Then, execute coroutines concurrently
+            await asyncio.gather(*coroutines)
 
-                # Decrypt
-                # Offload decryption to executor to keep the loop responsive
-                await loop.run_in_executor(None, self._decrypt_chunk, manager, chunk, temp_dir, dest)
+    async def _download_encrypted_blob(self, src: str, dest: str):
+        from medusa.storage.encryption import CHUNK_SIZE
 
-    def _decrypt_chunk(self, manager, chunk, temp_dir, dest):
-        for src in chunk:
-            src_path = Path(src)
-            # Use the same logic as storage driver to find where it landed
-            temp_file_path = Path(AbstractStorage.path_maybe_with_parent(temp_dir, src_path))
-            final_file_path = Path(AbstractStorage.path_maybe_with_parent(dest, src_path))
+        src_path = Path(src)
+        # Use the same logic as storage driver to find where it landed
+        dest_path = Path(AbstractStorage.path_maybe_with_parent(dest, src_path))
 
-            # Ensure dest dir exists
-            final_file_path.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure dest dir exists
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if temp_file_path.exists():
-                # Metadata files are always uploaded as plaintext.
-                # If they appear in the download list (which happens during restore),
-                # we must skip decryption and just move them.
-                if PLAINTEXT_FILES_REGEX.match(src_path.name):
-                    shutil.move(str(temp_file_path), str(final_file_path))
-                else:
-                    manager.decrypt_file(temp_file_path, final_file_path)
-                    # remove temp file immediately
-                    try:
-                        os.remove(temp_file_path)
-                    except OSError:
-                        logging.warning(f"Failed to remove temporary file: {temp_file_path}")
-            else:
-                logging.warning("Encrypted file not found after download: {}".format(temp_file_path))
+        # If it is a plaintext file, just download it directly
+        if PLAINTEXT_FILES_REGEX.match(src_path.name):
+            await self._download_blob(src, dest)
+            return
+
+        logging.debug(
+            '[Storage] Downloading encrypted stream {} -> {}'.format(
+                src, dest_path
+            )
+        )
+
+        blob_stream = await self._download_object_as_stream(src)
+
+        loop = self.get_or_create_event_loop()
+        executor = getattr(self, 'executor', None)
+        await loop.run_in_executor(executor, self._decrypt_stream_to_file, blob_stream, dest_path)
+
+    def _decrypt_stream_to_file(self, blob_stream, dest_path):
+        from medusa.storage.encryption import DecryptedStream, CHUNK_SIZE
+        try:
+            dec_stream = DecryptedStream(blob_stream, self.config.key_secret_base64)
+            with open(dest_path, 'wb') as f_out:
+                shutil.copyfileobj(dec_stream, f_out, length=CHUNK_SIZE)
+        except Exception as e:
+            logging.error(f"Error streaming download/decrypt: {e}")
+            if dest_path.exists():
+                try:
+                    os.remove(dest_path)
+                except OSError:
+                    pass
+            raise
+        finally:
+            if hasattr(blob_stream, 'close'):
+                blob_stream.close()
 
     async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         chunk_size = int(self.config.concurrent_transfers)
@@ -289,9 +348,11 @@ class AbstractStorage(abc.ABC):
         logging.debug(f"Using default file-spooling fallback for upload of {object_key}")
 
         encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
+        from medusa.storage.encryption import CHUNK_SIZE
+
         with tempfile.NamedTemporaryFile(dir=encryption_tmp_dir, delete=True) as tmp:
             # Spool stream to disk
-            shutil.copyfileobj(stream, tmp)
+            shutil.copyfileobj(stream, tmp, length=CHUNK_SIZE)
             tmp.flush()
             tmp.seek(0)
 

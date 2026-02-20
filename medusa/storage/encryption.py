@@ -19,7 +19,7 @@ import struct
 import logging
 import os
 import io
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 # Chunk size for reading/encrypting.
 # 1MB seems reasonable balance between memory usage and overhead.
@@ -189,6 +189,119 @@ class EncryptedStream(io.RawIOBase):
         data = self.buffer.read(size)
 
         # Optimization: Clear the buffer if we've read everything to save memory
+        if self.buffer.tell() == self.buffer.getbuffer().nbytes:
+            self.buffer = io.BytesIO()
+
+        return data
+
+    def readall(self):
+        return self.read()
+
+    @property
+    def md5_source(self):
+        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
+
+    @property
+    def md5_encrypted(self):
+        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()
+
+
+class DecryptedStream(io.RawIOBase):
+    """
+    Wraps a file-like object (source_stream) containing encrypted data.
+    DecryptedStream.read() returns decrypted bytes.
+    It calculates source MD5 and source size on the fly.
+    """
+    def __init__(self, source_stream, key_secret_base64):
+        self.source_stream = source_stream
+        self.fernet = Fernet(key_secret_base64)
+        self.source_hash = hashlib.md5()
+        self.encrypted_hash = hashlib.md5()
+        self.source_size = 0
+        self.encrypted_size = 0
+        self.buffer = io.BytesIO()
+        self.eof = False
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return False
+
+    def _read_from_source(self, size):
+        # Helper to read exactly size bytes (or until EOF) from the underlying stream
+        data = bytearray()
+        while len(data) < size:
+            chunk = self.source_stream.read(size - len(data))
+            if not chunk:
+                break
+            data.extend(chunk)
+        return bytes(data)
+
+    def read(self, size=-1):
+        if size == -1:
+            # Read everything
+            output = bytearray()
+            while True:
+                chunk = self.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                output.extend(chunk)
+            return bytes(output)
+
+        # If buffer is empty and we hit EOF, return empty
+        if self.buffer.tell() == self.buffer.getbuffer().nbytes and self.eof:
+            return b""
+
+        # Fill buffer until we have enough data or hit EOF
+        while self.buffer.getbuffer().nbytes - self.buffer.tell() < size and not self.eof:
+            # We expect a 4-byte length prefix
+            len_bytes = self._read_from_source(4)
+            if not len_bytes:
+                self.eof = True
+                break
+
+            if len(len_bytes) != 4:
+                raise IOError(f"Incomplete length prefix in encrypted stream. Expected 4 bytes, got {len(len_bytes)}")
+
+            chunk_len = struct.unpack('>I', len_bytes)[0]
+
+            # Sanity check for chunk length
+            if chunk_len > MAX_CHUNK_SIZE:
+                raise IOError(
+                    f"Corrupted encrypted stream or plaintext stream detected. "
+                    f"Chunk length {chunk_len} exceeds max {MAX_CHUNK_SIZE}."
+                )
+
+            # Read the encrypted chunk
+            encrypted_chunk = self._read_from_source(chunk_len)
+            if len(encrypted_chunk) != chunk_len:
+                raise IOError(f"Incomplete encrypted chunk. Expected {chunk_len} bytes, got {len(encrypted_chunk)}")
+
+            self.encrypted_size += 4 + chunk_len
+            self.encrypted_hash.update(len_bytes)
+            self.encrypted_hash.update(encrypted_chunk)
+
+            # Decrypt
+            try:
+                decrypted_chunk = self.fernet.decrypt(encrypted_chunk)
+            except InvalidToken as e:
+                raise IOError("Invalid encryption token or key mismatch") from e
+            except Exception as e:
+                raise IOError("Decryption failed") from e
+
+            self.source_size += len(decrypted_chunk)
+            self.source_hash.update(decrypted_chunk)
+
+            # Append to buffer
+            current_pos = self.buffer.tell()
+            self.buffer.seek(0, io.SEEK_END)
+            self.buffer.write(decrypted_chunk)
+            self.buffer.seek(current_pos)
+
+        data = self.buffer.read(size)
+
+        # Optimization: Clear buffer if fully read
         if self.buffer.tell() == self.buffer.getbuffer().nbytes:
             self.buffer = io.BytesIO()
 

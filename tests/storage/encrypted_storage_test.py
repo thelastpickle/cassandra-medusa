@@ -19,7 +19,7 @@ import tempfile
 import pathlib
 import io
 import typing as t
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, PropertyMock
 from cryptography.fernet import Fernet
 
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
@@ -263,6 +263,84 @@ class EncryptedStorageTest(unittest.TestCase):
                 with open(final_file, "rb") as f:
                     self.assertEqual(f.read(), original_content, f"Content mismatch for {final_file}")
 
+    def test_download_encrypted_blobs_via_stream(self):
+        from unittest.mock import AsyncMock
+
+        original_content = b"restored content via streaming"
+
+        # Create encrypted content in memory
+        src_stream = io.BytesIO(original_content)
+        from medusa.storage.encryption import EncryptedStream
+        enc_stream = EncryptedStream(src_stream, self.key)
+        encrypted_content = enc_stream.read()
+
+        # Mock _download_object_as_stream to return the encrypted content
+        self.storage._download_object_as_stream = AsyncMock(return_value=io.BytesIO(encrypted_content))
+        # Also mock _download_blob so it doesn't try to download anything for streaming path
+        self.storage._download_blob = AsyncMock()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            srcs = ["backup/data/restored_stream.txt"]
+            dest = pathlib.Path(temp_dir) / "final_dest"
+
+            self.storage.download_blobs(srcs, dest)
+
+            final_file = dest / "restored_stream.txt"
+            self.assertTrue(final_file.exists())
+
+            with open(final_file, "rb") as f:
+                self.assertEqual(f.read(), original_content)
+
+            self.storage._download_object_as_stream.assert_called_with("backup/data/restored_stream.txt")
+            self.storage._download_blob.assert_not_called()
+
+    def test_download_encrypted_blobs_streaming_plaintext_file(self):
+        # Verify that PLAINTEXT files are downloaded directly even when using streaming logic
+        from unittest.mock import AsyncMock
+
+        original_content = b'{"json": "plaintext"}'
+
+        # Mock _download_blob to simulate downloading the file directly
+        async def side_effect(src, dest):
+            # src is a string (path relative to bucket)
+            # dest is the destination DIRECTORY (or full path depending on implementation)
+            # AbstractStorage.path_maybe_with_parent constructs the final path
+            # But _download_blob contract usually takes src (key) and dest (local path/dir)
+
+            # In _download_encrypted_blob, we call _download_blob(src, dest)
+            # where dest is the target directory.
+            # However, looking at _download_encrypted_blob implementation:
+            # await self._download_blob(src, dest)
+            # So the mock should write to dest / basename(src)
+
+            src_path = pathlib.Path(src)
+            # Replicate path construction
+            file_path = AbstractStorage.path_maybe_with_parent(str(dest), src_path)
+
+            pathlib.Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'wb') as f:
+                f.write(original_content)
+
+        self.storage._download_blob = AsyncMock(side_effect=side_effect)
+        self.storage._download_object_as_stream = AsyncMock()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a filename that matches PLAINTEXT_FILES_REGEX
+            srcs = ["backup/meta/manifest.json"]
+            dest = pathlib.Path(temp_dir) / "final_dest"
+
+            self.storage.download_blobs(srcs, dest)
+
+            final_file = dest / "manifest.json"
+            self.assertTrue(final_file.exists())
+
+            with open(final_file, "rb") as f:
+                self.assertEqual(f.read(), original_content)
+
+            # Ensure we called _download_blob directly
+            self.storage._download_blob.assert_called_once()
+            # Ensure we did NOT try to stream/decrypt
+            self.storage._download_object_as_stream.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()
