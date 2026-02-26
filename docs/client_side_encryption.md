@@ -56,6 +56,7 @@ key_secret_base64 = DrMxa6NEhBuKcBqffvw675eHo/9J/W3WqXZ3spyI1/U=
 # Temporary directory for encryption/decryption operations (optional)
 # Defaults to system temp directory if not specified
 # Directory must have sufficient space for concurrent file operations
+# Note: This setting is ignored for S3 storage provider as it uses streaming encryption/decryption.
 encryption_tmp_dir = /tmp
 ```
 
@@ -130,6 +131,7 @@ These metadata files must be accessible without decryption for backup discovery 
 - **CPU**: Encryption/decryption adds CPU overhead. Impact depends on backup size and concurrent transfers.
 - **Disk**: Temporary encrypted files are stored in `encryption_tmp_dir` during upload/download.
   - Ensure sufficient disk space (at least `concurrent_transfers * largest_file_size`)
+  - **S3**: S3 storage supports streaming for encryption and decryption. Temporary files are **not** created when using S3.
 - **Memory**: Processing is chunked (1MB) to limit memory usage.
 
 ### Optimization

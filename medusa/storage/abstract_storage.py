@@ -226,8 +226,6 @@ class AbstractStorage(abc.ABC):
             await asyncio.gather(*coroutines)
 
     async def _download_encrypted_blob(self, src: str, dest: str):
-        from medusa.storage.encryption import CHUNK_SIZE
-
         src_path = Path(src)
         # Use the same logic as storage driver to find where it landed
         dest_path = Path(AbstractStorage.path_maybe_with_parent(dest, src_path))

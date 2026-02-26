@@ -137,7 +137,9 @@ class S3BaseStorage(AbstractStorage):
 
         loop = self.get_or_create_event_loop()
         executor = getattr(self, 'executor', None)
-        return await loop.run_in_executor(executor, lambda: self.s3_client.get_object(Bucket=self.bucket_name, Key=blob_key, **extra_args)['Body'])
+        return await loop.run_in_executor(
+            executor,
+            lambda: self.s3_client.get_object(Bucket=self.bucket_name, Key=blob_key, **extra_args)['Body'])
 
     def connect(self):
         logging.info(

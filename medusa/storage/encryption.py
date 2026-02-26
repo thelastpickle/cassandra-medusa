@@ -131,7 +131,7 @@ class EncryptionManager:
                 f_out.write(decrypted_chunk)
 
 
-class EncryptedStream(io.RawIOBase):
+class EncryptionStreamBase(io.RawIOBase):
     def __init__(self, source_stream, key_secret_base64):
         self.source_stream = source_stream
         self.fernet = Fernet(key_secret_base64)
@@ -148,6 +148,19 @@ class EncryptedStream(io.RawIOBase):
     def seekable(self):
         return False
 
+    def readall(self):
+        return self.read()
+
+    @property
+    def md5_source(self):
+        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
+
+    @property
+    def md5_encrypted(self):
+        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()
+
+
+class EncryptedStream(EncryptionStreamBase):
     def read(self, size=-1):
         if size == -1:
             # Read everything
@@ -194,40 +207,13 @@ class EncryptedStream(io.RawIOBase):
 
         return data
 
-    def readall(self):
-        return self.read()
 
-    @property
-    def md5_source(self):
-        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
-
-    @property
-    def md5_encrypted(self):
-        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()
-
-
-class DecryptedStream(io.RawIOBase):
+class DecryptedStream(EncryptionStreamBase):
     """
     Wraps a file-like object (source_stream) containing encrypted data.
     DecryptedStream.read() returns decrypted bytes.
     It calculates source MD5 and source size on the fly.
     """
-    def __init__(self, source_stream, key_secret_base64):
-        self.source_stream = source_stream
-        self.fernet = Fernet(key_secret_base64)
-        self.source_hash = hashlib.md5()
-        self.encrypted_hash = hashlib.md5()
-        self.source_size = 0
-        self.encrypted_size = 0
-        self.buffer = io.BytesIO()
-        self.eof = False
-
-    def readable(self):
-        return True
-
-    def seekable(self):
-        return False
-
     def _read_from_source(self, size):
         # Helper to read exactly size bytes (or until EOF) from the underlying stream
         data = bytearray()
@@ -306,14 +292,3 @@ class DecryptedStream(io.RawIOBase):
             self.buffer = io.BytesIO()
 
         return data
-
-    def readall(self):
-        return self.read()
-
-    @property
-    def md5_source(self):
-        return base64.b64encode(self.source_hash.digest()).decode('utf-8').strip()
-
-    @property
-    def md5_encrypted(self):
-        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()

@@ -138,6 +138,7 @@ backup_grace_period_in_days = 10
 ; Temporary directory for encryption/decryption operations (optional)
 ; Defaults to system temp directory if not specified
 ; Directory must have sufficient space for concurrent file operations
+; Note: This setting is ignored for S3 storage provider as it uses streaming encryption/decryption.
 ;encryption_tmp_dir = /tmp
 
 [monitoring]

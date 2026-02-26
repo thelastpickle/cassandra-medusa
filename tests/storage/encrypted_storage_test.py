@@ -19,7 +19,7 @@ import tempfile
 import pathlib
 import io
 import typing as t
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 from cryptography.fernet import Fernet
 
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
@@ -341,6 +341,7 @@ class EncryptedStorageTest(unittest.TestCase):
             self.storage._download_blob.assert_called_once()
             # Ensure we did NOT try to stream/decrypt
             self.storage._download_object_as_stream.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
