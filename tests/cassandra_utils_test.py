@@ -957,10 +957,17 @@ class CassandraUtilsTest(unittest.TestCase):
         actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
-        # we only ignore stuff in this specific folder
+        # we ignore stuff in this specific folder
         folder = 'metadata/snapshots'
         contents = ['snapshot1', 'snapshot2']
         expected_ignored = {'snapshot1', 'snapshot2'}
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
+        # we ingore DSE transaction files
+        folder = '/metadata/nodes'
+        contents = ['local', 'peeers', 'local.txn', 'local.old']
+        expected_ignored = {'local.txn', 'local.old'}
         actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
