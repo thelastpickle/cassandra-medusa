@@ -447,7 +447,7 @@ class Cassandra(object):
         # check for ephemeral files, such as transaction locks
         # they are identified by containing a dot (eg metadata/nodes/local.txn)
         for c in contents:
-            if '.' in c:
+            if '.txn' in c or '.old' in c:
                 logging.info(f'Ignoring {c} in folder {folder}')
                 ignored.add(c)
         return ignored
