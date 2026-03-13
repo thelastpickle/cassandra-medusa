@@ -60,6 +60,43 @@ class HashingStreamWrapper(io.RawIOBase):
         return False
 
 
+class _StaticKeyProvider(RawMasterKeyProvider):
+    """
+    A custom key provider for AWS Encryption SDK that provides a single static AES key.
+
+    This class overrides the private `_get_raw_key` method as mandated by the
+    AWS Encryption SDK's `RawMasterKeyProvider` interface. It must provide the
+    raw cryptographic key (WrappingKey) corresponding to the requested key ID.
+    """
+
+    provider_id = "medusa-backup"
+
+    def configure(self, key_name: str, key_bytes: bytes):
+        """
+        Explicitly configures the key name and bytes since they cannot be safely
+        passed through the constructor due to the AWS Encryption SDK's internal
+        use of __new__ to handle configuration parsing.
+        """
+        self._key_name = key_name
+        self._key_bytes = key_bytes
+
+    def _get_raw_key(self, key_id):
+        """
+        Provides the raw WrappingKey for the given key_id.
+        This method is required by the `RawMasterKeyProvider` parent class
+        from the AWS Encryption SDK.
+        """
+        key_id_str = key_id.decode('utf-8') if isinstance(key_id, bytes) else key_id
+        expected_id = self._key_name.decode('utf-8') if isinstance(self._key_name, bytes) else self._key_name
+        if key_id_str == expected_id:
+            return WrappingKey(
+                wrapping_algorithm=WrappingAlgorithm.AES_256_GCM_IV12_TAG16_NO_PADDING,
+                wrapping_key=self._key_bytes,
+                wrapping_key_type=EncryptionKeyType.SYMMETRIC
+            )
+        raise ValueError("Invalid key id")
+
+
 class EncryptionManager:
     """Manages encryption and decryption of backup files using AWS Encryption SDK."""
 
@@ -101,23 +138,8 @@ class EncryptionManager:
         self.key_provider = "medusa-backup"
         self.key_name = "raw-aes-key"
 
-        class StaticKeyProvider(RawMasterKeyProvider):
-            provider_id = self.key_provider
-
-            def _get_raw_key(self, key_id):
-                key_id_str = key_id.decode('utf-8') if isinstance(key_id, bytes) else key_id
-                expected_id = self._key_name.decode('utf-8') if isinstance(self._key_name, bytes) else self._key_name
-                if hasattr(self, '_key_name') and key_id_str == expected_id:
-                    return WrappingKey(
-                        wrapping_algorithm=WrappingAlgorithm.AES_256_GCM_IV12_TAG16_NO_PADDING,
-                        wrapping_key=self._key_bytes,
-                        wrapping_key_type=EncryptionKeyType.SYMMETRIC
-                    )
-                raise ValueError("Invalid key id")
-
-        self.master_key_provider = StaticKeyProvider()
-        self.master_key_provider._key_bytes = self.decoded_key
-        self.master_key_provider._key_name = self.key_name
+        self.master_key_provider = _StaticKeyProvider()
+        self.master_key_provider.configure(self.key_name, self.decoded_key)
         self.master_key_provider.add_master_key(self.key_name)
 
     def encrypt_file(self, src_path, dst_path):
