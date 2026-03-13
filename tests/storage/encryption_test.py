@@ -39,7 +39,7 @@ class EncryptionManagerTest(unittest.TestCase):
         """Test that non-base64 strings are rejected with a clear error message"""
         # Use a string with invalid base64 characters that will fail decoding
         with self.assertRaises(ValueError) as context:
-            EncryptionManager("not!@#$%^&*()invalid")
+            EncryptionManager("not!@#$%^&*()valid")
         self.assertIn("base64-encoded", str(context.exception))
 
     def test_init_invalid_key_length(self):

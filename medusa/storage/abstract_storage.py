@@ -26,7 +26,6 @@ import tempfile
 import os
 import shutil
 import typing as t
-import re
 
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
@@ -39,9 +38,7 @@ MULTIPART_BLOCKS_PER_MB = 16
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
 # Metadata files that are always stored as plaintext (not encrypted) for compatibility and accessibility
-PLAINTEXT_FILES_REGEX = re.compile(
-    r'(manifest.*\.json|schema.*\.cql|server_version.*\.json|tokenmap.*\.json|backup_name\.txt)'
-)
+from storage import INDEX_BLOB_NAME_PATTERN as PLAINTEXT_FILES_REGEX
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 
@@ -300,8 +297,9 @@ class AbstractStorage(abc.ABC):
 
         srcs = [str(s) for s in srcs]
 
-        # Split jobs into chunks. Each jobs wait for the previous one to finish before
-        # starting, to avoid overloading the system with encryption and file I/O
+        # Split jobs into chunks. Each chunk executes jobs concurrently. Chunks wait
+        # to finish before the next one starts. This avoid overloading the system with
+        # encryption and file I/O
         src_chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
 
         for chunk in src_chunks:
@@ -349,7 +347,7 @@ class AbstractStorage(abc.ABC):
         from medusa.storage.encryption import CHUNK_SIZE
 
         with tempfile.NamedTemporaryFile(dir=encryption_tmp_dir, delete=True) as tmp:
-            # Spool stream to disk
+            # Write stream to temporary file to avoid loading entire file in memory
             shutil.copyfileobj(stream, tmp, length=CHUNK_SIZE)
             tmp.flush()
             tmp.seek(0)

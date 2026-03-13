@@ -27,6 +27,20 @@ from medusa.storage.encryption import EncryptionManager, HAS_AWS_CRYPT
 
 
 class MockStorage(AbstractStorage):
+    """
+    A mock implementation of AbstractStorage specifically designed to test the client-side encryption flow
+    in EncryptedStorageTest.
+
+    It encapsulates the behavior of a storage backend that supports streaming uploads by overriding
+    _upload_object_from_stream. In production, subclasses like S3BaseStorage use this method to stream
+    data directly to the remote storage. During these streaming uploads, the EncryptedStream wrapper
+    encrypts data on the fly and calculates the source metadata (source_size, source_md5) simultaneously.
+
+    This mock consumes the provided stream (which simulates the upload process) and extracts the
+    dynamically calculated source properties to build a ManifestObject. This allows tests to verify
+    that the encryption layer correctly processes the data and computes the necessary metadata
+    without requiring a real storage backend or performing actual network I/O.
+    """
     def connect(self):
         # Mock implementation - no connection needed for testing
         pass
@@ -104,8 +118,8 @@ class MockStorage(AbstractStorage):
 
 @unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class EncryptedStorageTest(unittest.TestCase):
-    # Define constant for secondary index suffix used in tests
-    TEST_INDEX_SUFFIX = ".test_idx"
+    # Define sub folder suffix used in tests
+    TEST_SUB_FOLDER_SUFFIX = ".test_sub_folder"
 
     def setUp(self):
         self.key = base64.b64encode(os.urandom(32)).decode('utf-8')
@@ -137,7 +151,8 @@ class EncryptedStorageTest(unittest.TestCase):
             srcs = [pathlib.Path(src_file)]
             dest = "backup/data"
 
-            # We want to check the result of upload_blobs.
+            # This funcion will call our MockStorage._upload_object_from_stream which will
+            # return a ManifestObject with the path set to dest + filename
             manifests = self.storage.upload_blobs(srcs, dest)
 
             self.assertEqual(len(manifests), 1)
@@ -155,14 +170,14 @@ class EncryptedStorageTest(unittest.TestCase):
             # Verify the path is correct
             self.assertEqual(mo.path, f"{dest}/test.txt")
 
-    def test_upload_encrypted_blobs_with_secondary_index(self):
-        test_msg = b"index content"
+    def test_upload_encrypted_blobs_with_subfolder(self):
+        test_msg = b"subfolder content"
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a structure like .../table/.index_name/file.db
-            index_dir = os.path.join(temp_dir, self.TEST_INDEX_SUFFIX)
-            os.mkdir(index_dir)
+            # Create a structure like .../table/.subfolder/file.db
+            subfolder_dir = os.path.join(temp_dir, self.TEST_SUB_FOLDER_SUFFIX)
+            os.mkdir(subfolder_dir)
 
-            src_file = os.path.join(index_dir, "test.db")
+            src_file = os.path.join(subfolder_dir, "test.db")
             with open(src_file, "wb") as f:
                 f.write(test_msg)
 
@@ -175,7 +190,7 @@ class EncryptedStorageTest(unittest.TestCase):
 
             self.assertEqual(len(manifests), 1)
             mo = manifests[0]
-            self.assertIn(self.TEST_INDEX_SUFFIX, mo.path)
+            self.assertIn(self.TEST_SUB_FOLDER_SUFFIX, mo.path)
 
             # Verify it preserved the file name
             self.assertTrue(mo.path.endswith("/test.db"))

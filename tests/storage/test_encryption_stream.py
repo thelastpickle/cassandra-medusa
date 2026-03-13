@@ -20,16 +20,12 @@ import os
 import io
 import shutil
 import tempfile
+import aws_encryption_sdk
 
-try:
-    import aws_encryption_sdk
-except ImportError:
-    aws_encryption_sdk = None
-
-from medusa.storage.encryption import EncryptionManager, EncryptedStream, DecryptedStream
+from medusa.storage.encryption import EncryptionManager, EncryptedStream, DecryptedStream, HAS_AWS_CRYPT
 
 
-@unittest.skipIf(aws_encryption_sdk is None, "aws-encryption-sdk not installed")
+@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class EncryptedStreamTest(unittest.TestCase):
     def setUp(self):
         # Generate a valid 256-bit key (32 bytes)
@@ -126,7 +122,7 @@ class EncryptedStreamTest(unittest.TestCase):
         self.assertFalse(stream.seekable())
 
 
-@unittest.skipIf(aws_encryption_sdk is None, "aws-encryption-sdk not installed")
+@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class DecryptedStreamTest(unittest.TestCase):
     def setUp(self):
         self.key_bytes = os.urandom(32)
@@ -207,8 +203,8 @@ class DecryptedStreamTest(unittest.TestCase):
             dec_stream.read()
 
 
+@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class MissingDependencyTest(unittest.TestCase):
-    @unittest.skipIf(aws_encryption_sdk is not None, "aws-encryption-sdk is installed")
     def test_missing_dependency(self):
         """Verify that ImportError is raised when trying to use encryption features without the library"""
         key = base64.b64encode(os.urandom(32)).decode('utf-8')

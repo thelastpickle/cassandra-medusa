@@ -60,7 +60,7 @@ class GetAllManifestsTest(unittest.TestCase):
                 "columnfamily": "cf1",
                 "objects": [
                     {
-                        "path": "prefix/test-fqdn/backup2/data/ks1/cf1/f_diff1.db",
+                        "path": "prefix/test-fqdn/data/ks1/cf1/f_diff1.db",
                         "size": 110,
                         "MD5": "md5_2",
                         "source_size": 95,
@@ -81,14 +81,14 @@ class GetAllManifestsTest(unittest.TestCase):
                 "objects": [
                     {
                         # Update to f_diff1.db
-                        "path": "prefix/test-fqdn/backup3/data/ks1/cf1/f_diff1.db",
+                        "path": "prefix/test-fqdn/data/ks1/cf1/f_diff1.db",
                         "size": 111,
                         "MD5": "md5_2_updated",
                         "source_size": 96,
                         "source_MD5": "src_md5_2_updated"
                     },
                     {
-                        "path": "prefix/test-fqdn/backup3/data/ks1/cf1/f_diff2.db",
+                        "path": "prefix/test-fqdn/data/ks1/cf1/f_diff2.db",
                         "size": 200,
                         "MD5": "md5_3",
                         "source_size": 190,
