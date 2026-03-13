@@ -6,11 +6,12 @@ Medusa supports client-side encryption (CSE) to encrypt backup files before uplo
 This provides an additional layer of security, ensuring that data is encrypted in transit and at rest, independent of server-side encryption capabilities.
 
 **Important**: Encrypted and unencrypted backups are **not compatible** in differential backup chains.
-**Important**: Medusa has migrated from a custom Fernet encryption implementation to the official `aws-encryption-sdk`. The old Fernet format is no longer supported.
+
 
 ## Prerequisites
 
-To use client-side encryption, you must install Medusa with the optional `encryption` dependency, which installs the `aws-encryption-sdk` library. Note that Medusa requires `aws-encryption-sdk` version 3.x (versions >=4.0.0 are not supported due to incompatible API changes):
+To use client-side encryption, you must install Medusa with the optional `encryption` dependency, which installs the `aws-encryption-sdk` library.
+Note that Medusa requires `aws-encryption-sdk` version 3.x (versions >=4.0.0 are not supported due to incompatible API changes):
 
 ```bash
 pip install "cassandra-medusa[encryption]"
@@ -38,7 +39,9 @@ When client-side encryption is enabled:
 
 ## File Format
 
-Medusa delegates the encryption frame and metadata format entirely to the `aws-encryption-sdk`. The SDK automatically adds necessary headers, message IDs, and authentication tags to ensure strong security and integrity of the encrypted stream. The underlying cryptographic material manager wraps a user-provided raw AES 256-bit key.
+Medusa delegates the encryption frame and metadata format entirely to the `aws-encryption-sdk`.
+The SDK automatically adds necessary headers, message IDs, and authentication tags to ensure strong security and integrity of the encrypted stream.
+The underlying cryptographic material manager wraps a user-provided raw AES 256-bit key.
 
 ## Configuration
 
@@ -82,9 +85,9 @@ chmod 0600 /path/to/medusa.ini
 ```
 
 Ensure that:
-- Only the user running Medusa has read/write access to the configuration file
-- Group and other users have no access to the file
-- The configuration file is owned by the appropriate user/service account
+- Only the user running Medusa has read/write access to the configuration file.
+- Group and other users have no access to the file.
+- The configuration file is owned by the appropriate user/service account.
 
 
 The encryption key is required to decrypt all encrypted backups. Without it, **data cannot be recovered**.
@@ -102,8 +105,8 @@ medusa backup --backup-name my-encrypted-backup
 
 Files uploaded to storage will be encrypted.
 The manifest will include:
-- `MD5` and `size`: Hash and size of the **encrypted** file
-- `source_MD5` and `source_size`: Hash and size of the **original** file (before encryption)
+- `MD5` and `size`: Hash and size of the **encrypted** file,
+- `source_MD5` and `source_size`: Hash and size of the **original** file (before encryption).
 
 ### Restoring Encrypted Backups
 
@@ -124,9 +127,9 @@ Verification checks both encrypted file integrity and manifest consistency.
 ## What is Encrypted
 
 **Encrypted**:
-- SSTable data files (`*.db`, `*.txt`, etc.)
-- Index files (secondary indexes in `.index_name/` directories)
-- All user data files
+- SSTable data files (`*.db`, `*.txt`, etc.),
+- Index files (secondary indexes in `.index_name/` directories),
+- All user data files.
 
 **Not Encrypted** (stored as plaintext):
 - `manifest*.json`
@@ -143,10 +146,10 @@ These metadata files must be accessible without decryption for backup discovery 
 
 - **CPU**: Encryption/decryption adds CPU overhead. Impact depends on backup size and concurrent transfers.
 - **Disk**: Temporary encrypted files are stored in `encryption_tmp_dir` during upload/download.
-  - Ensure sufficient disk space (at least `concurrent_transfers * largest_file_size`)
+  - Ensure sufficient disk space (at least `concurrent_transfers * largest_file_size`).
   - **S3**: S3 storage supports streaming for encryption and decryption. Temporary files are **not** created when using S3.
 
 ### Optimization
 
-- Adjust `concurrent_transfers` in `medusa.ini` to balance throughput and resource usage
-- Use dedicated `encryption_tmp_dir` on fast storage (SSD) for better performance
+- Adjust `concurrent_transfers` in `medusa.ini` to balance throughput and resource usage.
+- Use dedicated `encryption_tmp_dir` on fast storage (SSD) for better performance.

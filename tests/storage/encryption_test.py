@@ -17,9 +17,10 @@ import unittest
 import os
 import tempfile
 import base64
-from medusa.storage.encryption import EncryptionManager
+from medusa.storage.encryption import EncryptionManager, HAS_AWS_CRYPT
 
 
+@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class EncryptionManagerTest(unittest.TestCase):
     def setUp(self):
         self.key_bytes = os.urandom(32)

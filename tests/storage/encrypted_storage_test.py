@@ -23,7 +23,7 @@ from unittest.mock import MagicMock
 import base64
 
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject, AbstractBlob
-from medusa.storage.encryption import EncryptionManager
+from medusa.storage.encryption import EncryptionManager, HAS_AWS_CRYPT
 
 
 class MockStorage(AbstractStorage):
@@ -102,6 +102,7 @@ class MockStorage(AbstractStorage):
         pass
 
 
+@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
 class EncryptedStorageTest(unittest.TestCase):
     # Define constant for secondary index suffix used in tests
     TEST_INDEX_SUFFIX = ".test_idx"
