@@ -60,6 +60,48 @@ class HashingStreamWrapper(io.RawIOBase):
         return False
 
 
+class _StaticKeyProvider(RawMasterKeyProvider):
+    """
+    A custom key provider for AWS Encryption SDK that provides a single static AES key.
+
+    This class overrides the private `_get_raw_key` method as mandated by the
+    AWS Encryption SDK's `RawMasterKeyProvider` interface. It must provide the
+    raw cryptographic key (WrappingKey) corresponding to the requested key ID.
+    """
+
+    provider_id = "medusa-backup"
+
+    def __init__(self, **kwargs):
+        """
+        Initializes the static key provider.
+        """
+        # MasterKeyProvider.__new__ will consume kwargs for its _config_class.
+        # This will error if we pass key_name and key_bytes into __init__ with super().__init__(**kwargs)
+        # OR if we pass them to _StaticKeyProvider(key_name=..., key_bytes=...) because __new__ is called first
+        # by Python!
+
+        # We handle this by allowing injection from outside after instantiation.
+        # Because Python passes all args to __new__ first, we cannot pass key_name
+        # and key_bytes to the constructor at all without overriding __new__.
+        pass
+
+    def _get_raw_key(self, key_id):
+        """
+        Provides the raw WrappingKey for the given key_id.
+        This method is required by the `RawMasterKeyProvider` parent class
+        from the AWS Encryption SDK.
+        """
+        key_id_str = key_id.decode('utf-8') if isinstance(key_id, bytes) else key_id
+        expected_id = self._key_name.decode('utf-8') if isinstance(self._key_name, bytes) else self._key_name
+        if key_id_str == expected_id:
+            return WrappingKey(
+                wrapping_algorithm=WrappingAlgorithm.AES_256_GCM_IV12_TAG16_NO_PADDING,
+                wrapping_key=self._key_bytes,
+                wrapping_key_type=EncryptionKeyType.SYMMETRIC
+            )
+        raise ValueError("Invalid key id")
+
+
 class EncryptionManager:
     """Manages encryption and decryption of backup files using AWS Encryption SDK."""
 
@@ -101,23 +143,9 @@ class EncryptionManager:
         self.key_provider = "medusa-backup"
         self.key_name = "raw-aes-key"
 
-        class StaticKeyProvider(RawMasterKeyProvider):
-            provider_id = self.key_provider
-
-            def _get_raw_key(self, key_id):
-                key_id_str = key_id.decode('utf-8') if isinstance(key_id, bytes) else key_id
-                expected_id = self._key_name.decode('utf-8') if isinstance(self._key_name, bytes) else self._key_name
-                if hasattr(self, '_key_name') and key_id_str == expected_id:
-                    return WrappingKey(
-                        wrapping_algorithm=WrappingAlgorithm.AES_256_GCM_IV12_TAG16_NO_PADDING,
-                        wrapping_key=self._key_bytes,
-                        wrapping_key_type=EncryptionKeyType.SYMMETRIC
-                    )
-                raise ValueError("Invalid key id")
-
-        self.master_key_provider = StaticKeyProvider()
-        self.master_key_provider._key_bytes = self.decoded_key
+        self.master_key_provider = _StaticKeyProvider()
         self.master_key_provider._key_name = self.key_name
+        self.master_key_provider._key_bytes = self.decoded_key
         self.master_key_provider.add_master_key(self.key_name)
 
     def encrypt_file(self, src_path, dst_path):
