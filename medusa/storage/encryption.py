@@ -71,19 +71,14 @@ class _StaticKeyProvider(RawMasterKeyProvider):
 
     provider_id = "medusa-backup"
 
-    def __init__(self, **kwargs):
+    def configure(self, key_name: str, key_bytes: bytes):
         """
-        Initializes the static key provider.
+        Explicitly configures the key name and bytes since they cannot be safely
+        passed through the constructor due to the AWS Encryption SDK's internal
+        use of __new__ to handle configuration parsing.
         """
-        # MasterKeyProvider.__new__ will consume kwargs for its _config_class.
-        # This will error if we pass key_name and key_bytes into __init__ with super().__init__(**kwargs)
-        # OR if we pass them to _StaticKeyProvider(key_name=..., key_bytes=...) because __new__ is called first
-        # by Python!
-
-        # We handle this by allowing injection from outside after instantiation.
-        # Because Python passes all args to __new__ first, we cannot pass key_name
-        # and key_bytes to the constructor at all without overriding __new__.
-        pass
+        self._key_name = key_name
+        self._key_bytes = key_bytes
 
     def _get_raw_key(self, key_id):
         """
@@ -144,8 +139,7 @@ class EncryptionManager:
         self.key_name = "raw-aes-key"
 
         self.master_key_provider = _StaticKeyProvider()
-        self.master_key_provider._key_name = self.key_name
-        self.master_key_provider._key_bytes = self.decoded_key
+        self.master_key_provider.configure(self.key_name, self.decoded_key)
         self.master_key_provider.add_master_key(self.key_name)
 
     def encrypt_file(self, src_path, dst_path):
