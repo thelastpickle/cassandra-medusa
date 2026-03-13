@@ -444,6 +444,12 @@ class Cassandra(object):
             logging.info(f'Ignoring {contents} in folder {folder}')
             for c in contents:
                 ignored.add(c)
+        # check for ephemeral files, such as transaction locks
+        # they are identified by containing a dot (eg metadata/nodes/local.txn)
+        for c in contents:
+            if '.txn' in c or '.old' in c:
+                logging.info(f'Ignoring {c} in folder {folder}')
+                ignored.add(c)
         return ignored
 
     def create_dse_snapshot(self, backup_name):
