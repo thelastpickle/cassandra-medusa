@@ -233,7 +233,7 @@ class AzureStorage(AbstractStorage):
         )
         return await downloader.readall()
 
-    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5000))
+    @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _delete_object(self, obj: AbstractBlob):
         await self.azure_container_client.delete_blob(obj.name, delete_snapshots='include')
 
