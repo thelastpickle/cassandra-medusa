@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import gc
 import json
 import logging
 import os
@@ -46,6 +47,12 @@ BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
 
+# PATCH: Memory cleanup configuration
+# Can be overridden via environment variables for testing:
+# MEDUSA_MEMORY_CLEANUP_INTERVAL_SECONDS, MEDUSA_FORCE_GC_AFTER_BACKUP
+MEMORY_CLEANUP_INTERVAL_SECONDS = int(os.environ.get('MEDUSA_MEMORY_CLEANUP_INTERVAL_SECONDS', 3600))
+FORCE_GC_AFTER_BACKUP = os.environ.get('MEDUSA_FORCE_GC_AFTER_BACKUP', 'True').lower() == 'true'
+
 
 class Server:
     def __init__(self, config_file_path, testing=False):
@@ -56,10 +63,15 @@ class Server:
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
         ])
+        # PATCH: Track cleanup task
+        self._cleanup_task = None
         logging.info("GRPC server initialized")
 
     def shutdown(self):
         logging.info("Shutting down GRPC server")
+        # PATCH: Cancel cleanup task
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
         handle_backup_removal_all()
         asyncio.get_event_loop().run_until_complete(self.grpc_server.stop(0))
 
@@ -90,12 +102,48 @@ class Server:
 
         await self.grpc_server.start()
 
+        # PATCH: Start periodic memory cleanup task
+        self._cleanup_task = asyncio.create_task(self._periodic_memory_cleanup())
+        logging.info(f"Started periodic memory cleanup task (interval: {MEMORY_CLEANUP_INTERVAL_SECONDS}s)")
+
         if not self.testing:
             try:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:
                 logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
             handle_backup_removal_all()
+
+    # PATCH: New method for periodic memory cleanup
+    async def _periodic_memory_cleanup(self):
+        """Periodically clean up memory to prevent leaks in long-running gRPC mode."""
+        while True:
+            try:
+                await asyncio.sleep(MEMORY_CLEANUP_INTERVAL_SECONDS)
+                logging.info("Running periodic memory cleanup...")
+
+                # Force cleanup of old backups in BackupMan
+                if BackupMan.is_active():
+                    BackupMan.force_cleanup()
+
+                # Force full garbage collection
+                collected = gc.collect()
+                logging.info(f"Memory cleanup completed. GC collected {collected} objects.")
+
+                # Log memory usage for monitoring
+                try:
+                    import psutil
+                    process = psutil.Process(os.getpid())
+                    mem_info = process.memory_info()
+                    logging.info(f"Current memory usage: RSS={mem_info.rss / 1024 / 1024:.1f}MB, "
+                                 f"VMS={mem_info.vms / 1024 / 1024:.1f}MB")
+                except ImportError:
+                    pass
+
+            except asyncio.CancelledError:
+                logging.info("Memory cleanup task cancelled")
+                raise
+            except Exception as e:
+                logging.warning(f"Error during periodic memory cleanup: {e}")
 
     def create_config(self):
         config_file = Path(self.config_file_path)
@@ -141,7 +189,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
         try:
             response.backupName = request.name
-            response.status = response.status = medusa_pb2.StatusType.IN_PROGRESS
+            response.status = medusa_pb2.StatusType.IN_PROGRESS
             BackupMan.register_backup(request.name, is_async=True)
             executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix=request.name)
             loop = asyncio.get_running_loop()
@@ -150,7 +198,8 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                 backup_node.handle_backup,
                 self.config, request.name, None, False, mode
             )
-            backup_future.add_done_callback(record_backup_info)
+            # PATCH: Wrap callback to include memory cleanup
+            backup_future.add_done_callback(record_backup_info_with_cleanup)
             BackupMan.set_backup_future(request.name, backup_future)
 
         except Exception as e:
@@ -179,6 +228,11 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             backup_node.handle_backup(config=self.config, backup_name_arg=request.name, stagger_time=None,
                                       enable_md5_checks_flag=False, mode=mode)
             record_status_in_response(response, request.name)
+
+            # PATCH: Force GC after sync backup
+            if FORCE_GC_AFTER_BACKUP:
+                gc.collect()
+
             return response
         except Exception as e:
             response.status = medusa_pb2.StatusType.FAILED
@@ -316,6 +370,9 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             response.totalObjectsWithinGcGrace = total_objects_within_grace
             response.nbBackupsPurged = nb_backups_purged
 
+            # PATCH: Force GC after purge to reclaim memory
+            gc.collect()
+
         except Exception as e:
             context.set_details("purging backups failed: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -391,6 +448,18 @@ def get_backup_summary(backup):
     summary.totalObjects = backup.num_objects()
 
     return summary
+
+
+# PATCH: New callback that includes memory cleanup
+def record_backup_info_with_cleanup(future):
+    """Callback for recording backup results with memory cleanup."""
+    try:
+        record_backup_info(future)
+    finally:
+        # Force garbage collection after backup completes
+        if FORCE_GC_AFTER_BACKUP:
+            collected = gc.collect()
+            logging.debug(f"Post-backup GC collected {collected} objects")
 
 
 # Callback function for recording unique backup results
