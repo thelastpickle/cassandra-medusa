@@ -238,7 +238,7 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, k
             storage, manifest, node_backup, snapshot, enable_md5_checks
         )
 
-    if node_backup.is_dse:
+    if node_backup.is_dse_6:
         logging.info('Creating DSE snapshot')
         with cassandra.create_dse_snapshot(backup_name) as snapshot:
             dse_num_files, dse_replaced, dse_kept = backup_snapshots(

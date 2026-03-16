@@ -100,7 +100,8 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
 
     if node_backup.is_dse:
-        clean_path(cassandra.dse_metadata_path, use_sudo, keep_folder=True)
+        if node_backup.is_dse_6:
+            clean_path(cassandra.dse_metadata_path, use_sudo, keep_folder=True)
         clean_path(cassandra.dse_search_path, use_sudo, keep_folder=True)
 
     # move backup data to Cassandra data directory according to system table
