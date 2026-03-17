@@ -117,7 +117,7 @@ class GetAllManifestsTest(unittest.TestCase):
         self.assertIn("f_diff1.db", cf_files)
         f_diff1 = cf_files["f_diff1.db"]
         self.assertEqual(f_diff1.source_MD5, "src_md5_2_updated")
-        self.assertEqual(f_diff1.path, "prefix/test-fqdn/backup3/data/ks1/cf1/f_diff1.db")
+        self.assertEqual(f_diff1.path, "prefix/test-fqdn/data/ks1/cf1/f_diff1.db")
 
         # Verify f_diff2.db is included
         self.assertIn("f_diff2.db", cf_files)

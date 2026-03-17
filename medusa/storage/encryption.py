@@ -27,6 +27,7 @@ try:
     HAS_AWS_CRYPT = True
 except ImportError:
     HAS_AWS_CRYPT = False
+    RawMasterKeyProvider = object
 
 
 class HashingStreamWrapper(io.RawIOBase):

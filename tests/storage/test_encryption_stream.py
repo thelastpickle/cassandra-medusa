@@ -20,7 +20,6 @@ import os
 import io
 import shutil
 import tempfile
-import aws_encryption_sdk
 
 from medusa.storage.encryption import EncryptionManager, EncryptedStream, DecryptedStream, HAS_AWS_CRYPT
 
@@ -189,6 +188,7 @@ class DecryptedStreamTest(unittest.TestCase):
         truncated_content = encrypted_content[:-1]
 
         dec_stream = DecryptedStream(io.BytesIO(truncated_content), self.key)
+        import aws_encryption_sdk
         with self.assertRaises(aws_encryption_sdk.exceptions.AWSEncryptionSDKClientError):
             dec_stream.read()
 
@@ -203,7 +203,7 @@ class DecryptedStreamTest(unittest.TestCase):
             dec_stream.read()
 
 
-@unittest.skipIf(not HAS_AWS_CRYPT, "aws-encryption-sdk is not installed")
+@unittest.skipIf(HAS_AWS_CRYPT, "aws-encryption-sdk is installed")
 class MissingDependencyTest(unittest.TestCase):
     def test_missing_dependency(self):
         """Verify that ImportError is raised when trying to use encryption features without the library"""

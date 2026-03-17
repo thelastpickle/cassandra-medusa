@@ -37,8 +37,12 @@ MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
+import re
+
 # Metadata files that are always stored as plaintext (not encrypted) for compatibility and accessibility
-from storage import INDEX_BLOB_NAME_PATTERN as PLAINTEXT_FILES_REGEX
+PLAINTEXT_FILES_REGEX = re.compile(
+    '.*(tokenmap|schema|manifest|differential|incremental|server_version|backup_name)(.*)$'
+)
 
 AbstractBlob = collections.namedtuple('AbstractBlob', ['name', 'size', 'hash', 'last_modified', 'storage_class'])
 
@@ -248,11 +252,11 @@ class AbstractStorage(abc.ABC):
         await loop.run_in_executor(executor, self._decrypt_stream_to_file, blob_stream, dest_path)
 
     def _decrypt_stream_to_file(self, blob_stream, dest_path):
-        from medusa.storage.encryption import DecryptedStream, CHUNK_SIZE
+        from medusa.storage.encryption import DecryptedStream
         try:
             dec_stream = DecryptedStream(blob_stream, self.config.key_secret_base64)
             with open(dest_path, 'wb') as f_out:
-                shutil.copyfileobj(dec_stream, f_out, length=CHUNK_SIZE)
+                shutil.copyfileobj(dec_stream, f_out, length=8192)
         except Exception as e:
             logging.error(f"Error streaming download/decrypt: {e}")
             if dest_path.exists():
@@ -344,11 +348,10 @@ class AbstractStorage(abc.ABC):
         logging.debug(f"Using default file-spooling fallback for upload of {object_key}")
 
         encryption_tmp_dir = self.config.encryption_tmp_dir if hasattr(self.config, 'encryption_tmp_dir') else None
-        from medusa.storage.encryption import CHUNK_SIZE
 
         with tempfile.NamedTemporaryFile(dir=encryption_tmp_dir, delete=True) as tmp:
             # Write stream to temporary file to avoid loading entire file in memory
-            shutil.copyfileobj(stream, tmp, length=CHUNK_SIZE)
+            shutil.copyfileobj(stream, tmp, length=8192)
             tmp.flush()
             tmp.seek(0)
 
