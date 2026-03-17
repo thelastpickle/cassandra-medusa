@@ -246,8 +246,19 @@ def _handle_k8s_and_grpc_settings(config, args):
             logging.warning('Forcing use_sudo to False because Kubernetes mode is enabled')
         config['cassandra']['use_sudo'] = 'False'
         config['storage']['use_sudo_for_restore'] = 'False'
-        if "POD_IP" in os.environ:
+        # For StatefulSets, prefer stable HOSTNAME over POD_IP
+        # HOSTNAME provides a stable identifier (e.g., "cassandra-sts-0")
+        # whereas POD_IP can change when pods are rescheduled
+        if "HOSTNAME" in os.environ:
+            config['storage']['fqdn'] = os.environ["HOSTNAME"]
+            logging.debug(f'Using HOSTNAME from environment: {os.environ["HOSTNAME"]}')
+        elif "POD_IP" in os.environ:
+            # Fallback to POD_IP for backwards compatibility or non-StatefulSet deployments
             config['storage']['fqdn'] = os.environ["POD_IP"]
+            logging.warning(
+                f'Using POD_IP ({os.environ["POD_IP"]}) as FQDN. For StatefulSets, '
+                'consider using HOSTNAME for stable backup paths across pod restarts.'
+            )
 
 
 def _handle_env_vars(config):
