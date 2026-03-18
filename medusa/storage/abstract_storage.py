@@ -26,6 +26,7 @@ import tempfile
 import os
 import shutil
 import typing as t
+import re
 
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
@@ -37,7 +38,6 @@ MULTIPART_BLOCK_SIZE_BYTES = 65536
 MULTIPART_BLOCKS_PER_MB = 16
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
-import re
 
 # Metadata files that are always stored as plaintext (not encrypted) for compatibility and accessibility
 PLAINTEXT_FILES_REGEX = re.compile(
