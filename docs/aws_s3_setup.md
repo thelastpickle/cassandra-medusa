@@ -112,3 +112,8 @@ key_file = /etc/medusa/medusa-s3-credentials
 ```
 
 Medusa should now be able to access the bucket and perform all required operations.
+
+### Client-Side Encryption Performance
+
+When using AWS S3 as the storage provider, Medusa supports **streaming encryption and decryption**. This means that files are encrypted/decrypted on-the-fly during upload/download without creating temporary local files.
+This significantly reduces the local disk space requirements compared to other storage providers when Client-Side Encryption is enabled.

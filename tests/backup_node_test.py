@@ -86,6 +86,7 @@ class BackupNodeTest(unittest.TestCase):
     @patch("medusa.storage")
     @patch("medusa.storage.node_backup.NodeBackup")
     def test_check_already_uploaded(self, mock_storage, mock_node_backup):
+        mock_storage.config.key_secret_base64 = None
 
         def mo(path, size, hash='whatever'):
             return ManifestObject(path, size, hash)
