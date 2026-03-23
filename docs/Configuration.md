@@ -98,7 +98,8 @@ transfer_max_bandwidth = 50MB/s
 ; Each group of concurrently processed files has to have all files processed before the next group starts
 ; (so the groups are synchronous, example).
 ; Then there is the storage-provider specific behaviour:
-; - For Google, it has no extra meaning. 
+; - For Google, we create a Semaphone to retrict the number of
+;   concurrent uploads and downloads of GCS objects.
 ; - For Azure, we pass it to the SDK library we use if the file is bigger than the multipart threshold (100MB in your case). 
 ; - For S3, this controls the size of the executor we submit transfer tasks into. We do not propagate is to the 
 ;   boto's concurrency parameter.
@@ -113,7 +114,7 @@ backup_grace_period_in_days = 10
 ; When not using sstableloader to restore data on a node, Medusa will copy snapshot files from a
 ; temporary location into the cassandra data directroy. Medusa will then attempt to change the
 ; ownership of the snapshot files so the cassandra user can access them.
-; Depending on how users/file permissions are set up on the cassandra instance, the medusa user 
+; Depending on how users/file permissions are set up on the cassandra instance, the medusa user
 ; may need elevated permissions to manipulate the files in the cassandra data directory.
 ;
 ; This option does NOT replace the `use_sudo` option under the 'cassandra' section!
