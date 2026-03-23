@@ -1,5 +1,12 @@
 ## Change Log
 
+### 0.27.0 (2026/01/07) 16:00 +00:00
+- Bump aiohttp from 3.12.14 to 3.13.3 (@dependabot)
+- Bump urllib3 from 2.5.0 to 2.6.0 (@dependabot)
+- Bump filelock from 3.19.1 to 3.20.1 (@dependabot)
+- Add TLS server and client support for gRPC (@burmanm)
+- Add JSON output for status and list-backups commands. (@woblerr)
+
 ### 0.26.0 (2025/11/06) 15:19 +00:00
 - Expand documentation on concurrent transfers (#780) (@rzvoncek)
 - Update azure_storage.py (#889) (@gfnord)
