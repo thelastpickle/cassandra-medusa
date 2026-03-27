@@ -1778,14 +1778,14 @@ files = [
 
 [[package]]
 name = "parallel-ssh"
-version = "2.13.0"
+version = "2.14.0"
 description = "Asynchronous parallel SSH library"
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "parallel_ssh-2.13.0-py3-none-any.whl", hash = "sha256:b87c2ee34006deb27017ce76835e699cd76da4582d07f5a22f89dc6817d2f6ec"},
-    {file = "parallel_ssh-2.13.0.tar.gz", hash = "sha256:7037db73f59e77ff42a004cfa29b8e3ebfba8c516d03273dbd8423d353e2b005"},
+    {file = "parallel_ssh-2.14.0-py3-none-any.whl", hash = "sha256:acfda90abe3de6d80fc8df1ac3b2a435911d49a5293282efc2d3d306f60e6093"},
+    {file = "parallel_ssh-2.14.0.tar.gz", hash = "sha256:e4d21a02feb4cfebf58692448d71c0cd14799c40881c5bd6d75aa7d1da4fd0d5"},
 ]
 
 [package.dependencies]
@@ -2911,4 +2911,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10.0,<3.13"
-content-hash = "4551d2162d4819ea938427623688ef55642386bfa4b9046f7b837d35fad96acd"
+content-hash = "51f1db11adfadfb65ccb55d713a51cff90ffac053435f4b3ec11b7f4d10f8c1f"
