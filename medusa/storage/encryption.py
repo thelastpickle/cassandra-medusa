@@ -22,7 +22,7 @@ try:
     from aws_encryption_sdk import CommitmentPolicy
     from aws_encryption_sdk.identifiers import WrappingAlgorithm
     from aws_encryption_sdk.key_providers.raw import RawMasterKeyProvider
-    from aws_encryption_sdk.identifiers import EncryptionKeyType
+    from aws_encryption_sdk.identifiers import EncryptionKeyType, Algorithm
     from aws_encryption_sdk.internal.crypto.wrapping_keys import WrappingKey
     from aws_encryption_sdk.materials_managers.caching import CachingCryptoMaterialsManager
     from aws_encryption_sdk.caches.local import LocalCryptoMaterialsCache
@@ -146,9 +146,10 @@ class EncryptionManager:
             cache=self.cache,
             max_age=3600.0,
             max_messages_encrypted=100000,
-            max_bytes_encrypted=100 * 1024 * 1024 * 1024 # 100 GB
+            max_bytes_encrypted=100 * 1024 * 1024 * 1024  # 100 GB
         )
         self.frame_length = int(frame_length)
+        self.algorithm = Algorithm.AES_256_GCM_HKDF_SHA512_COMMIT_KEY
 
     def encrypt_file(self, src_path, dst_path):
         encrypted_hash = hashlib.md5()
@@ -162,7 +163,8 @@ class EncryptionManager:
                 mode='e',
                 source=hashing_source,
                 materials_manager=self.cmm,
-                frame_length=self.frame_length
+                frame_length=self.frame_length,
+                algorithm=self.algorithm
             ) as encryptor:
                 for chunk in encryptor:
                     # Update encrypted metrics
@@ -242,7 +244,8 @@ class EncryptedStream(EncryptionStreamBase):
             mode='e',
             source=self.hashing_source,
             materials_manager=self.manager.cmm,
-            frame_length=self.manager.frame_length
+            frame_length=self.manager.frame_length,
+            algorithm=self.manager.algorithm
         )
         self.iterator = iter(self.aws_stream)
 
