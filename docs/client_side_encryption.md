@@ -74,6 +74,11 @@ key_secret_base64 = DrMxa6NEhBuKcBqffvw675eHo/9J/W3WqXZ3spyI1/U=
 # Directory must have sufficient space for concurrent file operations
 # Note: This setting is ignored for S3 storage provider as it uses streaming encryption/decryption.
 encryption_tmp_dir = /tmp
+
+# Frame length (in bytes) used by AWS Encryption SDK. Default is 8MB (8388608).
+# Using larger frames dramatically reduces CPU usage and backup times for large files
+# by minimizing cryptographic operations and frame header overhead.
+encryption_frame_length = 8388608
 ```
 
 ## Security Best Practices
@@ -144,7 +149,7 @@ These metadata files must be accessible without decryption for backup discovery 
 
 ### Resource Usage
 
-- **CPU**: Encryption/decryption adds CPU overhead. Impact depends on backup size and concurrent transfers.
+- **CPU**: Encryption/decryption adds CPU overhead. Impact depends on backup size and concurrent transfers. The `aws-encryption-sdk` introduces per-frame overhead; use a large `encryption_frame_length` (e.g., 8MB) to significantly lower CPU load.
 - **Disk**: Temporary encrypted files are stored in `encryption_tmp_dir` during upload/download.
   - Ensure sufficient disk space (at least `concurrent_transfers * largest_file_size`).
   - **S3**: S3 storage supports streaming for encryption and decryption. Temporary files are **not** created when using S3.

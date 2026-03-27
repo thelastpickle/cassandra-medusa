@@ -24,6 +24,8 @@ try:
     from aws_encryption_sdk.key_providers.raw import RawMasterKeyProvider
     from aws_encryption_sdk.identifiers import EncryptionKeyType
     from aws_encryption_sdk.internal.crypto.wrapping_keys import WrappingKey
+    from aws_encryption_sdk.materials_managers.caching import CachingCryptoMaterialsManager
+    from aws_encryption_sdk.caches.local import LocalCryptoMaterialsCache
     HAS_AWS_CRYPT = True
 except ImportError:
     HAS_AWS_CRYPT = False
@@ -96,7 +98,7 @@ class _StaticKeyProvider(RawMasterKeyProvider):
 class EncryptionManager:
     """Manages encryption and decryption of backup files using AWS Encryption SDK."""
 
-    def __init__(self, key_secret_base64):
+    def __init__(self, key_secret_base64, frame_length=8388608):
         if not HAS_AWS_CRYPT:
             raise ImportError(
                 "aws-encryption-sdk is not installed. "
@@ -137,6 +139,17 @@ class EncryptionManager:
         self.master_key_provider.configure(self.key_name, self.decoded_key)
         self.master_key_provider.add_master_key(self.key_name)
 
+        # Initialize cache and CMM to prevent generating a new data key for each file
+        self.cache = LocalCryptoMaterialsCache(capacity=100)
+        self.cmm = CachingCryptoMaterialsManager(
+            master_key_provider=self.master_key_provider,
+            cache=self.cache,
+            max_age=3600.0,
+            max_messages_encrypted=100000,
+            max_bytes_encrypted=100 * 1024 * 1024 * 1024 # 100 GB
+        )
+        self.frame_length = int(frame_length)
+
     def encrypt_file(self, src_path, dst_path):
         encrypted_hash = hashlib.md5()
         encrypted_size = 0
@@ -148,7 +161,8 @@ class EncryptionManager:
             with self.client.stream(
                 mode='e',
                 source=hashing_source,
-                key_provider=self.master_key_provider
+                materials_manager=self.cmm,
+                frame_length=self.frame_length
             ) as encryptor:
                 for chunk in encryptor:
                     # Update encrypted metrics
@@ -171,21 +185,21 @@ class EncryptionManager:
             with self.client.stream(
                 mode='d',
                 source=f_in,
-                key_provider=self.master_key_provider
+                materials_manager=self.cmm
             ) as decryptor:
                 for chunk in decryptor:
                     f_out.write(chunk)
 
 
 class EncryptionStreamBase(io.RawIOBase):
-    def __init__(self, source_stream, key_secret_base64):
+    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
         if not HAS_AWS_CRYPT:
             raise ImportError(
                 "aws-encryption-sdk is not installed. "
                 "Please install it using 'pip install cassandra-medusa[encryption]'"
             )
 
-        self.manager = EncryptionManager(key_secret_base64)
+        self.manager = EncryptionManager(key_secret_base64, frame_length)
         self.source_stream = source_stream
 
         self.encrypted_hash = hashlib.md5()
@@ -219,15 +233,16 @@ class EncryptionStreamBase(io.RawIOBase):
 
 
 class EncryptedStream(EncryptionStreamBase):
-    def __init__(self, source_stream, key_secret_base64):
-        super().__init__(source_stream, key_secret_base64)
+    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
+        super().__init__(source_stream, key_secret_base64, frame_length)
 
         self.hashing_source = HashingStreamWrapper(source_stream)
 
         self.aws_stream = self.manager.client.stream(
             mode='e',
             source=self.hashing_source,
-            key_provider=self.manager.master_key_provider
+            materials_manager=self.manager.cmm,
+            frame_length=self.manager.frame_length
         )
         self.iterator = iter(self.aws_stream)
 
@@ -245,15 +260,20 @@ class EncryptedStream(EncryptionStreamBase):
             return b"".join(chunks)
 
         # Fill buffer from iterator if we don't have enough data
-        while len(self.buffer) < size:
-            try:
-                chunk = next(self.iterator)
-                self.encrypted_size += len(chunk)
-                self.encrypted_hash.update(chunk)
-                self.buffer += chunk
-            except StopIteration:
-                self.eof = True
-                break
+        if len(self.buffer) < size:
+            chunks = [self.buffer] if self.buffer else []
+            current_len = len(self.buffer)
+            while current_len < size:
+                try:
+                    chunk = next(self.iterator)
+                    self.encrypted_size += len(chunk)
+                    self.encrypted_hash.update(chunk)
+                    chunks.append(chunk)
+                    current_len += len(chunk)
+                except StopIteration:
+                    self.eof = True
+                    break
+            self.buffer = b"".join(chunks)
 
         # Return requested size from buffer
         data = self.buffer[:size]
@@ -271,13 +291,13 @@ class EncryptedStream(EncryptionStreamBase):
 
 
 class DecryptedStream(EncryptionStreamBase):
-    def __init__(self, source_stream, key_secret_base64):
-        super().__init__(source_stream, key_secret_base64)
+    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
+        super().__init__(source_stream, key_secret_base64, frame_length)
 
         self.aws_stream = self.manager.client.stream(
             mode='d',
             source=source_stream,
-            key_provider=self.manager.master_key_provider
+            materials_manager=self.manager.cmm
         )
         self.iterator = iter(self.aws_stream)
 
@@ -298,15 +318,20 @@ class DecryptedStream(EncryptionStreamBase):
             return b"".join(chunks)
 
         # Fill buffer from iterator if we don't have enough data
-        while len(self.buffer) < size:
-            try:
-                chunk = next(self.iterator)
-                self.plaintext_size += len(chunk)
-                self.plaintext_hash.update(chunk)
-                self.buffer += chunk
-            except StopIteration:
-                self.eof = True
-                break
+        if len(self.buffer) < size:
+            chunks = [self.buffer] if self.buffer else []
+            current_len = len(self.buffer)
+            while current_len < size:
+                try:
+                    chunk = next(self.iterator)
+                    self.plaintext_size += len(chunk)
+                    self.plaintext_hash.update(chunk)
+                    chunks.append(chunk)
+                    current_len += len(chunk)
+                except StopIteration:
+                    self.eof = True
+                    break
+            self.buffer = b"".join(chunks)
 
         # Return requested size from buffer
         data = self.buffer[:size]
