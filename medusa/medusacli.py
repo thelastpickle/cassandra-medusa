@@ -91,7 +91,8 @@ def configure_console_logging(verbosity, without_log_timestamp):
     logger.addHandler(console_handler)
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
-        for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
+        for loggername in ('urllib3', 'google_cloud_storage.auth.transport.requests',
+                           'paramiko', 'cassandra', 'aws_encryption_sdk'):
             logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
 

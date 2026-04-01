@@ -32,7 +32,8 @@ StorageConfig = collections.namedtuple(
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
      'concurrent_transfers', 'multi_part_upload_threshold', 'multipart_chunksize', 'host', 'region', 'port', 'secure',
      'ssl_verify', 'aws_cli_path', 'kms_id', 'sse_c_key', 'backup_grace_period_in_days', 'use_sudo_for_restore',
-     'k8s_mode', 'read_timeout', 's3_addressing_style']
+     'k8s_mode', 'read_timeout', 's3_addressing_style', 'key_secret_base64', 'encryption_tmp_dir',
+     'encryption_frame_length']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -121,6 +122,7 @@ def _build_default_config():
         'use_sudo_for_restore': 'True',
         'multipart_chunksize': '50MB',
         's3_addressing_style': 'auto',
+        'encryption_frame_length': '8388608',
     }
 
     config['logging'] = {

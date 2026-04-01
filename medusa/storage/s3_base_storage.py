@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import base64
 import pathlib
 
@@ -128,6 +127,17 @@ class S3BaseStorage(AbstractStorage):
         self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
 
         super().__init__(config)
+
+    async def _download_object_as_stream(self, blob_key: str) -> t.BinaryIO:
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        loop = self.get_or_create_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            lambda: self.s3_client.get_object(Bucket=self.bucket_name, Key=blob_key, **extra_args)['Body'])
 
     def connect(self):
         logging.info(
@@ -309,7 +319,7 @@ class S3BaseStorage(AbstractStorage):
         # boto has a connection pool, but it does not support the asyncio API
         # so we make things ugly and submit the whole download as a task to an executor
         # which allows us to download several files in parallel
-        loop = asyncio.get_event_loop()
+        loop = self.get_or_create_event_loop()
         future = loop.run_in_executor(self.executor, self.__download_blob, src, dest)
         await future
 
@@ -412,7 +422,7 @@ class S3BaseStorage(AbstractStorage):
         }
         # we are going to combine asyncio with boto's threading
         # we do this by submitting the upload into an executor
-        loop = asyncio.get_event_loop()
+        loop = self.get_or_create_event_loop()
         future = loop.run_in_executor(self.executor, self.__upload_file, upload_conf)
         # and then ask asyncio to yield until it completes
         mo = await future
@@ -420,6 +430,63 @@ class S3BaseStorage(AbstractStorage):
 
     def __upload_file(self, upload_conf):
         self.s3_client.upload_file(**upload_conf)
+
+        extra_args = {}
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        resp = self.s3_client.head_object(Bucket=upload_conf['Bucket'], Key=upload_conf['Key'], **extra_args)
+        blob_name = upload_conf['Key']
+        blob_size = int(resp['ContentLength'])
+        blob_hash = resp['ETag'].replace('"', '')
+        return ManifestObject(blob_name, blob_size, blob_hash)
+
+    async def _upload_object_from_stream(
+            self, stream: t.BinaryIO, object_key: str,
+            headers: t.Dict[str, str]) -> ManifestObject:
+        extra_args = {}
+        if self.kms_id is not None:
+            extra_args['ServerSideEncryption'] = AWS_KMS_ENCRYPTION
+            extra_args['SSEKMSKeyId'] = self.kms_id
+
+        if self.sse_c_key is not None:
+            extra_args['SSECustomerAlgorithm'] = 'AES256'
+            extra_args['SSECustomerKey'] = self.sse_c_key
+
+        storage_class = self.get_storage_class()
+        if storage_class is not None:
+            extra_args['StorageClass'] = storage_class
+
+        upload_conf = {
+            'Fileobj': stream,
+            'Bucket': self.bucket_name,
+            'Key': object_key,
+            'Config': self.transfer_config,
+            'ExtraArgs': extra_args,
+        }
+
+        # we are going to combine asyncio with boto's threading
+        # we do this by submitting the upload into an executor
+        loop = self.get_or_create_event_loop()
+        future = loop.run_in_executor(self.executor, self.__upload_fileobj, upload_conf)
+        # and then ask asyncio to yield until it completes
+        mo = await future
+
+        # Gather metadata from the stream after upload (since it's an EncryptedStream)
+        if hasattr(stream, 'source_size') and hasattr(stream, 'md5_source'):
+            return ManifestObject(
+                mo.path,
+                mo.size,
+                mo.MD5,
+                stream.source_size,
+                stream.md5_source
+            )
+
+        return mo
+
+    def __upload_fileobj(self, upload_conf):
+        self.s3_client.upload_fileobj(**upload_conf)
 
         extra_args = {}
         if self.sse_c_key is not None:

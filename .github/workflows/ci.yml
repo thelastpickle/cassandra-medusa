@@ -17,10 +17,13 @@ jobs:
         include:
           - python-version: "3.10"
             tox-py: py310
+            tox-py-enc: py310-encryption
           - python-version: "3.11"
             tox-py: py311
+            tox-py-enc: py311-encryption
           - python-version: "3.12"
             tox-py: py312
+            tox-py-enc: py312-encryption
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
@@ -34,7 +37,7 @@ jobs:
         version: 2.2.1
     - name: Install dependencies
       run: |
-        poetry install
+        poetry install --all-extras
 
     - name: Lint with flake8
       run: |
@@ -47,6 +50,11 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         poetry run tox -e ${{ matrix.tox-py }}
+    - name: Run tox with encryption
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        poetry run tox -e ${{ matrix.tox-py-enc }}
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage  
@@ -161,7 +169,7 @@ jobs:
         version: 2.2.1
     - name: Install dependencies
       run: |
-        poetry install
+        poetry install --all-extras
         sudo apt-get remove azure-cli || true
         poetry run pip install git+https://github.com/riptano/ccm.git
 
@@ -348,7 +356,7 @@ jobs:
         working-directory: cassandra-medusa
         run: |
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          poetry install && poetry build
+          poetry install --all-extras && poetry build
       - name: Build Medusa image
         id: docker_build
         uses: docker/build-push-action@v4
@@ -418,7 +426,7 @@ jobs:
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
-        poetry install && poetry build
+        poetry install --all-extras && poetry build
     - name: Build image and push
       id: docker_build
       uses: docker/build-push-action@v4
@@ -498,7 +506,7 @@ jobs:
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
-        poetry install && poetry build
+        poetry install --all-extras && poetry build
     - name: Build image and push
       id: docker_build
       uses: docker/build-push-action@v4
@@ -538,5 +546,5 @@ jobs:
       run: |
         . venv/bin/activate
         pip install setuptools wheel twine
-        poetry install && poetry build
+        poetry install --all-extras && poetry build
         twine upload dist/*

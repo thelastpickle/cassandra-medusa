@@ -120,7 +120,8 @@ class Server:
 
         if console_handler.level > logging.DEBUG:
             # Disable debugging logging for external libraries
-            for logger_name in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko', 'cassandra':
+            for logger_name in ('urllib3', 'google_cloud_storage.auth.transport.requests',
+                                'paramiko', 'cassandra', 'aws_encryption_sdk'):
                 logging.getLogger(logger_name).setLevel(logging.WARN)
 
 

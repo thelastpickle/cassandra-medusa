@@ -29,7 +29,7 @@ class AttributeDict(dict):
     __dict__ = dict.__dict__
 
 
-class TestAbstractStorage(AbstractStorage):
+class MockAbstractStorage(AbstractStorage):
     def connect(self):
         # nothing to connect when running locally
         pass
@@ -111,7 +111,7 @@ class AbstractStorageTest(unittest.TestCase):
             'bucket_name': 'must_be_set',
             'storage_class': 'hot'
         })
-        storage = TestAbstractStorage(config)
+        storage = MockAbstractStorage(config)
         self.assertEqual('HOT', storage.get_storage_class())
 
         config.storage_class = None
