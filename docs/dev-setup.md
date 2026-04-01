@@ -132,10 +132,15 @@ Install libs for cassandra-medusa
 # For debian only:
 pip install keyring secretstorage
 # Install Test helpers
+pyenv shell 3.10.19
+pyenv local 3.10.19
 poetry install
 poetry run pip install git+https://github.com/riptano/ccm.git
 cd .   # This is important. Otherwise, CCM will not work. Or restart shell session.
 ccm
+
+# OU parfois
+poetry run ccm
 ```
 
 If `ccm` application is not working, restart your shell and go in cassandra-medusa folder.  
