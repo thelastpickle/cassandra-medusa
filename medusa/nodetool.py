@@ -24,7 +24,7 @@ class Nodetool(object):
             curr_nodetool = self._nodetool
             cmd_string = cassandra_config.prefix_nodetool_command + " &&"
             cmd_array = cmd_string.split(" ")
-            cmd_array += curr_nodetool
+            cmd_array = curr_nodetool + cmd_array 
             self._nodetool = cmd_array
         if cassandra_config.nodetool_ssl == "true":
             self._nodetool += ['--ssl']
