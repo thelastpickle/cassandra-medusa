@@ -73,12 +73,12 @@ EOF
 source ~/.bashrc
 ```
 
-**Install Poetry 2.2.1:**
+**Install Poetry 2.3.3:**
 
 Poetry is used for dependency management and virtual environment handling:
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 - --version 2.2.1
+curl -sSL https://install.python-poetry.org | python3 - --version 2.3.3
 export PATH="$HOME/.local/bin:$PATH"
 echo "" >> "$HOME/.bashrc"
 echo 'PATH="$HOME/.local/bin/:$PATH"' >> "$HOME/.bashrc"

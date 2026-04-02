@@ -80,6 +80,8 @@ azure-core = "1.38.0"
 azure-identity = "1.16.1"
 azure-storage-blob = "12.17.0"
 urllib3 = "2.6.3"
+pyjwt = "2.12.0"
+pyasn1 = "0.6.3"
 
 [tool.poetry.group.grpc.dependencies]
 protobuf = "6.33.6"
