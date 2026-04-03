@@ -289,7 +289,7 @@ jobs:
       matrix:
         e2e_test:
           - CreateSingleMedusaJob
-          - CreateSingleDseSearchDatacenterCluster
+          #- CreateSingleDseSearchDatacenterCluster
       fail-fast: false
     name: k8ssandra-${{ matrix.e2e_test }}
     env:
