@@ -93,6 +93,11 @@ class AbstractStorage(abc.ABC):
     def __init__(self, config):
         self.config = config
         self.bucket_name = config.bucket_name
+        self._encryption_manager = None
+        if hasattr(config, 'key_secret_base64') and config.key_secret_base64:
+            from medusa.storage.encryption import EncryptionManager
+            frame_length = int(getattr(config, 'encryption_frame_length', 8388608))
+            self._encryption_manager = EncryptionManager(config.key_secret_base64, frame_length)
 
     async def _download_object_as_stream(self, blob_key: str) -> t.BinaryIO:
         """
@@ -246,15 +251,18 @@ class AbstractStorage(abc.ABC):
         )
 
         blob_stream = await self._download_object_as_stream(src)
-
         loop = self.get_or_create_event_loop()
         executor = getattr(self, 'executor', None)
-        await loop.run_in_executor(executor, self._decrypt_stream_to_file, blob_stream, dest_path)
+        try:
+            await loop.run_in_executor(executor, self._decrypt_stream_to_file, blob_stream, dest_path)
+        finally:
+            if hasattr(blob_stream, 'close'):
+                blob_stream.close()
 
     def _decrypt_stream_to_file(self, blob_stream, dest_path):
         from medusa.storage.encryption import DecryptedStream
         try:
-            dec_stream = DecryptedStream(blob_stream, self.config.key_secret_base64)
+            dec_stream = DecryptedStream(blob_stream, manager=self._encryption_manager)
             with open(dest_path, 'wb') as f_out:
                 shutil.copyfileobj(dec_stream, f_out, length=8192)
         except Exception as e:
@@ -265,9 +273,6 @@ class AbstractStorage(abc.ABC):
                 except OSError:
                     pass
             raise
-        finally:
-            if hasattr(blob_stream, 'close'):
-                blob_stream.close()
 
     async def _download_blobs(self, srcs: t.List[t.Union[Path, str]], dest: t.Union[Path, str]):
         chunk_size = int(self.config.concurrent_transfers)
@@ -332,7 +337,7 @@ class AbstractStorage(abc.ABC):
 
         # Open the file and wrap it in EncryptedStream
         with open(src, 'rb') as f:
-            stream = EncryptedStream(f, self.config.key_secret_base64)
+            stream = EncryptedStream(f, manager=self._encryption_manager)
             manifest_object = await self._upload_object_from_stream(stream, object_key, {})
 
         return manifest_object

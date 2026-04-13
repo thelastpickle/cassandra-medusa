@@ -132,7 +132,6 @@ class EncryptionManager:
             commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_REQUIRE_DECRYPT
         )
 
-        self.key_provider = "medusa-backup"
         self.key_name = "raw-aes-key"
 
         self.master_key_provider = _StaticKeyProvider()
@@ -194,14 +193,16 @@ class EncryptionManager:
 
 
 class EncryptionStreamBase(io.RawIOBase):
-    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
-        if not HAS_AWS_CRYPT:
-            raise ImportError(
-                "aws-encryption-sdk is not installed. "
-                "Please install it using 'pip install cassandra-medusa[encryption]'"
-            )
-
-        self.manager = EncryptionManager(key_secret_base64, frame_length)
+    def __init__(self, source_stream, key_secret_base64=None, frame_length=8388608, *, manager=None):
+        if manager is not None:
+            self.manager = manager
+        else:
+            if not HAS_AWS_CRYPT:
+                raise ImportError(
+                    "aws-encryption-sdk is not installed. "
+                    "Please install it using 'pip install cassandra-medusa[encryption]'"
+                )
+            self.manager = EncryptionManager(key_secret_base64, frame_length)
         self.source_stream = source_stream
 
         self.encrypted_hash = hashlib.md5()
@@ -235,8 +236,8 @@ class EncryptionStreamBase(io.RawIOBase):
 
 
 class EncryptedStream(EncryptionStreamBase):
-    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
-        super().__init__(source_stream, key_secret_base64, frame_length)
+    def __init__(self, source_stream, key_secret_base64=None, frame_length=8388608, *, manager=None):
+        super().__init__(source_stream, key_secret_base64, frame_length, manager=manager)
 
         self.hashing_source = HashingStreamWrapper(source_stream)
 
@@ -294,8 +295,8 @@ class EncryptedStream(EncryptionStreamBase):
 
 
 class DecryptedStream(EncryptionStreamBase):
-    def __init__(self, source_stream, key_secret_base64, frame_length=8388608):
-        super().__init__(source_stream, key_secret_base64, frame_length)
+    def __init__(self, source_stream, key_secret_base64=None, frame_length=8388608, *, manager=None):
+        super().__init__(source_stream, key_secret_base64, frame_length, manager=manager)
 
         self.aws_stream = self.manager.client.stream(
             mode='d',

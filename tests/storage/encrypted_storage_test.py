@@ -130,7 +130,8 @@ class EncryptedStorageTest(unittest.TestCase):
             'bucket_name': 'test_bucket',
             'concurrent_transfers': '1',
             'key_secret_base64': self.key,
-            'encryption_tmp_dir': None
+            'encryption_tmp_dir': None,
+            'encryption_frame_length': '8388608',
         }
 
         # Create a mock config object to access config_dict attributes via dot notation
