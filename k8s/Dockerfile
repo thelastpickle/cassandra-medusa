@@ -22,7 +22,7 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN pip3 install --ignore-installed --user poetry==2.2.1
+RUN pip3 install --ignore-installed --user poetry==2.3.3
 
 # Build medusa itself so we can add the executables in the final image
 RUN cd /build && poetry build && poetry install

@@ -66,7 +66,7 @@ RUN cd /tmp && \
     rm dh-virtualenv_*.deb
         
 RUN pipx ensurepath
-RUN pipx install poetry==2.2.1
+RUN pipx install poetry==2.3.3
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}

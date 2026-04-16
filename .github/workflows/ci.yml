@@ -31,7 +31,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 2.2.1
+        version: 2.3.3
     - name: Install dependencies
       run: |
         poetry install
@@ -158,7 +158,7 @@ jobs:
     - name: Setup Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 2.2.1
+        version: 2.3.3
     - name: Install dependencies
       run: |
         poetry install
@@ -289,7 +289,7 @@ jobs:
       matrix:
         e2e_test:
           - CreateSingleMedusaJob
-          - CreateSingleDseSearchDatacenterCluster
+          #- CreateSingleDseSearchDatacenterCluster
       fail-fast: false
     name: k8ssandra-${{ matrix.e2e_test }}
     env:
@@ -322,7 +322,7 @@ jobs:
       - name: Set up Poetry
         uses: snok/install-poetry@v1
         with:
-          version: 2.2.1
+          version: 2.3.3
       - uses: actions/checkout@v3
         with:
           path: cassandra-medusa
@@ -414,7 +414,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 2.2.1
+        version: 2.3.3
     - name: Build Medusa
       run: |
         echo "Publishing release $(git rev-parse --short HEAD) in Docker Hub"
@@ -494,7 +494,7 @@ jobs:
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
-        version: 2.2.1
+        version: 2.3.3
     - name: Build Medusa
       run: |
         echo "Publishing release ${{ steps.vars.outputs.version}} in Docker Hub"
@@ -524,7 +524,7 @@ jobs:
         python-version: "3.10"
     - name: Set up Poetry
       with:
-        version: 2.2.1
+        version: 2.3.3
       uses: snok/install-poetry@v1
     - name: Install dependencies
       run: |

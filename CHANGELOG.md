@@ -1,5 +1,8 @@
 ## Change Log
 
+### 0.27.1 (2026/04/03) 05:27 +00:00
+- Fix CVEs (@adejanovski)
+
 ### 0.27.0 (2026/01/07) 16:00 +00:00
 - Bump aiohttp from 3.12.14 to 3.13.3 (@dependabot)
 - Bump urllib3 from 2.5.0 to 2.6.0 (@dependabot)
