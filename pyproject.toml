@@ -16,11 +16,7 @@
 
 [tool.poetry]
 name = "cassandra-medusa"
-<<<<<<< HEAD
 version = "0.28.0-dev"
-=======
-version = "0.27.1-dev"
->>>>>>> 9c39282 (CVE fixes 0.27.0 (#949))
 description = "Apache Cassandra backup and restore tool"
 authors = ["The Last Pickle <medusa@thelastpickle.com>"]
 license = "Apache"
