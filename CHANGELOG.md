@@ -1,5 +1,17 @@
 ## Change Log
 
+### 0.28.0 (2026/04/17) 16:00 +00:00
+
+- Bump parallel-ssh to 2.14.0 to better handle disconnections (@Skunnyk)
+- Feature: Implement concurrent_transfers for GCS storage (@andyfoston)
+- Bump aiohttp from 3.13.3 to 3.13.4 (@pauloricardomg)
+- Bump requests from 2.32.4 to 2.33.0 (@dependabot)
+- Bump requests from 2.32.4 to 2.33.0 (@dependabot)
+- Fix the backups for DSE 5.1 clusters, broken since version 0.17.0 (@alberto-bortolan)
+- Fix tenacity wait_fixed values still in milliseconds for S3 and Azure (@idleyoungman)
+- medusa-example.ini: add reference to nodetool_executable (@tobast)
+- Fix forgotten conflict in pyproject.toml (@rzvoncek)
+
 ### 0.27.1 (2026/04/03) 05:27 +00:00
 - Fix CVEs (@adejanovski)
 
