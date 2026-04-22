@@ -400,6 +400,37 @@ class S3StorageTest(unittest.TestCase):
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
 
+    def test_make_transfer_config_default(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'False',
+        })
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+        self.assertNotEqual('crt', getattr(tc, 'preferred_transfer_client', None))
+
+    def test_make_transfer_config_crt_without_awscrt(self):
+        # CRT is handled in connect(), not in _make_transfer_config — config is unaffected
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'True',
+        })
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+
+    def test_make_transfer_config_crt_with_awscrt(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'True',
+        })
+        # CRT is no longer set via TransferConfig - it is handled in connect() via CRTTransferManager
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+        self.assertNotEqual('crt', getattr(tc, 'preferred_transfer_client', None))
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service

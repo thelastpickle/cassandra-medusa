@@ -31,6 +31,14 @@ from botocore.exceptions import ClientError
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from s3transfer.crt import (
+    BotocoreCRTCredentialsWrapper,
+    BotocoreCRTRequestSerializer,
+    CRTTransferManager,
+    acquire_crt_s3_process_lock,
+    create_s3_crt_client,
+)
+
 from medusa.storage.abstract_storage import (
     AbstractStorage, AbstractBlob, AbstractBlobMetadata, ManifestObject, ObjectDoesNotExistError
 )
@@ -123,6 +131,14 @@ class S3BaseStorage(AbstractStorage):
         self.connection_extra_args = self._make_connection_arguments(config)
         self.transfer_config = self._make_transfer_config(config)
 
+        try:
+            self.use_crt = (config.use_crt or 'False').lower() == 'true'
+        except (AttributeError, KeyError):
+            self.use_crt = False
+
+        self.crt_transfer_manager = None
+        self._crt_process_lock = None
+
         self.executor = concurrent.futures.ThreadPoolExecutor(int(config.concurrent_transfers))
 
         self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
@@ -162,9 +178,47 @@ class S3BaseStorage(AbstractStorage):
                 **self.connection_extra_args
             )
 
+        if self.use_crt:
+            if self.storage_provider == 's3_compatible':
+                logging.warning('use_crt is not supported with s3_compatible storage; falling back')
+                self.use_crt = False
+            else:
+                self._connect_crt()
+
+    def _connect_crt(self):
+        lock = acquire_crt_s3_process_lock('medusa')
+        if lock is None:
+            logging.warning('Could not acquire CRT process lock; another process may be using CRT. Falling back.')
+            self.use_crt = False
+            return
+
+        resolved_credentials = self.s3_client._get_credentials()
+        crt_credentials = BotocoreCRTCredentialsWrapper(resolved_credentials)
+        crt_credentials_provider = crt_credentials.to_crt_credentials_provider()
+
+        transfer_max_bandwidth = self.config.transfer_max_bandwidth or None
+        target_throughput = None
+        if transfer_max_bandwidth is not None:
+            target_throughput = AbstractStorage._human_size_to_bytes(transfer_max_bandwidth)
+
+        crt_s3_client = create_s3_crt_client(
+            region=self.credentials.region,
+            crt_credentials_provider=crt_credentials_provider,
+            target_throughput=target_throughput,
+        )
+        serializer = BotocoreCRTRequestSerializer(
+            botocore.session.Session(),
+            client_kwargs={'region_name': self.credentials.region},
+        )
+        self.crt_transfer_manager = CRTTransferManager(crt_s3_client, serializer)
+        self._crt_process_lock = lock
+        logging.info('AWS CRT transfer client enabled')
+
     def disconnect(self):
         logging.debug('Disconnecting from S3...')
         try:
+            if self.crt_transfer_manager is not None:
+                self.crt_transfer_manager.shutdown()
             self.s3_client.close()
             self.executor.shutdown()
         except Exception as e:
@@ -205,6 +259,7 @@ class S3BaseStorage(AbstractStorage):
 
         if multipart_chunksize is not None:
             transfer_config['multipart_chunksize'] = AbstractStorage._human_size_to_bytes(multipart_chunksize)
+
         return TransferConfig(**transfer_config)
 
     @staticmethod
@@ -336,13 +391,20 @@ class S3BaseStorage(AbstractStorage):
 
         try:
             Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-            self.s3_client.download_file(
-                Bucket=self.bucket_name,
-                Key=object_key,
-                Filename=file_path,
-                ExtraArgs=extra_args,
-                Config=self.transfer_config,
-            )
+            if self.crt_transfer_manager is not None:
+                with open(file_path, 'wb') as f:
+                    future = self.crt_transfer_manager.download(
+                        self.bucket_name, object_key, f, extra_args=extra_args or None
+                    )
+                    future.result()
+            else:
+                self.s3_client.download_file(
+                    Bucket=self.bucket_name,
+                    Key=object_key,
+                    Filename=file_path,
+                    ExtraArgs=extra_args,
+                    Config=self.transfer_config,
+                )
         except Exception as e:
             logging.error('Error downloading file from s3://{}/{}: {}'.format(self.bucket_name, object_key, e))
             raise ObjectDoesNotExistError('Object {} does not exist'.format(object_key))
@@ -419,7 +481,17 @@ class S3BaseStorage(AbstractStorage):
         return mo
 
     def __upload_file(self, upload_conf):
-        self.s3_client.upload_file(**upload_conf)
+        if self.crt_transfer_manager is not None:
+            with open(upload_conf['Filename'], 'rb') as f:
+                future = self.crt_transfer_manager.upload(
+                    f,
+                    upload_conf['Bucket'],
+                    upload_conf['Key'],
+                    extra_args=upload_conf.get('ExtraArgs') or None,
+                )
+                future.result()
+        else:
+            self.s3_client.upload_file(**upload_conf)
 
         extra_args = {}
         if self.sse_c_key is not None:
