@@ -166,7 +166,10 @@ class EncryptionManager:
                 frame_length=self.frame_length,
                 algorithm=self.algorithm
             ) as encryptor:
-                for chunk in encryptor:
+                while True:
+                    chunk = encryptor.read(self.frame_length)
+                    if not chunk:
+                        break
                     # Update encrypted metrics
                     f_out.write(chunk)
                     encrypted_size += len(chunk)
@@ -189,7 +192,10 @@ class EncryptionManager:
                 source=f_in,
                 materials_manager=self.cmm
             ) as decryptor:
-                for chunk in decryptor:
+                while True:
+                    chunk = decryptor.read(self.frame_length)
+                    if not chunk:
+                        break
                     f_out.write(chunk)
 
 
@@ -247,13 +253,15 @@ class EncryptedStream(EncryptionStreamBase):
             frame_length=self.manager.frame_length,
             algorithm=self.manager.algorithm
         )
-        self.iterator = iter(self.aws_stream)
 
     def read(self, size=-1):
         if size == -1:
             # Read everything
             chunks = [self.buffer] if self.buffer else []
-            for chunk in self.iterator:
+            while True:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
+                    break
                 chunks.append(chunk)
                 self.encrypted_size += len(chunk)
                 self.encrypted_hash.update(chunk)
@@ -267,15 +275,15 @@ class EncryptedStream(EncryptionStreamBase):
             chunks = [self.buffer] if self.buffer else []
             current_len = len(self.buffer)
             while current_len < size:
-                try:
-                    chunk = next(self.iterator)
-                    self.encrypted_size += len(chunk)
-                    self.encrypted_hash.update(chunk)
-                    chunks.append(chunk)
-                    current_len += len(chunk)
-                except StopIteration:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
                     self.eof = True
                     break
+                self.encrypted_size += len(chunk)
+                self.encrypted_hash.update(chunk)
+                chunks.append(chunk)
+                current_len += len(chunk)
+
             self.buffer = b"".join(chunks)
 
         # Return requested size from buffer
@@ -302,7 +310,6 @@ class DecryptedStream(EncryptionStreamBase):
             source=source_stream,
             materials_manager=self.manager.cmm
         )
-        self.iterator = iter(self.aws_stream)
 
         self.plaintext_hash = hashlib.md5()
         self.plaintext_size = 0
@@ -311,7 +318,10 @@ class DecryptedStream(EncryptionStreamBase):
         if size == -1:
             # Read everything
             chunks = [self.buffer] if self.buffer else []
-            for chunk in self.iterator:
+            while True:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
+                    break
                 chunks.append(chunk)
                 self.plaintext_size += len(chunk)
                 self.plaintext_hash.update(chunk)
@@ -325,15 +335,15 @@ class DecryptedStream(EncryptionStreamBase):
             chunks = [self.buffer] if self.buffer else []
             current_len = len(self.buffer)
             while current_len < size:
-                try:
-                    chunk = next(self.iterator)
-                    self.plaintext_size += len(chunk)
-                    self.plaintext_hash.update(chunk)
-                    chunks.append(chunk)
-                    current_len += len(chunk)
-                except StopIteration:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
                     self.eof = True
                     break
+                self.plaintext_size += len(chunk)
+                self.plaintext_hash.update(chunk)
+                chunks.append(chunk)
+                current_len += len(chunk)
+
             self.buffer = b"".join(chunks)
 
         # Return requested size from buffer
