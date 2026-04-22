@@ -210,11 +210,10 @@ class EncryptionStreamBase(io.RawIOBase):
         self.manager = EncryptionManager(key_secret_base64, frame_length)
         self.source_stream = source_stream
 
-        self.encrypted_hash = hashlib.md5()
-        self.encrypted_size = 0
+        self.output_hash = hashlib.md5()
+        self.output_size = 0
 
         self.buffer = b""
-        self.eof = False
 
         self.aws_stream = None
 
@@ -223,6 +222,42 @@ class EncryptionStreamBase(io.RawIOBase):
 
     def seekable(self):
         return False
+
+    def read(self, size=-1):
+        if size == -1:
+            # Read everything
+            chunks = [self.buffer] if self.buffer else []
+            while True:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                self.output_size += len(chunk)
+                self.output_hash.update(chunk)
+
+            self.buffer = b""
+            return b"".join(chunks)
+
+        # Fill buffer from iterator if we don't have enough data
+        if len(self.buffer) < size:
+            chunks = [self.buffer] if self.buffer else []
+            current_len = len(self.buffer)
+            while current_len < size:
+                chunk = self.aws_stream.read(self.manager.frame_length)
+                if not chunk:
+                    break
+                self.output_size += len(chunk)
+                self.output_hash.update(chunk)
+                chunks.append(chunk)
+                current_len += len(chunk)
+
+            self.buffer = b"".join(chunks)
+
+        # Return requested size from buffer
+        data = self.buffer[:size]
+        self.buffer = self.buffer[size:]
+
+        return data
 
     def readall(self):
         return self.read()
@@ -234,10 +269,6 @@ class EncryptionStreamBase(io.RawIOBase):
             if self.source_stream is not None and hasattr(self.source_stream, 'close'):
                 self.source_stream.close()
             super().close()
-
-    @property
-    def md5_encrypted(self):
-        return base64.b64encode(self.encrypted_hash.digest()).decode('utf-8').strip()
 
 
 class EncryptedStream(EncryptionStreamBase):
@@ -254,44 +285,6 @@ class EncryptedStream(EncryptionStreamBase):
             algorithm=self.manager.algorithm
         )
 
-    def read(self, size=-1):
-        if size == -1:
-            # Read everything
-            chunks = [self.buffer] if self.buffer else []
-            while True:
-                chunk = self.aws_stream.read(self.manager.frame_length)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                self.encrypted_size += len(chunk)
-                self.encrypted_hash.update(chunk)
-
-            self.buffer = b""
-            self.eof = True
-            return b"".join(chunks)
-
-        # Fill buffer from iterator if we don't have enough data
-        if len(self.buffer) < size:
-            chunks = [self.buffer] if self.buffer else []
-            current_len = len(self.buffer)
-            while current_len < size:
-                chunk = self.aws_stream.read(self.manager.frame_length)
-                if not chunk:
-                    self.eof = True
-                    break
-                self.encrypted_size += len(chunk)
-                self.encrypted_hash.update(chunk)
-                chunks.append(chunk)
-                current_len += len(chunk)
-
-            self.buffer = b"".join(chunks)
-
-        # Return requested size from buffer
-        data = self.buffer[:size]
-        self.buffer = self.buffer[size:]
-
-        return data
-
     @property
     def source_size(self):
         return self.hashing_source.size
@@ -299,6 +292,10 @@ class EncryptedStream(EncryptionStreamBase):
     @property
     def md5_source(self):
         return base64.b64encode(self.hashing_source.hash.digest()).decode('utf-8').strip()
+
+    @property
+    def md5_encrypted(self):
+        return base64.b64encode(self.output_hash.digest()).decode('utf-8').strip()
 
 
 class DecryptedStream(EncryptionStreamBase):
@@ -311,55 +308,10 @@ class DecryptedStream(EncryptionStreamBase):
             materials_manager=self.manager.cmm
         )
 
-        self.plaintext_hash = hashlib.md5()
-        self.plaintext_size = 0
-
-    def read(self, size=-1):
-        if size == -1:
-            # Read everything
-            chunks = [self.buffer] if self.buffer else []
-            while True:
-                chunk = self.aws_stream.read(self.manager.frame_length)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                self.plaintext_size += len(chunk)
-                self.plaintext_hash.update(chunk)
-
-            self.buffer = b""
-            self.eof = True
-            return b"".join(chunks)
-
-        # Fill buffer from iterator if we don't have enough data
-        if len(self.buffer) < size:
-            chunks = [self.buffer] if self.buffer else []
-            current_len = len(self.buffer)
-            while current_len < size:
-                chunk = self.aws_stream.read(self.manager.frame_length)
-                if not chunk:
-                    self.eof = True
-                    break
-                self.plaintext_size += len(chunk)
-                self.plaintext_hash.update(chunk)
-                chunks.append(chunk)
-                current_len += len(chunk)
-
-            self.buffer = b"".join(chunks)
-
-        # Return requested size from buffer
-        data = self.buffer[:size]
-        self.buffer = self.buffer[size:]
-
-        return data
-
     @property
     def source_size(self):
-        return self.plaintext_size
+        return self.output_size
 
     @property
     def md5_source(self):
-        return base64.b64encode(self.plaintext_hash.digest()).decode('utf-8').strip()
-
-    @property
-    def md5_encrypted(self):
-        return "N/A"
+        return base64.b64encode(self.output_hash.digest()).decode('utf-8').strip()

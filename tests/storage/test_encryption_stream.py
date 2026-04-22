@@ -62,7 +62,7 @@ class EncryptedStreamTest(unittest.TestCase):
         self.assertEqual(stream.source_size, len(content))
         self.assertEqual(stream.md5_source, base64_source_md5_file)
         # Encrypted size should be larger than source due to headers and auth tags
-        self.assertGreater(stream.encrypted_size, len(content))
+        self.assertGreater(stream.output_size, len(content))
 
         # Decrypt the stream output to verify integrity
         temp_stream_out = os.path.join(self.temp_dir, "stream_output.enc")

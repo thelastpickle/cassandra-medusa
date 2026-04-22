@@ -103,7 +103,7 @@ MUTUAL_AUTH_SERVER_KEY = "/tmp/mutual_auth_server.key"
 TRUNK_VERSION = 'github:apache/trunk'
 
 # hide cassandra driver logs, they are overly verbose and we don't really need them for tests
-for logger_name in {'cassandra.io', 'cassandra.pool', 'cassandra.cluster', 'cassandra.connection'}:
+for logger_name in {'cassandra.io', 'cassandra.pool', 'cassandra.cluster', 'cassandra.connection', 'aws_encryption_sdk'}:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.CRITICAL)
 
