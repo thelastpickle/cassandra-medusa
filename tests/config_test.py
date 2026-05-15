@@ -266,6 +266,30 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
         mock_log_error.assert_called_with('Required configuration "prefix" cannot contain a slash ("/")')
 
+    @patch('medusa.config.logging.error')
+    def test_use_crt_rejected_when_gevent_patched_threading(self, mock_log_error):
+        args = {
+            'bucket_name': 'Hector',
+            'use_crt': 'True',
+            'fqdn': 'localhost',
+        }
+        with patch('gevent.monkey.is_module_patched', return_value=True):
+            with self.assertRaises(SystemExit) as cm:
+                medusa.config.load_config(args, self.medusa_config_file)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertTrue(mock_log_error.called)
+        self.assertIn('use_crt=True is incompatible', mock_log_error.call_args[0][0])
+
+    def test_use_crt_allowed_when_threading_not_patched(self):
+        args = {
+            'bucket_name': 'Hector',
+            'use_crt': 'True',
+            'fqdn': 'localhost',
+        }
+        with patch('gevent.monkey.is_module_patched', return_value=False):
+            config = medusa.config.load_config(args, self.medusa_config_file)
+        self.assertEqual(config.storage.use_crt, 'True')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -133,6 +133,27 @@ backup_grace_period_in_days = 10
 
 ;aws_cli_path = <Location of the aws cli binary if not in PATH>
 
+; Use the AWS Common Runtime (CRT) transfer client for S3 uploads/downloads.
+; CRT is a native (Rust/C) parallel-IO client that delivers substantially higher
+; throughput than boto3's TransferManager on multi-core hosts with fast networks.
+; Only supported with storage_provider = s3
+; (not s3_compatible). Defaults to False.
+;
+; Important: when use_crt is enabled, the following configs are IGNORED because
+; CRT has no equivalent:
+;   - transfer_max_bandwidth      (CRT has no bandwidth cap)
+;   - multi_part_upload_threshold (CRT always multiparts based on part_size)
+;   - read_timeout
+;   - s3_addressing_style (CRT only supports virtual-hosted style)
+;
+; multipart_chunksize is honored and mapped to CRT's part_size.
+;
+; use_crt is only supported when medusa is invoked via the gRPC server.
+; The medusa CLI calls gevent.monkey.patch_all() at startup,
+; which deadlocks CRT's native completion signaling; medusa will refuse to
+; start with use_crt=True under the CLI.
+;use_crt = False
+
 [monitoring]
 ;monitoring_provider = <Provider used for sending metrics. Currently just "local">
 

@@ -196,16 +196,36 @@ class S3BaseStorage(AbstractStorage):
         crt_credentials = BotocoreCRTCredentialsWrapper(resolved_credentials)
         crt_credentials_provider = crt_credentials.to_crt_credentials_provider()
 
-        transfer_max_bandwidth = self.config.transfer_max_bandwidth or None
-        target_throughput = None
-        if transfer_max_bandwidth is not None:
-            target_throughput = AbstractStorage._human_size_to_bytes(transfer_max_bandwidth)
+        crt_client_kwargs = {
+            'region': self.credentials.region,
+            'crt_credentials_provider': crt_credentials_provider,
+        }
 
-        crt_s3_client = create_s3_crt_client(
-            region=self.credentials.region,
-            crt_credentials_provider=crt_credentials_provider,
-            target_throughput=target_throughput,
-        )
+        multipart_chunksize = self.config.multipart_chunksize or None
+        if multipart_chunksize is not None:
+            crt_client_kwargs['part_size'] = AbstractStorage._human_size_to_bytes(multipart_chunksize)
+
+        # CRT's target_throughput is a resource-allocation hint, not a cap
+        # (https://github.com/aws/aws-cli/issues/8974), so transfer_max_bandwidth
+        # cannot be honored here.
+        if getattr(self.config, 'transfer_max_bandwidth', None):
+            logging.warning(
+                'transfer_max_bandwidth is ignored when use_crt is enabled'
+            )
+        s3_addressing_style = getattr(self.config, 's3_addressing_style', None)
+        if s3_addressing_style and s3_addressing_style != 'auto':
+            logging.warning(
+                's3_addressing_style=%s is ignored when use_crt is enabled',
+                s3_addressing_style,
+            )
+        if getattr(self.config, 'read_timeout', None):
+            logging.warning('read_timeout is ignored when use_crt is enabled')
+        if getattr(self.config, 'multi_part_upload_threshold', None):
+            logging.warning(
+                'multi_part_upload_threshold is ignored when use_crt is enabled'
+            )
+
+        crt_s3_client = create_s3_crt_client(**crt_client_kwargs)
         serializer = BotocoreCRTRequestSerializer(
             botocore.session.Session(),
             client_kwargs={'region_name': self.credentials.region},

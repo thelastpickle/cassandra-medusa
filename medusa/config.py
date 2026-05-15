@@ -375,6 +375,16 @@ def load_config(args, config_file):
             logging.error('Required configuration "{}" cannot contain a slash ("/")'.format(field))
             sys.exit(2)
 
+    if evaluate_boolean(getattr(medusa_config.storage, 'use_crt', 'False')):
+        from gevent import monkey
+        if monkey.is_module_patched('threading'):
+            logging.error(
+                'use_crt=True is incompatible with the medusa CLI: gevent has '
+                'monkey-patched threading, which deadlocks AWS CRT\'s native '
+                'completion signaling. Run via the gRPC server entry point, or set use_crt=False'
+            )
+            sys.exit(2)
+
     return medusa_config
 
 
