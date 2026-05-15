@@ -32,7 +32,7 @@ StorageConfig = collections.namedtuple(
      'base_path', 'max_backup_age', 'max_backup_count', 'api_profile', 'transfer_max_bandwidth',
      'concurrent_transfers', 'multi_part_upload_threshold', 'multipart_chunksize', 'host', 'region', 'port', 'secure',
      'ssl_verify', 'aws_cli_path', 'kms_id', 'sse_c_key', 'backup_grace_period_in_days', 'use_sudo_for_restore',
-     'k8s_mode', 'read_timeout', 's3_addressing_style']
+     'k8s_mode', 'read_timeout', 's3_addressing_style', 'use_crt']
 )
 
 CassandraConfig = collections.namedtuple(
@@ -121,6 +121,7 @@ def _build_default_config():
         'use_sudo_for_restore': 'True',
         'multipart_chunksize': '50MB',
         's3_addressing_style': 'auto',
+        'use_crt': 'False',
     }
 
     config['logging'] = {
@@ -372,6 +373,16 @@ def load_config(args, config_file):
         value = getattr(medusa_config.storage, field)
         if value is not None and '/' in value:
             logging.error('Required configuration "{}" cannot contain a slash ("/")'.format(field))
+            sys.exit(2)
+
+    if evaluate_boolean(getattr(medusa_config.storage, 'use_crt', 'False')):
+        from gevent import monkey
+        if monkey.is_module_patched('threading'):
+            logging.error(
+                'use_crt=True is incompatible with the medusa CLI: gevent has '
+                'monkey-patched threading, which deadlocks AWS CRT\'s native '
+                'completion signaling. Run via the gRPC server entry point, or set use_crt=False'
+            )
             sys.exit(2)
 
     return medusa_config

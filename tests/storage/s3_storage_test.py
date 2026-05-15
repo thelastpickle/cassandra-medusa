@@ -400,6 +400,140 @@ class S3StorageTest(unittest.TestCase):
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
 
+    def test_make_transfer_config_default(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'False',
+        })
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+        self.assertNotEqual('crt', getattr(tc, 'preferred_transfer_client', None))
+
+    def test_make_transfer_config_crt_without_awscrt(self):
+        # CRT is handled in connect(), not in _make_transfer_config — config is unaffected
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'True',
+        })
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+
+    def test_make_transfer_config_crt_with_awscrt(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'use_crt': 'True',
+        })
+        # CRT is no longer set via TransferConfig - it is handled in connect() via CRTTransferManager
+        tc = S3BaseStorage._make_transfer_config(None, config)
+        self.assertEqual(4, tc.max_concurrency)
+        self.assertNotEqual('crt', getattr(tc, 'preferred_transfer_client', None))
+
+    def _make_crt_storage(self, config):
+        storage = S3BaseStorage.__new__(S3BaseStorage)
+        storage.config = config
+        storage.credentials = MagicMock(region='us-east-1')
+        storage.s3_client = MagicMock()
+        storage.use_crt = True
+        storage.crt_transfer_manager = None
+        storage._crt_process_lock = None
+        return storage
+
+    def test_connect_crt_passes_through_configs(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': '100MB',
+            'multipart_chunksize': '50MB',
+            'concurrent_transfers': '8',
+            's3_addressing_style': 'auto',
+            'read_timeout': None,
+            'multi_part_upload_threshold': None,
+        })
+        storage = self._make_crt_storage(config)
+
+        with patch('medusa.storage.s3_base_storage.acquire_crt_s3_process_lock', return_value=MagicMock()), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTCredentialsWrapper'), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTRequestSerializer'), \
+                patch('medusa.storage.s3_base_storage.CRTTransferManager'), \
+                patch('medusa.storage.s3_base_storage.create_s3_crt_client') as mock_create:
+            storage._connect_crt()
+
+        self.assertEqual(1, mock_create.call_count)
+        kwargs = mock_create.call_args.kwargs
+        self.assertEqual('us-east-1', kwargs['region'])
+        self.assertEqual(50 * 1024 * 1024, kwargs['part_size'])
+        # transfer_max_bandwidth and concurrent_transfers must not be forwarded:
+        # CRT's target_throughput/num_threads have different semantics.
+        self.assertNotIn('target_throughput', kwargs)
+        self.assertNotIn('num_threads', kwargs)
+
+    def test_connect_crt_omits_unset_configs(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'concurrent_transfers': None,
+            's3_addressing_style': 'auto',
+            'read_timeout': None,
+            'multi_part_upload_threshold': None,
+        })
+        storage = self._make_crt_storage(config)
+
+        with patch('medusa.storage.s3_base_storage.acquire_crt_s3_process_lock', return_value=MagicMock()), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTCredentialsWrapper'), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTRequestSerializer'), \
+                patch('medusa.storage.s3_base_storage.CRTTransferManager'), \
+                patch('medusa.storage.s3_base_storage.create_s3_crt_client') as mock_create:
+            storage._connect_crt()
+
+        kwargs = mock_create.call_args.kwargs
+        self.assertNotIn('target_throughput', kwargs)
+        self.assertNotIn('part_size', kwargs)
+        self.assertNotIn('num_threads', kwargs)
+
+    def test_connect_crt_warns_for_unsupported_configs(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': '50MB/s',
+            'multipart_chunksize': None,
+            'concurrent_transfers': None,
+            's3_addressing_style': 'path',
+            'read_timeout': '60',
+            'multi_part_upload_threshold': '100MB',
+        })
+        storage = self._make_crt_storage(config)
+
+        with patch('medusa.storage.s3_base_storage.acquire_crt_s3_process_lock', return_value=MagicMock()), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTCredentialsWrapper'), \
+                patch('medusa.storage.s3_base_storage.BotocoreCRTRequestSerializer'), \
+                patch('medusa.storage.s3_base_storage.CRTTransferManager'), \
+                patch('medusa.storage.s3_base_storage.create_s3_crt_client'), \
+                patch('medusa.storage.s3_base_storage.logging') as mock_logging:
+            storage._connect_crt()
+
+        warnings = [c.args[0] for c in mock_logging.warning.call_args_list]
+        self.assertTrue(any('transfer_max_bandwidth' in w for w in warnings))
+        self.assertTrue(any('s3_addressing_style' in w for w in warnings))
+        self.assertTrue(any('read_timeout' in w for w in warnings))
+        self.assertTrue(any('multi_part_upload_threshold' in w for w in warnings))
+
+    def test_connect_crt_falls_back_when_lock_unavailable(self):
+        config = AttributeDict({
+            'transfer_max_bandwidth': None,
+            'multipart_chunksize': None,
+            'concurrent_transfers': None,
+            's3_addressing_style': 'auto',
+            'read_timeout': None,
+            'multi_part_upload_threshold': None,
+        })
+        storage = self._make_crt_storage(config)
+
+        with patch('medusa.storage.s3_base_storage.acquire_crt_s3_process_lock', return_value=None), \
+                patch('medusa.storage.s3_base_storage.create_s3_crt_client') as mock_create:
+            storage._connect_crt()
+
+        self.assertFalse(storage.use_crt)
+        self.assertEqual(0, mock_create.call_count)
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
