@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import typing as t
+
 import aiofiles
 
 from azure.core.credentials import AzureNamedKeyCredential
@@ -191,6 +192,12 @@ class AzureStorage(AbstractStorage):
             blob_properties.blob_tier
         )
 
+    @staticmethod
+    async def _file_chunks(path: str, chunk_size: int = 4 * 1024 * 1024) -> t.AsyncIterator[bytes]:
+        async with aiofiles.open(path, "rb") as f:
+            while chunk := await f.read(chunk_size):
+                yield chunk
+
     @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
         src_path = Path(src)
@@ -205,14 +212,14 @@ class AzureStorage(AbstractStorage):
             )
         )
         storage_class = self.get_storage_class()
-        async with aiofiles.open(src, "rb") as data:
-            blob_client = await self.azure_container_client.upload_blob(
-                name=object_key,
-                data=data,
-                overwrite=True,
-                max_concurrency=16,
-                standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
-            )
+        blob_client = await self.azure_container_client.upload_blob(
+            name=object_key,
+            data=self._file_chunks(src),
+            length=file_size,
+            overwrite=True,
+            max_concurrency=16,
+            standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
+        )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(
             blob_properties.name,
