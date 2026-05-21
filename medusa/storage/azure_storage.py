@@ -195,7 +195,10 @@ class AzureStorage(AbstractStorage):
     @staticmethod
     async def _file_chunks(path: str, chunk_size: int = 4 * 1024 * 1024) -> t.AsyncIterator[bytes]:
         async with aiofiles.open(path, "rb") as f:
-            while chunk := await f.read(chunk_size):
+            while True:
+                chunk = await f.read(chunk_size)
+                if not chunk:
+                    break
                 yield chunk
 
     @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
