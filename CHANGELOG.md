@@ -1,5 +1,11 @@
 ## Change Log
 
+### 0.29.0 (2026-06-02) 16:00 +00:00
+
+- Fix Azure upload seek error by passing AsyncIterable to upload_blob (@Ranexia04)
+- Bump dependencies to limit CVEs (@rzvoncek)
+- Bump idna from 3.11 to 3.15 (@dependabot)
+
 ### 0.28.0 (2026/04/17) 16:00 +00:00
 
 - Bump parallel-ssh to 2.14.0 to better handle disconnections (@Skunnyk)
