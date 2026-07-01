@@ -101,12 +101,17 @@ transfer_max_bandwidth = 50MB/s
 ; - For Google, we create a Semaphone to retrict the number of
 ;   concurrent uploads and downloads of GCS objects.
 ; - For Azure, we pass it to the SDK library we use if the file is bigger than the multipart threshold (100MB in your case). 
-; - For S3, this controls the size of the executor we submit transfer tasks into. We do not propagate is to the 
-;   boto's concurrency parameter.
+; - For S3, this controls the size of the executor we submit transfer tasks into.
 concurrent_transfers = 1
 
 ; Size over which S3 uploads will be using the awscli with multi part uploads. Defaults to 100MB.
 multi_part_upload_threshold = 104857600
+
+; S3 only: number of threads boto3 uses per file to upload/download multipart chunks in parallel.
+; Total S3 connections held open = concurrent_transfers * multipart_max_concurrency + 10.
+; Increase for large SSTables on high-bandwidth connections. Default 4 (conservative).
+; boto3 default is 10.
+;multipart_max_concurrency = 4
 
 ; GC grace period for backed up files. Prevents race conditions between purge and running backups
 backup_grace_period_in_days = 10

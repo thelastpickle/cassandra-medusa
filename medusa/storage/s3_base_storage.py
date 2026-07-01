@@ -136,9 +136,10 @@ class S3BaseStorage(AbstractStorage):
             )
         )
 
-        # make the pool size double of what we will have going on
-        # helps urllib (used by boto) to reuse connections better and not WARN us about evicting connections
-        max_pool_size = int(self.config.concurrent_transfers) * 2
+        # pool must cover all threads boto can open: concurrent_transfers files * max_concurrency chunks each,
+        # plus headroom for incidental calls sharing the same pool (head_object, list_blobs, manifest uploads...)
+        multipart_max_concurrency = int(self.config.multipart_max_concurrency or 4)
+        max_pool_size = int(self.config.concurrent_transfers) * multipart_max_concurrency + 10
 
         boto_config = Config(
             region_name=self.credentials.region,
@@ -194,10 +195,10 @@ class S3BaseStorage(AbstractStorage):
 
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
         multipart_chunksize = config.multipart_chunksize or None
+        multipart_max_concurrency = int(config.multipart_max_concurrency or 4)
 
-        # we hard-code this one because the parallelism is for now applied to chunking the files
         transfer_config = {
-            'max_concurrency': 4
+            'max_concurrency': multipart_max_concurrency
         }
 
         if transfer_max_bandwidth is not None:
