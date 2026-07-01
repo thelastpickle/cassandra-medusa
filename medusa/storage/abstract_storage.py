@@ -29,9 +29,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
 
 
 BLOCK_SIZE_BYTES = 65536
-MULTIPART_PART_SIZE_IN_MB = 8
 MULTIPART_BLOCK_SIZE_BYTES = 65536
-MULTIPART_BLOCKS_PER_MB = 16
+# matches boto3's own TransferConfig default multipart_chunksize, used as a fallback
+# when the storage backend doesn't have a configured chunk size to pass in
+DEFAULT_MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024
 MAX_UP_DOWN_LOAD_RETRIES = 5
 
 
@@ -343,12 +344,13 @@ class AbstractStorage(abc.ABC):
         return base64_md5
 
     @staticmethod
-    def md5_multipart(src):
+    def md5_multipart(src, part_size_bytes=None):
+        part_size_bytes = part_size_bytes or DEFAULT_MULTIPART_PART_SIZE_BYTES
         eof = False
         hash_list = []
         with open(str(src), 'rb') as f:
             while eof is False:
-                (md5_hash, eof) = AbstractStorage.md5_part(f)
+                (md5_hash, eof) = AbstractStorage.md5_part(f, part_size_bytes)
                 hash_list.append(md5_hash)
 
         multipart_hash = hashlib.md5(b''.join(hash_list)).hexdigest()
@@ -356,15 +358,17 @@ class AbstractStorage(abc.ABC):
         return '%s-%d' % (multipart_hash, len(hash_list))
 
     @staticmethod
-    def md5_part(f):
+    def md5_part(f, part_size_bytes):
         hash_md5 = hashlib.md5()
         eof = False
-        for _ in range(MULTIPART_PART_SIZE_IN_MB * MULTIPART_BLOCKS_PER_MB):
-            chunk = f.read(MULTIPART_BLOCK_SIZE_BYTES)
+        bytes_read = 0
+        while bytes_read < part_size_bytes:
+            chunk = f.read(min(MULTIPART_BLOCK_SIZE_BYTES, part_size_bytes - bytes_read))
             if chunk == b'':
                 eof = True
                 break
             hash_md5.update(chunk)
+            bytes_read += len(chunk)
         return hash_md5.digest(), eof
 
     @staticmethod
@@ -404,7 +408,8 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False,
+                             chunk_size=None):
         """
         Compares a local file with its version in the storage backend. This happens when doing an actual backup.
 
@@ -416,6 +421,8 @@ class AbstractStorage(abc.ABC):
         :param threshold: files bigger than this are digested by chunks
         :param enable_md5_checks: boolean flag to enable md5 file generation and comparison to the md5
                 found in the manifest (only applicable to some cloud storage implementations that compare md5 hashes)
+        :param chunk_size: size of the chunks used to digest files bigger than the threshold. Must match the
+                multipart chunk size the storage backend actually uploaded with, or the digest won't match.
         :return: boolean informing if the files match or not
         """
         pass
@@ -474,5 +481,9 @@ class AbstractStorage(abc.ABC):
             if cleaned_size_str.endswith(unit):
                 size = float(cleaned_size_str.rstrip(unit))
                 return int(size * multiplier)
+
+        # no unit suffix: assume the value is already a byte count. Keeps configs written
+        # before human-readable sizes were supported (e.g. multi_part_upload_threshold) working.
+        return int(float(cleaned_size_str))
 
         raise ValueError(f"Invalid human-friendly size format: {size_str}")

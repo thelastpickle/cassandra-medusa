@@ -304,6 +304,7 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
         replaced = 0
         kept = 0
         multipart_threshold = storage.config.multi_part_upload_threshold
+        multipart_chunksize = storage.config.multipart_chunksize
 
         if node_backup.is_differential:
             logging.info(f'Listing already backed up files for node {node_backup.fqdn}')
@@ -320,6 +321,7 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
                 node_backup=node_backup,
                 files_in_storage=files_in_storage,
                 multipart_threshold=multipart_threshold,
+                multipart_chunksize=multipart_chunksize,
                 enable_md5_checks=enable_md5_checks,
                 keyspace=snapshot_path.keyspace,
                 srcs=list(snapshot_path.list_files()))
@@ -366,6 +368,7 @@ def check_already_uploaded(
         storage: Storage,
         node_backup: NodeBackup,
         multipart_threshold: int,
+        multipart_chunksize: str,
         enable_md5_checks: bool,
         files_in_storage: t.Dict[str, t.Dict[str, t.Dict[str, ManifestObject]]],
         keyspace: str,
@@ -396,7 +399,8 @@ def check_already_uploaded(
                 continue
             # object is in storage but with different size or digest
             storage_driver = storage.storage_driver
-            if not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks):
+            if not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks,
+                                                       multipart_chunksize):
                 needs_reupload.append(src)
                 continue
             # object is in storage with correct size and digest

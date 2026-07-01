@@ -196,7 +196,10 @@ class S3BaseStorage(AbstractStorage):
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
         multipart_chunksize = config.multipart_chunksize or None
         multipart_max_concurrency = int(config.multipart_max_concurrency or 4)
-        multipart_threshold = int(config.multi_part_upload_threshold or 20 * 1024 * 1024)
+        multipart_threshold = (
+            AbstractStorage._human_size_to_bytes(str(config.multi_part_upload_threshold))
+            if config.multi_part_upload_threshold else 20 * 1024 * 1024
+        )
 
         transfer_config = {
             'max_concurrency': multipart_max_concurrency,
@@ -495,15 +498,17 @@ class S3BaseStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False,
+                             chunk_size=None):
 
-        threshold = int(threshold) if threshold else -1
+        threshold = AbstractStorage._human_size_to_bytes(str(threshold)) if threshold else -1
 
         # single or multi part md5 hash. Used by Azure and S3 uploads.
         if not enable_md5_checks:
             md5_hash = None
         elif src.stat().st_size >= threshold > 0:
-            md5_hash = AbstractStorage.md5_multipart(src)
+            chunk_size_bytes = AbstractStorage._human_size_to_bytes(chunk_size) if chunk_size else None
+            md5_hash = AbstractStorage.md5_multipart(src, chunk_size_bytes)
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
 
