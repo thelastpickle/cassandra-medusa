@@ -421,6 +421,8 @@ class S3StorageTest(unittest.TestCase):
     def test_transfer_config_uses_configured_values(self):
         # max_concurrency and multipart_threshold must come from config, not be hard-coded,
         # otherwise boto's multipart threshold can drift from the one used for MD5 comparisons.
+        # Also covers human-readable sizes ("12MB"); the raw byte count form is covered elsewhere
+        # in this file for backward compatibility.
         with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
             with tempfile.NamedTemporaryFile() as empty_file:
                 config = AttributeDict({
@@ -439,7 +441,7 @@ class S3StorageTest(unittest.TestCase):
                     'concurrent_transfers': '1',
                     'multipart_chunksize': '5MB',
                     'multipart_max_concurrency': '7',
-                    'multi_part_upload_threshold': str(12 * 1024 * 1024)
+                    'multi_part_upload_threshold': '12MB'
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(7, s3_storage.transfer_config.max_concurrency)
