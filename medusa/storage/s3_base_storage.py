@@ -196,9 +196,11 @@ class S3BaseStorage(AbstractStorage):
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
         multipart_chunksize = config.multipart_chunksize or None
         multipart_max_concurrency = int(config.multipart_max_concurrency or 4)
+        multipart_threshold = int(config.multi_part_upload_threshold or 20 * 1024 * 1024)
 
         transfer_config = {
-            'max_concurrency': multipart_max_concurrency
+            'max_concurrency': multipart_max_concurrency,
+            'multipart_threshold': multipart_threshold,
         }
 
         if transfer_max_bandwidth is not None:
