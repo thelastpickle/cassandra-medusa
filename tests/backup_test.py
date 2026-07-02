@@ -26,8 +26,10 @@ def s3_multipart_etag(data: bytes, part_size_bytes: int) -> str:
     # independent reimplementation of S3's multipart ETag formula, so tests don't just
     # assert the code under test agrees with itself
     parts = [data[i:i + part_size_bytes] for i in range(0, len(data), part_size_bytes)]
-    concatenated_part_digests = b''.join(hashlib.md5(part).digest() for part in parts)
-    return '{}-{}'.format(hashlib.md5(concatenated_part_digests).hexdigest(), len(parts))
+    concatenated_part_digests = b''.join(
+        hashlib.md5(part, usedforsecurity=False).digest() for part in parts
+    )
+    return '{}-{}'.format(hashlib.md5(concatenated_part_digests, usedforsecurity=False).hexdigest(), len(parts))
 
 
 class RestoreNodeTest(unittest.TestCase):
