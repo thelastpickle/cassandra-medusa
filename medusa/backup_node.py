@@ -368,7 +368,7 @@ def check_already_uploaded(
         storage: Storage,
         node_backup: NodeBackup,
         multipart_threshold: int,
-        multipart_chunksize: str,
+        multipart_chunksize: t.Optional[str],
         enable_md5_checks: bool,
         files_in_storage: t.Dict[str, t.Dict[str, t.Dict[str, ManifestObject]]],
         keyspace: str,

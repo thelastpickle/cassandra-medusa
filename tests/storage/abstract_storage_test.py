@@ -111,6 +111,10 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertEqual(20971520, AbstractStorage._human_size_to_bytes('20971520'))
         self.assertEqual(20971520, AbstractStorage._human_size_to_bytes('20971520.0'))
 
+    def test_convert_invalid_size_raises(self):
+        with self.assertRaises(ValueError):
+            AbstractStorage._human_size_to_bytes('not-a-size')
+
     def test_get_storage_class(self):
         config = AttributeDict({
             'bucket_name': 'must_be_set',
