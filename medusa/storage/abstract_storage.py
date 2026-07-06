@@ -175,12 +175,13 @@ class AbstractStorage(abc.ABC):
         return manifest_objects
 
     async def _upload_blobs(self, srcs: t.List[t.Union[Path, str]], dest: str) -> t.List[ManifestObject]:
-        coros = [self._upload_blob(src, dest) for src in map(str, srcs)]
-        manifest_objects = []
-        n = int(self.config.concurrent_transfers)
-        for chunk in [coros[i:i + n] for i in range(0, len(coros), n)]:
-            manifest_objects += await asyncio.gather(*chunk)
-        return manifest_objects
+        semaphore = asyncio.Semaphore(int(self.config.concurrent_transfers))
+
+        async def bounded_upload(src: str) -> ManifestObject:
+            async with semaphore:
+                return await self._upload_blob(src, dest)
+
+        return await asyncio.gather(*(bounded_upload(src) for src in map(str, srcs)))
 
     @abc.abstractmethod
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
