@@ -477,6 +477,37 @@ class S3StorageTest(unittest.TestCase):
                     boto_config = mock_client.call_args.kwargs['config']
                     self.assertEqual(3 * 5 + 10, boto_config.max_pool_connections)
 
+    def test_connect_disables_flexible_checksums(self):
+        # botocore >= 1.36 defaults to always sending/validating flexible checksums (CRC32/CRC64) via
+        # chunked transfer encoding, which some S3-compatible stores reject with XAmzContentSHA256Mismatch.
+        with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'sse_c_key': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'ssl_verify': 'False',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '3',
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '5',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024),
+                    's3_addressing_style': 'auto'
+                })
+                s3_storage = S3BaseStorage(config)
+                with patch('medusa.storage.s3_base_storage.boto3.client') as mock_client:
+                    s3_storage.connect()
+                    boto_config = mock_client.call_args.kwargs['config']
+                    self.assertEqual('when_required', boto_config.request_checksum_calculation)
+                    self.assertEqual('when_required', boto_config.response_checksum_validation)
+
 
 def _make_instance_metadata_mock():
     # mock a call to the metadata service
