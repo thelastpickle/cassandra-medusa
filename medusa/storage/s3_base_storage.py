@@ -147,6 +147,12 @@ class S3BaseStorage(AbstractStorage):
             max_pool_connections=max_pool_size,
             read_timeout=self.read_timeout,
             s3={'addressing_style': self.config.s3_addressing_style},
+            # botocore >= 1.36 defaults to always sending flexible checksums (CRC32/CRC64) using
+            # chunked transfer encoding, which most S3-compatible stores (Cleversafe, Ceph, MinIO...)
+            # don't support and reject with XAmzContentSHA256Mismatch. Only compute/validate them
+            # when the S3 API actually requires it.
+            request_checksum_calculation='when_required',
+            response_checksum_validation='when_required',
         )
         if self.credentials.access_key_id is not None:
             self.s3_client = boto3.client(
