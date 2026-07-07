@@ -1,5 +1,10 @@
 ## Change Log
 
+### 0.29.1 (2026-07-07) 16:00 +00:00
+
+- Pin msgpack to address CVEs (#970) (@rzvoncek)
+- Bump pyOpenSSL and cryptography to address CVEs (#967) (@rzvoncek)
+
 ### 0.29.0 (2026-06-02) 16:00 +00:00
 
 - Fix Azure upload seek error by passing AsyncIterable to upload_blob (@Ranexia04)
