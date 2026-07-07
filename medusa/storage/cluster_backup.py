@@ -43,8 +43,8 @@ class ClusterBackup(object):
         if any(self.missing_nodes()):
             return None
 
-        finished_timestamps = list(map(operator.attrgetter('finished'), self.node_backups.values()))
-        if all(finished_timestamps):
+        finished_timestamps = list(map(operator.attrgetter('finished'), self.expected_node_backups()))
+        if finished_timestamps and all(finished_timestamps):
             return max(finished_timestamps)
         else:
             return None
@@ -66,19 +66,26 @@ class ClusterBackup(object):
         return "differential" if self._first_nodebackup.is_differential else "full"
 
     def is_complete(self):
-        return not self.missing_nodes() and all(map(operator.attrgetter('finished'), self.node_backups.values()))
+        expected_node_backups = self.expected_node_backups()
+        return not self.missing_nodes() and bool(expected_node_backups) \
+            and all(map(operator.attrgetter('finished'), expected_node_backups))
 
     def missing_nodes(self):
         return set(self.tokenmap.keys()) - set(self.node_backups.keys())
 
+    def expected_node_backups(self):
+        return [self.node_backups[fqdn]
+                for fqdn in self.tokenmap
+                if fqdn in self.node_backups]
+
     def complete_nodes(self):
         return [node_backup
-                for node_backup in self.node_backups.values()
+                for node_backup in self.expected_node_backups()
                 if node_backup.finished]
 
     def incomplete_nodes(self):
         return [node_backup
-                for node_backup in self.node_backups.values()
+                for node_backup in self.expected_node_backups()
                 if node_backup.finished is None]
 
     def size(self):
