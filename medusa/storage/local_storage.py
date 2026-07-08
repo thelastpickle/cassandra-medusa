@@ -51,12 +51,14 @@ class LocalStorage(AbstractStorage):
     async def _list_blobs(self, prefix=None):
         if prefix is None:
             paths = list(self.root_dir.glob('**/*'))
+        elif str(prefix).endswith('/'):
+            paths = list(self.root_dir.joinpath(prefix).resolve().glob('**/*'))
         else:
-            paths = [
-                p for p in self.root_dir.glob('**/*')
-                # relative_to() cuts off the base_path and bucket, so it works just like cloud storages
-                if str(p.relative_to(self.root_dir)).startswith(str(prefix))
-            ]
+            paths = []
+            # the last segment of the prefix may be a directory without an ending /
+            paths.extend(p.resolve() for p in self.root_dir.glob(str(prefix) + '*/**/*'))
+            # the last segment of the prefix may be a file
+            paths.extend(p.resolve() for p in self.root_dir.glob(str(prefix) + '*'))
 
         return [
             AbstractBlob(
