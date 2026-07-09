@@ -88,6 +88,21 @@ class ServerTest(unittest.TestCase):
         # but at least the status of the response and the status of the backup match
         self.assertEqual(get_backup_response.status, get_backup_response.backup.status)
 
+    def test_get_backups_failure_sets_overall_status(self):
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        request = medusa_pb2.GetBackupsRequest()
+        context = Mock(spec=ServicerContext)
+
+        with patch('medusa.service.grpc.server.get_backups', side_effect=Exception('storage failure')):
+            get_backups_response = service.GetBackups(request, context)
+
+        response_fields = {field.name for field in get_backups_response.DESCRIPTOR.fields}
+        self.assertEqual({'backups', 'overallStatus'}, response_fields)
+        self.assertEqual([], get_backups_response.backups)
+        self.assertEqual(medusa_pb2.StatusType.UNKNOWN, get_backups_response.overallStatus)
+
     def test_get_known_incomplete_backup(self):
         # start the Medusa service
         medusa_config = self._make_config()

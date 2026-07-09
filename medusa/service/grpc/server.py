@@ -273,7 +273,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         except Exception as e:
             context.set_details("Failed to get backups due to error: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
-            response.status = medusa_pb2.StatusType.UNKNOWN
+            response.overallStatus = medusa_pb2.StatusType.UNKNOWN
         return response
 
     def DeleteBackup(self, request, context):
