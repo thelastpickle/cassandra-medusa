@@ -126,7 +126,7 @@ class AzureStorageTest(unittest.TestCase):
             azure_storage = AzureStorage(config)
             azure_storage.connect()
 
-            async def fake_list_blobs(name_starts_with=None, include=None, timeout=None):
+            async def fake_list_blobs(name_starts_with=None, include=None, **kwargs):
                 for props in (
                     # ADLS Gen2 / hierarchical-namespace directory marker: must be skipped
                     AttributeDict({

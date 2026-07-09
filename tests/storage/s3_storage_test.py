@@ -511,7 +511,7 @@ class S3StorageTest(unittest.TestCase):
                     self.assertEqual('when_required', boto_config.response_checksum_validation)
 
     def test_compare_with_manifest_matches_single_part(self):
-        digest = hashlib.md5(b"some file content").digest()
+        digest = hashlib.md5(b"some file content", usedforsecurity=False).digest()
         actual_hash = digest.hex()
         hash_in_manifest = base64.encodebytes(digest).decode('UTF-8').strip()
 
