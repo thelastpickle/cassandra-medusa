@@ -524,7 +524,9 @@ class S3BaseStorage(AbstractStorage):
         else:
             threshold = int(threshold)
 
-        if actual_size >= threshold > 0 or "-" in hash_in_manifest:
+        # a dash in an S3 ETag is only ever produced by a multipart upload, so it's a reliable
+        # signal regardless of what the manifest recorded or what threshold is configured now
+        if actual_size >= threshold > 0 or "-" in hash_in_manifest or "-" in actual_hash:
             multipart = True
         else:
             multipart = False

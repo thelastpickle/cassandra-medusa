@@ -70,11 +70,11 @@ class AbstractStorage(abc.ABC):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
 
-        objects = self.list_blobs(prefix=path)
-
-        objects = list(filter(lambda blob: blob.size > 0, objects))
-
-        return objects
+        # Not filtering by size: some SSTable components are legitimately 0 bytes by design
+        # (e.g. BTI's Rows.db when partitions don't need a row index, see BtiFormat.md), and
+        # manifest validation needs to see them. Azure's hierarchical-namespace directory
+        # placeholders are excluded in AzureStorage._list_blobs instead.
+        return self.list_blobs(prefix=path)
 
     @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=10, max=120))
     def list_blobs(self, prefix=None):

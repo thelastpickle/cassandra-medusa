@@ -12,7 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
 import datetime
+import hashlib
 import json
 import os
 import unittest
@@ -399,6 +401,35 @@ class S3StorageTest(unittest.TestCase):
 
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
+
+    def test_compare_with_manifest_matches_single_part(self):
+        digest = hashlib.md5(b"some file content", usedforsecurity=False).digest()
+        actual_hash = digest.hex()
+        hash_in_manifest = base64.encodebytes(digest).decode('UTF-8').strip()
+
+        self.assertTrue(S3BaseStorage.compare_with_manifest(
+            actual_size=17,
+            size_in_manifest=17,
+            actual_hash=actual_hash,
+            hash_in_manifest=hash_in_manifest,
+        ))
+
+    def test_compare_with_manifest_real_multipart_etag_not_reflected_in_manifest(self):
+        # actual_hash is what verify sees live on S3: a real multipart ETag (dash present).
+        # hash_in_manifest has no dash, e.g. because it was recorded under mismatched
+        # threshold/chunksize settings at backup time. Detecting multipart-ness from
+        # hash_in_manifest alone used to crash trying to base64-decode actual_hash.
+        actual_hash = "d41d8cd98f00b204e9800998ecf8427e-4"
+        hash_in_manifest = "1B2M2Y8AsgTpgAmY7PhCfg=="
+
+        matches = S3BaseStorage.compare_with_manifest(
+            actual_size=100,
+            size_in_manifest=100,
+            actual_hash=actual_hash,
+            hash_in_manifest=hash_in_manifest,
+        )
+
+        self.assertFalse(matches)
 
 
 def _make_instance_metadata_mock():
