@@ -320,7 +320,11 @@ def verify(medusaconfig, backup_name, enable_md5_checks):
     """
     Verify the integrity of a backup
     """
-    medusa.verify.verify(medusaconfig, backup_name, enable_md5_checks)
+    try:
+        medusa.verify.verify(medusaconfig, backup_name, enable_md5_checks)
+    except RuntimeError as e:
+        logging.error(str(e))
+        sys.exit(1)
 
 
 @cli.command(name='report-last-backup')
