@@ -14,6 +14,8 @@
 # limitations under the License.
 import os
 import pathlib
+import threading
+import time
 import unittest
 from concurrent.futures.thread import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
@@ -122,10 +124,13 @@ class BackupNodeTest(unittest.TestCase):
             mock_storage,
             mock_node_backup,
             multipart_threshold=100,
+            multipart_chunksize=None,
             enable_md5_checks=False,
+            md5_check_concurrency=2,
             files_in_storage=files_in_storage,
             keyspace='keyspace1',
-            srcs=table1_srcs
+            srcs=table1_srcs,
+            fqtn='keyspace1.table1'
         )
 
         self.assertEqual(list(), table1_backup)
@@ -144,10 +149,13 @@ class BackupNodeTest(unittest.TestCase):
             mock_storage,
             mock_node_backup,
             multipart_threshold=100,
+            multipart_chunksize=None,
             enable_md5_checks=False,
+            md5_check_concurrency=2,
             files_in_storage=files_in_storage,
             keyspace='keyspace1',
-            srcs=table1_index_srcs
+            srcs=table1_index_srcs,
+            fqtn='keyspace1.table1'
         )
         # the first file was not in storage, so we need to reuplaod it
         self.assertEqual([table1_index_srcs[0]], t1_idx_backup)
@@ -164,15 +172,74 @@ class BackupNodeTest(unittest.TestCase):
             mock_storage,
             mock_node_backup,
             multipart_threshold=100,
+            multipart_chunksize=None,
             enable_md5_checks=False,
+            md5_check_concurrency=2,
             files_in_storage=files_in_storage,
             keyspace='keyspace2',
             srcs=table2_srcs,
+            fqtn='keyspace2.table2'
         )
         self.assertEqual([], t2_backup)
         # the file shows up in the reupload list because it's in the storage, but not at a different shape
         self.assertEqual([table2_srcs[0]], t2_reupload)
         self.assertEqual([], t2_already_up)
+
+    @patch("medusa.storage")
+    @patch("medusa.storage.node_backup.NodeBackup")
+    def test_check_already_uploaded_respects_md5_check_concurrency(self, mock_storage, mock_node_backup):
+        mock_node_backup.is_differential = True
+
+        file_count = 4
+        files_in_storage = {
+            'keyspace1': {
+                'table1-cfid': {
+                    f'nb-1-file{i}-Data.db': ManifestObject(f'nb-1-file{i}-Data.db', 100, 'whatever')
+                    for i in range(file_count)
+                }
+            }
+        }
+        srcs = [
+            pathlib.Path(f'/foo/bar/data/keyspace1/table1-cfid/snapshots/snapshot-name/nb-1-file{i}-Data.db')
+            for i in range(file_count)
+        ]
+
+        active = 0
+        max_active = 0
+        lock = threading.Lock()
+
+        def fake_file_matches_storage(src, cached_item, threshold, enable_md5_checks, chunk_size):
+            nonlocal active, max_active
+            with lock:
+                active += 1
+                max_active = max(max_active, active)
+            time.sleep(0.1)
+            with lock:
+                active -= 1
+            return True
+
+        mock_storage.storage_driver.file_matches_storage = fake_file_matches_storage
+
+        start = time.monotonic()
+        _, _, already_up = check_already_uploaded(
+            mock_storage,
+            mock_node_backup,
+            multipart_threshold=100,
+            multipart_chunksize=None,
+            enable_md5_checks=True,
+            md5_check_concurrency=2,
+            files_in_storage=files_in_storage,
+            keyspace='keyspace1',
+            srcs=srcs,
+            fqtn='keyspace1.table1'
+        )
+        elapsed = time.monotonic() - start
+
+        self.assertEqual(file_count, len(already_up))
+        # 2 workers on 4 files taking 0.1s each: parallelized takes ~0.2s (2 batches of 2),
+        # a fully sequential loop would take ~0.4s.
+        self.assertLess(elapsed, 0.35)
+        self.assertEqual(2, max_active)
 
 
 if __name__ == '__main__':

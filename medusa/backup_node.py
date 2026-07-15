@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import datetime
 import json
 import logging
@@ -180,8 +181,11 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
     # Perform the actual backup
     actual_start = datetime.datetime.now()
     enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
+    configured_md5_check_concurrency = int(config.checks.md5_check_concurrency or 0)
+    md5_check_concurrency = max(configured_md5_check_concurrency, 1)
     num_files, num_replaced, num_kept = do_backup(
-        cassandra, node_backup, storage, enable_md5, backup_name, keep_snapshot, use_existing_snapshot
+        cassandra, node_backup, storage, enable_md5, md5_check_concurrency, backup_name, keep_snapshot,
+        use_existing_snapshot
     )
     end = datetime.datetime.now()
     actual_backup_duration = end - actual_start
@@ -218,8 +222,8 @@ def get_server_type_and_version(cassandra):
     return server_type, release_version
 
 
-def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, keep_snapshot=False,
-              use_existing_snapshot=False):
+def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_concurrency, backup_name,
+              keep_snapshot=False, use_existing_snapshot=False):
 
     if use_existing_snapshot:
         logging.debug('Skipping snapshot creation')
@@ -235,14 +239,14 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, backup_name, k
     with snapshot:
         manifest = []
         num_files, num_replaced, num_kept = backup_snapshots(
-            storage, manifest, node_backup, snapshot, enable_md5_checks
+            storage, manifest, node_backup, snapshot, enable_md5_checks, md5_check_concurrency
         )
 
     if node_backup.is_dse_6:
         logging.info('Creating DSE snapshot')
         with cassandra.create_dse_snapshot(backup_name) as snapshot:
             dse_num_files, dse_replaced, dse_kept = backup_snapshots(
-                storage, manifest, node_backup, snapshot, enable_md5_checks
+                storage, manifest, node_backup, snapshot, enable_md5_checks, md5_check_concurrency
             )
             num_files += dse_num_files
             num_replaced += dse_replaced
@@ -298,12 +302,13 @@ def update_monitoring(actual_backup_duration, backup_name, monitoring, node_back
     logging.debug('Done emitting metrics')
 
 
-def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks):
+def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks, md5_check_concurrency):
     try:
         num_files = 0
         replaced = 0
         kept = 0
         multipart_threshold = storage.config.multi_part_upload_threshold
+        multipart_chunksize = storage.config.multipart_chunksize
 
         if node_backup.is_differential:
             logging.info(f'Listing already backed up files for node {node_backup.fqdn}')
@@ -320,9 +325,12 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
                 node_backup=node_backup,
                 files_in_storage=files_in_storage,
                 multipart_threshold=multipart_threshold,
+                multipart_chunksize=multipart_chunksize,
                 enable_md5_checks=enable_md5_checks,
+                md5_check_concurrency=md5_check_concurrency,
                 keyspace=snapshot_path.keyspace,
-                srcs=list(snapshot_path.list_files()))
+                srcs=list(snapshot_path.list_files()),
+                fqtn=fqtn)
 
             replaced += len(needs_reupload)
             kept += len(already_backed_up)
@@ -366,10 +374,13 @@ def check_already_uploaded(
         storage: Storage,
         node_backup: NodeBackup,
         multipart_threshold: int,
+        multipart_chunksize: t.Optional[str],
         enable_md5_checks: bool,
+        md5_check_concurrency: int,
         files_in_storage: t.Dict[str, t.Dict[str, t.Dict[str, ManifestObject]]],
         keyspace: str,
-        srcs: t.List[pathlib.Path]
+        srcs: t.List[pathlib.Path],
+        fqtn: str
 ) -> tuple[t.List[pathlib.Path], t.List[pathlib.Path], t.List[ManifestObject]]:
 
     NEVER_BACKED_UP = ['manifest.json', 'schema.cql']
@@ -382,25 +393,56 @@ def check_already_uploaded(
         return [src for src in srcs if src.name not in NEVER_BACKED_UP], needs_reupload, already_backed_up
 
     keyspace_files_in_storage = files_in_storage.get(keyspace, {})
+    storage_driver = storage.storage_driver
 
+    # Files already present in storage need their local copy compared (size, or size+md5 when
+    # enable_md5_checks is on) against the manifest. That's local disk/CPU work with no network
+    # involved, so it's fanned out across threads rather than done one file at a time - with
+    # differential backups that serial loop was a barrier blocking every upload for the table.
+    to_compare = []
     for src in srcs:
         if src.name in NEVER_BACKED_UP:
             continue
+        # safe_table_name is either a table, or a "table.2i_name"
+        _, safe_table_name = Storage.sanitize_keyspace_and_table_name(src)
+        item_in_storage = keyspace_files_in_storage.get(safe_table_name, {}).get(src.name, None)
+        # object is not in storage
+        if item_in_storage is None:
+            needs_backup.append(src)
         else:
-            # safe_table_name is either a table, or a "table.2i_name"
-            _, safe_table_name = Storage.sanitize_keyspace_and_table_name(src)
-            item_in_storage = keyspace_files_in_storage.get(safe_table_name, {}).get(src.name, None)
-            # object is not in storage
-            if item_in_storage is None:
-                needs_backup.append(src)
-                continue
-            # object is in storage but with different size or digest
-            storage_driver = storage.storage_driver
-            if not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks):
-                needs_reupload.append(src)
-                continue
-            # object is in storage with correct size and digest
-            already_backed_up.append(item_in_storage)
+            to_compare.append((src, item_in_storage))
+
+    if to_compare:
+        total = len(to_compare)
+        logging.debug(
+            f"Comparing {total} files against the manifest for {fqtn} "
+            f"(md5_checks={enable_md5_checks}, workers={md5_check_concurrency})"
+        )
+        start = time.monotonic()
+        completed = 0
+        progress_step = max(1, total // 20)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=md5_check_concurrency) as executor:
+            futures = {
+                executor.submit(
+                    storage_driver.file_matches_storage,
+                    src, item_in_storage, multipart_threshold, enable_md5_checks, multipart_chunksize
+                ): (src, item_in_storage)
+                for src, item_in_storage in to_compare
+            }
+            for future in concurrent.futures.as_completed(futures):
+                src, item_in_storage = futures[future]
+                if future.result():
+                    # object is in storage with correct size and digest
+                    already_backed_up.append(item_in_storage)
+                else:
+                    # object is in storage but with different size or digest
+                    needs_reupload.append(src)
+                completed += 1
+                if completed % progress_step == 0 or completed == total:
+                    logging.debug(
+                        f"Compared {completed}/{total} files for {fqtn} "
+                        f"({time.monotonic() - start:.1f}s elapsed)"
+                    )
 
     return needs_backup, needs_reupload, already_backed_up
 

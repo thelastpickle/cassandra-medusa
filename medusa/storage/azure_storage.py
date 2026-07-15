@@ -157,7 +157,7 @@ class AzureStorage(AbstractStorage):
         src_path = Path(src)
         file_path = AbstractStorage.path_maybe_with_parent(dest, src_path)
 
-        if blob.size < int(self.config.multi_part_upload_threshold):
+        if blob.size < AbstractStorage._human_size_to_bytes(str(self.config.multi_part_upload_threshold)):
             workers = 1
         else:
             workers = int(self.config.concurrent_transfers)
@@ -268,7 +268,8 @@ class AzureStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False,
+                             chunk_size=None):
         return AzureStorage.compare_with_manifest(
             actual_size=src.stat().st_size,
             size_in_manifest=cached_item.size,
