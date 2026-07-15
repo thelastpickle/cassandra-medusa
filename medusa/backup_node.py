@@ -324,7 +324,8 @@ def backup_snapshots(storage, manifest, node_backup, snapshot, enable_md5_checks
                 multipart_chunksize=multipart_chunksize,
                 enable_md5_checks=enable_md5_checks,
                 keyspace=snapshot_path.keyspace,
-                srcs=list(snapshot_path.list_files()))
+                srcs=list(snapshot_path.list_files()),
+                fqtn=fqtn)
 
             replaced += len(needs_reupload)
             kept += len(already_backed_up)
@@ -372,7 +373,8 @@ def check_already_uploaded(
         enable_md5_checks: bool,
         files_in_storage: t.Dict[str, t.Dict[str, t.Dict[str, ManifestObject]]],
         keyspace: str,
-        srcs: t.List[pathlib.Path]
+        srcs: t.List[pathlib.Path],
+        fqtn: str
 ) -> tuple[t.List[pathlib.Path], t.List[pathlib.Path], t.List[ManifestObject]]:
 
     NEVER_BACKED_UP = ['manifest.json', 'schema.cql']
@@ -385,26 +387,33 @@ def check_already_uploaded(
         return [src for src in srcs if src.name not in NEVER_BACKED_UP], needs_reupload, already_backed_up
 
     keyspace_files_in_storage = files_in_storage.get(keyspace, {})
+    storage_driver = storage.storage_driver
 
-    for src in srcs:
+    total = len(srcs)
+    logging.debug(f"Comparing {total} files against the manifest for {fqtn} (md5_checks={enable_md5_checks})")
+    start = time.monotonic()
+    progress_step = max(1, total // 20)
+
+    for i, src in enumerate(srcs, start=1):
         if src.name in NEVER_BACKED_UP:
             continue
-        else:
-            # safe_table_name is either a table, or a "table.2i_name"
-            _, safe_table_name = Storage.sanitize_keyspace_and_table_name(src)
-            item_in_storage = keyspace_files_in_storage.get(safe_table_name, {}).get(src.name, None)
-            # object is not in storage
-            if item_in_storage is None:
-                needs_backup.append(src)
-                continue
-            # object is in storage but with different size or digest
-            storage_driver = storage.storage_driver
-            if not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks,
+
+        # safe_table_name is either a table, or a "table.2i_name"
+        _, safe_table_name = Storage.sanitize_keyspace_and_table_name(src)
+        item_in_storage = keyspace_files_in_storage.get(safe_table_name, {}).get(src.name, None)
+        # object is not in storage
+        if item_in_storage is None:
+            needs_backup.append(src)
+        # object is in storage but with different size or digest
+        elif not storage_driver.file_matches_storage(src, item_in_storage, multipart_threshold, enable_md5_checks,
                                                        multipart_chunksize):
-                needs_reupload.append(src)
-                continue
-            # object is in storage with correct size and digest
+            needs_reupload.append(src)
+        # object is in storage with correct size and digest
+        else:
             already_backed_up.append(item_in_storage)
+
+        if i % progress_step == 0 or i == total:
+            logging.debug(f"Compared {i}/{total} files for {fqtn} ({time.monotonic() - start:.1f}s elapsed)")
 
     return needs_backup, needs_reupload, already_backed_up
 
