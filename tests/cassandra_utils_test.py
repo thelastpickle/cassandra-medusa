@@ -971,5 +971,37 @@ class CassandraUtilsTest(unittest.TestCase):
         actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
+    def test_create_dse_snapshot_without_metadata_folder(self):
+        # Some DSE 6 nodes never write anything under <dse_root>/metadata (eg no Management
+        # Services/Insights activity) - this must not crash the backup, there's just nothing
+        # DSE-specific to snapshot.
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        with tempfile.TemporaryDirectory() as dse_root:
+            c._dse_root = Path(dse_root)
+            # deliberately not creating <dse_root>/metadata
+
+            snapshot = c.create_dse_snapshot('test-backup')
+
+            self.assertEqual([], list(snapshot.find_dirs()[0].list_files()))
+            # cleanup must also tolerate the snapshot folder never having been created
+            snapshot.delete()
+
+    def test_create_dse_snapshot_with_metadata_folder(self):
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        with tempfile.TemporaryDirectory() as dse_root:
+            c._dse_root = Path(dse_root)
+            metadata_dir = c._dse_root / c._dse_metadata_folder
+            metadata_dir.mkdir()
+            (metadata_dir / 'nodes').mkdir()
+            (metadata_dir / 'nodes' / 'local').write_text('some dse metadata')
+
+            snapshot = c.create_dse_snapshot('test-backup')
+
+            snapshotted_files = {p.name for p in snapshot.find_dirs()[0].list_files()}
+            self.assertEqual({'local'}, snapshotted_files)
+
+            snapshot.delete()
+            self.assertFalse((metadata_dir / 'snapshots' / snapshot._tag).exists())
+
     if __name__ == '__main__':
         unittest.main()
