@@ -126,7 +126,8 @@ class BackupNodeTest(unittest.TestCase):
             enable_md5_checks=False,
             files_in_storage=files_in_storage,
             keyspace='keyspace1',
-            srcs=table1_srcs
+            srcs=table1_srcs,
+            fqtn='keyspace1.table1'
         )
 
         self.assertEqual(list(), table1_backup)
@@ -149,7 +150,8 @@ class BackupNodeTest(unittest.TestCase):
             enable_md5_checks=False,
             files_in_storage=files_in_storage,
             keyspace='keyspace1',
-            srcs=table1_index_srcs
+            srcs=table1_index_srcs,
+            fqtn='keyspace1.table1'
         )
         # the first file was not in storage, so we need to reuplaod it
         self.assertEqual([table1_index_srcs[0]], t1_idx_backup)
@@ -171,6 +173,7 @@ class BackupNodeTest(unittest.TestCase):
             files_in_storage=files_in_storage,
             keyspace='keyspace2',
             srcs=table2_srcs,
+            fqtn='keyspace2.table2'
         )
         self.assertEqual([], t2_backup)
         # the file shows up in the reupload list because it's in the storage, but not at a different shape
