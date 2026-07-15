@@ -463,9 +463,13 @@ class Cassandra(object):
 
         tag = "{}{}".format(self.SNAPSHOT_PREFIX, backup_name)
         if not self.dse_snapshot_exists(tag):
-            src_path = self._dse_root / self._dse_metadata_folder
-            dst_path = self._dse_root / self._dse_metadata_folder / 'snapshots' / tag
-            shutil.copytree(src_path, dst_path, ignore=Cassandra._ignore_snapshots)
+            src_path = self.dse_metadata_path
+            if src_path.is_dir():
+                dst_path = src_path / 'snapshots' / tag
+                shutil.copytree(src_path, dst_path, ignore=Cassandra._ignore_snapshots)
+            else:
+                # Not every DSE node has a metadata folder - warn instead of failing the backup.
+                logging.warning(f'No DSE metadata folder found at {src_path}, nothing to snapshot')
 
         return Cassandra.DseSnapshot(self, tag)
 
@@ -493,7 +497,8 @@ class Cassandra(object):
         def delete(self):
             dse_folder = self._parent._dse_metadata_folder
             dse_folder_path = self._parent._dse_root / dse_folder / 'snapshots' / self._tag
-            shutil.rmtree(dse_folder_path)
+            if dse_folder_path.is_dir():
+                shutil.rmtree(dse_folder_path)
 
         def __repr__(self):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
