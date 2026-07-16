@@ -971,6 +971,34 @@ class CassandraUtilsTest(unittest.TestCase):
         actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
+    def test_dse_metadata_directory_read_from_cassandra_yaml(self):
+        # DSE puts metadata_directory straight into cassandra.yaml (not dse.yaml) - see
+        # https://docs.datastax.com/en/dse/6.9/managing/configure/configure-cassandra-yaml.html
+        # Build the fixture from the real default-c4.yaml plus that one key, using a value that
+        # differs from the guessed fallback so the test actually proves the explicit config wins.
+        base_yaml_path = os.path.join(os.path.dirname(__file__), 'resources/yaml/original/default-c4.yaml')
+        with open(base_yaml_path) as f:
+            base_yaml = f.read()
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(base_yaml)
+            f.write('\nmetadata_directory: /opt/dse/metadata\n')
+            yaml_path = f.name
+        try:
+            c = Cassandra(self.get_simple_medusa_config(yaml_path))
+
+            self.assertEqual(Path('/opt/dse/metadata'), c.dse_metadata_path)
+            self.assertEqual(Path('/opt/dse'), c._dse_root)
+            self.assertEqual('metadata', c._dse_metadata_folder)
+        finally:
+            os.unlink(yaml_path)
+
+    def test_dse_metadata_directory_falls_back_without_cassandra_yaml_key(self):
+        # Older DSE (eg 5.1, #826) never sets metadata_directory in cassandra.yaml at all - keep the
+        # previous guess (next to the data directory) so those nodes behave as before.
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+
+        self.assertEqual(Path('/var/lib/cassandra/metadata'), c.dse_metadata_path)
+
     def test_create_dse_snapshot_without_metadata_folder(self):
         # Some DSE 6 nodes never write anything under <dse_root>/metadata (eg no Management
         # Services/Insights activity) - this must not crash the backup, there's just nothing
