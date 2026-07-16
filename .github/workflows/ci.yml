@@ -116,6 +116,12 @@ jobs:
               it-backend: gcs
               experimental: false
               java-version: '11.0.25'
+            # explicitly include tests agains s3 and 1 python version
+            - python-version: '3.12'
+              cassandra-version: '4.1.7'
+              it-backend: s3
+              experimental: false
+              java-version: '11.0.25'              
           exclude:
             # no tests against cassandra 4.0.18 but the local ones
             - cassandra-version: '4.0.18'
