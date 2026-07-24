@@ -49,7 +49,7 @@ medusa-wrapper = { reference = "medusa.scripts.medusa_wrapper:main", type = "con
 [tool.poetry.dependencies]
 python = ">=3.10.0,<3.13"
 python-dateutil = "2.8.1"
-setuptools = "78.1.1"
+setuptools = "83.0.0"
 click = "8.1.7"
 click-aliases = "1.0.1"
 PyYAML = "6.0.1"
