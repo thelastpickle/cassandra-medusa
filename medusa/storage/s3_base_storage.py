@@ -122,6 +122,7 @@ class S3BaseStorage(AbstractStorage):
 
         self.connection_extra_args = self._make_connection_arguments(config)
         self.transfer_config = self._make_transfer_config(config)
+        logging.debug('S3 multipart chunk size: {} bytes'.format(self.transfer_config.multipart_chunksize))
 
         self.executor = concurrent.futures.ThreadPoolExecutor(int(config.concurrent_transfers))
 

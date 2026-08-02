@@ -62,11 +62,14 @@ class GoogleStorage(AbstractStorage):
 
         # in google's case (or rather the SDK we use when talking to it)
         # the chunk size is only relevant for downloads. uploads are handled automatically, internally
-        multipart_chunksize = getattr(config, 'multipart_chunksize', None)
+        multipart_chunksize = config.get('multipart_chunksize') \
+            if hasattr(config, 'get') else config.multipart_chunksize \
+            if 'multipart_chunksize' in dir(config) else None
         if multipart_chunksize:
             self.multipart_chunksize_bytes = AbstractStorage._human_size_to_bytes(multipart_chunksize)
         else:
             self.multipart_chunksize_bytes = DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE
+        logging.debug('GCS download chunk size: {} bytes'.format(self.multipart_chunksize_bytes))
 
         concurrent_transfers = int(config.concurrent_transfers) if 'concurrent_transfers' in dir(config) else 0
         if concurrent_transfers > 0:

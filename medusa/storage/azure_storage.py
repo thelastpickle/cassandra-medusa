@@ -70,11 +70,14 @@ class AzureStorage(AbstractStorage):
 
         self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
 
-        multipart_chunksize = getattr(config, 'multipart_chunksize', None)
+        multipart_chunksize = config.get('multipart_chunksize') \
+            if hasattr(config, 'get') else config.multipart_chunksize \
+            if 'multipart_chunksize' in dir(config) else None
         if multipart_chunksize:
             self.multipart_chunksize_bytes = AbstractStorage._human_size_to_bytes(multipart_chunksize)
         else:
             self.multipart_chunksize_bytes = 4 * 1024 * 1024
+        logging.debug('Azure block size: {} bytes'.format(self.multipart_chunksize_bytes))
 
         super().__init__(config)
 

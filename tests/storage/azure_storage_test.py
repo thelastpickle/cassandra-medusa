@@ -168,6 +168,7 @@ class AzureStorageTest(unittest.TestCase):
             'host': None,
             'port': None,
             'read_timeout': 60,
+            'storage_class': None,
         }
         if extra:
             cfg.update(extra)
@@ -222,7 +223,7 @@ class AzureStorageTest(unittest.TestCase):
             mock_blob_props.etag = '"abc123"'
             mock_blob_props.last_modified = None
             mock_blob_props.blob_tier = None
-            mock_blob_props.get.return_value = None
+            mock_blob_props.get.side_effect = lambda key, default=None: default
 
             mock_blob_client = AsyncMock()
             mock_blob_client.get_blob_properties = AsyncMock(return_value=mock_blob_props)
