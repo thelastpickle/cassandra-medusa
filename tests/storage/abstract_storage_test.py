@@ -12,8 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import io
 import pathlib
+import time
 import typing as t
 import unittest
 from pathlib import Path
@@ -106,6 +108,15 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertEqual(2 * 1024 ** 4, AbstractStorage._human_size_to_bytes('2TB'))
         self.assertEqual(2 * 1024 ** 5, AbstractStorage._human_size_to_bytes('2PB'))
 
+    def test_convert_bare_byte_count_to_bytes(self):
+        # backward compatibility with configs written before human-readable sizes were supported
+        self.assertEqual(20971520, AbstractStorage._human_size_to_bytes('20971520'))
+        self.assertEqual(20971520, AbstractStorage._human_size_to_bytes('20971520.0'))
+
+    def test_convert_invalid_size_raises(self):
+        with self.assertRaises(ValueError):
+            AbstractStorage._human_size_to_bytes('not-a-size')
+
     def test_get_storage_class(self):
         config = AttributeDict({
             'bucket_name': 'must_be_set',
@@ -118,3 +129,36 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertIsNone(storage.get_storage_class())
         storage_class = storage.get_storage_class()
         self.assertEqual('unset', storage_class.capitalize() if storage_class else 'unset')
+
+    def test_upload_blobs_uses_sliding_window_not_fixed_batches(self):
+        # concurrent_transfers=2, but 3 files: a fixed-batch-of-2 scheduler would
+        # gather ['slow', 'fast1'] as one batch (bounded by 'slow') before even
+        # starting 'fast2', while a sliding window starts 'fast2' as soon as
+        # 'fast1' frees up a slot, well before 'slow' completes.
+        config = AttributeDict({'bucket_name': 'must_be_set', 'concurrent_transfers': 2})
+        storage = TestAbstractStorage(config)
+
+        durations = {'slow': 0.3, 'fast1': 0.1, 'fast2': 0.1}
+        active = 0
+        max_active = 0
+
+        async def fake_upload_blob(src, dest):
+            nonlocal active, max_active
+            active += 1
+            max_active = max(max_active, active)
+            await asyncio.sleep(durations[src])
+            active -= 1
+            return ManifestObject(src, 0, None)
+
+        storage._upload_blob = fake_upload_blob
+
+        srcs = ['slow', 'fast1', 'fast2']
+        start = time.monotonic()
+        results = asyncio.run(storage._upload_blobs(srcs, 'dest'))
+        elapsed = time.monotonic() - start
+
+        # A fixed-batch-of-2 scheduler would take ~0.3 + 0.1 = 0.4s (two sequential
+        # batches). A sliding window finishes close to the slowest single file (~0.3s).
+        self.assertLess(elapsed, 0.35)
+        self.assertLessEqual(max_active, 2)
+        self.assertEqual(['slow', 'fast1', 'fast2'], [mo.path for mo in results])
