@@ -224,7 +224,9 @@ class S3StorageTest(unittest.TestCase):
                     'host': None,
                     'port': None,
                     'concurrent_transfers': '1',
-                    'multipart_chunksize': '5MB'
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '4',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024)
                 })
                 s3_storage = S3BaseStorage(config)
                 # there are no extra connection args when connecting to regular S3
@@ -250,7 +252,9 @@ class S3StorageTest(unittest.TestCase):
                     'host': None,
                     'port': None,
                     'concurrent_transfers': '1',
-                    'multipart_chunksize': '5MB'
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '4',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024)
                 })
                 s3_storage = S3BaseStorage(config)
                 # again, no extra connection args when connecting to regular S3
@@ -277,7 +281,9 @@ class S3StorageTest(unittest.TestCase):
                     'host': 's3.example.com',
                     'port': '443',
                     'concurrent_transfers': '1',
-                    'multipart_chunksize': '5MB'
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '4',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024)
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
@@ -302,7 +308,9 @@ class S3StorageTest(unittest.TestCase):
                     'host': 's3.example.com',
                     'port': '8080',
                     'concurrent_transfers': '1',
-                    'multipart_chunksize': '5MB'
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '4',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024)
                 })
                 s3_storage = S3BaseStorage(config)
                 self.assertEqual(
@@ -326,7 +334,9 @@ class S3StorageTest(unittest.TestCase):
                 'host': 's3.example.com',
                 'port': '8080',
                 'concurrent_transfers': '1',
-                'multipart_chunksize': '5MB'
+                'multipart_chunksize': '5MB',
+                'multipart_max_concurrency': '4',
+                'multi_part_upload_threshold': str(20 * 1024 * 1024)
             })
             s3_storage = S3BaseStorage(config)
             connection_args = s3_storage._make_connection_arguments(config)
@@ -348,7 +358,9 @@ class S3StorageTest(unittest.TestCase):
                 'host': 's3.example.com',
                 'port': '8080',
                 'concurrent_transfers': '1',
-                'multipart_chunksize': '5MB'
+                'multipart_chunksize': '5MB',
+                'multipart_max_concurrency': '4',
+                'multi_part_upload_threshold': str(20 * 1024 * 1024)
             })
             s3_storage = S3BaseStorage(config)
             connection_args = s3_storage._make_connection_arguments(config)
@@ -399,6 +411,102 @@ class S3StorageTest(unittest.TestCase):
 
             self.assertEqual(None, credentials.access_key_id)
             self.assertEqual(None, credentials.secret_access_key)
+
+            del(os.environ['AWS_STS_REGIONAL_ENDPOINTS'])
+            del(os.environ['AWS_DEFAULT_REGION'])
+            del(os.environ['AWS_REGION'])
+            del(os.environ['AWS_ROLE_ARN'])
+            del(os.environ['AWS_WEB_IDENTITY_TOKEN_FILE'])
+
+    def test_transfer_config_uses_configured_values(self):
+        # max_concurrency and multipart_threshold must come from config, not be hard-coded,
+        # otherwise boto's multipart threshold can drift from the one used for MD5 comparisons.
+        # Also covers human-readable sizes ("12MB"); the raw byte count form is covered elsewhere
+        # in this file for backward compatibility.
+        with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'sse_c_key': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'ssl_verify': 'False',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '1',
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '7',
+                    'multi_part_upload_threshold': '12MB'
+                })
+                s3_storage = S3BaseStorage(config)
+                self.assertEqual(7, s3_storage.transfer_config.max_concurrency)
+                self.assertEqual(12 * 1024 * 1024, s3_storage.transfer_config.multipart_threshold)
+
+    def test_connect_sets_pool_size_from_config(self):
+        # pool must cover concurrent_transfers * multipart_max_concurrency threads, plus headroom,
+        # or urllib3 discards connections and warns "Connection pool is full".
+        with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'sse_c_key': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'ssl_verify': 'False',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '3',
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '5',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024),
+                    's3_addressing_style': 'auto'
+                })
+                s3_storage = S3BaseStorage(config)
+                with patch('medusa.storage.s3_base_storage.boto3.client') as mock_client:
+                    s3_storage.connect()
+                    boto_config = mock_client.call_args.kwargs['config']
+                    self.assertEqual(3 * 5 + 10, boto_config.max_pool_connections)
+
+    def test_connect_disables_flexible_checksums(self):
+        # botocore >= 1.36 defaults to always sending/validating flexible checksums (CRC32/CRC64) via
+        # chunked transfer encoding, which some S3-compatible stores reject with XAmzContentSHA256Mismatch.
+        with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_us_west_oregon',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'sse_c_key': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'ssl_verify': 'False',
+                    'host': None,
+                    'port': None,
+                    'concurrent_transfers': '3',
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '5',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024),
+                    's3_addressing_style': 'auto'
+                })
+                s3_storage = S3BaseStorage(config)
+                with patch('medusa.storage.s3_base_storage.boto3.client') as mock_client:
+                    s3_storage.connect()
+                    boto_config = mock_client.call_args.kwargs['config']
+                    self.assertEqual('when_required', boto_config.request_checksum_calculation)
+                    self.assertEqual('when_required', boto_config.response_checksum_validation)
 
 
 def _make_instance_metadata_mock():

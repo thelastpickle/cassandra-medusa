@@ -136,9 +136,10 @@ class S3BaseStorage(AbstractStorage):
             )
         )
 
-        # make the pool size double of what we will have going on
-        # helps urllib (used by boto) to reuse connections better and not WARN us about evicting connections
-        max_pool_size = int(self.config.concurrent_transfers) * 2
+        # pool must cover all threads boto can open: concurrent_transfers files * max_concurrency chunks each,
+        # plus headroom for incidental calls sharing the same pool (head_object, list_blobs, manifest uploads...)
+        multipart_max_concurrency = int(self.config.multipart_max_concurrency or 4)
+        max_pool_size = int(self.config.concurrent_transfers) * multipart_max_concurrency + 10
 
         boto_config = Config(
             region_name=self.credentials.region,
@@ -146,6 +147,12 @@ class S3BaseStorage(AbstractStorage):
             max_pool_connections=max_pool_size,
             read_timeout=self.read_timeout,
             s3={'addressing_style': self.config.s3_addressing_style},
+            # botocore >= 1.36 defaults to always sending flexible checksums (CRC32/CRC64) using
+            # chunked transfer encoding, which most S3-compatible stores (Cleversafe, Ceph, MinIO...)
+            # don't support and reject with XAmzContentSHA256Mismatch. Only compute/validate them
+            # when the S3 API actually requires it.
+            request_checksum_calculation='when_required',
+            response_checksum_validation='when_required',
         )
         if self.credentials.access_key_id is not None:
             self.s3_client = boto3.client(
@@ -194,10 +201,15 @@ class S3BaseStorage(AbstractStorage):
 
         transfer_max_bandwidth = config.transfer_max_bandwidth or None
         multipart_chunksize = config.multipart_chunksize or None
+        multipart_max_concurrency = int(config.multipart_max_concurrency or 4)
+        multipart_threshold = (
+            AbstractStorage._human_size_to_bytes(str(config.multi_part_upload_threshold))
+            if config.multi_part_upload_threshold else 20 * 1024 * 1024
+        )
 
-        # we hard-code this one because the parallelism is for now applied to chunking the files
         transfer_config = {
-            'max_concurrency': 4
+            'max_concurrency': multipart_max_concurrency,
+            'multipart_threshold': multipart_threshold,
         }
 
         if transfer_max_bandwidth is not None:
@@ -492,15 +504,17 @@ class S3BaseStorage(AbstractStorage):
         )
 
     @staticmethod
-    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False,
+                             chunk_size=None):
 
-        threshold = int(threshold) if threshold else -1
+        threshold = AbstractStorage._human_size_to_bytes(str(threshold)) if threshold else -1
 
         # single or multi part md5 hash. Used by Azure and S3 uploads.
         if not enable_md5_checks:
             md5_hash = None
         elif src.stat().st_size >= threshold > 0:
-            md5_hash = AbstractStorage.md5_multipart(src)
+            chunk_size_bytes = AbstractStorage._human_size_to_bytes(chunk_size) if chunk_size else None
+            md5_hash = AbstractStorage.md5_multipart(src, chunk_size_bytes)
         else:
             md5_hash = AbstractStorage.generate_md5_hash(src)
 
