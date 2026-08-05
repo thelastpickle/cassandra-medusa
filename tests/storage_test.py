@@ -111,7 +111,7 @@ class StorageTest(unittest.TestCase):
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs2/file2.txt", file2_content)
         self.storage.storage_driver.upload_blob_from_string("test_download_blobs3/file3.txt", file3_content)
         objects = self.storage.storage_driver.list_objects()
-        self.assertEqual(len(objects), 2)
+        self.assertEqual(len(objects), 3)
         one_object = self.storage.storage_driver.list_objects("test_download_blobs2")
         self.assertEqual(len(one_object), 1)
 

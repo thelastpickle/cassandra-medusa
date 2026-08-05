@@ -101,8 +101,14 @@ class AzureStorage(AbstractStorage):
         blobs = []
         async for b_props in self.azure_container_client.list_blobs(
                 name_starts_with=str(prefix),
+                include=['metadata'],
                 timeout=self.read_timeout
         ):
+            # Directory placeholder blobs (hierarchical namespace accounts, tools like rclone)
+            # are 0-byte blobs tagged with this metadata key. They aren't real SSTable content
+            # and would otherwise show up as spurious entries in listings. See #595.
+            if (b_props.metadata or {}).get('hdi_isfolder', '').lower() == 'true':
+                continue
             blobs.append(AbstractBlob(
                 b_props.name,
                 b_props.size,
