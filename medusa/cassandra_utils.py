@@ -17,6 +17,7 @@
 
 
 import fileinput
+import functools
 import itertools
 import logging
 import os
@@ -452,9 +453,9 @@ class Cassandra(object):
                 session.execute(f"REBUILD SEARCH INDEX ON {fqtn}")
 
     @staticmethod
-    def _ignore_snapshots(folder, contents):
+    def _ignore_snapshots(metadata_folder, folder, contents):
         ignored = set()
-        if folder.endswith('metadata/snapshots'):
+        if folder.endswith(f'{metadata_folder}/snapshots'):
             logging.info(f'Ignoring {contents} in folder {folder}')
             for c in contents:
                 ignored.add(c)
@@ -480,7 +481,8 @@ class Cassandra(object):
             src_path = self.dse_metadata_path
             if src_path.is_dir():
                 dst_path = src_path / 'snapshots' / tag
-                shutil.copytree(src_path, dst_path, ignore=Cassandra._ignore_snapshots)
+                ignore = functools.partial(Cassandra._ignore_snapshots, self._dse_metadata_folder)
+                shutil.copytree(src_path, dst_path, ignore=ignore)
             else:
                 # Not every DSE node has a metadata folder - warn instead of failing the backup.
                 logging.warning(f'No DSE metadata folder found at {src_path}, nothing to snapshot')
