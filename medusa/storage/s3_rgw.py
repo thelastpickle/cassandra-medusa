@@ -30,7 +30,8 @@ class S3RGWStorage(S3BaseStorage):
         return S3Storage.blob_matches_manifest(blob, object_in_manifest, enable_md5_checks)
 
     @staticmethod
-    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False):
+    def file_matches_storage(src: pathlib.Path, cached_item: ManifestObject, threshold=None, enable_md5_checks=False,
+                             chunk_size=None):
         # for S3RGW, we never set threshold so the S3's multipart never happens
         return S3Storage.file_matches_storage(src, cached_item, None, enable_md5_checks)
 
