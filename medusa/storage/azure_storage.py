@@ -70,6 +70,15 @@ class AzureStorage(AbstractStorage):
 
         self.read_timeout = int(config.read_timeout) if 'read_timeout' in dir(config) and config.read_timeout else None
 
+        multipart_chunksize = config.get('multipart_chunksize') \
+            if hasattr(config, 'get') else config.multipart_chunksize \
+            if 'multipart_chunksize' in dir(config) else None
+        if multipart_chunksize:
+            self.multipart_chunksize_bytes = AbstractStorage._human_size_to_bytes(multipart_chunksize)
+        else:
+            self.multipart_chunksize_bytes = 4 * 1024 * 1024
+        logging.debug('Azure block size: {} bytes'.format(self.multipart_chunksize_bytes))
+
         super().__init__(config)
 
     def _make_blob_service_url(self, account_name, config):
@@ -84,7 +93,10 @@ class AzureStorage(AbstractStorage):
         self.azure_blob_service = BlobServiceClient(
             account_url=self.azure_blob_service_url,
             credential=self.credentials,
-            max_block_size=4 * 1024 * 1024,        # 50k 20 MB chunks gives ~1 TB max file size
+            # max_block_size is for uploads, the other one is for downloads
+            # this is library specific, other storage providers have different interface altogether
+            max_block_size=self.multipart_chunksize_bytes,
+            max_chunk_get_size=self.multipart_chunksize_bytes,
         )
         self.azure_container_client = self.azure_blob_service.get_container_client(self.bucket_name)
 
@@ -223,7 +235,7 @@ class AzureStorage(AbstractStorage):
         storage_class = self.get_storage_class()
         blob_client = await self.azure_container_client.upload_blob(
             name=object_key,
-            data=self._file_chunks(src),
+            data=self._file_chunks(src, chunk_size=self.multipart_chunksize_bytes),
             length=file_size,
             overwrite=True,
             max_concurrency=16,

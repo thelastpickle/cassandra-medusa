@@ -107,6 +107,12 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertEqual(2 * 1024 ** 3, AbstractStorage._human_size_to_bytes('2GB'))
         self.assertEqual(2 * 1024 ** 4, AbstractStorage._human_size_to_bytes('2TB'))
         self.assertEqual(2 * 1024 ** 5, AbstractStorage._human_size_to_bytes('2PB'))
+        # bare integer strings (no unit) are treated as bytes
+        self.assertEqual(50, AbstractStorage._human_size_to_bytes('50'))
+        self.assertEqual(1024, AbstractStorage._human_size_to_bytes('1024'))
+        # bare floats and non-numeric strings raise ValueError
+        self.assertRaises(ValueError, AbstractStorage._human_size_to_bytes, '1.5')
+        self.assertRaises(ValueError, AbstractStorage._human_size_to_bytes, 'abc')
 
     def test_convert_bare_byte_count_to_bytes(self):
         # backward compatibility with configs written before human-readable sizes were supported

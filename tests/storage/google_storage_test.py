@@ -17,6 +17,7 @@ import asyncio
 import aiohttp
 import io
 import itertools
+import tempfile
 import types
 import unittest
 
@@ -24,7 +25,10 @@ from unittest import mock
 from pathlib import Path
 
 from tenacity import RetryError
-from medusa.storage.google_storage import _group_by_parent, _is_in_folder,GoogleStorage, MAX_UP_DOWN_LOAD_RETRIES
+from medusa.storage.google_storage import (
+    _group_by_parent, _is_in_folder, GoogleStorage,
+    DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE, MAX_UP_DOWN_LOAD_RETRIES,
+)
 
 
 class GoogleStorageTest(unittest.TestCase):
@@ -105,3 +109,89 @@ class GoogleStorageTest(unittest.TestCase):
         with self.assertRaises(RetryError):
             asyncio.run(storage._upload_object(io.BytesIO(b'data'), 'key', {}))
         self.assertEqual(call_counter['count'], MAX_UP_DOWN_LOAD_RETRIES)
+
+    def _make_gcs_storage(self, extra_config=None):
+        """Build a GoogleStorage instance with a minimal config, bypassing session creation."""
+        class DummyConfig:
+            key_file = None
+            bucket_name = 'dummy-bucket'
+            read_timeout = -1
+            concurrent_transfers = '0'
+
+        if extra_config:
+            for k, v in extra_config.items():
+                setattr(DummyConfig, k, v)
+
+        storage = GoogleStorage(DummyConfig())
+        storage._ensure_session = lambda: None
+        return storage
+
+    def _make_fake_stream(self, data: bytes):
+        """Return an async-compatible stream backed by in-memory bytes."""
+        buf = io.BytesIO(data)
+
+        class FakeStream:
+            async def read(self, size=-1):
+                return buf.read(size)
+
+        return FakeStream()
+
+    def test_download_blob_uses_multipart_chunksize(self):
+        storage = self._make_gcs_storage({'multipart_chunksize': '10MB'})
+        self.assertEqual(10 * 1024 * 1024, storage.multipart_chunksize_bytes)
+
+        fake_stream = self._make_fake_stream(b'tiny payload')
+        fake_blob = mock.MagicMock()
+        fake_blob.name = 'some/object'
+
+        read_sizes = []
+        original_read = fake_stream.read
+
+        async def recording_read(size=-1):
+            read_sizes.append(size)
+            return await original_read(size)
+
+        fake_stream.read = recording_read
+
+        storage.gcs_storage = mock.AsyncMock()
+        storage.gcs_storage.download_stream = mock.AsyncMock(return_value=fake_stream)
+
+        async def fake_stat(key):
+            return fake_blob
+
+        storage._stat_blob = fake_stat
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            asyncio.run(storage._download_blob('some/object', tmp_dir))
+
+        self.assertTrue(all(s == 10 * 1024 * 1024 for s in read_sizes))
+
+    def test_download_blob_uses_default_chunk_size_when_not_configured(self):
+        storage = self._make_gcs_storage()  # no multipart_chunksize
+        self.assertEqual(DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE, storage.multipart_chunksize_bytes)
+
+        fake_stream = self._make_fake_stream(b'tiny payload')
+        fake_blob = mock.MagicMock()
+        fake_blob.name = 'some/object'
+
+        read_sizes = []
+        original_read = fake_stream.read
+
+        async def recording_read(size=-1):
+            read_sizes.append(size)
+            return await original_read(size)
+
+        fake_stream.read = recording_read
+
+        storage.gcs_storage = mock.AsyncMock()
+        storage.gcs_storage.download_stream = mock.AsyncMock(return_value=fake_stream)
+
+        async def fake_stat(key):
+            return fake_blob
+
+        storage._stat_blob = fake_stat
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            asyncio.run(storage._download_blob('some/object', tmp_dir))
+
+        self.assertTrue(all(s == DOWNLOAD_STREAM_CONSUMPTION_CHUNK_SIZE for s in read_sizes))
