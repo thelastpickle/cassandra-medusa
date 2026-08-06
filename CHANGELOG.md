@@ -1,5 +1,19 @@
 ## Change Log
 
+### 0.30.0 (2026-08-06) 16:00 +00:00
+
+- Configurable multipart chunks (#979) (@rzvoncek)
+- Parallelize MD5 checksum comparison and add debug progress logging (#972) (@arodrime)
+- Fix verify and purge: zero-byte SSTable components and multipart ETag crash (#971) (@arodrime)
+- Fix GetBackups error response status field (#968) (@fuqi1001)
+- Fix backup summary node accounting for unexpected node backups (#966) (@ISemene4kaI)
+- Bump pyjwt from 2.12.0 to 2.13.0 (#962) (@dependabot)
+- Bump pyasn1 from 0.6.3 to 0.6.4 (#975) (@dependabot)
+- Bump setuptools from 78.1.1 to 83.0.0 (#976) (@dependabot)
+- Bump aiohttp from 3.13.4 to 3.14.3 (#980) (@dependabot)
+- Fix S3 upload regressions from the libcloud→boto3 transition (connection pool, threshold mismatch, chunk size, parallelism, S3-compatible fix) (#969) (@arodrime)
+- Enable ITs with S3 on master (#977) (@rzvoncek)
+
 ### 0.29.1 (2026-07-07) 16:00 +00:00
 
 - Pin msgpack to address CVEs (#970) (@rzvoncek)
