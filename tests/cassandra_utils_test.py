@@ -947,29 +947,125 @@ class CassandraUtilsTest(unittest.TestCase):
         folder = 'keyspace/table'
         contents = ['file1', 'file2']
         expected_ignored = set()
-        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots('metadata', folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
         # none of these combinations is ignored
         folder = 'keyspace/table/snapshots'
         contents = ['snapshot1', 'snapshot2']
         expected_ignored = set()
-        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots('metadata', folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
         # we ignore stuff in this specific folder
         folder = 'metadata/snapshots'
         contents = ['snapshot1', 'snapshot2']
         expected_ignored = {'snapshot1', 'snapshot2'}
-        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots('metadata', folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
 
         # we ingore DSE transaction files
         folder = '/metadata/nodes'
         contents = ['local', 'peeers', 'local.txn', 'local.old']
         expected_ignored = {'local.txn', 'local.old'}
-        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(folder, contents)
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots('metadata', folder, contents)
         self.assertEqual(expected_ignored, actual_ignored)
+
+        # the metadata folder name comes from cassandra.yaml's metadata_directory and can be anything
+        folder = 'custom_metadata_dir/snapshots'
+        contents = ['snapshot1', 'snapshot2']
+        expected_ignored = {'snapshot1', 'snapshot2'}
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(
+            'custom_metadata_dir', folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
+        # ...and a mismatching folder name is correctly not ignored
+        folder = 'metadata/snapshots'
+        contents = ['snapshot1', 'snapshot2']
+        expected_ignored = set()
+        actual_ignored = medusa.cassandra_utils.Cassandra._ignore_snapshots(
+            'custom_metadata_dir', folder, contents)
+        self.assertEqual(expected_ignored, actual_ignored)
+
+    def test_dse_metadata_directory_read_from_cassandra_yaml(self):
+        # DSE puts metadata_directory straight into cassandra.yaml (not dse.yaml) - see
+        # https://docs.datastax.com/en/dse/6.9/managing/configure/configure-cassandra-yaml.html
+        # Build the fixture from the real default-c4.yaml plus that one key, using a value that
+        # differs from the guessed fallback so the test actually proves the explicit config wins.
+        base_yaml_path = os.path.join(os.path.dirname(__file__), 'resources/yaml/original/default-c4.yaml')
+        with open(base_yaml_path) as f:
+            base_yaml = f.read()
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(base_yaml)
+            f.write('\nmetadata_directory: /opt/dse/metadata\n')
+            yaml_path = f.name
+        try:
+            c = Cassandra(self.get_simple_medusa_config(yaml_path))
+
+            self.assertEqual(Path('/opt/dse/metadata'), c.dse_metadata_path)
+            self.assertEqual(Path('/opt/dse'), c._dse_root)
+            self.assertEqual('metadata', c._dse_metadata_folder)
+        finally:
+            os.unlink(yaml_path)
+
+    def test_dse_metadata_directory_falls_back_without_cassandra_yaml_key(self):
+        # Older DSE (eg 5.1, #826) never sets metadata_directory in cassandra.yaml at all - keep the
+        # previous guess (next to the data directory) so those nodes behave as before.
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+
+        self.assertEqual(Path('/var/lib/cassandra/metadata'), c.dse_metadata_path)
+
+    def test_create_dse_snapshot_without_metadata_folder(self):
+        # Some DSE 6 nodes never write anything under <dse_root>/metadata (eg no Management
+        # Services/Insights activity) - this must not crash the backup, there's just nothing
+        # DSE-specific to snapshot.
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        with tempfile.TemporaryDirectory() as dse_root:
+            c._dse_root = Path(dse_root)
+            # deliberately not creating <dse_root>/metadata
+
+            snapshot = c.create_dse_snapshot('test-backup')
+
+            self.assertEqual([], list(snapshot.find_dirs()[0].list_files()))
+            # cleanup must also tolerate the snapshot folder never having been created
+            snapshot.delete()
+
+    def test_create_dse_snapshot_with_metadata_folder(self):
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        with tempfile.TemporaryDirectory() as dse_root:
+            c._dse_root = Path(dse_root)
+            metadata_dir = c._dse_root / c._dse_metadata_folder
+            metadata_dir.mkdir()
+            (metadata_dir / 'nodes').mkdir()
+            (metadata_dir / 'nodes' / 'local').write_text('some dse metadata')
+
+            snapshot = c.create_dse_snapshot('test-backup')
+
+            snapshotted_files = {p.name for p in snapshot.find_dirs()[0].list_files()}
+            self.assertEqual({'local'}, snapshotted_files)
+
+            snapshot.delete()
+            self.assertFalse((metadata_dir / 'snapshots' / snapshot._tag).exists())
+
+    def test_create_dse_snapshot_with_custom_metadata_folder_name(self):
+        # metadata_directory can be configured to anything in cassandra.yaml - the copytree
+        # ignore filter must key off the actual folder name, not assume it's called "metadata",
+        # or it fails to exclude the snapshots dir it's creating and recurses into itself.
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        with tempfile.TemporaryDirectory() as dse_root:
+            c._dse_root = Path(dse_root)
+            c._dse_metadata_folder = 'custom_metadata_dir'
+            metadata_dir = c._dse_root / c._dse_metadata_folder
+            metadata_dir.mkdir()
+            (metadata_dir / 'nodes').mkdir()
+            (metadata_dir / 'nodes' / 'local').write_text('some dse metadata')
+
+            snapshot = c.create_dse_snapshot('test-backup')
+
+            snapshotted_files = {p.name for p in snapshot.find_dirs()[0].list_files()}
+            self.assertEqual({'local'}, snapshotted_files)
+            # the snapshot must not have copied its own (still growing) snapshots dir into itself
+            self.assertFalse((metadata_dir / 'snapshots' / snapshot._tag / 'snapshots').exists())
 
     if __name__ == '__main__':
         unittest.main()
