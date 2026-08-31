@@ -1,5 +1,10 @@
 ## Change Log
 
+### 0.30.1 (2026-08-31) 11:00 +00:00
+
+- Bump cryptography to 50.0.0 (#983) (@rzvoncek)
+- Don't crash the backup when a DSE node has no metadata folder & Read from cassandra.yaml (#973) (@arodrime)
+
 ### 0.30.0 (2026-08-06) 16:00 +00:00
 
 - Configurable multipart chunks (#979) (@rzvoncek)
