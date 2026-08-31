@@ -65,7 +65,8 @@ class RestoreClusterTest(unittest.TestCase):
 
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {
-            'host_file_separator': ','
+            'host_file_separator': ',',
+            'use_sudo_for_restore': 'True',
         }
         config['cassandra'] = {
             'config_file': os.path.join(os.path.dirname(__file__),
@@ -359,7 +360,7 @@ class RestoreClusterTest(unittest.TestCase):
         """Ensure that a restore uses sudo by default"""
         cmd = self.default_restore_job._build_restore_cmd()
         # sudo is enabled by default
-        assert evaluate_boolean(self.medusa_config.cassandra.use_sudo)
+        assert evaluate_boolean(self.medusa_config.storage.use_sudo_for_restore)
         # Ensure that Kubernetes mode is not enabled in default test config
         assert not evaluate_boolean(self.medusa_config.kubernetes.enabled if self.medusa_config.kubernetes else False)
         assert 'sudo' in cmd
@@ -367,7 +368,7 @@ class RestoreClusterTest(unittest.TestCase):
     def test_build_restore_command_without_sudo(self):
         """Ensure that a restore can be done without using sudo"""
         config = self._build_config_parser()
-        config['cassandra']['use_sudo'] = 'False'
+        config['storage']['use_sudo_for_restore'] = 'False'
 
         medusa_config = MedusaConfig(
             file_path=None,
@@ -382,8 +383,10 @@ class RestoreClusterTest(unittest.TestCase):
         )
         restore_job = RestoreJob(Mock(), medusa_config, self.tmp_dir, None, None, False, False, None)
         cmd = restore_job._build_restore_cmd()
-        assert not evaluate_boolean(medusa_config.cassandra.use_sudo)
-        assert 'sudo' not in cmd, 'command line should not contain sudo when use_sudo is explicitly set to False'
+        assert not evaluate_boolean(medusa_config.storage.use_sudo_for_restore)
+        assert 'sudo' not in cmd, (
+            'command line should not contain sudo when use_sudo_for_restore is explicitly set to False'
+        )
 
     def test_build_restore_command_kubernetes(self):
         """Ensure Kubernetes mode does not generate a command line with sudo"""
