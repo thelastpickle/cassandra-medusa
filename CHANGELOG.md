@@ -1,5 +1,7 @@
 ## Change Log
 
+### 0.30.1 (2026-08-31) 11:00 +00:00
+
 ### 0.30.0 (2026-08-06) 16:00 +00:00
 
 - Configurable multipart chunks (#979) (@rzvoncek)
