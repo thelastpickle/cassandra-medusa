@@ -229,6 +229,29 @@ class ConfigTest(unittest.TestCase):
         config = medusa.config.parse_config(args, self.medusa_config_file)
         assert config['storage']['fqdn'] == socket.gethostbyname(socket.getfqdn())
 
+    @patch.dict('os.environ', {'HOSTNAME': 'cassandra-1-dc1-default-sts-0', 'POD_IP': '127.0.0.1'})
+    def test_k8s_prefers_hostname_over_pod_ip(self):
+        """Ensure that HOSTNAME is preferred over POD_IP for StatefulSet stability"""
+        args = {
+            'k8s_enabled': 'True'
+        }
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        # Should use stable HOSTNAME, not POD_IP
+        assert config['storage']['fqdn'] == 'cassandra-1-dc1-default-sts-0'
+
+    @patch.dict('os.environ', {'POD_IP': '127.0.0.1'}, clear=False)
+    def test_k8s_uses_pod_ip_when_hostname_unavailable(self):
+        """Ensure that POD_IP is used as fallback when HOSTNAME is not set"""
+        # Remove HOSTNAME if it exists
+        import os
+        os.environ.pop('HOSTNAME', None)
+        args = {
+            'k8s_enabled': 'True'
+        }
+        config = medusa.config.parse_config(args, self.medusa_config_file)
+        # Should fallback to POD_IP
+        assert config['storage']['fqdn'] == '127.0.0.1'
+
     @patch('medusa.config.logging.error')
     def test_slash_in_bucket_name(self, mock_log_error):
         args = {
