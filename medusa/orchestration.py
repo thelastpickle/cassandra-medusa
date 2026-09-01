@@ -13,26 +13,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 
-from pssh.clients.native.parallel import ParallelSSHClient as PsshNativeClient
-from pssh.clients.ssh.parallel import ParallelSSHClient as PsshSSHClient
+import asyncssh
 
 import medusa.utils
 from medusa.storage import divide_chunks
 
 
-def display_output(host_outputs):
-    for host_out in host_outputs:
-        for line in host_out.stdout:
-            logging.info("{}-stdout: {}".format(host_out.host, line))
-        for line in host_out.stderr:
-            logging.info("{}-stderr: {}".format(host_out.host, line))
+def display_output(host_results):
+    """Log stdout/stderr for a list of (host, SSHCompletedProcess) pairs."""
+    for host, result in host_results:
+        if isinstance(result, BaseException):
+            logging.info("{}-error: {}".format(host, result))
+            continue
+        for line in result.stdout.splitlines():
+            logging.info("{}-stdout: {}".format(host, line))
+        for line in result.stderr.splitlines():
+            logging.info("{}-stderr: {}".format(host, line))
 
 
 class OrchestrationError(RuntimeError):
     """Raised when an unexpected error occurs during orchestration of commands across nodes."""
     pass
+
+
+async def _run_one(host, command, connect_kwargs):
+    """Connect to a single host and run one command. Returns SSHCompletedProcess."""
+    async with asyncssh.connect(host, **connect_kwargs) as conn:
+        # check=False: non-zero exit returns SSHCompletedProcess; we inspect returncode ourselves.
+        return await conn.run(command, check=False)
+
+
+async def _run_on_hosts(hosts, commands, connect_kwargs):
+    """Fan out _run_one across all hosts in a batch concurrently.
+
+    return_exceptions=True means a single unreachable host does not abort the batch.
+    Returns a list of (host, SSHCompletedProcess | Exception) pairs.
+    """
+    coros = [_run_one(host, cmd, connect_kwargs) for host, cmd in zip(hosts, commands)]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+    return list(zip(hosts, results))
 
 
 class Orchestration(object):
@@ -41,9 +63,11 @@ class Orchestration(object):
         self.config = config
 
     def pssh_run(self, hosts, command, hosts_variables=None, ssh_client=None):
-        """
-        Runs a command on hosts list using pssh under the hood
-        Return: True (success) or False (error)
+        """Run command on hosts in parallel via asyncssh. Returns True on full success, False on any error.
+
+        hosts_variables: list of tuples for per-host %s substitution, or None/empty for a uniform command.
+        ssh_client: accepted for API compatibility but ignored.
+        Must be called from a synchronous context — asyncio.run() is used internally.
         """
         username = self.config.ssh.username if self.config.ssh.username != '' else None
         port = int(self.config.ssh.port)
@@ -52,12 +76,25 @@ class Orchestration(object):
         keepalive_seconds = int(self.config.ssh.keepalive_seconds)
         use_pty = medusa.utils.evaluate_boolean(self.config.ssh.use_pty)
         use_login_shell = medusa.utils.evaluate_boolean(self.config.ssh.login_shell)
+        use_sudo = medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo)
+        forward_agent = medusa.utils.evaluate_boolean(self.config.ssh.forward_agent)
 
-        if ssh_client is None:
-            if cert_file is None:
-                ssh_client = PsshNativeClient
-            else:
-                ssh_client = PsshSSHClient
+        # asyncssh connect options; known_hosts defaults to ~/.ssh/known_hosts (not bypassed here).
+        connect_kwargs = {
+            'port': port,
+            'agent_forwarding': forward_agent,
+            'keepalive_interval': keepalive_seconds,
+            'request_pty': use_pty,
+            'connect_timeout': 30,
+        }
+        known_hosts = self.config.ssh.known_hosts if self.config.ssh.known_hosts else None
+        if known_hosts is not None:
+            connect_kwargs['known_hosts'] = known_hosts
+        if username is not None:
+            connect_kwargs['username'] = username
+        if pkey is not None:
+            connect_kwargs['client_keys'] = [(pkey, cert_file)] if cert_file is not None else [pkey]
+
         pssh_run_success = False
         success = []
         error = []
@@ -67,20 +104,40 @@ class Orchestration(object):
                      .format(command=command, hosts=hosts, pool_size=self.pool_size))
 
         for parallel_hosts in divide_chunks(hosts, self.pool_size):
-            client = self._init_ssh_client(parallel_hosts, ssh_client, cert_file, username, port, pkey,
-                                           keepalive_seconds)
+            # `{}` (empty dict, backup path) and None both mean no substitution.
+            if hosts_variables and isinstance(hosts_variables, list):
+                batch_start = (i - 1) * self.pool_size
+                commands = [
+                    command % tuple(hosts_variables[batch_start + j])
+                    for j in range(len(parallel_hosts))
+                ]
+            else:
+                commands = [command] * len(parallel_hosts)
 
-            logging.debug(f'Batch #{i}: Running "{command}" nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
-                          f'login_shell={use_login_shell}')
+            # sudo wraps the command; login shell wraps everything (sudo is inside the shell).
+            processed_commands = [
+                "$SHELL -cl '{}'".format(('sudo ' if use_sudo else '') + cmd) if use_login_shell
+                else ('sudo ' if use_sudo else '') + cmd
+                for cmd in commands
+            ]
 
-            shell = '$SHELL -cl' if use_login_shell else None
+            logging.debug(f'Batch #{i}: Running on nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
+                          f'login_shell={use_login_shell} sudo={use_sudo}')
 
-            output = client.run_command(command, host_args=hosts_variables, use_pty=use_pty, shell=shell,
-                                        sudo=medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo))
-            client.join(output)
+            batch_results = asyncio.run(
+                _run_on_hosts(parallel_hosts, processed_commands, connect_kwargs)
+            )
 
-            success = success + list(filter(lambda host_output: host_output.exit_code == 0, output))
-            error = error + list(filter(lambda host_output: host_output.exit_code != 0, output))
+            for host, result in batch_results:
+                if isinstance(result, BaseException):
+                    logging.error("{}: connection/execution error: {}".format(host, result))
+                    error.append((host, result))
+                elif result.returncode == 0:
+                    success.append((host, result))
+                else:
+                    error.append((host, result))
+
+            i += 1
 
         # Report on execution status
         if len(success) == len(hosts):
@@ -89,31 +146,11 @@ class Orchestration(object):
             pssh_run_success = True
         elif len(error) > 0:
             logging.error('Job executing "{}" ran and finished with errors on following nodes: {}'
-                          .format(command, sorted({host_output.host for host_output in error})))
+                          .format(command, sorted({host for host, _ in error})))
             display_output(error)
         else:
-            err_msg = 'Something unexpected happened while running pssh command'
+            err_msg = 'Something unexpected happened while running SSH command'
             logging.error(err_msg)
             raise OrchestrationError(err_msg)
 
         return pssh_run_success
-
-    def _init_ssh_client(self, parallel_hosts, ssh_client, cert_file, username, port, pkey, keepalive_seconds):
-        if cert_file is None:
-            return ssh_client(parallel_hosts,
-                              forward_ssh_agent=True,
-                              pool_size=len(parallel_hosts),
-                              user=username,
-                              port=port,
-                              pkey=pkey,
-                              keepalive_seconds=keepalive_seconds)
-        else:
-            logging.debug('The ssh parameter "cert_file" is defined. Due to limitations in parallel-ssh '
-                          '"keep_alive" will be ignored and no ServerAlive messages will be generated')
-            return ssh_client(parallel_hosts,
-                              forward_ssh_agent=True,
-                              pool_size=len(parallel_hosts),
-                              user=username,
-                              port=port,
-                              pkey=pkey,
-                              cert_file=cert_file)

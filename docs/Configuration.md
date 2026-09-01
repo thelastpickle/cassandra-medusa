@@ -154,7 +154,7 @@ backup_grace_period_in_days = 10
 ;key_file = <SSH key for use for restoring clusters. Expected in PEM unencrypted format.>
 ;port = <SSH port for use for restoring clusters. Default to port 22.>
 ;cert_file = <Path of public key signed certificate file to use for authentication. The corresponding private key must also be provided via key_file parameter>
-;keepalive_seconds = <seconds between ssh keepalive messages to the ssh server. Default to 60 seconds. Due to a limitation in parallel-ssh, if 'cert_file' is defined, then 'keepalive_seconds' will be ignored and no keep alive messages will be sent>
+;keepalive_seconds = <seconds between ssh keepalive messages to the ssh server. Default to 60 seconds.>
 ;use_pty = <Boolean: Allocates pseudo-terminal. Default to False. Useful if sudo settings require a tty>
 ; Enables the usage of a 'login' shell which, among other things, loads user's profile files.
 ;login_shell = False

@@ -1,0 +1,98 @@
+networks:
+  medusa-e2e:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.200.0/24
+
+x-node-common: &node-common
+  image: cassandra-medusa-e2e
+  networks:
+    medusa-e2e: {}
+  volumes:
+    - /tmp/medusa-e2e-bucket:/tmp/medusa-e2e-bucket
+  environment:
+    MAX_HEAP_SIZE: "256M"
+    HEAP_NEWSIZE: "64M"
+    CASSANDRA_SEEDS: "192.168.200.2"
+    # Sequential node startup means the ring is already stable before each
+    # node joins — ring_delay can be zero, shaving ~30s off cluster startup.
+    JVM_EXTRA_OPTS: "-Dcassandra.ring_delay_ms=0"
+  # No healthcheck in the anchor — each node overrides with its static IP below.
+
+services:
+  node1:
+    <<: *node-common
+    networks:
+      medusa-e2e:
+        ipv4_address: 192.168.200.2
+    ports:
+      - "127.0.0.1:9042:9042"
+    volumes:
+      - /tmp/medusa-e2e-bucket:/tmp/medusa-e2e-bucket
+    environment:
+      MAX_HEAP_SIZE: "256M"
+      HEAP_NEWSIZE: "64M"
+      CASSANDRA_SEEDS: "192.168.200.2"
+      CASSANDRA_LISTEN_ADDRESS: "192.168.200.2"
+      CASSANDRA_BROADCAST_ADDRESS: "192.168.200.2"
+      CASSANDRA_INITIAL_TOKEN: "-9223372036854775808"
+      JVM_EXTRA_OPTS: "-Dcassandra.ring_delay_ms=0"
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh 192.168.200.2 -e 'SELECT * FROM system.local'"]
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 18
+
+  node2:
+    <<: *node-common
+    networks:
+      medusa-e2e:
+        ipv4_address: 192.168.200.3
+    volumes:
+      - /tmp/medusa-e2e-bucket:/tmp/medusa-e2e-bucket
+    environment:
+      MAX_HEAP_SIZE: "256M"
+      HEAP_NEWSIZE: "64M"
+      CASSANDRA_SEEDS: "192.168.200.2"
+      CASSANDRA_LISTEN_ADDRESS: "192.168.200.3"
+      CASSANDRA_BROADCAST_ADDRESS: "192.168.200.3"
+      CASSANDRA_INITIAL_TOKEN: "-3074457345618258603"
+      JVM_EXTRA_OPTS: "-Dcassandra.ring_delay_ms=0"
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh 192.168.200.3 -e 'SELECT * FROM system.local'"]
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 18
+    depends_on:
+      node1:
+        condition: service_healthy
+
+  node3:
+    <<: *node-common
+    networks:
+      medusa-e2e:
+        ipv4_address: 192.168.200.4
+    volumes:
+      - /tmp/medusa-e2e-bucket:/tmp/medusa-e2e-bucket
+    environment:
+      MAX_HEAP_SIZE: "256M"
+      HEAP_NEWSIZE: "64M"
+      CASSANDRA_SEEDS: "192.168.200.2"
+      CASSANDRA_LISTEN_ADDRESS: "192.168.200.4"
+      CASSANDRA_BROADCAST_ADDRESS: "192.168.200.4"
+      CASSANDRA_INITIAL_TOKEN: "3074457345618258602"
+      JVM_EXTRA_OPTS: "-Dcassandra.ring_delay_ms=0"
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh 192.168.200.4 -e 'SELECT * FROM system.local'"]
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 18
+    depends_on:
+      node1:
+        condition: service_healthy
+      node2:
+        condition: service_healthy
