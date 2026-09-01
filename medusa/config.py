@@ -47,7 +47,8 @@ CassandraConfig = collections.namedtuple(
 
 SSHConfig = collections.namedtuple(
     'SSHConfig',
-    ['username', 'key_file', 'port', 'cert_file', 'use_pty', 'keepalive_seconds', 'login_shell']
+    ['username', 'key_file', 'port', 'cert_file', 'use_pty', 'keepalive_seconds', 'login_shell', 'known_hosts',
+     'forward_agent']
 )
 
 ChecksConfig = collections.namedtuple(
@@ -154,7 +155,9 @@ def _build_default_config():
         'cert_file': '',
         'use_pty': 'False',
         'keepalive_seconds': '60',
-        'login_shell': 'False'
+        'login_shell': 'False',
+        'known_hosts': '',
+        'forward_agent': 'False'
     }
 
     config['checks'] = {
