@@ -444,7 +444,7 @@ class RestoreJob(object):
         # from the control node
         verify_option = '--no-verify'
 
-        # %s placeholders in the below command will get replaced by pssh using per host command substitution
+        # %s placeholders in the below command are substituted per-host in orchestration.pssh_run()
         command = 'mkdir -p {work}; cd {work} && medusa-wrapper {sudo} medusa {config} ' \
                   '--fqdn=%s -vvv restore-node ' \
                   '{in_place} {keep_auth} %s {verify} --backup-name {backup} --temp-dir {temp_dir} ' \

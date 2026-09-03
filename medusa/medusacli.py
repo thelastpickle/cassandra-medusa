@@ -14,23 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gevent import monkey
-
-import medusa.utils
-
-monkey.patch_all()
 import datetime
 import logging
 import logging.handlers
-import click
-from click_aliases import ClickAliasedGroup
 import sys
 
-# Need to get rid of the annoying pssh warning about paramiko
-if not sys.warnoptions:
-    import warnings
+import click
+from click_aliases import ClickAliasedGroup
 
-    warnings.simplefilter("ignore")
+import medusa.utils
 
 from collections import defaultdict
 from pathlib import Path
@@ -154,9 +146,9 @@ def backup(medusaconfig, backup_name, stagger, enable_md5_checks, mode, keep_sna
 @click.option('--mode', default="differential", type=click.Choice(['full', 'differential']))
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--parallel-snapshots', '-ps', help="Number of concurrent synchronous (blocking) "
-                                                  "ssh sessions started by pssh", default=500)
+                                                  "ssh sessions", default=500)
 @click.option('--parallel-uploads', '-pu', help="Number of concurrent synchronous (blocking) "
-                                                "ssh sessions started by pssh", default=1)
+                                                "ssh sessions", default=1)
 @click.option('--keep-snapshot', help="Dont delete snapshot after successful backup.", is_flag=True, default=False)
 @click.option('--use-existing-snapshot',
               help="Dont create snapshot, only backup it. The snapshot needs to be manually created beforehand.",
