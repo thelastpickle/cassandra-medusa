@@ -19,10 +19,10 @@ from medusa.service.grpc.server import get_backup_summary
 from medusa.storage import ClusterBackup
 
 
-def make_node_backup(fqdn, finished, tokenmap):
+def make_node_backup(fqdn, started, finished, tokenmap):
     node_backup = Mock()
     node_backup.fqdn = fqdn
-    node_backup.started = 1
+    node_backup.started = started
     node_backup.finished = finished
     node_backup.tokenmap = json.dumps(tokenmap)
     node_backup.schema = ''
@@ -38,9 +38,9 @@ def test_summary_ignores_unexpected_incomplete_node_backup():
         'node2': {'tokens': [2], 'rack': 'rack1', 'dc': 'dc1'},
     }
     backup = ClusterBackup('backup1', [
-        make_node_backup('node1', 10, tokenmap),
-        make_node_backup('node2', 11, tokenmap),
-        make_node_backup('old-node', None, tokenmap),
+        make_node_backup('node1', 8, 10, tokenmap),
+        make_node_backup('node2', 9, 11, tokenmap),
+        make_node_backup('old-node', 12, None, tokenmap),
     ])
 
     summary = get_backup_summary(backup)
@@ -49,6 +49,9 @@ def test_summary_ignores_unexpected_incomplete_node_backup():
     assert summary.finishTime == 11
     assert summary.totalNodes == 2
     assert summary.finishedNodes == 2
+    assert summary.startTime == 8
+    assert summary.totalSize == 2
+    assert summary.totalObjects == 2
 
 
 def test_summary_does_not_count_unexpected_node_as_missing_node():
@@ -58,9 +61,10 @@ def test_summary_does_not_count_unexpected_node_as_missing_node():
         'node3': {'tokens': [3], 'rack': 'rack1', 'dc': 'dc1'},
     }
     backup = ClusterBackup('backup1', [
-        make_node_backup('node1', 10, tokenmap),
-        make_node_backup('node2', 11, tokenmap),
-        make_node_backup('replacement-node', 12, tokenmap),
+        make_node_backup('node1', 9,10, tokenmap),
+        make_node_backup('node2', 9,11, tokenmap),
+        make_node_backup('node3', 10, None, tokenmap),
+        make_node_backup('replacement-node', 10,12, tokenmap),
     ])
 
     summary = get_backup_summary(backup)
@@ -69,3 +73,6 @@ def test_summary_does_not_count_unexpected_node_as_missing_node():
     assert summary.finishTime == 0
     assert summary.totalNodes == 3
     assert summary.finishedNodes == 2
+    assert summary.startTime == 9
+    assert summary.totalSize == 2
+    assert summary.totalObjects == 2

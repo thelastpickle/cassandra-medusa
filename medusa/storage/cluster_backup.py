@@ -36,7 +36,7 @@ class ClusterBackup(object):
 
     @property
     def started(self):
-        return min(map(operator.attrgetter('started'), self.node_backups.values()))
+        return min(map(operator.attrgetter('started'), self.expected_node_backups()))
 
     @property
     def finished(self):
@@ -91,14 +91,14 @@ class ClusterBackup(object):
     def size(self):
         return sum(
             node_backup.size()
-            for node_backup in self.node_backups.values()
+            for node_backup in self.expected_node_backups()
             if node_backup.finished
         )
 
     def num_objects(self):
         return sum(
             node_backup.num_objects()
-            for node_backup in self.node_backups.values()
+            for node_backup in self.expected_node_backups()
             if node_backup.finished
         )
 
