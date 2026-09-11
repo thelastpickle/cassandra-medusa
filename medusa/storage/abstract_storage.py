@@ -157,7 +157,7 @@ class AbstractStorage(abc.ABC):
         chunks = [srcs[i:i + chunk_size] for i in range(0, len(srcs), chunk_size)]
         for chunk in chunks:
             coros = [self._download_blob(src, dest) for src in map(str, chunk)]
-            await asyncio.gather(*coros)
+            await self._gather_transfers(coros)
 
     @abc.abstractmethod
     async def _download_blob(self, src: str, dest: str):
@@ -181,7 +181,19 @@ class AbstractStorage(abc.ABC):
             async with semaphore:
                 return await self._upload_blob(src, dest)
 
-        return await asyncio.gather(*(bounded_upload(src) for src in map(str, srcs)))
+        return await self._gather_transfers(bounded_upload(src) for src in map(str, srcs))
+
+    @staticmethod
+    async def _gather_transfers(coros):
+        tasks = [asyncio.create_task(coro) for coro in coros]
+        try:
+            return await asyncio.gather(*tasks)
+        except BaseException:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     @abc.abstractmethod
     async def _upload_blob(self, src: str, dest: str) -> ManifestObject:
