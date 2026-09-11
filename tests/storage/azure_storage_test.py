@@ -243,3 +243,71 @@ class AzureStorageTest(unittest.TestCase):
             mock_file_chunks.assert_called_once_with(
                 tmp_file_name, chunk_size=8 * 1024 * 1024
             )
+
+    def test_upload_closes_source_when_consumer_stops(self):
+        for outcome in ('failure', 'cancellation', 'success'):
+            with self.subTest(outcome=outcome), tempfile.NamedTemporaryFile() as source:
+                source.write(b'abcdef')
+                source.flush()
+                storage = object.__new__(AzureStorage)
+                storage.config = self._make_config(None)
+                storage.multipart_chunksize_bytes = 1
+                streams = []
+
+                async def upload_blob(**kwargs):
+                    chunks = kwargs['data']
+                    await anext(chunks)
+                    if outcome == 'failure':
+                        raise OSError('upload failed after reading a chunk')
+                    if outcome == 'cancellation':
+                        raise asyncio.CancelledError()
+                    client = AsyncMock()
+                    client.get_blob_properties.return_value = AttributeDict({
+                        'name': 'dest', 'size': 6, 'etag': '"hash"',
+                    })
+                    return client
+
+                def track_open(*args, **kwargs):
+                    stream = open(*args, **kwargs)
+                    streams.append(stream)
+                    return stream
+
+                storage.azure_container_client = AsyncMock()
+                storage.azure_container_client.upload_blob.side_effect = upload_blob
+
+                async def check():
+                    try:
+                        # Exercise one attempt without retry delays.
+                        await AzureStorage._upload_blob.__wrapped__(storage, source.name, 'dest')
+                    except (OSError, asyncio.CancelledError):
+                        self.assertNotEqual('success', outcome)
+                    self.assertEqual(1, len(streams))
+                    self.assertTrue(streams[0].closed)
+
+                with patch('aiofiles.threadpool.sync_open', side_effect=track_open):
+                    asyncio.run(check())
+
+    def test_download_closes_destination_on_failure(self):
+        with tempfile.TemporaryDirectory() as dest:
+            storage = object.__new__(AzureStorage)
+            storage.config = self._make_config(None, {'multi_part_upload_threshold': '1MB'})
+            storage.read_timeout = 60
+            storage._stat_blob = AsyncMock(return_value=AttributeDict({'name': 'file.db', 'size': 1}))
+            streams = []
+
+            async def readinto(stream):
+                streams.append(stream)
+                raise OSError('download failed')
+
+            downloader = AsyncMock()
+            downloader.readinto.side_effect = readinto
+            storage.azure_container_client = AsyncMock()
+            storage.azure_container_client.download_blob.return_value = downloader
+
+            async def check():
+                with self.assertRaises(OSError):
+                    await AzureStorage._download_blob.__wrapped__(storage, 'file.db', dest)
+                self.assertEqual(1, len(streams))
+                self.assertTrue(streams[0].closed)
+
+            asyncio.run(check())

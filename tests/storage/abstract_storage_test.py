@@ -168,3 +168,32 @@ class AbstractStorageTest(unittest.TestCase):
         self.assertLess(elapsed, 0.35)
         self.assertLessEqual(max_active, 2)
         self.assertEqual(['slow', 'fast1', 'fast2'], [mo.path for mo in results])
+
+    def test_failed_transfer_cancels_and_drains_siblings(self):
+        for operation in ('upload', 'download'):
+            with self.subTest(operation=operation):
+                storage = TestAbstractStorage(AttributeDict({'bucket_name': 'test', 'concurrent_transfers': 2}))
+
+                async def check():
+                    started = asyncio.Event()
+                    cleaned = asyncio.Event()
+
+                    async def transfer(src, dest):
+                        if src == 'failure':
+                            await started.wait()
+                            raise OSError('transfer failed')
+                        try:
+                            started.set()
+                            await asyncio.Future()
+                        finally:
+                            # Cleanup must be awaited before returning the batch failure.
+                            await asyncio.sleep(0)
+                            cleaned.set()
+
+                    setattr(storage, '_' + operation + '_blob', transfer)
+                    batch = getattr(storage, '_' + operation + '_blobs')
+                    with self.assertRaises(OSError):
+                        await batch(['failure', 'pending'], 'dest')
+                    self.assertTrue(cleaned.is_set())
+
+                asyncio.run(check())
