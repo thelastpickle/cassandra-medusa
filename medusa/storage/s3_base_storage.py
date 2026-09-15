@@ -185,14 +185,16 @@ class S3BaseStorage(AbstractStorage):
         host = config.host
         port = config.port
 
-        if self.storage_provider != 's3_compatible':
+        if self.storage_provider not in ('s3_compatible', 'ibm_storage'):
             # when we're dealing with regular AWS, we don't need anything extra
             return {}
         else:
             # we're dealing with a custom s3 compatible storage, so we need to craft the URL
             protocol = 'https' if secure.lower() == 'true' else 'http'
-            port = '' if port is None else str(port)
-            s3_url = '{}://{}:{}'.format(protocol, host, port)
+            if port is None:
+                s3_url = '{}://{}'.format(protocol, host)
+            else:
+                s3_url = '{}://{}:{}'.format(protocol, host, port)
             return {
                 'endpoint_url': s3_url,
                 'verify': ssl_verify.lower() == 'true'
@@ -233,7 +235,7 @@ class S3BaseStorage(AbstractStorage):
 
         if config.region and config.region != "default":
             session.set_config_variable('region', config.region)
-        elif config.storage_provider not in ['s3', 's3_compatible'] and config.region == "default":
+        elif config.storage_provider not in ['s3', 's3_compatible', 'ibm_storage'] and config.region == "default":
             session.set_config_variable('region', S3BaseStorage._region_from_provider_name(config.storage_provider))
         else:
             session.set_config_variable('region', "us-east-1")
