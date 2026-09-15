@@ -116,6 +116,12 @@ jobs:
               it-backend: gcs
               experimental: false
               java-version: '11.0.25'
+            # explicitly include one test against ibm storage backend
+            - python-version: '3.10'
+              cassandra-version: '4.1.9'
+              it-backend: ibm
+              experimental: false
+              java-version: '11.0.25'
           exclude:
             # no tests against cassandra 4.0.18 but the local ones
             - cassandra-version: '4.0.18'
