@@ -424,7 +424,9 @@ def create_token_map_node(backup, node):
     token_map_node.rack = backup.tokenmap[node]["rack"] if "rack" in backup.tokenmap[node] else ""
     if "tokens" in backup.tokenmap[node]:
         for token in backup.tokenmap[node]["tokens"]:
-            token_map_node.tokens.append(token)
+            # Tokens are sent as strings because 128-bit tokens (e.g. RandomPartitioner)
+            # don't fit in the protobuf int64 type used by Murmur3Partitioner tokens.
+            token_map_node.tokens.append(str(token))
     return token_map_node
 
 

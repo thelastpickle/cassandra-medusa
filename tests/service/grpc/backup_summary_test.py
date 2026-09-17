@@ -15,7 +15,7 @@ import json
 from unittest.mock import Mock
 
 from medusa.service.grpc import medusa_pb2
-from medusa.service.grpc.server import get_backup_summary
+from medusa.service.grpc.server import create_token_map_node, get_backup_summary
 from medusa.storage import ClusterBackup
 
 
@@ -69,3 +69,23 @@ def test_summary_does_not_count_unexpected_node_as_missing_node():
     assert summary.finishTime == 0
     assert summary.totalNodes == 3
     assert summary.finishedNodes == 2
+
+
+def test_token_map_node_supports_128_bit_random_partitioner_tokens():
+    # RandomPartitioner tokens are unsigned 128-bit integers, which don't fit in the
+    # protobuf int64 type used for Murmur3Partitioner (64-bit) tokens. The `tokens`
+    # field is a `repeated string` precisely so it can carry both without overflow.
+    random_partitioner_token = 170141183460469231731687303715884105727  # 2**127 - 1
+    backup = Mock()
+    backup.tokenmap = {
+        'node1': {'tokens': [random_partitioner_token], 'rack': 'rack1', 'dc': 'dc1'},
+    }
+
+    token_map_node = create_token_map_node(backup, 'node1')
+
+    assert list(token_map_node.tokens) == [str(random_partitioner_token)]
+
+    # Ensure it survives a real protobuf serialize/deserialize round-trip without loss.
+    round_tripped = medusa_pb2.BackupNode()
+    round_tripped.ParseFromString(token_map_node.SerializeToString())
+    assert int(round_tripped.tokens[0]) == random_partitioner_token
