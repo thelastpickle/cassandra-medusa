@@ -89,10 +89,12 @@ message BackupSummary {
 }
 
 message BackupNode {
-  string         host = 1;
-  repeated int64 tokens = 2;
-  string         datacenter = 3;
-  string         rack = 4;
+  string          host = 1;
+  // Tokens are represented as strings rather than int64 because 128-bit
+  // tokens (e.g. RandomPartitioner) don't fit in a signed 64-bit integer.
+  repeated string tokens = 2;
+  string          datacenter = 3;
+  string          rack = 4;
 }
 
 message PurgeBackupsRequest {
