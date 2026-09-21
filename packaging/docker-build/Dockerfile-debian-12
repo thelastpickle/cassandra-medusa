@@ -47,13 +47,10 @@ RUN apt-get update \
         python3-setuptools \
         python3-venv \
         python3-wheel \
-        python3-greenlet \
-        python3-gevent \
         build-essential \
         cmake \
         devscripts \
         equivs \
-        libevent-dev \
         zlib1g-dev \
         libssl-dev \
         $EXTRA_PACKAGES

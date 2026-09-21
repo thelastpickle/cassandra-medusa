@@ -46,13 +46,10 @@ RUN apt-get update \
         python3-setuptools \
         python3-venv \
         python3-wheel \
-        python3-gevent \
-        python3-greenlet \
         build-essential \
         cmake \
         devscripts \
         equivs \
-        libevent-dev \
         zlib1g-dev \
         libssl-dev \
         pipx \
