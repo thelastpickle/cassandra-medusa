@@ -236,7 +236,7 @@ def download(medusaconfig, backup_name, download_destination, keyspaces, tables,
 @click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
               default=False, is_flag=True)
 @click.option('--parallel-restores', '-pr', help="Number of concurrent synchronous (blocking) "
-                                                 "ssh sessions started by pssh", default=500)
+                                                 "ssh sessions", default=500)
 @click.option('--version-target', help='Target Cassandra version', required=False, default="3.11.9")
 @click.option('--ignore-racks', help='Disable matching nodes based on rack topology', required=False, default=False,
               is_flag=True)

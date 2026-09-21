@@ -27,8 +27,8 @@ Options:
                                   into the cluster
   --ignore-racks                  Disable matching nodes based on rack topology
 
-  --pssh-pool-size INTEGER        Number of concurrent ssh sessions started by
-                                  pssh
+  --parallel-restores INTEGER     Number of concurrent synchronous (blocking)
+                                  ssh sessions
 
   --help                          Show this message and exit.
 ```
