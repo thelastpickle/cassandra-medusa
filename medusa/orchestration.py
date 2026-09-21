@@ -79,7 +79,7 @@ class Orchestration(object):
         use_sudo = medusa.utils.evaluate_boolean(self.config.cassandra.use_sudo)
         forward_agent = medusa.utils.evaluate_boolean(self.config.ssh.forward_agent)
 
-        # asyncssh connect options; known_hosts defaults to ~/.ssh/known_hosts (not bypassed here).
+        # asyncssh connect options
         connect_kwargs = {
             'port': port,
             'agent_forwarding': forward_agent,
@@ -87,9 +87,13 @@ class Orchestration(object):
             'request_pty': use_pty,
             'connect_timeout': 30,
         }
-        known_hosts = self.config.ssh.known_hosts if self.config.ssh.known_hosts else None
-        if known_hosts is not None:
-            connect_kwargs['known_hosts'] = known_hosts
+        kh = (self.config.ssh.known_hosts or '').strip()
+        if kh and kh.lower() != 'none':
+            connect_kwargs['known_hosts'] = kh
+            logging.info('SSH host-key verification using file: %s', kh)
+        else:
+            connect_kwargs['known_hosts'] = None
+            logging.info('SSH host-key verification is disabled (no known_hosts file configured)')
         if username is not None:
             connect_kwargs['username'] = username
         if pkey is not None:
