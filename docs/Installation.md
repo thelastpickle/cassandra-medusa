@@ -8,15 +8,13 @@ Choose and initialize the storage system:
 * [Ceph Object Gateway S3 API](/docs/ceph_s3_setup.md)
 * [Azure Blob Storage setup](/docs/azure_blobs_setup.md)
 * [IBM Cloud Object Storage setup](/docs/ibm_cloud_setup.md)
-* [MinIO/S3 compatible Storage setup](/docs/minio_setup.md)
-
 Install Medusa on each Cassandra node using one of the following methods.
 
 ## Using pip
 ### Online installation
 
 * if the storage backend is a locally accessible shared storage, run `sudo pip3 install cassandra-medusa`
-* if your backups are to be stored in AWS S3 or S3 compatible backends (IBM, OVHCloud, MinIO, ...), run `sudo pip3 install cassandra-medusa[S3]`
+* if your backups are to be stored in AWS S3 or S3 compatible backends (IBM, OVHCloud, ...), run `sudo pip3 install cassandra-medusa[S3]`
 * if your backups are to be stored in Google Cloud Storage, run `sudo pip3 install cassandra-medusa`
 * if your backups are to be stored in Azure Blob Storage, run `sudo pip3 install cassandra-medusa[AZURE]`
 

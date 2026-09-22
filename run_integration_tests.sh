@@ -24,7 +24,6 @@ S3="no"
 GCS="no"
 AZURE="no"
 IBM="no"
-MINIO="no"
 LOGGING_FLAGS=""
 COVERAGE="yes"
 
@@ -42,7 +41,6 @@ while test $# -gt 0; do
       echo "--gcs                                       Include GCS in the storage backends"
       echo "--azure                                     Include Azure in the storage backends"
       echo "--ibm                                       Include IBM in the storage backends"
-      echo "--minio                                     Include MinIO in the storage backends"
       echo "--cassandra-version                         Cassandra version to test"
       echo "--no-coverage                               Disable coverage evaluation"
       echo "-v                                          Verbose output (logging won't be captured by behave)"
@@ -83,10 +81,6 @@ while test $# -gt 0; do
       IBM="yes"
       shift
       ;;
-    --minio)
-      MINIO="yes"
-      shift
-      ;;
     -v)
       LOGGING="--no-capture --no-capture-stderr --format=plain"
       shift
@@ -125,15 +119,11 @@ then
     else
         STORAGE_TAGS="${STORAGE_TAGS},@s3"
     fi
-    # we will also enable the DSE IT if a) we dont have java 11 and b) we dont have minio
+    # we will also enable the DSE IT if we dont have java 11
     java -version 2>&1 | grep version | grep -q 11
     if [ $? -ne 0 ]; then
       # we're NOT having java 11, we can proceed
-      echo ${STORAGE_TAGS} | grep -q minio
-      if [ $? -eq 1 ]; then
-        # we dont have minio either, we can proceed
-        STORAGE_TAGS="${STORAGE_TAGS},@dse"
-      fi
+      STORAGE_TAGS="${STORAGE_TAGS},@dse"
     fi
 fi
 
@@ -164,16 +154,6 @@ then
         STORAGE_TAGS="@ibm"
     else
         STORAGE_TAGS="${STORAGE_TAGS},@ibm"
-    fi
-fi
-
-if [ "$MINIO" == "yes" ]
-then
-    if [ "$STORAGE_TAGS" == "" ]
-    then
-        STORAGE_TAGS="@minio"
-    else
-        STORAGE_TAGS="${STORAGE_TAGS},@minio"
     fi
 fi
 

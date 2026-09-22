@@ -150,6 +150,6 @@ poetry run flake8 . --count --exit-zero --max-complexity=10 --statistics --ignor
 # Run unit test
 poetry run tox
 
-# run integration tests (local/minio/gcs/s3 etc.)
+# run integration tests (local/gcs/s3 etc.)
 ./run_integration_tests.sh --cassandra-version=4.1.9
 ```

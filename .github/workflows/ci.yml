@@ -97,9 +97,9 @@ jobs:
         fail-fast: false
         matrix:
           python-version: ['3.10', '3.11', '3.12']
-          it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
+          it-backend: [local, s3, gcs, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
-          #it-backend: [local, s3, gcs, minio, ibm, azure]
+          #it-backend: [local, s3, gcs, ibm, azure]
           cassandra-version: ['4.0.18', '4.1.9', '5.0.3','github:apache/trunk']
           java-version: ['11.0.25']
           experimental: [false]
@@ -121,8 +121,6 @@ jobs:
             - cassandra-version: '4.0.18'
               it-backend: gcs
             - cassandra-version: '4.0.18'
-              it-backend: minio
-            - cassandra-version: '4.0.18'
               it-backend: azure
             - cassandra-version: '4.0.18'
               it-backend: azure-hierarchical
@@ -133,17 +131,6 @@ jobs:
             - cassandra-version: '4.1.9'
 
     runs-on: ubuntu-24.04
-    services:
-      minio:
-        image: lazybit/minio
-        ports:
-          - 9000:9000
-        env:
-          MINIO_ACCESS_KEY: minio_key
-          MINIO_SECRET_KEY: minio_secret
-        volumes:
-          - ${{ github.workspace }}/../data:/data
-        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -172,7 +159,6 @@ jobs:
       run: |
         if [[ ( -n "${AWS_ACCESS_KEY_ID}" && "${{ matrix.it-backend }}" == "s3" ) \
           || ( "${{ matrix.it-backend }}" == "local" ) \
-          || ( "${{ matrix.it-backend }}" == "minio" ) \
           || ( -n '${{ secrets.MEDUSA_GCS_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "gcs" ) \
           || ( -n '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "ibm" ) \
           || ( -n '${{ secrets.MEDUSA_AZURE_CREDENTIALS }}' && "${{ matrix.it-backend }}" == "azure" ) \
@@ -244,17 +230,6 @@ jobs:
           # IBM Cloud Object Storage tests
           printf "%s" '${{ secrets.MEDUSA_IBM_CREDENTIALS }}' > ~/.aws/ibm_credentials
           ./run_integration_tests.sh -v --ibm --no-local --cassandra-version=${{ matrix.cassandra-version }}
-        elif [ "${{ matrix.it-backend }}" == "minio" ]
-        then
-          # MinIO Object Storage tests
-          unset AWS_ACCESS_KEY_ID
-          unset AWS_SECRET_ACCESS_KEY
-          wget https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x mc
-          ./mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
-          ./mc mb minio/medusa-dev
-          cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
-          ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure" ]
         then
           # Azure Blob Storage tests

@@ -16,7 +16,6 @@ options:
 --gcs                                       Include GCS in the storage backends
 --azure                                     Include Azure in the storage backends
 --ibm                                       Include IBM in the storage backends
---minio                                     Include Minio in the storage backends
 --cassandra-version                         Cassandra version to test
 -v                                          Verbose output (logging won't be captured by behave)
 ```
