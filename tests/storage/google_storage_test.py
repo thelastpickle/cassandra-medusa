@@ -300,7 +300,9 @@ class GoogleStorageTest(unittest.TestCase):
             storage.gcs_storage = mock.AsyncMock()
             storage.gcs_storage.upload = mock.AsyncMock(return_value=tc['response'])
 
-            blob = asyncio.run(storage._upload_object.__wrapped__(storage, io.BytesIO(b'data'), 'cluster/node/backup_index', {}))
+            blob = asyncio.run(
+                storage._upload_object.__wrapped__(storage, io.BytesIO(b'data'), 'cluster/node/backup_index', {})
+            )
 
             self.assertEqual(tc['expected_hash'], blob.hash)
 
@@ -335,7 +337,9 @@ class GoogleStorageTest(unittest.TestCase):
                 storage.gcs_storage = mock.AsyncMock()
                 storage.gcs_storage.upload = mock.AsyncMock(return_value=tc['response'])
 
-                manifest_obj = asyncio.run(storage._upload_blob.__wrapped__(storage, tmp_file.name, 'cluster/node/backup_index'))
+                manifest_obj = asyncio.run(
+                    storage._upload_blob.__wrapped__(storage, tmp_file.name, 'cluster/node/backup_index')
+                )
 
                 self.assertEqual(tc['expected_hash'], manifest_obj.MD5)
 
