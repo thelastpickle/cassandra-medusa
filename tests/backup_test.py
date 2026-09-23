@@ -72,10 +72,49 @@ class RestoreNodeTest(unittest.TestCase):
         assert not S3Storage.file_matches_storage(src, cached_item, 100, True)
 
     def test_gcs_file(self):
-        # GCS hashes are b64 encoded
-        cached_item = ManifestObject('path', 148906, '2c6QmQGESWilicKJiNY1NQ==')
         src = pathlib.Path(__file__).parent / "resources/gcs/lb-21-big-Index.db"
-        assert GoogleStorage.file_matches_storage(src, cached_item, True)
+
+        cases = [
+            {
+                'name': 'matching size and matching hash with md5 checks enabled',
+                'cached_item': ManifestObject('path', 148906, '2c6QmQGESWilicKJiNY1NQ=='),
+                'enable_md5_checks': True,
+                'expected': True,
+            },
+            {
+                'name': 'cmek missing hash in manifest with md5 checks enabled',
+                'cached_item': ManifestObject('path', 148906, None),
+                'enable_md5_checks': True,
+                'expected': True,
+            },
+            {
+                'name': 'cmek missing hash in manifest with md5 checks disabled',
+                'cached_item': ManifestObject('path', 148906, None),
+                'enable_md5_checks': False,
+                'expected': True,
+            },
+            {
+                'name': 'cmek missing hash in manifest with size mismatch',
+                'cached_item': ManifestObject('path', 999999, None),
+                'enable_md5_checks': True,
+                'expected': False,
+            },
+            {
+                'name': 'mismatched hash with md5 checks enabled',
+                'cached_item': ManifestObject('path', 148906, 'YgwgNSBJS7koEf3cbYjNZQ=='),
+                'enable_md5_checks': True,
+                'expected': False,
+            },
+        ]
+
+        for tc in cases:
+            result = GoogleStorage.file_matches_storage(
+                src=src,
+                cached_item=tc['cached_item'],
+                enable_md5_checks=tc['enable_md5_checks'],
+            )
+
+            self.assertEqual(tc['expected'], result)
 
 
 if __name__ == '__main__':

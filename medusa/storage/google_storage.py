@@ -110,7 +110,7 @@ class GoogleStorage(AbstractStorage):
             AbstractBlob(
                 o['name'],
                 int(o['size']),
-                o['md5Hash'],
+                o.get('md5Hash'),
                 # datetime comes as a string like 2023-08-31T14:23:24.957Z
                 datetime.datetime.strptime(o['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ'),
                 o['storageClass']
@@ -173,7 +173,7 @@ class GoogleStorage(AbstractStorage):
                 self.semaphore.release()
 
         return AbstractBlob(
-            resp['name'], int(resp['size']), resp['md5Hash'], resp['timeCreated'], None
+            resp['name'], int(resp['size']), resp.get('md5Hash'), resp['timeCreated'], None
         )
 
     @retry(stop=stop_after_attempt(MAX_UP_DOWN_LOAD_RETRIES), wait=wait_fixed(5))
@@ -227,7 +227,7 @@ class GoogleStorage(AbstractStorage):
         return AbstractBlob(
             blob['name'],
             int(blob['size']),
-            blob['md5Hash'],
+            blob.get('md5Hash'),
             # datetime comes as a string like 2023-08-31T14:23:24.957Z
             datetime.datetime.strptime(blob['timeCreated'], '%Y-%m-%dT%H:%M:%S.%fZ'),
             blob['storageClass']
@@ -271,7 +271,7 @@ class GoogleStorage(AbstractStorage):
                     force_resumable_upload=True,
                     timeout=None,
                 )
-        mo = ManifestObject(resp['name'], int(resp['size']), resp['md5Hash'])
+        mo = ManifestObject(resp['name'], int(resp['size']), resp.get('md5Hash'))
         return mo
 
     async def _get_object(self, object_key: str) -> AbstractBlob:
@@ -325,7 +325,7 @@ class GoogleStorage(AbstractStorage):
     @staticmethod
     def compare_with_manifest(actual_size, size_in_manifest, actual_hash=None, hash_in_manifest=None, threshold=None):
         sizes_match = actual_size == size_in_manifest
-        if not actual_hash:
+        if not actual_hash or not hash_in_manifest:
             return sizes_match
 
         actual_equals_encoded_in_manifest = actual_hash == base64.b64decode(hash_in_manifest).hex()
