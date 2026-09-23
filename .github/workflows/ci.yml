@@ -135,15 +135,22 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       minio:
-        image: lazybit/minio
+        image: quay.io/minio/minio
         ports:
           - 9000:9000
         env:
-          MINIO_ACCESS_KEY: minio_key
-          MINIO_SECRET_KEY: minio_secret
+          MINIO_ROOT_USER: minio_key
+          MINIO_ROOT_PASSWORD: minio_secret
         volumes:
           - ${{ github.workspace }}/../data:/data
-        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        options: >-
+          --name=minio
+          --health-cmd "curl -s http://localhost:9000/minio/health/live"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+        # quay.io/minio/minio requires an explicit server command to start
+        command: server /data
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -249,10 +256,8 @@ jobs:
           # MinIO Object Storage tests
           unset AWS_ACCESS_KEY_ID
           unset AWS_SECRET_ACCESS_KEY
-          wget https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x mc
-          ./mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
-          ./mc mb minio/medusa-dev
+          docker run --rm --network host quay.io/minio/mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
+          docker run --rm --network host quay.io/minio/mc mb minio/medusa-dev
           cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
           ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure" ]
