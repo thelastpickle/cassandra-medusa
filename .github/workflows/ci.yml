@@ -256,8 +256,8 @@ jobs:
           # MinIO Object Storage tests
           unset AWS_ACCESS_KEY_ID
           unset AWS_SECRET_ACCESS_KEY
-          docker run --rm --network host quay.io/minio/mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
-          docker run --rm --network host quay.io/minio/mc mb minio/medusa-dev
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc \
+            -c "mc alias set minio http://127.0.0.1:9000 minio_key minio_secret && mc mb minio/medusa-dev"
           cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
           ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure" ]
