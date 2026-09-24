@@ -295,14 +295,19 @@ class AzureStorageTest(unittest.TestCase):
             storage._stat_blob = AsyncMock(return_value=AttributeDict({'name': 'file.db', 'size': 1}))
             streams = []
 
-            async def readinto(stream):
-                streams.append(stream)
+            async def fake_chunks():
+                yield b'some chunk'
                 raise OSError('download failed')
 
-            downloader = AsyncMock()
-            downloader.readinto.side_effect = readinto
+            downloader = MagicMock()
+            downloader.chunks.return_value = fake_chunks()
             storage.azure_container_client = AsyncMock()
             storage.azure_container_client.download_blob.return_value = downloader
+
+            def track_open(*args, **kwargs):
+                stream = open(*args, **kwargs)
+                streams.append(stream)
+                return stream
 
             async def check():
                 with self.assertRaises(OSError):
@@ -310,4 +315,5 @@ class AzureStorageTest(unittest.TestCase):
                 self.assertEqual(1, len(streams))
                 self.assertTrue(streams[0].closed)
 
-            asyncio.run(check())
+            with patch('aiofiles.threadpool.sync_open', side_effect=track_open):
+                asyncio.run(check())
