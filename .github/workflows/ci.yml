@@ -279,11 +279,6 @@ jobs:
         mv tests/integration/.coverage .
         poetry run coverage xml
 
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 15
-
     - uses: codecov/codecov-action@v1
       name: Report code coverage
 
@@ -334,7 +329,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
-          ref: radovan/ec2-dse-medusa
+          ref: main
           path: k8ssandra-operator
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -376,10 +371,6 @@ jobs:
           args="$args -dataPlanes '${{ env.DATA_PLANES }}'"
           args="$args -medusaImageTag ${{ env.short_sha }}-tmp"
           make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
       - name: Get artefact upload directory
         working-directory: k8ssandra-operator
         if: ${{ failure() }}
