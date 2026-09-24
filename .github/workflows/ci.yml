@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       minio:
-        image: quay.io/minio/minio
+        image: docker.io/pgsty/silo:latest
         ports:
           - 9000:9000
         env:
@@ -149,7 +149,7 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
-        # quay.io/minio/minio requires an explicit server command to start
+        # docker.io/pgsty/silo:latest requires an explicit server command to start
         command: server /data
     steps:
     - uses: actions/checkout@v3
@@ -256,7 +256,7 @@ jobs:
           # MinIO Object Storage tests
           unset AWS_ACCESS_KEY_ID
           unset AWS_SECRET_ACCESS_KEY
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc \
+          docker run --rm --network host --entrypoint /bin/sh pgsty/mc \
             -c "mc alias set minio http://127.0.0.1:9000 minio_key minio_secret && mc mb minio/medusa-dev"
           cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
           ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
