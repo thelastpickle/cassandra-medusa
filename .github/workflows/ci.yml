@@ -332,14 +332,13 @@ jobs:
           ref: main
           path: k8ssandra-operator
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.20'
+          go-version-file: 'k8ssandra-operator/go.mod'
           cache: true
           cache-dependency-path: "**/*.sum"
       - name: Install Kind
-        working-directory: k8ssandra-operator
-        run: go get sigs.k8s.io/kind
+        run: go install sigs.k8s.io/kind@latest
       - name: Install kustomize
         uses: imranismail/setup-kustomize@v2
         with:
