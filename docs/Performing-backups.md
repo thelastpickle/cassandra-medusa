@@ -24,11 +24,11 @@ Options:
   --temp-dir TEXT                 Directory for temporary storage
   -ps, --parallel-snapshots INTEGER
                                   Number of concurrent synchronous (blocking)
-                                  ssh sessions started by pssh
+                                  ssh sessions
 
   -pu, --parallel-uploads INTEGER
                                   Number of concurrent synchronous (blocking)
-                                  ssh sessions started by pssh
+                                  ssh sessions
 
   --help                          Show this message and exit.
 ```

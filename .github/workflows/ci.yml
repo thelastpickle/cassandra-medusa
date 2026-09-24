@@ -23,13 +23,13 @@ jobs:
             tox-py: py312
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: ${{ matrix.python-version }}
     - name: Set up Poetry
-      uses: snok/install-poetry@v1
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
       with:
         version: 2.3.3
     - name: Install dependencies
@@ -48,7 +48,7 @@ jobs:
       run: |
         poetry run tox -e ${{ matrix.tox-py }}
 
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       name: Report code coverage  
 
   debian-build:
@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Build Debian Package
       run: |
         version=$(cat VERSION)
@@ -145,18 +145,19 @@ jobs:
           - ${{ github.workspace }}/../data:/data
         options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup Java Action
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
       with:
+        distribution: 'temurin'
         java-version: ${{ matrix.java-version}}
         architecture: x64
     - name: Setup Poetry
-      uses: snok/install-poetry@v1
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
       with:
         version: 2.3.3
     - name: Install dependencies
@@ -276,10 +277,10 @@ jobs:
 
     - name: Setup tmate session
       if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
+      uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
       timeout-minutes: 15
 
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       name: Report code coverage
 
   k8ssandra-e2e-tests:
@@ -309,30 +310,30 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
           password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
       - name: Set up Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
         with:
           version: 2.3.3
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: cassandra-medusa
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: k8ssandra/k8ssandra-operator
           ref: radovan/ec2-dse-medusa
           path: k8ssandra-operator
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.20'
           cache: true
@@ -341,7 +342,7 @@ jobs:
         working-directory: k8ssandra-operator
         run: go get sigs.k8s.io/kind
       - name: Install kustomize
-        uses: imranismail/setup-kustomize@v2
+        uses: imranismail/setup-kustomize@53f941b41dca13ed61874bbc6b4b6e1562877530 # v3.0.0
         with:
           kustomize-version: 4.x
       - name: Build Medusa
@@ -351,7 +352,7 @@ jobs:
           poetry install && poetry build
       - name: Build Medusa image
         id: docker_build
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           file: cassandra-medusa/k8s/Dockerfile
           context: ./cassandra-medusa
@@ -373,7 +374,7 @@ jobs:
           make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
       - name: Setup tmate session
         if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
         timeout-minutes: 15
       - name: Get artefact upload directory
         working-directory: k8ssandra-operator
@@ -384,25 +385,87 @@ jobs:
           echo "uploaddir_name=$uploaddir_name" >> $GITHUB_ENV
       - name: Archive k8s logs
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: k8s-logs-${{ env.uploaddir_name }}
           path: ./k8ssandra-operator/build/test
 
+  ssh-e2e:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.11"
+
+    - name: Set up Poetry
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
+      with:
+        version: 2.3.3
+
+    - name: Cache Poetry virtualenv
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ssh-e2e-poetry-${{ hashFiles('poetry.lock') }}
+
+    - name: Install dependencies
+      run: poetry install # nosonar — installs medusa from source intentionally
+
+    - name: Generate SSH keypair
+      run: ssh-keygen -t ed25519 -f /tmp/e2e_id_rsa -N ""
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+    - name: Build e2e Docker image
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      with:
+        file: tests/e2e/Dockerfile
+        context: .
+        tags: cassandra-medusa-e2e:latest
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run SSH e2e tests
+      run: SSH_E2E=1 poetry run pytest tests/e2e/ssh_e2e_test.py -v -s
+
+    - name: Dump container logs
+      if: failure()
+      run: docker compose --ansi never --progress plain -p medusa-e2e -f tests/e2e/docker-compose.yml logs --no-color
+
+    - name: Upload backup artifacts on failure
+      if: failure()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: medusa-e2e-bucket
+        path: /tmp/medusa-e2e-bucket/
+        if-no-files-found: ignore
+
+    - name: Setup tmate session
+      if: failure()
+      uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+      timeout-minutes: 15
+
   publish-docker-master:
-    needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests]
+    needs: [debian-build, build, integration-tests, k8ssandra-e2e-tests, ssh-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       with:
         platforms: 'arm64,arm'
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
     - name: Login to DockerHub
-      uses: docker/login-action@v2
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
       with:
         username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
         password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
@@ -412,7 +475,7 @@ jobs:
       run: |
         echo "sha_short=$(git rev-parse --short=8 ${{ github.sha }})" >> $GITHUB_OUTPUT
     - name: Set up Poetry
-      uses: snok/install-poetry@v1
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
       with:
         version: 2.3.3
     - name: Build Medusa
@@ -421,7 +484,7 @@ jobs:
         poetry install && poetry build
     - name: Build image and push
       id: docker_build
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:
         file: k8s/Dockerfile
         context: .
@@ -446,7 +509,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Build Debian
       run: |
         version=$(cat VERSION)
@@ -457,7 +520,7 @@ jobs:
         
     - name: Push Debian to Cloudsmith
       id: push-deb
-      uses: cloudsmith-io/action@master
+      uses: cloudsmith-io/action@7af394e0f8add4867bce109385962dafecad1b8d # v0.6.14
       with:
         api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
         command: 'push'
@@ -474,15 +537,15 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       with:
         platforms: 'arm64,arm'
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
     - name: Login to DockerHub
-      uses: docker/login-action@v2
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
       with:
         username: ${{ secrets.K8SSANDRA_DOCKER_HUB_USERNAME }}
         password: ${{ secrets.K8SSANDRA_DOCKER_HUB_PASSWORD }}
@@ -492,7 +555,7 @@ jobs:
       run: |
         echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
     - name: Set up Poetry
-      uses: snok/install-poetry@v1
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
       with:
         version: 2.3.3
     - name: Build Medusa
@@ -501,7 +564,7 @@ jobs:
         poetry install && poetry build
     - name: Build image and push
       id: docker_build
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:
         file: k8s/Dockerfile
         context: .
@@ -517,15 +580,15 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up Python 3.10
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: "3.10"
     - name: Set up Poetry
       with:
         version: 2.3.3
-      uses: snok/install-poetry@v1
+      uses: snok/install-poetry@a783c322200f0519c7926aa6faa857c4e23e9263 # v1.4.2
     - name: Install dependencies
       run: |
         python -m venv venv

@@ -51,13 +51,9 @@ RUN apt-get update \
         cmake \
         devscripts \
         equivs \
-        libevent-dev \
         zlib1g-dev \
         libssl-dev \
         $EXTRA_PACKAGES
-
-RUN pip3 install greenlet
-RUN pip3 install gevent
 
 # Add entrypoint script
 COPY packaging/docker-build/docker-entrypoint.sh ${WORKDIR}
