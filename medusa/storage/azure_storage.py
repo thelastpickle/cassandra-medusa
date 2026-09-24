@@ -16,6 +16,7 @@
 
 import base64
 import collections
+from contextlib import aclosing
 import io
 import json
 import logging
@@ -192,7 +193,9 @@ class AzureStorage(AbstractStorage):
             timeout=self.read_timeout,
         )
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        await downloader.readinto(open(file_path, "wb"))
+        async with aiofiles.open(file_path, "wb") as f:
+            async for chunk in downloader.chunks():
+                await f.write(chunk)
 
     async def _stat_blob(self, object_key: str) -> AbstractBlob:
 
@@ -233,14 +236,16 @@ class AzureStorage(AbstractStorage):
             )
         )
         storage_class = self.get_storage_class()
-        blob_client = await self.azure_container_client.upload_blob(
-            name=object_key,
-            data=self._file_chunks(src, chunk_size=self.multipart_chunksize_bytes),
-            length=file_size,
-            overwrite=True,
-            max_concurrency=16,
-            standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
-        )
+
+        async with aclosing(self._file_chunks(src, chunk_size=self.multipart_chunksize_bytes)) as chunks:
+            blob_client = await self.azure_container_client.upload_blob(
+                name=object_key,
+                data=chunks,
+                length=file_size,
+                overwrite=True,
+                max_concurrency=16,
+                standard_blob_tier=StandardBlobTier(storage_class.capitalize()) if storage_class else None,
+            )
         blob_properties = await blob_client.get_blob_properties()
         mo = ManifestObject(
             blob_properties.name,
