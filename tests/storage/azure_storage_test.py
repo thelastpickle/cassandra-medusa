@@ -10,6 +10,7 @@ import os
 import tempfile
 import unittest
 
+import aiofiles.threadpool
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from azure.core.credentials import AzureNamedKeyCredential
@@ -295,17 +296,15 @@ class AzureStorageTest(unittest.TestCase):
             storage._stat_blob = AsyncMock(return_value=AttributeDict({'name': 'file.db', 'size': 1}))
             streams = []
 
-            async def fake_chunks():
-                yield b'some chunk'
-                raise OSError('download failed')
-
-            downloader = MagicMock()
-            downloader.chunks.return_value = fake_chunks()
+            downloader = AsyncMock()
+            downloader.readinto.side_effect = OSError('download failed')
             storage.azure_container_client = AsyncMock()
             storage.azure_container_client.download_blob.return_value = downloader
 
+            original_sync_open = aiofiles.threadpool.sync_open
+
             def track_open(*args, **kwargs):
-                stream = open(*args, **kwargs)
+                stream = original_sync_open(*args, **kwargs)
                 streams.append(stream)
                 return stream
 

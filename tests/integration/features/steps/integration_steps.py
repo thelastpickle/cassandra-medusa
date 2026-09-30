@@ -181,7 +181,7 @@ def tune_ccm_settings(cassandra_version, cluster, custom_settings=None):
                     f"""sed -i {sed_option} "s/{setting}: .*/{setting}: {custom_settings[file][setting]}/" {f}"""
                 ).read()
 
-    os.popen("LOCAL_JMX=yes ccm start --no-wait").read()
+    subprocess.check_call(["ccm", "start"], env={**os.environ, "LOCAL_JMX": "yes"})
 
 
 def configure_garbage_collection(cluster_name, sed_option):

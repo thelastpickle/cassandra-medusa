@@ -135,15 +135,22 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       minio:
-        image: lazybit/minio
+        image: docker.io/pgsty/silo:latest
         ports:
           - 9000:9000
         env:
-          MINIO_ACCESS_KEY: minio_key
-          MINIO_SECRET_KEY: minio_secret
+          MINIO_ROOT_USER: minio_key
+          MINIO_ROOT_PASSWORD: minio_secret
         volumes:
           - ${{ github.workspace }}/../data:/data
-        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        options: >-
+          --name=minio
+          --health-cmd "curl -s http://localhost:9000/minio/health/live"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+        # docker.io/pgsty/silo:latest requires an explicit server command to start
+        command: server /data
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -249,10 +256,8 @@ jobs:
           # MinIO Object Storage tests
           unset AWS_ACCESS_KEY_ID
           unset AWS_SECRET_ACCESS_KEY
-          wget https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x mc
-          ./mc alias set minio http://127.0.0.1:9000 minio_key minio_secret
-          ./mc mb minio/medusa-dev
+          docker run --rm --network host --entrypoint /bin/sh pgsty/mc \
+            -c "mc alias set minio http://127.0.0.1:9000 minio_key minio_secret && mc mb minio/medusa-dev"
           cp ./tests/resources/minio/minio_credentials ~/.aws/minio_credentials
           ./run_integration_tests.sh -v --minio --no-local --cassandra-version=${{ matrix.cassandra-version }} 
         elif [ "${{ matrix.it-backend }}" == "azure" ]
@@ -273,11 +278,6 @@ jobs:
         # Move and convert the coverage analysis file to XML
         mv tests/integration/.coverage .
         poetry run coverage xml
-
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 15
 
     - uses: codecov/codecov-action@v1
       name: Report code coverage
@@ -329,17 +329,16 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: k8ssandra/k8ssandra-operator
-          ref: radovan/ec2-dse-medusa
+          ref: main
           path: k8ssandra-operator
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.20'
+          go-version-file: 'k8ssandra-operator/go.mod'
           cache: true
           cache-dependency-path: "**/*.sum"
       - name: Install Kind
-        working-directory: k8ssandra-operator
-        run: go get sigs.k8s.io/kind
+        run: go install sigs.k8s.io/kind@latest
       - name: Install kustomize
         uses: imranismail/setup-kustomize@v2
         with:
@@ -371,10 +370,6 @@ jobs:
           args="$args -dataPlanes '${{ env.DATA_PLANES }}'"
           args="$args -medusaImageTag ${{ env.short_sha }}-tmp"
           make E2E_TEST="$e2e_test" TEST_ARGS="$args" e2e-test
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
       - name: Get artefact upload directory
         working-directory: k8ssandra-operator
         if: ${{ failure() }}
