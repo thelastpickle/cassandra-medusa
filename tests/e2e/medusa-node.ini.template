@@ -1,0 +1,27 @@
+[storage]
+storage_provider = local
+bucket_name = medusa-e2e
+base_path = /tmp/medusa-e2e-bucket
+fqdn = {{NODE_IP}}
+prefix = e2e-test
+
+[cassandra]
+config_file = /etc/cassandra/cassandra.yaml
+start_cmd = supervisorctl start cassandra
+stop_cmd = supervisorctl stop cassandra
+use_sudo = False
+is_ccm = 0
+nodetool_executable = /opt/cassandra/bin/nodetool
+nodetool_port = 7199
+resolve_ip_addresses = False
+
+[ssh]
+username = medusa
+key_file = /tmp/e2e_id_rsa
+port = 22
+cert_file =
+known_hosts = /tmp/e2e_known_hosts
+use_pty = False
+keepalive_seconds = 60
+login_shell = False
+forward_agent = False
