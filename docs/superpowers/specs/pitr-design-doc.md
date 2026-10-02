@@ -295,11 +295,14 @@ After `PreparePitrRestore` succeeds, the operator restarts the pods. Each pod's 
 restore.py (per-node restore entrypoint, MEDUSA_MODE=RESTORE)
   |-- apply_mapping_env()  [existing: json.loads(RESTORE_MAPPING) — unchanged]
   |-- restore_backup()     [existing: downloads SSTables via restore_node.restore_node()]
-  +-- apply_pitr_restore() [NEW: called if mapping["pitr"] is present AND restore marker file is absent]
+  +-- apply_pitr_restore() [NEW: called if mapping["pitr"] is present]
+        |-- check PITR_RESTORE_MARKER (/var/lib/cassandra/.pitr_restore_complete)
+        |     if present → return immediately (idempotent skip)
         |-- write commitlog_archiving.properties to Path(cassandra_config.config_file).parent
-        +-- download segments listed in mapping["pitr"]["segments"] to local staging dir
-            (Cassandra reads commitlog_archiving.properties on startup and replays segments
-             up to restore_point_in_time)
+        |-- download segments listed in mapping["pitr"]["segments"] to local staging dir
+        |     (Cassandra reads commitlog_archiving.properties on startup and replays segments
+        |      up to restore_point_in_time)
+        +-- write PITR_RESTORE_MARKER  ← only on full success
 ```
 
 **`RESTORE_MAPPING` format:** `apply_mapping_env()` is not modified. `RESTORE_MAPPING` is always inline JSON — the same `json.loads()` path used today. The `pitr` block is an optional top-level key in that JSON, present only for PITR restores. A regular (non-PITR) restore has no `pitr` key and the existing code path is completely unchanged.
@@ -310,9 +313,51 @@ restore.py (per-node restore entrypoint, MEDUSA_MODE=RESTORE)
 
 Cassandra startup detects `commitlog_archiving.properties` and replays segments up to `restore_point_in_time` automatically. No Medusa code starts or stops Cassandra.
 
-**Guard against re-execution:** `apply_pitr_restore()` checks for the restore marker file (the same file the existing restore guard uses to detect a completed restore) before writing the properties file or downloading any segments. If the marker is present the function exits immediately, writing nothing. This means a spontaneous pod restart after a successful PITR restore causes the medusa-restore initContainer to skip `apply_pitr_restore()` entirely — no properties file is written, no segments are staged, and Cassandra starts cleanly with no replay attempted.
+**Restore marker file — definition and lifecycle:**
 
-**Cleanup — safe by construction:** `commitlog_archiving.properties` lives on the `server-config` `emptyDir` volume and is therefore automatically removed on any pod restart. No operator action, no extra RPC, and no additional restart cycle are required. A spontaneous pod crash and restart during the PITR window re-runs `apply_pitr_restore()` (marker absent → restore not yet complete), re-writes the file and re-downloads segments, and Cassandra replays again — correct and idempotent. Once the restore completes, the marker file is written; subsequent restarts skip the function and the file is never re-created.
+`restore.py` defines a module-level constant:
+
+```python
+PITR_RESTORE_MARKER = Path("/var/lib/cassandra/.pitr_restore_complete")
+```
+
+This file lives on the persistent `cassandra-data` PVC that Cassandra itself uses — the same volume that `restore_node_locally()` writes SSTables to. It is **not** on the `emptyDir` config volume.
+
+`apply_pitr_restore()` implements a three-step guard:
+
+1. **Check at entry:** `if PITR_RESTORE_MARKER.exists(): log and return`. No properties file is written, no segments are downloaded.
+2. **Do the work:** write `commitlog_archiving.properties`, download all segments to the staging directory.
+3. **Write the marker:** `PITR_RESTORE_MARKER.touch()` — the very last action, only reached when all of step 2 succeeded.
+
+**Semantics by scenario:**
+
+| Scenario | Marker present? | Result |
+|---|---|---|
+| First restore attempt | No | Full execution; marker written on success |
+| Pod crash mid-download | No (marker not yet written) | Full re-execution on restart — correct |
+| Pod restart after successful PITR restore | Yes (marker on persistent PVC) | Immediate skip — no replay attempted |
+| New restore job (operator wipes PVC via `restore_node_locally` → `clean_path`) | No (marker deleted with PVC contents) | Full execution — correct |
+
+The last row is the critical one: `restore_node_locally()` calls `clean_path(cassandra.data_directory, ...)`, which removes all files under `/var/lib/cassandra/data/`. The marker at `/var/lib/cassandra/.pitr_restore_complete` sits at the root of the PVC mount, outside the `data/` subtree. Therefore `clean_path` does **not** remove it automatically — the operator must explicitly delete the marker before starting a new restore. The simplest approach: the medusa-restore initContainer deletes the marker unconditionally at the very start of the restore entrypoint (`__main__` block), before `apply_pitr_restore()` is called. `restore_backup()` always runs first and always represents a new restore job, so resetting the marker at the top of `__main__` is safe and requires no operator action.
+
+**Revised `__main__` sequence:**
+
+```python
+# 1. Reset marker so a fresh restore always runs apply_pitr_restore()
+PITR_RESTORE_MARKER.unlink(missing_ok=True)
+
+in_place = apply_mapping_env()
+if in_place is not None:
+    config = create_config(config_file_path)
+    configure_console_logging(config.logging)
+    output_message = restore_backup(in_place, config)   # SSTables restored here
+    logging.info(output_message)
+    mapping = json.loads(os.environ.get("RESTORE_MAPPING", "{}"))
+    if "pitr" in mapping:
+        apply_pitr_restore(mapping["pitr"], config)
+```
+
+**Cleanup — safe by construction:** `commitlog_archiving.properties` lives on the `server-config` `emptyDir` volume and is therefore automatically removed on any pod restart. No operator action, no extra RPC, and no additional restart cycle are required. A spontaneous pod crash and restart during the PITR window re-runs `apply_pitr_restore()` (marker absent → `unlink(missing_ok=True)` is a no-op, proceed normally), re-writes the file and re-downloads segments, and Cassandra replays again — correct and idempotent.
 
 **Point-in-time semantics:** `restore_point_in_time` is a mutation-timestamp cutoff, not a wall-clock receive-time cutoff. Cassandra filters replayed mutations by the timestamp embedded in each mutation, which is the client-supplied CQL `USING TIMESTAMP` value or the coordinator's clock at the time the write was processed — not the time the segment was archived or the time Cassandra received the request. A write with a backdated CQL timestamp before the cutoff will be replayed; a write with a future-dated CQL timestamp after the cutoff will be suppressed even if it was acknowledged before the target time. Operators should be aware of this when the target application uses custom CQL timestamps.
 
@@ -323,7 +368,7 @@ Cassandra startup detects `commitlog_archiving.properties` and replays segments 
 | File | Change | Responsibility |
 |---|---|---|
 | [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Add `PreparePitrRestore` RPC handler (coordinator) |
-| [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Add `apply_pitr_restore()` — download segments to staging dir |
+| [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Add `apply_pitr_restore()`, `PITR_RESTORE_MARKER` constant — download segments to staging dir, write/check restore marker |
 | [`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) | Create | Pure restore logic: `select_base_snapshot`, `find_commitlog_segments`, `generate_commitlog_archiving_properties` |
 | [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | `PreparePitrRestore` RPC + message types (replaces `RestoreClusterToTimestamp`) |
 
