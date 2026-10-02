@@ -88,7 +88,7 @@ The doc is thorough and well-structured. Most open questions have been resolved,
 
 ## Recommended Actions
 
-1. ~~**(Blocker)**~~ ✅ **Resolved.** Restore marker file mechanism designed and documented in §4.8: `PITR_RESTORE_MARKER = Path("/var/lib/cassandra/.pitr_restore_complete")`, written by `apply_pitr_restore()` as its last step on success, checked at entry for idempotent skip, and reset unconditionally at the top of `__main__` to handle new restore jobs.
+1. ~~**(Blocker)**~~ ✅ **Resolved.** §4.8 now documents the guard using the existing `/var/lib/cassandra/.last-restore` mechanism from [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh): `apply_pitr_restore()` reads the file at entry and compares it to `$RESTORE_KEY`; if they match it returns immediately. The shell writes `.last-restore` after `restore.py` exits, covering both SSTable and PITR steps atomically. No new marker file or constant is introduced.
 
 2. **(Blocker)** Add the k8ssandra-operator changes to scope. At minimum: extend `MedusaRestoreMapping` with a `pitr` field, update `setRestoreMappingInRestoreContainer` to marshal it, and add the operator files to §4.2 / §4.9's file map. The `restore.py` PITR logic cannot be exercised without this.
 
