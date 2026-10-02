@@ -457,7 +457,7 @@ class StorageTest(unittest.TestCase):
         self.assertEqual('prefix/localhost/data/', self.storage._get_table_prefix('prefix', 'localhost'))
 
 
-def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
+def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost", complete=True):
     if differential is True:
         differential_blob = make_blob("localhost/{}/meta/differential".format(name), backup_date.timestamp())
     else:
@@ -466,9 +466,10 @@ def make_node_backup(storage, name, backup_date, differential=False, fqdn="local
     schema_blob = make_blob("localhost/{}/meta/schema.cql".format(name), backup_date.timestamp())
     manifest_blob = make_blob("localhost/{}/meta/manifest.json".format(name), backup_date.timestamp())
     return NodeBackup(storage=storage, fqdn=fqdn, name=str(name),
-                      differential_blob=differential_blob, manifest_blob=manifest_blob,
+                      differential_blob=differential_blob, manifest_blob=manifest_blob if complete else None,
                       tokenmap_blob=tokenmap_blob, schema_blob=schema_blob,
-                      started_timestamp=backup_date.timestamp(), finished_timestamp=backup_date.timestamp())
+                      started_timestamp=backup_date.timestamp(),
+                      finished_timestamp=backup_date.timestamp() if complete else None)
 
 
 def make_unfinished_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
