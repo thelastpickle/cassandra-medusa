@@ -12,7 +12,7 @@
 
 Cassandra Medusa is a backup and restore tool for Apache Cassandra clusters. It currently supports snapshot-based backups (full and differential) stored in object storage (S3, GCS, Azure, local). Restores can only target an exact backup snapshot, leaving all data written after that snapshot unrecoverable if the cluster is lost or corrupted.
 
-Cassandra itself offers a native mechanism for finer-grained recovery: every mutation is first written to a commitlog segment before being applied. Once a segment is sealed (i.e., the active write position moves to a new segment), it is immutable and can be replayed deterministically. Cassandra exposes a `commitlog_archiving.properties` hook with two commands: `archive_command` fires when a segment is finalized (after the final sync and before deletion) and can be used to preserve the segment; `restore_command` fires during startup replay to fetch each required segment. Together they allow an external process to archive sealed segments and feed them back during a targeted restore, replaying mutations up to a user-specified timestamp.
+Cassandra itself offers a native mechanism for finer-grained recovery: every mutation is first written to a commitlog segment before being applied. Once a segment is sealed (i.e., the active write position moves to a new segment), it is immutable and can be replayed deterministically. Cassandra exposes a `commitlog_archiving.properties` hook with two commands: `archive_command` fires when a segment is finalized (after the final sync; Cassandra will not delete the segment until the command returns successfully) and can be used to preserve the segment; `restore_command` fires during startup replay to fetch each required segment. Together they allow an external process to archive sealed segments and feed them back during a targeted restore, replaying mutations up to a user-specified timestamp.
 
 ### Problem Statement
 
@@ -72,7 +72,7 @@ The gRPC server mode introduced in Medusa provides a long-lived process context 
 | SC3 | A failed segment upload does not crash the gRPC server; the segment remains in the spool and is retried on the next tick | Unit test: `_run_once` raises on upload; server continues; segment still present in spool |
 | SC4 | `pitr.enabled = false` (default) produces zero behaviour change to existing backup, restore, and purge commands | Existing test suite passes unchanged when PITR config is absent |
 | SC5 | `PreparePitrRestore` returns `FAILED` immediately when no complete base snapshot has `max_snapshot_time ≤ target_timestamp` | Unit test: `select_base_snapshot` raises `ValueError`; RPC maps to FAILED response |
-| SC6 | `CommitLogArchiver.__init__` raises `RuntimeError` with a clear message when spool dir and commitlog dir are on different devices | Unit test: `os.stat` mocked to return differing `st_dev` |
+| SC6 | `CommitLogArchiver.__init__` raises `RuntimeError` with a clear message when spool dir and commitlog dir are on different devices (or directories are inaccessible), failing fast and crashing Medusa at startup | Unit test: `os.stat` mocked to return differing `st_dev` or missing dir |
 | SC7 | `purge_commitlogs` deletes all segments whose `blob.last_modified < purge_threshold` and retains all others | Unit test: mock blob list with boundary values |
 | SC8 | `GetCommitLogArchiveStatus` returns `running=false` when no archiver is configured; returns correct `pending_count` after N hardlinks are created in the spool | Unit test: (a) RPC invoked with no `CommitLogArchiver` running — assert `running=false`, `pending_count=0`; (b) N dummy segment files written to spool dir before RPC call — assert `pending_count=N` |
 
@@ -86,7 +86,7 @@ PITR is implemented as two cooperating additions to the existing gRPC server:
 
 2. **`PreparePitrRestore` RPC:** Given a `target_timestamp`, it: selects the most recent base snapshot where `backup.max_snapshot_time ≤ target_timestamp` (ensuring every node in the cluster snapshot completed snapshotting at or before the target); collects all segments in object storage for each node from that node's `node_backup.snapshot_time` forward (with safety margin, no upper bound, no gap check); and returns the base backup name plus a per-node map of `{target_timestamp_s, segments[]}` in the response. No data movement happens here. The operator embeds this per-node metadata directly in the `RESTORE_MAPPING` env var as inline JSON (a `pitr` block alongside the existing `in_place` / `host_map` fields) before restarting the pods — exactly the same mechanism `MedusaRestoreJob` uses for the base restore mapping.
 
-3. **Per-node `apply_pitr_restore()`:** [`restore.py`](../../../medusa/service/grpc/restore.py) (the per-node restore entrypoint) first restores the base snapshot SSTables locally (existing behaviour), then reads the PITR metadata for this node, downloads all of its commitlog segments from object storage to a local staging directory, and writes `commitlog_archiving.properties` (with `restore_directories` pointing to the staging directory and `restore_point_in_time` set to the target; `restore_command` is left unset so Cassandra uses its default directory-scan behaviour). Cassandra is started by the operator and replays segments up to `restore_point_in_time` automatically on startup; Cassandra's own replay logic skips mutations already persisted in the base SSTables. No SSH is used at any point.
+3. **Per-node `apply_pitr_restore()`:** [`restore.py`](../../../medusa/service/grpc/restore.py) (the per-node restore entrypoint) first restores the base snapshot SSTables locally (existing behaviour), then reads the PITR metadata for this node, downloads all of its commitlog segments from object storage to a local staging directory, and writes `commitlog_archiving.properties` (with `restore_directories` pointing to the staging directory and `restore_point_in_time` set to the target; `restore_command` is left unset so Cassandra reads segments directly from `restore_directories` without invoking an external command). Cassandra is started by the operator and replays segments up to `restore_point_in_time` automatically on startup; Cassandra's own replay logic skips mutations already persisted in the base SSTables. No SSH is used at any point.
 
 The design is purely additive. Existing backup, restore, and purge commands are unchanged when PITR is disabled.
 
@@ -125,16 +125,21 @@ graph TD
     end
 ```
 
-### 4.2 New File Map
+### 4.2 Complete File Map
 
 | File | Change | Responsibility |
 |---|---|---|
 | [`medusa/config.py`](../../../medusa/config.py) | Modify | `PitrConfig` namedtuple; `[pitr]` section defaults; `MedusaConfig.pitr` field |
 | [`medusa/service/grpc/commitlog_archiver.py`](../../../medusa/service/grpc/commitlog_archiver.py) | Create | `CommitLogArchiver` background thread; `drain_spool()` helper |
 | [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Archiver lifecycle; `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPC handlers |
-| [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Add `apply_pitr_restore()` — download segments, write `commitlog_archiving.properties` to `Path(cassandra_config.config_file).parent` |
-| [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPCs and message types |
-| [`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) | Create | Pure restore logic (no gRPC, no SSH, no Cassandra lifecycle) |
+| [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Add `apply_pitr_restore()` — check `.last-restore` guard, write properties file, download segments |
+| [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPCs and message types (replaces `RestoreClusterToTimestamp`) |
+| [`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) | Create | Pure restore logic: `select_base_snapshot`, `find_commitlog_segments`, `generate_commitlog_archiving_properties` |
+| [`medusa/storage/node_backup.py`](../../../medusa/storage/node_backup.py) | Modify | Add `snapshot_time` property (timestamp of first snapshot dir, falling back to `started`) |
+| [`medusa/storage/cluster_backup.py`](../../../medusa/storage/cluster_backup.py) | Modify | Add `min_snapshot_time` and `max_snapshot_time` properties aggregating `node_backup.snapshot_time` across nodes |
+| [`medusa/cassandra_utils.py`](../../../medusa/cassandra_utils.py) | Modify | Inspect snapshot directory mtime before snapshot cleanup to record node snapshot timestamp (falls back to `started` if no snapshot directories are present) |
+| [`medusa/index.py`](../../../medusa/index.py) | Modify | Persist `snapshot_time_{fqdn}_{timestamp}.timestamp` index blob |
+| [`medusa/storage/__init__.py`](../../../medusa/storage/__init__.py) | Modify | Read `snapshot_time` index blob in `list_node_backups()` to populate `NodeBackup` |
 | [`medusa/purge.py`](../../../medusa/purge.py) | Modify | `purge_commitlogs()`; PITR hook in `main()` |
 | [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `[pitr]` config section |
 
@@ -175,7 +180,7 @@ commitlog_restore_grace_period_seconds = 3600
 
 **Startup validation:**
 
-`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem by comparing `os.stat(commitlog_spool_dir).st_dev` with `os.stat(cassandra_commitlog_dir).st_dev`. If they differ, it raises `RuntimeError` immediately with a message of the form:
+`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem by comparing `os.stat(commitlog_spool_dir).st_dev` with `os.stat(cassandra_commitlog_dir).st_dev`. If they differ (or if either directory does not exist / is inaccessible), it raises `RuntimeError` immediately with a message of the form:
 
 ```
 commitlog_spool_dir '<path>' is on a different device than the Cassandra commitlog
@@ -183,7 +188,7 @@ directory '<path>'. Hardlinks cannot cross filesystem boundaries. Mount both pat
 on the same volume.
 ```
 
-This prevents a silent `EXDEV` failure when Cassandra first executes `archive_command`.
+Because `CommitLogArchiver` is initialized in [`Server.serve()`](../../../medusa/service/grpc/server.py:66) when `pitr.enabled = true`, this exception is intentionally unhandled at startup: it **fails fast and crashes Medusa immediately** (causing the sidecar container/process to exit with a non-zero code). This guarantees that filesystem misconfigurations cannot go unnoticed or run in a silently degraded state where Cassandra's `archive_command` would later fail with `EXDEV`.
 
 **Spool drain (`drain_spool`):**
 
@@ -214,7 +219,7 @@ Cassandra executes this command after the segment's final fsync and before it is
 **Lifecycle:**
 - `start()` — begins the polling loop (inherited from `Thread`).
 - `stop()` — sets a `threading.Event`; joins with `timeout=interval+5s`.
-- `status() → dict` — returns `running`, `last_upload_time`, `pending_count`, `interval_seconds`.
+- `status() → dict` — returns `running`, `last_upload_time`, `pending_count`, `interval_seconds`, `status` (`StatusType`: `IN_PROGRESS` while the archiver thread is alive, `FAILED` if stopped unexpectedly).
 
 ### 4.5 pitr_restore.py — Pure Restore Logic
 
@@ -222,13 +227,21 @@ Cassandra executes this command after the segment's final fsync and before it is
 
 | Function | Signature | Description |
 |---|---|---|
-| `select_base_snapshot` | `(storage, target_timestamp_s: float) -> ClusterBackup` | Most recent complete backup with `max_snapshot_time ≤ target_timestamp_s`; raises `ValueError` if none |
+| `select_base_snapshot` | `(storage, target_timestamp_s: float) -> ClusterBackup` | Most recent complete backup with `max_snapshot_time ≤ target_timestamp_s`; raises `ValueError` if none. `max_snapshot_time` aggregates `node_backup.snapshot_time` across nodes, which itself falls back to `started` when the `snapshot_time` index blob is absent (pre-PITR backups). Because `started ≤ actual snapshot_time`, this fallback makes `max_snapshot_time` earlier than the true value, so the `≤ target_timestamp_s` check may conservatively reject a candidate that would have been eligible under the real timestamp. This is a safe direction: a backup is only selected when Medusa can confirm every node completed its snapshot before the target time. |
 | `find_commitlog_segments` | `(storage_driver, prefix_path, fqdn, after_snapshot_time_s: float, safety_margin_s: float = 30.0, upper_bound_s: float \| None = None) -> List[str]` | All storage paths for this node with `blob.last_modified ≥ (after_snapshot_time_s - safety_margin_s)` and, when `upper_bound_s` is set, `blob.last_modified ≤ upper_bound_s`; sorted ascending by filename. When `upper_bound_s` is `None` (no subsequent backup exists), no upper bound is applied. |
-| `generate_commitlog_archiving_properties` | `(restore_directories: str, target_timestamp_s: float) -> str` | `commitlog_archiving.properties` file content (`restore_directories` and `restore_point_in_time` only; `restore_command` left unset) |
+| `generate_commitlog_archiving_properties` | `(restore_directories: str, target_timestamp_s: float) -> str` | `commitlog_archiving.properties` file content (`restore_directories` and `restore_point_in_time` in `yyyy:MM:dd HH:mm:ss` UTC; `restore_command` left unset so Cassandra reads segments directly from `restore_directories` without invoking an external command) |
+
+**Timestamp Parsing and Formatting:**
+- Cassandra's `CommitLogArchiver` parses `restore_point_in_time` using the standard format `yyyy:MM:dd HH:mm:ss`. Cassandra interprets this timestamp in the UTC timezone.
+- `generate_commitlog_archiving_properties` converts `target_timestamp_s` (Unix epoch seconds) to UTC:
+  `datetime.datetime.fromtimestamp(target_timestamp_s, tz=datetime.timezone.utc).strftime("%Y:%m:%d %H:%M:%S")`.
+- `PreparePitrRestore` parses incoming `targetTimestamp` from the gRPC request (accepting either ISO-8601 strings with timezone or Unix epoch numeric string) and converts it into a Unix epoch float (`target_timestamp_s`) in UTC. If ISO-8601 has no timezone specified, it is treated as UTC.
 
 `check_commitlog_gaps` is removed. There is no gap check: a node with zero segments since the snapshot simply has an empty list; Cassandra replays nothing for that node, which is correct (it had no writes in that interval). The operator is responsible for confirming that archiving was active since the base snapshot was taken.
 
 Segment filenames are used only for ordering and as storage object keys — their embedded ID is not used for time filtering.
+
+**Fallback to `started` for segment collection:** `PreparePitrRestore` passes `node_backup.snapshot_time` as `after_snapshot_time_s` to `find_commitlog_segments`. When the `snapshot_time` index blob is absent (pre-PITR backups), `node_backup.snapshot_time` falls back to `started`. Because `started ≤ actual snapshot_time`, the effective lower bound shifts earlier, causing `find_commitlog_segments` to fetch a superset of the segments it would fetch with the real snapshot time. This is safe: Cassandra's own replay logic discards any mutation already persisted in the base SSTables, so downloading extra segments beyond what strictly needed has no correctness impact — only a minor increase in download volume.
 
 ### 4.6 Kubernetes Restore Model — Why SSH Orchestration Does Not Apply
 
@@ -248,7 +261,7 @@ There is **no SSH orchestration in the Kubernetes path**. Each node restores its
 The PITR coordinator follows the same pattern as `MedusaRestoreJob` in the k8ssandra-operator: the gRPC server performs all storage queries and returns the result to the caller; the operator assembles the full `RESTORE_MAPPING` JSON and injects it directly into the initContainer env var. No file is written to disk by the RPC.
 
 **Metadata delivery:** `PreparePitrRestore` is called against any live Medusa gRPC sidecar (the operator chooses which pod to target — no election needed). The RPC returns the base backup name and a per-node PITR metadata map in the response. The operator then:
-1. Calls `GetHostMap` (as in a regular restore) to compute `in_place` / `host_map`.
+1. Calls `GetHostMap` (an operator-internal Go function in [`k8ssandra-operator/pkg/medusa/hostmap.go`](../../../k8ssandra-operator/pkg/medusa/hostmap.go) — not a Medusa gRPC RPC) to compute `in_place` / `host_map` from the Kubernetes StatefulSet topology and the backup node list.
 2. Embeds the PITR per-node data from the `PreparePitrRestore` response as a `pitr` block inside the `RESTORE_MAPPING` JSON.
 3. Sets `RESTORE_MAPPING=<inline-JSON>` on every pod's initContainer before restarting them.
 
@@ -306,8 +319,8 @@ After `PreparePitrRestore` succeeds, the operator restarts the pods. Each pod's 
 restore.py (per-node restore entrypoint, MEDUSA_MODE=RESTORE)
   |-- apply_mapping_env()  [existing: json.loads(RESTORE_MAPPING) — unchanged]
   |-- restore_backup()     [existing: downloads SSTables via restore_node.restore_node()]
-  +-- apply_pitr_restore() [NEW: called if mapping["pitr"] is present]
-        |-- check /var/lib/cassandra/.last-restore vs RESTORE_KEY env var
+  +-- apply_pitr_restore(mapping["pitr"], config, restore_key) [NEW: called if mapping["pitr"] is present]
+        |-- check /var/lib/cassandra/.last-restore vs restore_key parameter
         |     if equal → return immediately (idempotent skip)
         |-- write commitlog_archiving.properties to Path(cassandra_config.config_file).parent
         |-- download segments listed in mapping["pitr"]["segments"] to local staging dir (config.pitr.commitlog_staging_dir)
@@ -320,17 +333,23 @@ restore.py (per-node restore entrypoint, MEDUSA_MODE=RESTORE)
 
 `restore_backup()` calls `restore_node_locally()`, which wipes the commitlog directory via `clean_path(cassandra.commit_logs_path, ...)`. Segment download happens **after** `restore_backup()` returns to ensure a consistent state — if `restore_backup()` fails, no partially-staged segments are left behind.
 
-**`commitlog_archiving.properties` ownership:** `apply_pitr_restore()` writes `commitlog_archiving.properties` directly to `Path(cassandra_config.config_file).parent` — the directory containing `cassandra.yaml`, as configured via `[cassandra] config_file` in `medusa.ini`. This is the same indirection Medusa already uses to locate Cassandra config files, so the correct path is resolved regardless of installation layout. The properties content (`restore_directories` path pointing to `config.pitr.commitlog_staging_dir`, default `/medusa-commitlog-staging`, and `restore_point_in_time` value; `restore_command` left unset) is generated by `generate_commitlog_archiving_properties(restore_directories=config.pitr.commitlog_staging_dir, target_timestamp_s=...)` from `pitr_restore.py` using the values passed in `RESTORE_MAPPING["pitr"]`. No operator config-builder side-channel is needed; the operator passes the target timestamp in the `pitr` block of `RESTORE_MAPPING` and `apply_pitr_restore()` materialises the properties file and downloads segments to `commitlog_staging_dir`. The config directory is an `emptyDir` volume shared between initContainers and the Cassandra main container, so Medusa can write there without any permission issue.
+**`commitlog_archiving.properties` ownership:** `apply_pitr_restore()` writes `commitlog_archiving.properties` directly to `Path(cassandra_config.config_file).parent` — the directory containing `cassandra.yaml`, as configured via `[cassandra] config_file` in `medusa.ini`. This is the same indirection Medusa already uses to locate Cassandra config files, so the correct path is resolved regardless of installation layout. The properties content (`restore_directories` path pointing to `config.pitr.commitlog_staging_dir`, default `/medusa-commitlog-staging`, and `restore_point_in_time` value in `yyyy:MM:dd HH:mm:ss` UTC format; `restore_command` left unset) is generated by `generate_commitlog_archiving_properties(restore_directories=config.pitr.commitlog_staging_dir, target_timestamp_s=...)` from `pitr_restore.py` using the values passed in `RESTORE_MAPPING["pitr"]`. No operator config-builder side-channel is needed; the operator passes the target timestamp in the `pitr` block of `RESTORE_MAPPING` and `apply_pitr_restore()` materialises the properties file and downloads segments to `commitlog_staging_dir`. The config directory is an `emptyDir` volume shared between initContainers and the Cassandra main container, so Medusa can write there without any permission issue.
+
+Sample generated `commitlog_archiving.properties`:
+```properties
+restore_directories=/medusa-commitlog-staging
+restore_point_in_time=2024:07:15 12:30:00
+```
 
 Cassandra startup detects `commitlog_archiving.properties` and replays segments up to `restore_point_in_time` automatically. No Medusa code starts or stops Cassandra.
 
 **Restore marker file — reuse of the existing `.last-restore` mechanism:**
 
-[`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) already implements a restore guard using `/var/lib/cassandra/.last-restore`. The file contains the `RESTORE_KEY` string written by the operator for each restore job. The shell compares the file contents to the `$RESTORE_KEY` env var: if they match the restore is skipped; if they differ (or the file is absent) the restore runs, and `docker-entrypoint.sh` writes `$RESTORE_KEY` into the file *after* `restore.py` exits successfully (line 45).
+[`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) already implements a restore guard using `/var/lib/cassandra/.last-restore`. The file contains the `RESTORE_KEY` string written by the operator for each restore job. The shell compares the file contents to the `$RESTORE_KEY` env var: if they match the restore is skipped; if they differ (or the file is absent) the restore runs, and `docker-entrypoint.sh` passes `$RESTORE_KEY` as `sys.argv[2]` to `restore.py` before writing `$RESTORE_KEY` into `.last-restore` *after* `restore.py` exits successfully (line 45).
 
 `apply_pitr_restore()` plugs into this same guard — no new file, no new constant:
 
-1. **Check at entry:** read `/var/lib/cassandra/.last-restore`; if its content equals `os.environ["RESTORE_KEY"]`, log and return immediately.
+1. **Check at entry:** read `/var/lib/cassandra/.last-restore`; if its content equals the `restore_key` argument passed from `__main__` (`sys.argv[2]`), log and return immediately.
 2. **Do the work:** write `commitlog_archiving.properties`, download all segments to the staging directory.
 3. **Marker write:** nothing — `docker-entrypoint.sh` writes `.last-restore` after `restore.py` returns, which covers both `restore_backup()` and `apply_pitr_restore()` atomically.
 
@@ -356,7 +375,7 @@ if in_place is not None:
     logging.info(output_message)
     mapping = json.loads(os.environ.get("RESTORE_MAPPING", "{}"))
     if "pitr" in mapping:
-        apply_pitr_restore(mapping["pitr"], config)
+        apply_pitr_restore(mapping["pitr"], config, restore_key=restore_key)
 # docker-entrypoint.sh writes RESTORE_KEY → .last-restore after this process exits
 ```
 
@@ -364,25 +383,9 @@ if in_place is not None:
 
 **Point-in-time semantics:** `restore_point_in_time` is a mutation-timestamp cutoff, not a wall-clock receive-time cutoff. Cassandra filters replayed mutations by the timestamp embedded in each mutation, which is the client-supplied CQL `USING TIMESTAMP` value or the coordinator's clock at the time the write was processed — not the time the segment was archived or the time Cassandra received the request. A write with a backdated CQL timestamp before the cutoff will be replayed; a write with a future-dated CQL timestamp after the cutoff will be suppressed even if it was acknowledged before the target time. Operators should be aware of this when the target application uses custom CQL timestamps.
 
-`target_timestamp` in the request accepts either a Unix epoch float string or ISO-8601.
+`target_timestamp` in the request accepts either a Unix epoch float string or ISO-8601 (interpreted as UTC if timezone offset is not explicitly provided).
 
-### 4.9 Revised File Map for Restore Path
-
-| File | Change | Responsibility |
-|---|---|---|
-| [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Add `PreparePitrRestore` RPC handler (coordinator) |
-| [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Add `apply_pitr_restore()` — check `.last-restore` guard, write properties file, download segments |
-| [`medusa/storage/node_backup.py`](../../../medusa/storage/node_backup.py) | Modify | Add `snapshot_time` property (timestamp of first snapshot dir, falling back to `started`) |
-| [`medusa/storage/cluster_backup.py`](../../../medusa/storage/cluster_backup.py) | Modify | Add `min_snapshot_time` and `max_snapshot_time` properties aggregating `node_backup.snapshot_time` across nodes |
-| [`medusa/cassandra_utils.py`](../../../medusa/cassandra_utils.py) | Modify | Inspect snapshot directory mtime before snapshot cleanup to record node snapshot timestamp (falls back to `started` if no snapshot directories are present) |
-| [`medusa/index.py`](../../../medusa/index.py) | Modify | Persist `snapshot_time_{fqdn}_{timestamp}.timestamp` index blob |
-| [`medusa/storage/__init__.py`](../../../medusa/storage/__init__.py) | Modify | Read `snapshot_time` index blob in `list_node_backups()` to populate `NodeBackup` |
-| [`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) | Create | Pure restore logic: `select_base_snapshot`, `find_commitlog_segments`, `generate_commitlog_archiving_properties` |
-| [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | `PreparePitrRestore` RPC + message types (replaces `RestoreClusterToTimestamp`) |
-
-The `RestoreClusterToTimestamp` RPC from the original plan is replaced by `PreparePitrRestore`. A separate `RestoreClusterToTimestamp` that orchestrates the full flow over SSH is not needed in the Kubernetes deployment target.
-
-### 4.10 Purge Integration
+### 4.9 Purge Integration
 
 [`purge_commitlogs(storage, fqdn, oldest_kept_snapshot_ts, interval_seconds)`](../../../medusa/purge.py) is called from `main()` inside the existing `with Storage(...) as storage:` block when `pitr.enabled = true`. It deletes all segments under `<prefix>/<fqdn>/commitlogs/` whose `blob.last_modified` is strictly less than the purge threshold.
 
@@ -400,7 +403,7 @@ Segment timestamps are **not** extracted from filenames. `blob.last_modified` �
 
 **Purge scope assumption:** `purge_commitlogs` operates on a single `fqdn`. In Kubernetes, each pod's Medusa sidecar calls `medusa purge` independently and purges only the segments it archived — those stored under `<prefix>/<fqdn>/commitlogs/`. This is correct and consistent with the per-pod sidecar model: no cross-node purge coordination is needed.
 
-### 4.11 Proto Changes
+### 4.10 Proto Changes
 
 Two new RPCs are added to the `Medusa` service in [`medusa.proto`](../../../medusa/service/grpc/medusa.proto):
 
@@ -427,7 +430,7 @@ message GetCommitLogArchiveStatusResponse {
 }
 
 message PreparePitrRestoreRequest {
-  string targetTimestamp = 1;  // Unix epoch float string or ISO-8601
+  string targetTimestamp = 1;  // Unix epoch float string or ISO-8601 (UTC)
 }
 
 message NodePitrMetadata {
@@ -448,7 +451,7 @@ message PreparePitrRestoreResponse {
 
 **Backward compatibility:** The two new RPCs are additive only — no existing messages or field numbers are changed. Existing consumers of `medusa.proto` are unaffected at the wire level; older clients that have not regenerated their stubs will simply not expose the new RPCs. The k8ssandra-operator's generated Go client falls into this category: when upgrading Medusa, the operator repo must regenerate its Go stubs from the updated proto using `protoc` with the `grpc-go` plugin so the operator can call `GetCommitLogArchiveStatus` and `PreparePitrRestore`.
 
-### 4.12 Object Storage Layout
+### 4.11 Object Storage Layout
 
 ```
 <prefix>/<fqdn>/commitlogs/CommitLog-6-1234567890123.log
@@ -457,7 +460,7 @@ message PreparePitrRestoreResponse {
 
 - Same bucket and `<prefix>` as backups — no new bucket or credential required.
 - Segment filenames are preserved verbatim from Cassandra.
-- Filenames are used only as storage object keys and for ordering — no timestamp-based filtering is applied at restore time. All segments from `node_backup.snapshot_time` forward are downloaded; `restore_point_in_time` in `commitlog_archiving.properties` is the sole cutoff. At purge time, retention is based on `blob.last_modified`, not on the filename (see Section 4.10).
+- Filenames are used only as storage object keys and for ordering — no timestamp-based filtering is applied at restore time. All segments from `node_backup.snapshot_time` forward are downloaded; `restore_point_in_time` in `commitlog_archiving.properties` is the sole cutoff. At purge time, retention is based on `blob.last_modified`, not on the filename (see §4.9).
 
 ---
 
@@ -539,7 +542,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 
 ### 6.3 Observability & Monitoring
 
-- **`GetCommitLogArchiveStatus` RPC:** Returns `running`, `last_upload_time`, `pending_count`, `interval_seconds`. Operators should alert on `pending_count > N` for sustained periods (indicating upload failures) and `running=false` (archiver stopped unexpectedly).
+- **`GetCommitLogArchiveStatus` RPC:** Returns `running`, `last_upload_time`, `pending_count`, `interval_seconds`, and `status` (`StatusType`: `IN_PROGRESS` while the archiver is running, `FAILED` if it stopped unexpectedly). Operators should alert on `pending_count > N` for sustained periods (indicating upload failures), `running=false`, or `status=FAILED` (archiver stopped unexpectedly).
 - **Logging:** The archiver logs at `INFO` on each successful upload batch and at `ERROR`/`WARNING` on upload failures or directory access errors.
 - **Purge logging:** `purge_commitlogs()` logs the count of deleted segments at `INFO`.
 
@@ -547,27 +550,29 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 
 | Scenario | Behaviour |
 |---|---|
+| Spool & commitlog dirs on different devices (or directory missing at startup) | `CommitLogArchiver` raises `RuntimeError` at startup; Medusa fails fast and crashes immediately so operators/Kubernetes detect misconfigurations. |
 | Upload failure (network, quota) | Logged at ERROR; retried next tick. Server continues. |
-| Commitlog directory inaccessible | Logged per tick; visible via `GetCommitLogArchiveStatus` (`pending_count=0`, `running=true`). No crash. |
+| Runtime directory read error during poll | Logged per tick; visible via `GetCommitLogArchiveStatus` (`pending_count=0`, `running=true`). No crash. |
 | Storage backend unreachable | Existing tenacity retry in storage driver applies before error propagates to archiver. |
 | Partial upload (size mismatch) | Detected on next tick; segment is re-uploaded. |
 | No base snapshot before target | `PreparePitrRestore` returns `FAILED` immediately. No data movement started. |
 | Cassandra fails to start after replay | Surfaced by the pod readiness probe / Cassandra operator. Medusa does not start Cassandra in the Kubernetes path. See §6.6 for remediation steps. |
 | gRPC server pod restart | Archiver restarts cleanly; size/hash check prevents duplicate uploads of already-archived segments. |
 | initContainer crashes mid-download | Pod restarts; `restore.py` is idempotent — it re-downloads segments and re-writes properties. Staging dir may have partial files; the download step overwrites them. |
+| Spool exhaustion / disk full | Only failed-upload segments accumulate — each segment is removed from the spool immediately after a successful upload. Disk exhaustion can only occur if upload failures persist long enough for Cassandra to archive faster than Medusa can drain. Medusa logs upload errors at ERROR per tick; `pending_count` in `GetCommitLogArchiveStatus` rises monotonically. Resolves automatically once the underlying storage issue clears. |
 
 ### 6.5 Testing & Rollout Plan
 
 **Unit tests (new):**
-- [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` when spool dir and commitlog dir are on different devices (mock `os.stat` to return differing `st_dev` values).
-- [`tests/pitr_restore_test.py`](../../../tests/pitr_restore_test.py): `select_base_snapshot` (correct selection based on `max_snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (correct Cassandra timestamp format).
+- [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` to crash Medusa when spool dir and commitlog dir are on different devices or inaccessible (mock `os.stat` to return differing `st_dev` values or raise `FileNotFoundError`).
+- [`tests/pitr_restore_test.py`](../../../tests/pitr_restore_test.py): `select_base_snapshot` (correct selection based on `max_snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (verifying `yyyy:MM:dd HH:mm:ss` UTC formatting from epoch timestamps).
 - [`tests/storage_test.py`](../../../tests/storage_test.py): `NodeBackup.snapshot_time` resolution (from index blob, snapshot folder timestamp, and fallback to `started`); `ClusterBackup.min_snapshot_time` and `ClusterBackup.max_snapshot_time` aggregation.
 - [`tests/config_test.py`](../../../tests/config_test.py): `PitrConfig` defaults and custom values via `load_config`.
 - [`tests/purge_test.py`](../../../tests/purge_test.py): `purge_commitlogs` deletes segments below threshold; skips segments above threshold.
 - [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py): `GetCommitLogArchiveStatus` with no archiver returns `running=false`; `PreparePitrRestore` returns the correct `backupName` and per-node metadata map in the response.
 - [`tests/service/grpc/restore_test.py`](../../../tests/service/grpc/restore_test.py): `apply_pitr_restore()` downloads correct segments and writes valid `commitlog_archiving.properties`.
 
-**Integration tests (future, not part of this design):**
+**Integration tests :**
 1. Start cluster; run workload; take snapshot.
 2. Run additional writes; allow archiver to upload segments.
 3. Record target timestamp mid-workload.
@@ -605,7 +610,7 @@ When Cassandra fails to start after commitlog replay (pod readiness probe fails,
 | Symptom | Recommended path |
 |---|---|
 | Cassandra logs show missing or unreadable segment file | (a) Rollback — the segment cannot be recovered by retrying |
-| Cassandra logs show `restore_point_in_time` parsing error | (b) Retry — fix timestamp format; ensure ISO-8601 or Unix epoch float |
+| Cassandra logs show `restore_point_in_time` parsing error | (b) Retry — ensure `restore_point_in_time` in `commitlog_archiving.properties` matches `yyyy:MM:dd HH:mm:ss` UTC |
 | `GetCommitLogArchiveStatus` shows `last_upload_time` after `target_timestamp` on all nodes | (b) Retry with earlier timestamp |
 | Segment gap confirmed (archiver was not running at snapshot time) | (a) Rollback, then enable archiver before the next snapshot |
 
@@ -625,7 +630,7 @@ When Cassandra fails to start after commitlog replay (pod readiness probe fails,
 
 6. **Commitlog segments and TTL data:** Replaying a commitlog does not resurrect cells whose TTL has expired — Cassandra evaluates liveness against the current clock at query time, not at replay time. The risk goes the other way: a cell that was live at the target timestamp may have since expired and will appear dead when the restored cluster is queried. This is a known limitation, not a Medusa-specific issue.
 
-7. ~~**Spool directory filesystem constraint:** The `commitlog_spool_dir` must be on the same filesystem as Cassandra's commitlog directory — hardlinks cannot cross filesystem boundaries. In Kubernetes, this requires both the Cassandra container and the Medusa sidecar to mount the same volume at compatible paths. The operator (k8ssandra) is responsible for configuring this; Medusa should detect at startup if `commitlog_spool_dir` is on a different device than the commitlog directory and refuse to start with a clear error message.~~ **Resolved:** `CommitLogArchiver.__init__` compares `st_dev` of both directories and raises `RuntimeError` with a clear message if they differ (see §4.4). Unit test added in §6.5.
+7. ~~**Spool directory filesystem constraint:** The `commitlog_spool_dir` must be on the same filesystem as Cassandra's commitlog directory — hardlinks cannot cross filesystem boundaries. In Kubernetes, this requires both the Cassandra container and the Medusa sidecar to mount the same volume at compatible paths. The operator (k8ssandra) is responsible for configuring this; Medusa should detect at startup if `commitlog_spool_dir` is on a different device than the commitlog directory and refuse to start with a clear error message.~~ **Resolved:** `CommitLogArchiver.__init__` compares `st_dev` of both directories and raises `RuntimeError` with a clear message if they differ or are missing (see §4.4), crashing Medusa immediately at startup to prevent misconfigurations from going unnoticed. Unit test added in §6.5.
 
 8. ~~**§4.11 proto still names `RestoreClusterToTimestamp`:** The proto snippet in §4.11 was not updated when the RPC was renamed to `PreparePitrRestore`.~~ **Resolved:** §4.11 and §6.5 now consistently use `PreparePitrRestore` with complete message definitions.
 
