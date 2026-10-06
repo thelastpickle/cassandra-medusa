@@ -174,7 +174,7 @@ commitlog_restore_grace_period_seconds = 3600
 
 `commitlog_staging_dir` specifies the local staging directory (default: `/var/lib/cassandra/medusa_commitlog_staging`) where `pitr_restore.py` downloads commitlog segments from object storage during a PITR restore. Residing directly on the Cassandra persistent data volume, it leverages the volume's high capacity. `pitr_restore.py` systematically empties and resets this staging directory on every initContainer startup to ensure no orphaned segments persist across restarts.
 
-`commitlog_restore_grace_period_seconds` (default: `3600`, i.e. 1 hour) sets the upper-bound grace period applied when selecting commit log segments during a restore. At restore time, `pitr_restore.py` calls `find_next_backup(storage, fqdn, base_backup)` to locate the earliest backup whose `snapshot_time > base_backup.snapshot_time`. When found, the upper bound for segment fetch is `next_backup.min_snapshot_time + commitlog_restore_grace_period_seconds`. This handles async upload lag: segments belonging to the restore window may still be in flight when the next backup snapshot starts, so a conservative window beyond the next snapshot time ensures they are captured. When there is no subsequent backup, `upper_bound_s` falls back to `time.time()` (the current wall clock) — avoiding an unbounded scan while still capturing any segments that have been uploaded since the base snapshot.
+`commitlog_restore_grace_period_seconds` (default: `3600`, i.e. 1 hour) sets the upper-bound grace period applied when selecting commit log segments during a restore. At restore time, `pitr_restore.py` calls `find_next_backup(storage, fqdn, base_backup)` to locate the earliest backup whose `snapshot_time > base_backup.snapshot_time`. When found, the upper bound for segment fetch is `next_backup.snapshot_time + commitlog_restore_grace_period_seconds`. This handles async upload lag: segments belonging to the restore window may still be in flight when the next backup snapshot starts, so a conservative window beyond the next snapshot time ensures they are captured. When there is no subsequent backup, `upper_bound_s` falls back to `time.time()` (the current wall clock) — avoiding an unbounded scan while still capturing any segments that have been uploaded since the base snapshot.
 
 `archive_command` is not a config field — it is derived at runtime from `commitlog_spool_dir`:
 
@@ -280,7 +280,7 @@ The operator then:
 2. Assembles a single `RESTORE_MAPPING` JSON containing a `pitr` block with `target_timestamp_s` and a `node_backups` map of `{fqdn: backup_name}` for every node in the cluster.
 3. Sets the same `RESTORE_MAPPING=<inline-JSON>` on **every** pod's initContainer before restarting them.
 
-Each pod's `restore.py` reads `RESTORE_MAPPING` via `json.loads()` (existing code, unchanged) and uses the `pitr` block directly. This RPC is idempotent and safe to retry: all operations are read-only against object storage.
+Each pod's `restore.py` reads `RESTORE_MAPPING` via `json.loads()` (the same inline-JSON parsing path used today; the `pitr` block is a new optional key handled by the modified `restore_backup()` described in §4.8). This RPC is idempotent and safe to retry: all operations are read-only against object storage.
 
 **RPC Sequence:**
 
@@ -350,9 +350,11 @@ docker-entrypoint.sh (MEDUSA_MODE=RESTORE)
         |           |-- write commitlog_archiving.properties with archive_command ONLY
 ```
 
-**`RESTORE_MAPPING` format:** `apply_mapping_env()` in `restore.py` is not modified. `RESTORE_MAPPING` is always inline JSON — the same `json.loads()` path used today. The `pitr` block is an optional top-level key in that JSON, present only for PITR restores. A regular (non-PITR) restore has no `pitr` key and the existing SSTable restore path is completely unchanged.
+**`RESTORE_MAPPING` format:** `RESTORE_MAPPING` is always inline JSON — the same `json.loads()` path used today. The `pitr` block is an optional top-level key in that JSON, present only for PITR restores. A regular (non-PITR) restore has no `pitr` key and the existing SSTable restore path is completely unchanged.
 
-**`restore_backup()` signature change in `restore.py`:** `restore_backup(in_place, config)` gains a new `backup_name=None` parameter. When `None`, the function falls back to `os.environ["BACKUP_NAME"]` — preserving full backward compatibility for non-PITR restores. For PITR restores, `restore.py` reads the local pod's `fqdn` and looks up `RESTORE_MAPPING["pitr"]["node_backups"][fqdn]` to obtain its assigned `backup_name`, which is then passed explicitly, overriding `BACKUP_NAME`.
+**Changes to `apply_mapping_env()` in `restore.py`:** `apply_mapping_env()` is modified to also return the full parsed `mapping` dict alongside `in_place`, so the caller (`__main__`) can pass the `pitr` block downstream. The return type changes from `bool | None` to `tuple[bool, dict] | None` — `(in_place, mapping)`. Existing callers that only consume `in_place` are updated accordingly. The `host_map` lookup logic is unchanged.
+
+**`restore_backup()` signature change in `restore.py`:** `restore_backup(in_place, config)` gains a new `backup_name=None` parameter and a `mapping=None` parameter carrying the full parsed `RESTORE_MAPPING`. When `backup_name` is `None` and `mapping` contains a `pitr` block, `restore_backup()` reads the local pod's `fqdn` (from `POD_IP` or `POD_NAME`) and looks up `mapping["pitr"]["node_backups"][fqdn]` to obtain its assigned `backup_name`. When `backup_name` is `None` and there is no `pitr` block, it falls back to `os.environ["BACKUP_NAME"]` — preserving full backward compatibility for non-PITR restores.
 
 `restore_backup()` calls `restore_node_locally()`, which wipes the commitlog directory via `clean_path(cassandra.commit_logs_path, ...)`. Because `pitr_restore.py` runs **after** `restore.py` completes, segment downloading and properties generation happen on a clean slate.
 
@@ -448,7 +450,7 @@ def main():
             # scan is always bounded and captures any segments uploaded since the base snapshot.
             next_backup = find_next_backup(storage, fqdn, base_backup)
             if next_backup is not None:
-                upper_bound_s = next_backup.min_snapshot_time + config.pitr.commitlog_restore_grace_period_seconds
+                upper_bound_s = next_backup.snapshot_time + config.pitr.commitlog_restore_grace_period_seconds
             else:
                 upper_bound_s = time.time()
 
