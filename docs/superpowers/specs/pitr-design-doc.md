@@ -727,3 +727,9 @@ When Cassandra fails to start after commitlog replay (pod readiness probe fails,
 
 1. **Commitlog segments and TTL data:** Replaying a commitlog does not resurrect cells whose TTL has expired — Cassandra evaluates liveness against the current clock at query time, not at replay time. The risk goes the other way: a cell that was live at the target timestamp may have since expired and will appear dead when the restored cluster is queried. This is a known limitation, not a Medusa-specific issue.
 
+2. **Time resolution for restores:** Is there a finer resolution than SECONDS which would be supported for PITR in Cassandra, and how does the `precision` field affect the replay.
+
+3. **Are timestamp stored in UTC in commit logs?** The commitlog-archiving.properties file documentation states that the restore time is expected in "GMT". Questions are whether or not timestamps are always GMT/UTC in commit log files, and if not, is the conversion done correctly by Cassandra at replay time.
+
+4. **Do we need a node_backup.snapshot_time to node_backup.started fallback?** A backup that doesn't have a snapshot was created before commit log backups were enabled, and is not suitable for PITR.
+
