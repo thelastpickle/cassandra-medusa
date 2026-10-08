@@ -22,12 +22,27 @@ import medusa.utils
 from medusa.storage import divide_chunks
 
 
+class _RedactPasswordFilter(logging.Filter):
+    """Masks passwords in the commands parallel-ssh logs (at DEBUG level) before executing them."""
+
+    def filter(self, record):
+        try:
+            record.msg, record.args = medusa.utils.redact_password(record.getMessage()), ()
+        except Exception:
+            pass  # leave records that cannot be formatted to the handlers' error reporting
+        return True
+
+
+for _pssh_logger_name in ('pssh.clients.native.single', 'pssh.clients.ssh.single'):
+    logging.getLogger(_pssh_logger_name).addFilter(_RedactPasswordFilter())
+
+
 def display_output(host_outputs):
     for host_out in host_outputs:
         for line in host_out.stdout:
-            logging.info("{}-stdout: {}".format(host_out.host, line))
+            logging.info("{}-stdout: {}".format(host_out.host, medusa.utils.redact_password(line)))
         for line in host_out.stderr:
-            logging.info("{}-stderr: {}".format(host_out.host, line))
+            logging.info("{}-stderr: {}".format(host_out.host, medusa.utils.redact_password(line)))
 
 
 class OrchestrationError(RuntimeError):
@@ -63,15 +78,17 @@ class Orchestration(object):
         error = []
         i = 1
 
+        # The command can hold secrets such as the nodetool password: log a redacted copy, run the original
+        redacted_command = medusa.utils.redact_password(command)
         logging.info('Executing "{command}" on following nodes {hosts} with a parallelism/pool size of {pool_size}'
-                     .format(command=command, hosts=hosts, pool_size=self.pool_size))
+                     .format(command=redacted_command, hosts=hosts, pool_size=self.pool_size))
 
         for parallel_hosts in divide_chunks(hosts, self.pool_size):
             client = self._init_ssh_client(parallel_hosts, ssh_client, cert_file, username, port, pkey,
                                            keepalive_seconds)
 
-            logging.debug(f'Batch #{i}: Running "{command}" nodes={parallel_hosts} parallelism={len(parallel_hosts)} '
-                          f'login_shell={use_login_shell}')
+            logging.debug(f'Batch #{i}: Running "{redacted_command}" nodes={parallel_hosts} '
+                          f'parallelism={len(parallel_hosts)} login_shell={use_login_shell}')
 
             shell = '$SHELL -cl' if use_login_shell else None
 
@@ -85,11 +102,11 @@ class Orchestration(object):
         # Report on execution status
         if len(success) == len(hosts):
             logging.info('Job executing "{}" ran and finished Successfully on all nodes.'
-                         .format(command))
+                         .format(redacted_command))
             pssh_run_success = True
         elif len(error) > 0:
             logging.error('Job executing "{}" ran and finished with errors on following nodes: {}'
-                          .format(command, sorted({host_output.host for host_output in error})))
+                          .format(redacted_command, sorted({host_output.host for host_output in error})))
             display_output(error)
         else:
             err_msg = 'Something unexpected happened while running pssh command'
