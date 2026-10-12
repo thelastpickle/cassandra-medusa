@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dns.exception
 import dns.resolver
 import dns.reversename
 import ipaddress
@@ -52,12 +53,16 @@ class HostnameResolver:
 
     def compute_k8s_hostname(self, ip_address):
         if (self.is_ipv4(ip_address) or self.is_ipv6(ip_address)):
-            reverse_name = dns.reversename.from_address(ip_address).to_text()
-            fqdns = dns.resolver.resolve(reverse_name, 'PTR')
-            for fqdn in fqdns:
-                if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-', '.')) \
-                   and not self.is_ipv6(fqdn.to_text().split('.')[0].replace('-', ':')):
-                    return fqdn.to_text().split('.')[0]
+            try:
+                reverse_name = dns.reversename.from_address(ip_address).to_text()
+                fqdns = dns.resolver.resolve(reverse_name, 'PTR')
+                for fqdn in fqdns:
+                    if not self.is_ipv4(fqdn.to_text().split('.')[0].replace('-', '.')) \
+                       and not self.is_ipv6(fqdn.to_text().split('.')[0].replace('-', ':')):
+                        return fqdn.to_text().split('.')[0]
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+                    dns.resolver.Timeout, dns.exception.DNSException) as e:
+                logging.debug(f"Failed to resolve PTR record for {ip_address}: {e}. Falling back to IP address.")
 
         return ip_address
 
