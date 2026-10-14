@@ -262,7 +262,8 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
 def print_backup_stats(
         actual_backup_duration, actual_start, end, node_backup, num_files, num_replaced, num_kept, start
 ):
-    logging.info('Backup done')
+    logging.info('Backup done: {} ({})'.format(
+        node_backup.name, 'differential' if node_backup.is_differential else 'full'))
 
     logging.info("""- Started: {:%Y-%m-%d %H:%M:%S}
                         - Started extracting data: {:%Y-%m-%d %H:%M:%S}

@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import os
 import pathlib
 import threading
@@ -84,6 +85,17 @@ class BackupNodeTest(unittest.TestCase):
         result = registered_backup_future.result()
         assert result is not None
         assert result == {"foo": "bar"}
+
+    def test_print_backup_stats_logs_backup_name_and_mode(self):
+        for differential, mode in ((True, 'differential'), (False, 'full')):
+            node_backup = MagicMock()
+            node_backup.name = 'backup-name'
+            node_backup.is_differential = differential
+            node_backup.size.return_value = 0
+            with self.assertLogs(level='INFO') as logs:
+                now = datetime.datetime.now()
+                backup_node.print_backup_stats(now - now, now, now, node_backup, 0, 0, 0, now)
+            self.assertIn('INFO:root:Backup done: backup-name ({})'.format(mode), logs.output)
 
     @patch("medusa.storage")
     @patch("medusa.storage.node_backup.NodeBackup")
