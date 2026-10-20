@@ -13,10 +13,8 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
         include:
-          - python-version: "3.10"
-            tox-py: py310
           - python-version: "3.11"
             tox-py: py311
           - python-version: "3.12"
@@ -96,7 +94,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: ['3.10', '3.11', '3.12']
+          python-version: ['3.11', '3.12']
           it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # IBM not included by default due to lite plan quota being easily exceeded
           #it-backend: [local, s3, gcs, minio, ibm, azure]
@@ -110,14 +108,8 @@ jobs:
               it-backend: gcs
               experimental: false
               java-version: '11.0.25'
-            # explicitly include tests against python 3.10 and one version of cassandra
-            - python-version: '3.10'
-              cassandra-version: '4.1.9'
-              it-backend: gcs
-              experimental: false
-              java-version: '11.0.25'
             # explicitly include one test against ibm storage backend
-            - python-version: '3.10'
+            - python-version: '3.11'
               cassandra-version: '4.1.9'
               it-backend: ibm
               experimental: false
@@ -134,7 +126,6 @@ jobs:
               it-backend: azure-hierarchical
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
-            # no tests against non-python 3.10, except the explicitly allowed combinations
             - python-version: '3.11'
             - cassandra-version: '4.1.9'
 
@@ -519,10 +510,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.10
+    - name: Set up Python 3.11
       uses: actions/setup-python@v1
       with:
-        python-version: "3.10"
+        python-version: "3.11"
     - name: Set up Poetry
       with:
         version: 2.3.3
