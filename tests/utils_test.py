@@ -29,6 +29,32 @@ class RestoreNodeTest(unittest.TestCase):
         assert medusa.utils.null_if_empty("test") == "test"
         assert medusa.utils.null_if_empty(1) == 1
 
+    def test_redact_password_in_command_string(self):
+        command = 'nodetool -u cassandra -pw s3cret -pwf /etc/cassandra/jmx.password snapshot -t medusa-backup1'
+        assert medusa.utils.redact_password(command) == \
+            'nodetool -u cassandra -pw *** -pwf /etc/cassandra/jmx.password snapshot -t medusa-backup1'
+        assert medusa.utils.redact_password('nodetool --password s3cret status') == 'nodetool --password *** status'
+        assert medusa.utils.redact_password('nodetool --password=s3cret status') == 'nodetool --password=*** status'
+
+    def test_redact_password_in_command_list(self):
+        command = ['nodetool', '-u', 'cassandra', '-pw', 's3cret with spaces', '-pwf', '/etc/cassandra/jmx.password',
+                   'snapshot', '-t', 'medusa-backup1']
+        assert medusa.utils.redact_password(command) == [
+            'nodetool', '-u', 'cassandra', '-pw', '***', '-pwf', '/etc/cassandra/jmx.password',
+            'snapshot', '-t', 'medusa-backup1'
+        ]
+        # The command that gets executed must not be modified
+        assert command[4] == 's3cret with spaces'
+        assert medusa.utils.redact_password(['nodetool', '--password', 's3cret']) == ['nodetool', '--password', '***']
+        assert medusa.utils.redact_password(['nodetool', '--password=s3cret']) == ['nodetool', '--password=***']
+
+    def test_redact_password_leaves_commands_without_password_untouched(self):
+        command = 'mkdir -p /tmp/medusa-job; cd /tmp/medusa-job && medusa-wrapper medusa -vvv backup-node --mode full'
+        assert medusa.utils.redact_password(command) == command
+        command = ['nodetool', '-pwf', '/etc/cassandra/jmx.password', 'clearsnapshot', '-t', 'medusa-backup1']
+        assert medusa.utils.redact_password(command) == command
+        assert medusa.utils.redact_password(None) is None
+
 
 if __name__ == '__main__':
     unittest.main()

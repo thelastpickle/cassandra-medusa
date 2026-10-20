@@ -17,6 +17,7 @@ import subprocess
 
 from medusa.nodetool import Nodetool
 from medusa.service.snapshot.abstract_snapshot_service import AbstractSnapshotService
+from medusa.utils import redact_password
 
 
 class NodetoolSnapshotService(AbstractSnapshotService):
@@ -28,7 +29,7 @@ class NodetoolSnapshotService(AbstractSnapshotService):
     def create_snapshot(self, *, tag):
         # create the Nodetool command
         cmd = self._nodetool.nodetool + ['snapshot', '-t', tag]
-        logging.debug('Executing: {}'.format(' '.join(cmd)))
+        logging.debug('Executing: {}'.format(' '.join(redact_password(cmd))))
         try:
             subprocess.check_output(cmd, universal_newlines=True)
         except subprocess.CalledProcessError as e:
@@ -38,7 +39,8 @@ class NodetoolSnapshotService(AbstractSnapshotService):
     def delete_snapshot(self, *, tag):
         # create the Nodetool command
         cmd = self._nodetool.nodetool + ['clearsnapshot', '-t', tag]
-        logging.debug('Executing: {}'.format(' '.join(cmd)))
+        redacted_cmd = ' '.join(redact_password(cmd))
+        logging.debug('Executing: {}'.format(redacted_cmd))
         try:
             output = subprocess.check_output(cmd, universal_newlines=True)
             logging.debug('nodetool output: {}'.format(output))
@@ -47,4 +49,4 @@ class NodetoolSnapshotService(AbstractSnapshotService):
             logging.warning(
                 'Medusa may have failed at cleaning up snapshot {}. '
                 'Check if the snapshot exists and clear it manually '
-                'by running: {}'.format(tag, ' '.join(cmd)))
+                'by running: {}'.format(tag, redacted_cmd))

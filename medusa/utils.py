@@ -14,10 +14,15 @@
 # limitations under the License.
 
 import logging
+import re
 import sys
 import pathlib
 import traceback
 import tempfile
+
+PASSWORD_MASK = '***'
+_PASSWORD_OPTIONS = ('-pw', '--password')
+_PASSWORD_ARGUMENT = re.compile(r'(?<!\S)(-pw|--password)(\s+|=)\S+')
 
 
 class MedusaTempFile(object):
@@ -82,3 +87,20 @@ def null_if_empty(value):
     if (str(value) == ''):
         return None
     return value
+
+
+def redact_password(command):
+    """
+    Returns a copy of a command, given as a string or as a list of arguments, that is safe to log:
+    the value of -pw/--password (e.g. the nodetool password) is masked. Paths given with -pwf are kept.
+    Always pass the original command, not the redacted copy, to whatever executes it.
+    """
+    if isinstance(command, str):
+        return _PASSWORD_ARGUMENT.sub(r'\g<1>\g<2>' + PASSWORD_MASK, command)
+    if isinstance(command, (list, tuple)):
+        redacted = [redact_password(arg) for arg in command]
+        for i in range(1, len(redacted)):
+            if command[i - 1] in _PASSWORD_OPTIONS:
+                redacted[i] = PASSWORD_MASK
+        return redacted
+    return command
