@@ -18,7 +18,8 @@
 VERSION = $(shell dpkg-parsechangelog --show-field Version)
 DISTRIBUTION = $(shell sed -n "s/^VERSION_CODENAME=//p" /etc/os-release)
 PACKAGEVERSION = $(VERSION)-0~$(DISTRIBUTION)0
-PY3VER = $(shell py3versions -d)
+MEDUSA_PYTHON ?= /usr/bin/python3
+PY3VER = $(shell $(MEDUSA_PYTHON) -c 'import sys; print("python%d.%d" % sys.version_info[:2])')
 SSH2_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VER)/site-packages/ssh2_python.libs/
 SSH_LIBS_SUFFIX = debian/cassandra-medusa/usr/share/cassandra-medusa/lib/$(PY3VER)/site-packages/ssh_python.libs/
 POETRY_VIRTUALENVS_IN_PROJECT = true
@@ -30,7 +31,7 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	--python /usr/bin/python3 --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	--python $(MEDUSA_PYTHON) --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
 	--preinstall=poetry==2.3.3 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:

@@ -24,7 +24,12 @@ RUN mkdir -p ${WORKDIR}
 WORKDIR ${WORKDIR}
 
 # install dependencies
+ARG EXTRA_PACKAGES=""
+ARG PYTHON_PPA=""
 RUN apt-get update \
+    && if [ -n "$PYTHON_PPA" ]; then \
+        apt-get install -y software-properties-common && add-apt-repository -y "$PYTHON_PPA" && apt-get update; \
+    fi \
     && apt-get install -y \
         python3 \
         python3-venv \

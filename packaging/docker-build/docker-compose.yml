@@ -34,6 +34,8 @@ services:
       dockerfile: packaging/docker-build/Dockerfile-tester
       args:
         - BUILD_IMAGE=ubuntu:22.04
+        - PYTHON_PPA=ppa:deadsnakes/ppa
+        - EXTRA_PACKAGES=python3.11 python3.11-venv
     volumes:
       - ../../packages:/usr/src/app/packages
   cassandra-medusa-builder-bullseye:
