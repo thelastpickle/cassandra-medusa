@@ -30,6 +30,10 @@ RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 RUN apt-get update && \
     apt-get install -y software-properties-common
 
+# jammy ships python 3.10, but medusa needs >= 3.11
+RUN add-apt-repository -y ppa:deadsnakes/ppa
+ENV MEDUSA_PYTHON=/usr/bin/python3.11
+
 # install dependencies
 RUN apt-get update \
     && apt-get install -y \
@@ -46,6 +50,9 @@ RUN apt-get update \
         python3-setuptools \
         python3-venv \
         python3-wheel \
+        python3.11 \
+        python3.11-dev \
+        python3.11-venv \
         python3-gevent \
         python3-greenlet \
         build-essential \

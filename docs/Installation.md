@@ -62,6 +62,7 @@ In case of problem, read the full instructions on the [cloudsmith.io documentati
 
 *Note: since Medusa 0.9 we publish releases for Ubuntu `bionic` and `focal` only.*
 *Note: since Medusa 0.23 we switched `focal` for `jammy`.*
+*Note: Medusa requires Python 3.11+, which `jammy` doesn't ship. The `jammy` package depends on `python3.11`, available from the [deadsnakes PPA](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa): `sudo add-apt-repository ppa:deadsnakes/ppa`.*
 
 2/ Install Medusa :
 
