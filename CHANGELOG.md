@@ -1,5 +1,23 @@
 ## Change Log
 
+### 0.31.0 (2026-10-21) 16:00 +00:00
+
+- Bump certifi from 2026.2.25 to 2026.10.19 (#1016) (@dependabot)
+- Bump multidict from 6.7.1 to 6.9.1 (#1012) (@dependabot)
+- Bump aiohttp from 3.14.3 to 3.14.4 (#1011) (@dependabot)
+- Drop Python 3.10 supprt (#1015) (@rzvoncek)
+- Log the backup name and mode when a backup completes (#1009) (@Ranexia04)
+- Mask the nodetool password in logged commands (#1008) (@sankalpsthakur)
+- Bump pyjwt from 2.13.0 to 2.15.0 (#1007) (@dependabot)
+- Bump virtualenv from 21.2.4 to 21.7.13 (#1006) (@dependabot)
+- Bump urllib3 from 2.7.0 to 2.8.0 (#1005) (@dependabot)
+- handle missing md5Hash in GCS responses when CMEK is enabled (#1000) (@artsiom-bukhautsou)
+- Return ITs against IBM storage (#991) (@rzvoncek)
+- Fix minio ITs - use mc docker instead of binary (#999) (@rzvoncek)
+- Exclude the unexpected nodes in backup summary for startTime, totalSize and totalObjects (#987) (@ShreyashD333)
+- Ensure failing async operations with Azure close all FDs (#990) (@burmanm)
+
+
 ### 0.30.0 (2026-08-06) 16:00 +00:00
 
 - Configurable multipart chunks (#979) (@rzvoncek)
