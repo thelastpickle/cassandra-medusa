@@ -95,9 +95,9 @@ jobs:
         fail-fast: false
         matrix:
           python-version: ['3.11', '3.12']
-          it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
-          # IBM not included by default due to lite plan quota being easily exceeded
-          #it-backend: [local, s3, gcs, minio, ibm, azure]
+          # it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
+          # s3 excluded for now while we work out a new home
+          it-backend: [local, gcs, minio, azure, azure-hierarchical]
           cassandra-version: ['4.0.18', '4.1.9', '5.0.3','github:apache/trunk']
           java-version: ['11.0.25']
           experimental: [false]
