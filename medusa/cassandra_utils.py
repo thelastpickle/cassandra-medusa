@@ -17,6 +17,7 @@
 
 
 import fileinput
+import re
 import functools
 import itertools
 import logging
@@ -297,7 +298,12 @@ class CassandraConfigReader(object):
                 return self._config['ssl_storage_port']
             else:
                 # ssl_storage_port not specified, and found a version of c* 4+
-                if self._release_version is not None and Version(self._release_version) >= Version('4-a') and \
+                # Normalize bare major versions (e.g. "4") to "4.0" since cassandra.util.Version
+                # requires at least major.minor format.
+                release_ver = self._release_version
+                if release_ver is not None and re.match(r'^\d+$', release_ver):
+                    release_ver = release_ver + '.0'
+                if release_ver is not None and Version(release_ver) >= Version('4.0') and \
                         'storage_port' in self._config and self._config['storage_port'] is not None:
                     return self._config['storage_port']
                 return "7001"
