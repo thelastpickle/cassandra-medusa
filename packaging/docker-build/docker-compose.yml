@@ -50,6 +50,54 @@ services:
       - ../..:/usr/src/app/cassandra-medusa
       - ../../packages:/usr/src/app/packages
       - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-builder-noble:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu-24.04
+      args:
+        - BUILD_IMAGE=ubuntu:24.04
+        - EXTRA_PACKAGES=""
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-noble:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-tester
+      args:
+        - BUILD_IMAGE=ubuntu:24.04
+        - EXTRA_PACKAGES=python3.12 python3.12-venv
+    volumes:
+      - ../../packages:/usr/src/app/packages
+  cassandra-medusa-builder-resolute:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-ubuntu-26.04
+      args:
+        - BUILD_IMAGE=ubuntu:26.04
+        - EXTRA_PACKAGES=""
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-resolute:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-tester
+      args:
+        - BUILD_IMAGE=ubuntu:26.04
+        - EXTRA_PACKAGES=python3.14 python3.14-venv
+    volumes:
+      - ../../packages:/usr/src/app/packages
   cassandra-medusa-builder-bookworm:
     build:
       platforms:
@@ -70,6 +118,50 @@ services:
       dockerfile: packaging/docker-build/Dockerfile-tester
       args:
         - BUILD_IMAGE=debian:bookworm
+    volumes:
+      - ../../packages:/usr/src/app/packages
+  cassandra-medusa-builder-trixie:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian-13
+      args:
+        - BUILD_IMAGE=debian:trixie
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-trixie:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-tester
+      args:
+        - BUILD_IMAGE=debian:trixie
+    volumes:
+      - ../../packages:/usr/src/app/packages
+  cassandra-medusa-builder-forky:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-debian-14
+      args:
+        - BUILD_IMAGE=debian:forky
+    volumes:
+      - ../..:/usr/src/app/cassandra-medusa
+      - ../../packages:/usr/src/app/packages
+      - ./scripts:/usr/src/app/scripts
+  cassandra-medusa-tester-forky:
+    build:
+      platforms:
+        - linux/amd64
+      context: ../..
+      dockerfile: packaging/docker-build/Dockerfile-tester
+      args:
+        - BUILD_IMAGE=debian:forky
     volumes:
       - ../../packages:/usr/src/app/packages
   release:
