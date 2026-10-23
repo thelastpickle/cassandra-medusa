@@ -32,7 +32,7 @@ RUN apt-get update && \
     apt-get install -y software-properties-common && \
     add-apt-repository -y universe && \
     apt-get update
-ENV MEDUSA_PYTHON=/usr/bin/python3.13
+ENV MEDUSA_PYTHON=/usr/bin/python3.14
 
 # install dependencies
 RUN apt-get install -y \
@@ -50,9 +50,9 @@ RUN apt-get install -y \
         python3-setuptools \
         python3-venv \
         python3-wheel \
-        python3.13 \
-        python3.13-dev \
-        python3.13-venv \
+        python3.14 \
+        python3.14-dev \
+        python3.14-venv \
         python3-gevent \
         python3-greenlet \
         build-essential \

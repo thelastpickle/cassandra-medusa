@@ -27,9 +27,7 @@ ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
 # trixie (Debian 13) ships python 3.13 and dh-virtualenv natively
-RUN rm -rf /var/lib/apt/lists/* && \
-    apt-get update && \
-    apt-get install -y software-properties-common
+RUN rm -rf /var/lib/apt/lists/* && apt-get update
 
 # install dependencies
 RUN apt-get update \

@@ -27,9 +27,7 @@ ENV PIP_DEFAULT_TIMEOUT 100
 RUN echo "Acquire::http::Pipeline-Depth 0;" >> /etc/apt/apt.conf
 
 # forky (Debian 14 testing) — package availability may shift; remove from CI matrix if unstable
-RUN rm -rf /var/lib/apt/lists/* && \
-    apt-get update && \
-    apt-get install -y software-properties-common
+RUN rm -rf /var/lib/apt/lists/* && apt-get update
 
 # install dependencies
 RUN apt-get update \
