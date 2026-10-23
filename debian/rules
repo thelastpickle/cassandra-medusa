@@ -31,7 +31,7 @@ export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
 
 override_dh_virtualenv:
 	dh_virtualenv \
-	--python $(MEDUSA_PYTHON) --preinstall=setuptools==40.3.0 --preinstall=pip==21.3.1 --preinstall=wheel --builtin-venv \
+	--python $(MEDUSA_PYTHON) --preinstall=setuptools==84.2.1 --preinstall=pip==26.2.2 --preinstall=wheel --builtin-venv \
 	--preinstall=poetry==2.3.3 --preinstall=dh-poetry==0.2.0 --pip-tool=dh-poetry
 
 override_dh_strip:

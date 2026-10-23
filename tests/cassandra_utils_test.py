@@ -673,8 +673,8 @@ class CassandraUtilsTest(unittest.TestCase):
         assert fm_ccm.call_count == 1
 
         # reset call counts
-        fm_ccm.call_count = 0
-        fm_cass.call_count = 0
+        fm_ccm.reset_mock()
+        fm_cass.reset_mock()
 
         # And, when ccm is not active, expect a cassandra health check.
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
@@ -696,15 +696,15 @@ class CassandraUtilsTest(unittest.TestCase):
         fm.return_value = True
         self.assertTrue(medusa.cassandra_utils.is_ccm_healthy("thrift"))
         assert fm.call_count == 1
-        fm.call_count = 0
+        fm.reset_mock()
 
         self.assertTrue(medusa.cassandra_utils.is_ccm_healthy("all"))
         assert fm.call_count == 2
-        fm.call_count = 0
+        fm.reset_mock()
 
         self.assertTrue(medusa.cassandra_utils.is_ccm_healthy("whatever"))
         assert fm.call_count == 1
-        fm.call_count = 0
+        fm.reset_mock()
 
         fm.side_effect = Exception("Not good.")
         self.assertFalse(medusa.cassandra_utils.is_ccm_healthy("all"))
@@ -780,7 +780,7 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertTrue(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
         assert is_cassandra_up_mock.call_count == 1
 
-        is_cassandra_up_mock.call_count = 0
+        is_cassandra_up_mock.reset_mock()
         is_cassandra_up_mock.return_value = False
         self.assertFalse(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
         assert is_cassandra_up_mock.call_count == 2
@@ -797,7 +797,7 @@ class CassandraUtilsTest(unittest.TestCase):
         self.assertTrue(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
         assert is_open.call_count == 1
 
-        is_open.call_count = 0
+        is_open.reset_mock()
         is_open.return_value = False
         self.assertFalse(is_cassandra_healthy("not-thrift-and-not-all-check", cassandra_v4, host))
         assert is_open.call_count == 2
@@ -849,8 +849,8 @@ class CassandraUtilsTest(unittest.TestCase):
 
         subproc_mock.return_value = None
         replace_tokens_mock.return_value = None
-        subproc_mock.call_count = 0
-        replace_tokens_mock.call_count = 0
+        subproc_mock.reset_mock()
+        replace_tokens_mock.reset_mock()
 
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="0",
                                                          yaml_file='resources/yaml/original/default-c4.yaml')
@@ -863,8 +863,8 @@ class CassandraUtilsTest(unittest.TestCase):
 
         # And, when start invoked with ccm active, expect that only check_output is called
         # as there is no need to replace tokens in c* yaml and disabling bootstrap.
-        subproc_mock.call_count = 0
-        replace_tokens_mock.call_count = 0
+        subproc_mock.reset_mock()
+        replace_tokens_mock.reset_mock()
 
         medusa_config_v4 = self.get_simple_medusa_config(is_ccm_active="1",
                                                          yaml_file='resources/yaml/original/default-c4.yaml')
