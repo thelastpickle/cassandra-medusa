@@ -28,6 +28,9 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: System :: Archiving :: Backup"
 ]
@@ -40,14 +43,14 @@ include = [
 
 [project]
 name = "cassandra-medusa"
-requires-python = ">=3.11.0,<3.13"
+requires-python = ">=3.11.0,<3.16"
 
 [tool.poetry.scripts]
 medusa = { reference = "medusa.medusacli:cli", type = "console" }
 medusa-wrapper = { reference = "medusa.scripts.medusa_wrapper:main", type = "console" }
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.13"
+python = ">=3.11,<3.16"
 python-dateutil = "2.8.1"
 setuptools = "83.0.0"
 click = "8.1.7"

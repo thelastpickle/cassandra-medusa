@@ -13,12 +13,16 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
         include:
           - python-version: "3.11"
             tox-py: py311
           - python-version: "3.12"
             tox-py: py312
+          - python-version: "3.13"
+            tox-py: py313
+          - python-version: "3.14"
+            tox-py: py314
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v3
@@ -94,7 +98,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          python-version: ['3.11', '3.12']
+          python-version: ['3.11', '3.12', '3.13', '3.14']
           # it-backend: [local, s3, gcs, minio, azure, azure-hierarchical]
           # s3 excluded for now while we work out a new home
           it-backend: [local, gcs, minio, azure, azure-hierarchical]
@@ -114,6 +118,17 @@ jobs:
               it-backend: ibm
               experimental: false
               java-version: '11.0.25'
+            # explicitly include python 3.14 with local and one cloud storage backend
+            - python-version: '3.14'
+              cassandra-version: '4.1.9'
+              it-backend: local
+              experimental: false
+              java-version: '11.0.25'
+            - python-version: '3.14'
+              cassandra-version: '4.1.9'
+              it-backend: ibm
+              experimental: false
+              java-version: '11.0.25'
           exclude:
             # no tests against cassandra 4.0.18 but the local ones
             - cassandra-version: '4.0.18'
@@ -127,6 +142,7 @@ jobs:
             # no tests against trunk
             - cassandra-version: 'github:apache/trunk'
             - python-version: '3.11'
+            - python-version: '3.14'
             - cassandra-version: '4.1.9'
 
     runs-on: ubuntu-24.04

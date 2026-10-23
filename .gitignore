@@ -32,3 +32,5 @@ coverage.xml
 pytest.ini
 .python-version
 tests/resources/dse/dse-*
+doc/
+docs/tickets
