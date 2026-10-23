@@ -57,7 +57,7 @@ jobs:
     # Build debian packages
     strategy:
       matrix:
-        suite: [jammy, bookworm]
+        suite: [jammy, bookworm, noble, raccoon, trixie, forky]
       fail-fast: false
     runs-on: ubuntu-24.04
     steps:
@@ -445,11 +445,19 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     strategy:
       matrix:
-        suite: [jammy, bookworm]
+        suite: [jammy, bookworm, noble, raccoon, trixie, forky]
         include:
           - suite: jammy
             distro: 'ubuntu'
-          - suite: bookworm 
+          - suite: bookworm
+            distro: 'debian'
+          - suite: noble
+            distro: 'ubuntu'
+          - suite: raccoon
+            distro: 'ubuntu'
+          - suite: trixie
+            distro: 'debian'
+          - suite: forky
             distro: 'debian'
       fail-fast: false
     runs-on: ubuntu-24.04
