@@ -90,19 +90,19 @@ def validate_manifest(storage, node_backup, enable_md5_checks):
         blob = objects_in_storage.get('{}{}'.format(data_path_prefix, object_in_manifest['path']))
 
         if blob is None:
-            yield("  - [{}] Doesn't exists".format(object_in_manifest['path']))
+            yield "  - [{}] Doesn't exists".format(object_in_manifest['path'])
             continue
 
         if not storage.storage_driver.blob_matches_manifest(blob, object_in_manifest, enable_md5_checks):
             if '-Summary.db' in blob.name:
                 m = f"Blob [{blob.name}] mismatches manifest. "
-                m += f"It's a Summary.db file which might be re-written once Cassandra rebuilds index summaries. "
-                m += f"Therefore we are not causing this mismatch to fail the verification. "
-                m += f"Cassandra will (re-)write this file during bootstrap if needed. "
+                m += "It's a Summary.db file which might be re-written once Cassandra rebuilds index summaries. "
+                m += "Therefore we are not causing this mismatch to fail the verification. "
+                m += "Cassandra will (re-)write this file during bootstrap if needed. "
                 logging.warning(m)
                 continue
             logging.error("Expected {} but got {}".format(object_in_manifest, blob))
-            yield("  - [{}] Blob different".format(object_in_manifest['path']))
+            yield "  - [{}] Blob different".format(object_in_manifest['path'])
 
     # Checking for files existing in storage, but in not in the manifest
     # Relevant for full backups only because
@@ -117,4 +117,4 @@ def validate_manifest(storage, node_backup, enable_md5_checks):
         }
 
         for path in paths_in_storage - paths_in_manifest:
-            yield("  - [{}] exists in storage, but not in manifest".format(path))
+            yield "  - [{}] exists in storage, but not in manifest".format(path)
