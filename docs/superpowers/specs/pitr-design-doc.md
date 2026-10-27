@@ -108,14 +108,14 @@ graph TD
     end
 
     subgraph PreparePitrRestore - coordinator only
-        RPC_HANDLER -->|calls| PITR_MODULE[medusa/service/grpc/pitr_restore.py]
+        RPC_HANDLER -->|calls| PITR_MODULE[medusa/pitr_restore.py]
         PITR_MODULE -->|select_node_base_snapshot per node| OS
         PITR_MODULE -->|returns per-node backup names| RM[RESTORE_MAPPING inline JSON]
     end
 
     subgraph initContainer per pod - at restart
         RM -->|read PITR block| RC[restore.py: restore base SSTables]
-        RC -->|invoked next by docker-entrypoint| PR[pitr_restore.py: PITR & archiving setup]
+        RC -->|invoked next by docker-entrypoint| PR[medusa/service/grpc/pitr_restore.py: PITR & archiving setup]
         PR -->|query & download segments live| DL[download segments from storage]
         DL -->|returns properties content| PROPS[commitlog_archiving.properties]
         PROPS -->|Cassandra reads on startup| CS[Cassandra replays to target_timestamp]
