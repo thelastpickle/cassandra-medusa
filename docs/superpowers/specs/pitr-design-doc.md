@@ -355,7 +355,7 @@ docker-entrypoint.sh (MEDUSA_MODE=RESTORE)
 
 **Changes to `apply_mapping_env()` in `restore.py`:** `apply_mapping_env()` is modified to also return the full parsed `mapping` dict alongside `in_place`, so the caller (`__main__`) can pass the `pitr` block downstream. The return type changes from `bool | None` to `tuple[bool, dict] | None` — `(in_place, mapping)`. Existing callers that only consume `in_place` are updated accordingly. The `host_map` lookup logic is unchanged.
 
-**`restore_backup()` signature change in `restore.py`:** `restore_backup(in_place, config)` gains a new `backup_name=None` parameter and a `mapping=None` parameter carrying the full parsed `RESTORE_MAPPING`. When `backup_name` is `None` and `mapping` contains a `pitr` block, `restore_backup()` reads the local pod's `fqdn` (from `POD_IP` or `POD_NAME`) and looks up `mapping["pitr"]["node_backups"][fqdn]` to obtain its assigned `backup_name`. When `backup_name` is `None` and there is no `pitr` block, it falls back to `os.environ["BACKUP_NAME"]` — preserving full backward compatibility for non-PITR restores.
+**`restore_backup()` signature change in `restore.py`:** `restore_backup(in_place, config)` gains a new `backup_name=None` parameter and a `mapping=None` parameter carrying the full parsed `RESTORE_MAPPING`. When `backup_name` is `None` and `mapping` contains a `pitr` block, `restore_backup()` resolves the local pod's source FQDN using the same `host_map`-aware logic as `medusa.service.grpc.pitr_restore`: if `POD_NAME` is set and appears in `mapping["host_map"]`, it returns `mapping["host_map"][POD_NAME]["source"][0]`; otherwise it falls back to `POD_IP` or `config.storage.fqdn`. It then looks up `mapping["pitr"]["node_backups"][fqdn]` to obtain its assigned `backup_name`. When `backup_name` is `None` and there is no `pitr` block, it falls back to `os.environ["BACKUP_NAME"]` — preserving full backward compatibility for non-PITR restores.
 
 `restore_backup()` calls `restore_node_locally()`, which wipes the commitlog directory via `clean_path(cassandra.commit_logs_path, ...)`. Because `medusa.service.grpc.pitr_restore` runs **after** `restore.py` completes, segment downloading and properties generation happen on a clean slate.
 
@@ -404,7 +404,7 @@ restore() {
         fi
     fi
 
-    # 2. Always run pitr_restore to configure commitlog_archiving.properties and stage segments if needed
+    # 2. Always run medusa.service.grpc.pitr_restore to configure commitlog_archiving.properties and stage segments if needed
     echo "Configuring PITR and commitlog archiving settings"
     poetry run python -m medusa.service.grpc.pitr_restore "/etc/medusa/medusa.ini" "$RESTORE_KEY"
 }
