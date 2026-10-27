@@ -4,7 +4,7 @@
 - **Size:** S (2–5 ideal days)
 - **Estimated Ideal Days:** 5 days (Est. Calendar Time: 10–12 days)
 - **Parallel Track:** Track G — Quality
-- **Blocked By / Dependencies:** PITR-02, PITR-06, PITR-08, PITR-10
+- **Blocked By / Dependencies:** PITR-02, PITR-06, PITR-08, PITR-10, PITR-15
 - **Blocks:** None
 
 ---

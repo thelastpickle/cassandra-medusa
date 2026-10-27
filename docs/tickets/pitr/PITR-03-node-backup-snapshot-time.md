@@ -5,7 +5,7 @@
 - **Estimated Ideal Days:** 3 days (Est. Calendar Time: 6-7 days)
 - **Parallel Track:** Track B - Storage
 - **Blocked By / Dependencies:** None (shares blob contract with PITR-02)
-- **Blocks:** PITR-07, PITR-11
+- **Blocks:** PITR-02, PITR-07, PITR-11
 
 ---
 

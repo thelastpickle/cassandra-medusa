@@ -4,7 +4,7 @@
 - **Size:** S (2-5 ideal days)
 - **Estimated Ideal Days:** 4 days (Est. Calendar Time: 8-10 days)
 - **Parallel Track:** Track E - Restore
-- **Blocked By / Dependencies:** PITR-03
+- **Blocked By / Dependencies:** PITR-03, PITR-15
 - **Blocks:** PITR-08, PITR-10
 
 ---

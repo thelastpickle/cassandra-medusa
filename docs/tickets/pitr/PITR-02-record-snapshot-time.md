@@ -5,7 +5,7 @@
 - **Estimated Ideal Days:** 3 days (Est. Calendar Time: 6-7 days)
 - **Parallel Track:** Track B - Storage
 - **Blocked By / Dependencies:** PITR-03 (merge first or in the same release)
-- **Blocks:** PITR-12
+- **Blocks:** PITR-12, PITR-13
 
 ---
 
