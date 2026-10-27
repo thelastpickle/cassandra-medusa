@@ -413,6 +413,14 @@ restore() {
 **`pitr_restore.py` execution logic:**
 
 ```python
+def resolve_node_fqdn(mapping: dict, config) -> str:
+    """Resolve the source node FQDN for this pod from RESTORE_MAPPING host_map or config."""
+    pod_name = os.environ.get("POD_NAME")
+    if pod_name and "host_map" in mapping and pod_name in mapping["host_map"]:
+        return mapping["host_map"][pod_name]["source"][0]
+    return os.environ.get("POD_IP", config.storage.fqdn)
+
+
 def main():
     config_file_path = sys.argv[1]
     restore_key = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("RESTORE_KEY", "")
@@ -437,7 +445,7 @@ def main():
         logging.info("Active PITR restore detected: downloading commitlog segments")
         pitr_meta = mapping["pitr"]
         target_timestamp_s = pitr_meta["target_timestamp_s"]
-        fqdn = os.environ.get("POD_IP", os.environ.get("POD_NAME"))
+        fqdn = resolve_node_fqdn(mapping, config)
         backup_name = pitr_meta["node_backups"][fqdn]
 
         with Storage(config=config.storage) as storage:
