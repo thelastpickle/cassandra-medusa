@@ -108,7 +108,7 @@ graph TD
     end
 
     subgraph PreparePitrRestore - coordinator only
-        RPC_HANDLER -->|calls| PITR_MODULE[medusa/pitr_restore.py]
+        RPC_HANDLER -->|calls| PITR_MODULE[medusa/service/grpc/pitr_restore.py]
         PITR_MODULE -->|select_node_base_snapshot per node| OS
         PITR_MODULE -->|returns per-node backup names| RM[RESTORE_MAPPING inline JSON]
     end
