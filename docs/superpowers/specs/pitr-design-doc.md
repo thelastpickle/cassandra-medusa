@@ -53,7 +53,7 @@ The gRPC server mode introduced in Medusa provides a long-lived process context 
 
 - **G1:** Enable full-cluster PITR restore to any timestamp covered by archived commitlog segments since the base snapshot.
 - **G2:** The archiving daemon runs as a background thread inside the existing gRPC server — no new process, CronJob, or sidecar required.
-- **G3:** `pitr.enabled = false` by default; zero behaviour change when PITR is disabled.
+- **G3:** `pitr.enabled = false` by default; zero behaviour change to backup/restore/purge commands when PITR is disabled. (The Prometheus metrics endpoint on `metrics_port` starts unconditionally whenever the gRPC server runs; it emits only counters at `0` when PITR is disabled.)
 - **G4:** All storage operations use the existing `AbstractStorage` abstraction; no backend-specific code is added.
 - **G5:** A failed segment upload never crashes the gRPC server.
 - **G6:** Segment finalization is guaranteed by Cassandra's `archive_command` hook before Medusa touches any segment — Medusa never reads from the live commitlog directory.
@@ -71,7 +71,7 @@ The gRPC server mode introduced in Medusa provides a long-lived process context 
 | SC1 | A PITR restore to timestamp T produces a cluster state where all rows written before T are present and all rows written after T are absent | Integration test: row count assertion at a known target timestamp |
 | SC2 | `CommitLogArchiver` uploads all segments present in the spool before sleeping until the next tick — a slow batch delays the next tick rather than being interrupted by it | Unit test: `_run_once` with mock storage returning N files; assert all N are uploaded and removed before the sleep call is made |
 | SC3 | A failed segment upload does not crash the gRPC server; the segment remains in the spool and is retried on the next tick | Unit test: `_run_once` raises on upload; server continues; segment still present in spool |
-| SC4 | `pitr.enabled = false` (default) produces zero behaviour change to existing backup, restore, and purge commands | Run the full existing unit + integration test suite with no `[pitr]` section in `medusa.ini`; assert zero new test failures compared to baseline |
+| SC4 | `pitr.enabled = false` (default) produces zero behaviour change to existing backup, restore, and purge commands | Run the full existing unit + integration test suite with no `[pitr]` section in `medusa.ini`; assert zero new test failures compared to baseline. Verify that `GET http://localhost:9100/metrics` returns HTTP 200 with three counters at `0` and no archiver gauges. |
 | SC5 | `PreparePitrRestore` returns `FAILED` immediately when any node lacks an eligible base backup with `node_backup.snapshot_time ≤ target_timestamp`, aborting before any pod restart or data wipe | Unit test: `select_node_base_snapshot` raises `ValueError`; RPC maps to FAILED response |
 | SC6 | `CommitLogArchiver.__init__` raises `RuntimeError` with a clear message when spool dir and commitlog dir are on different devices (or directories are inaccessible), failing fast and crashing Medusa at startup | Unit test: `os.stat` mocked to return differing `st_dev` or missing dir |
 | SC7 | `purge_commitlogs` deletes all segments whose `blob.last_modified < purge_threshold` and retains all others | Unit test: mock blob list with boundary values |
@@ -105,7 +105,7 @@ graph TD
         A -->|upload sealed segments| OS[Object Storage]
         SVC[MedusaService] -->|GetCommitLogArchiveStatus| A
         SVC -->|PreparePitrRestore| RPC_HANDLER[server.py: PreparePitrRestore handler]
-        S -->|metrics_port 9100| METRICS[aiohttp HTTP :9100\nGET /metrics]
+        S -->|metrics_port :9100| METRICS[aiohttp HTTP :9100<br/>GET /metrics]
         METRICS -->|reads status| A
     end
 
@@ -133,9 +133,9 @@ graph TD
 
 | File | Change | Responsibility |
 |---|---|---|
-| [`medusa/config.py`](../../../medusa/config.py) | Modify | `PitrConfig` namedtuple; `[pitr]` section defaults; `MedusaConfig.pitr` field |
-| [`medusa/service/grpc/commitlog_archiver.py`](../../../medusa/service/grpc/commitlog_archiver.py) | Create | `CommitLogArchiver` background thread; `drain_spool()` helper |
-| [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Archiver lifecycle; `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPC handlers |
+| [`medusa/config.py`](../../../medusa/config.py) | Modify | `PitrConfig` namedtuple; `[pitr]` section defaults; `MedusaConfig.pitr` field; adds `metrics_port` to `GrpcConfig` |
+| [`medusa/service/grpc/commitlog_archiver.py`](../../../medusa/service/grpc/commitlog_archiver.py) | Create | `CommitLogArchiver` background thread; `drain_spool()` helper; accepts optional `metrics: MedusaMetrics` parameter for counter and heartbeat updates |
+| [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Archiver lifecycle; `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPC handlers; starts `aiohttp` HTTP server on `metrics_port` for Prometheus scrape endpoint; stops it in `shutdown()` |
 | [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Update `restore_backup(..., backup_name=...)` signature to support per-node base backup override |
 | [`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py) | Create | Per-node PITR & archiving restore entrypoint: clean staging, check guard, download segments, manage `commitlog_archiving.properties` |
 | [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | Add `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPCs and message types (purely additive — no existing RPCs removed) |
@@ -147,9 +147,8 @@ graph TD
 | [`medusa/index.py`](../../../medusa/index.py) | Modify | Persist `snapshot_time_{fqdn}_{timestamp}.timestamp` index blob; written only when `pitr.enabled = true` |
 | [`medusa/storage/__init__.py`](../../../medusa/storage/__init__.py) | Modify | Read `snapshot_time` index blob in `list_node_backups()` to populate `NodeBackup` |
 | [`medusa/purge.py`](../../../medusa/purge.py) | Modify | `purge_commitlogs()`; PITR hook in `main()` |
-| [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `[pitr]` config section |
+| [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `[pitr]` config section; document `metrics_port = 9100` under `[grpc]` |
 | [`medusa/service/grpc/metrics.py`](../../../medusa/service/grpc/metrics.py) | Create | `MedusaMetrics` registry: thread-safe counters (`upload_success_total`, `upload_errors_total`, `spool_read_errors_total`), heartbeat timestamp (`last_poll_timestamp_seconds`); `render()` produces Prometheus text format (version 0.0.4); no `prometheus_client` dependency |
-| [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `metrics_port = 9100` under `[grpc]` |
 
 ### 4.3 Configuration
 
@@ -636,13 +635,15 @@ A Prometheus-compatible scrape endpoint is served by a lightweight `aiohttp` HTT
 
 | Metric | Type | Description | Source |
 |---|---|---|---|
-| `medusa_commitlog_archiver_last_poll_timestamp_seconds` | Gauge | Unix timestamp of the last archiver poll cycle start. Stops advancing if the thread dies or hangs. | `CommitLogArchiver._run_once()` |
-| `medusa_commitlog_archiver_last_upload_timestamp_seconds` | Gauge | Unix timestamp of the most recent successful segment upload. `0` if no upload has occurred since server start. | `CommitLogArchiver.drain_spool()` |
+| `medusa_commitlog_archiver_last_poll_timestamp_seconds` | Gauge | Unix timestamp of the last archiver poll cycle start. Stops advancing if the thread dies or hangs. | `MedusaMetrics` (updated by `CommitLogArchiver._run_once()` via `metrics.update_last_poll_timestamp()`) |
+| `medusa_commitlog_archiver_last_upload_timestamp_seconds` | Gauge | Unix timestamp of the most recent successful segment upload. `0` if no upload has occurred since server start. | `MedusaMetrics` (updated by `CommitLogArchiver.drain_spool()` on success; read via `archiver.status()` on scrape) |
 | `medusa_commitlog_archiver_pending_segments_total` | Gauge | Number of segments currently in the spool directory (not yet uploaded). Read live from `archiver.status()` on each scrape. | `CommitLogArchiver.status()` via `os.listdir` |
 | `medusa_commitlog_archiver_interval_seconds` | Gauge | Configured archiver poll interval (`pitr.commitlog_archive_interval_seconds`). Constant reference value for alert threshold computation. | `CommitLogArchiver.status()` |
 | `medusa_commitlog_archiver_upload_success_total` | Counter | Cumulative number of segments successfully uploaded since server start. | `CommitLogArchiver.drain_spool()` |
 | `medusa_commitlog_archiver_upload_errors_total` | Counter | Cumulative number of segment upload failures since server start. Segment stays in spool and is retried next tick. | `CommitLogArchiver.drain_spool()` |
-| `medusa_commitlog_archiver_spool_read_errors_total` | Counter | Cumulative number of poll cycles where the spool directory could not be listed. | `CommitLogArchiver._run_once()` |
+| `medusa_commitlog_archiver_spool_read_errors_total` | Counter | Cumulative number of poll cycles where `drain_spool()` raised an exception (spool directory read failure or other error); the thread continues. | `CommitLogArchiver._run_once()` |
+
+> **Note:** `medusa_commitlog_archiver_pending_segments_total` uses the `_total` suffix by convention within this project, though Prometheus convention reserves `_total` for monotonically increasing counters. This name is intentional and consistent across Medusa's metric naming.
 
 When PITR is disabled (no `CommitLogArchiver` running), the four archiver gauges are omitted from the output — only the three counters appear (all at `0`). This avoids stale gauge values on non-PITR pods.
 
@@ -694,7 +695,9 @@ medusa_commitlog_archiver_spool_read_errors_total 0
     summary: "CommitLog spool backlog exceeds 50 segments for 10 minutes"
 ```
 
-**Backward compatibility:** The metrics endpoint starts whenever the gRPC server starts (i.e. `grpc.enabled = true`), regardless of `pitr.enabled`. When PITR is disabled the endpoint is still reachable but only emits the three counters at `0` — no archiver gauges. This allows operators to configure Prometheus scraping once and have it work correctly before and after PITR is enabled.
+**Wiring:** `Server.serve()` calls `metrics.set_archiver(archiver)` after starting `CommitLogArchiver`, attaching the archiver reference to `MedusaMetrics`. `Server.shutdown()` calls `await runner.cleanup()` to stop the `aiohttp` server cleanly. Responses include `Content-Type: text/plain; version=0.0.4; charset=utf-8`.
+
+**Backward compatibility:** The metrics endpoint starts whenever the gRPC server process starts, regardless of `pitr.enabled`. When PITR is disabled the endpoint is still reachable but only emits the three counters at `0` — no archiver gauges. This allows operators to configure Prometheus scraping once and have it work correctly before and after PITR is enabled.
 
 ---
 
@@ -772,7 +775,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 - All storage access uses the existing `AbstractStorage` credential chain (IAM role, service account key, etc.) — no new credentials.
 - Commitlog segments contain raw mutation data. They are subject to the same object-storage ACL and encryption-at-rest controls as backup snapshots.
 - Segment download in the initContainer uses the existing storage driver directly — no SSH, no new network credentials.
-- No new network ports or firewall rules are required.
+- The Prometheus metrics endpoint adds one new TCP listener (default port `9100`, configurable via `grpc.metrics_port`). Operators must open this port to Prometheus scrapers (NetworkPolicy, Service/ServiceMonitor, or security group). The endpoint serves plain HTTP with no authentication or TLS — it exposes only operational counters and gauges, not backup data or credentials.
 
 ### 6.3 Observability & Monitoring
 
@@ -808,6 +811,8 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 - [`tests/purge_test.py`](../../../tests/purge_test.py): `purge_commitlogs` deletes segments below threshold; skips segments above threshold.
 - [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py): `GetCommitLogArchiveStatus` with no archiver returns `running=false`; `PreparePitrRestore` returns `nodeBaseBackups` mapping and fails fast if any node lacks an eligible base backup.
 - [`tests/service/grpc/pitr_restore_test.py`](../../../tests/service/grpc/pitr_restore_test.py): `medusa.service.grpc.pitr_restore` queries storage, downloads correct segments, and writes valid `commitlog_archiving.properties` for both active restore and skip/normal paths; `restore_key=""` with a PITR mapping present asserts `is_pitr_restore=False` (empty key must not trigger replay).
+- [`tests/service/grpc/metrics_test.py`](../../../tests/service/grpc/metrics_test.py): `MedusaMetrics.render()` with and without archiver attached; counter thread-safety (100 concurrent increments); all `# HELP` and `# TYPE` lines present; `GET /metrics` returns HTTP 200 with `Content-Type: text/plain; version=0.0.4`.
+- [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py) (additions): `upload_success_total` and `upload_errors_total` increment correctly; `spool_read_errors_total` increments on poll-cycle failure; `last_poll_timestamp_seconds` updated at start of each `_run_once()`; all metric calls are no-ops when `metrics=None`.
 
 **Integration tests :**
 1. Start cluster; run workload; take snapshot.
@@ -817,7 +822,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 5. Assert row counts match expected state at target timestamp.
 
 **Rollout:**
-1. Merge with `pitr.enabled = false` default — no behaviour change in production.
+1. Merge with `pitr.enabled = false` default — no behaviour change to backup/restore/purge commands. The metrics endpoint on `metrics_port` (default `9100`) starts immediately; ensure the port is available or set `metrics_port` to an unused value.
 2. Enable in a non-production environment; verify archiver uploads via `GetCommitLogArchiveStatus`.
 3. Test a PITR restore on a non-production cluster.
 4. Enable in production with an initial purge window large enough to retain all desired recovery points.
