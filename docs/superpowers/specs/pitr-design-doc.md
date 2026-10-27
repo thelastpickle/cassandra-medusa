@@ -500,7 +500,7 @@ def main():
 
 [`purge_commitlogs(storage, fqdn, oldest_kept_snapshot_ts, interval_seconds)`](../../../medusa/purge.py) is called from `main()` inside the existing `with Storage(...) as storage:` block when `pitr.enabled = true`. It deletes all segments under `<prefix>/<fqdn>/commitlogs/` whose `blob.last_modified` is strictly less than the purge threshold.
 
-**Retention anchor:** `oldest_kept_snapshot_ts` is the minimum `min_snapshot_time` timestamp across all backups that purge decides to retain. Using `min_snapshot_time` (with fallback to `started`) ensures every segment written from the moment the oldest retained snapshot was taken is preserved — guaranteeing a complete replay chain.
+**Retention anchor:** `oldest_kept_snapshot_ts` is the minimum `snapshot_time` timestamp across all backups that purge decides to retain on the node. Backups without `snapshot_time` (pre-PITR backups) cannot anchor commitlog retention and are skipped as retention anchors.
 
 **Safety margin:** A segment uploaded just before the snapshot was recorded may have a `last_modified` slightly earlier than `oldest_kept_snapshot_ts` due to upload lag (up to one archiver poll interval) and clock skew between the node and the storage backend. To avoid under-retention, the effective purge threshold is:
 
@@ -674,7 +674,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 **Unit tests (new):**
 - [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` to crash Medusa when spool dir and commitlog dir are on different devices or inaccessible (mock `os.stat` to return differing `st_dev` values or raise `FileNotFoundError`).
 - [`tests/pitr_restore_test.py`](../../../tests/pitr_restore_test.py): `select_node_base_snapshot` (correct selection per node based on `snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (verifying `%Y:%m:%d %H:%M:%S` UTC formatting from epoch timestamps).
-- [`tests/storage_test.py`](../../../tests/storage_test.py): `NodeBackup.snapshot_time` resolution (from index blob, snapshot folder timestamp, and fallback to `started`); `ClusterBackup.min_snapshot_time` and `ClusterBackup.max_snapshot_time` aggregation.
+- [`tests/storage_test.py`](../../../tests/storage_test.py): `NodeBackup.snapshot_time` resolution (from index blob and snapshot folder timestamp, returning `None` when absent without fallback to `started`); `ClusterBackup.min_snapshot_time` and `ClusterBackup.max_snapshot_time` aggregation.
 - [`tests/config_test.py`](../../../tests/config_test.py): `PitrConfig` defaults and custom values via `load_config`.
 - [`tests/purge_test.py`](../../../tests/purge_test.py): `purge_commitlogs` deletes segments below threshold; skips segments above threshold.
 - [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py): `GetCommitLogArchiveStatus` with no archiver returns `running=false`; `PreparePitrRestore` returns `nodeBaseBackups` mapping and fails fast if any node lacks an eligible base backup.
