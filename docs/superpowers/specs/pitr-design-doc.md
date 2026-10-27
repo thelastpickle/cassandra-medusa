@@ -200,7 +200,7 @@ directory '<path>'. Hardlinks cannot cross filesystem boundaries. Mount both pat
 on the same volume.
 ```
 
-Because `CommitLogArchiver` is initialized in [`Server.serve()`](../../../medusa/service/grpc/server.py:66) when `pitr.enabled = true`, this exception is intentionally unhandled at startup: it **fails fast and crashes Medusa immediately** (causing the sidecar container/process to exit with a non-zero code). This guarantees that filesystem misconfigurations cannot go unnoticed or run in a silently degraded state where Cassandra's `archive_command` would later fail with `EXDEV`.
+Because `CommitLogArchiver` is initialized in [`Server.serve()`](../../../medusa/service/grpc/server.py:66) when `pitr.enabled = true`, this exception is intentionally unhandled at startup: it **fails fast and crashes Medusa immediately** (causing the sidecar container/process to exit with a non-zero code). This guarantees that filesystem misconfigurations cannot go unnoticed or run in a silently degraded state where Cassandra's `archive_command` would later fail with `EXDEV`. `Server.serve()` does not catch `RuntimeError`; the exception propagates uncaught out of `serve()` to the process entry point, which exits with a non-zero code — this is the intended crash-fast behaviour.
 
 **Spool drain (`drain_spool`):**
 
