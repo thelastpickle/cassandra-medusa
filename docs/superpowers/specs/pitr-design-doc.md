@@ -385,8 +385,9 @@ restore() {
     echo "Running Medusa in restore mode"
     last_restore_file=/var/lib/cassandra/.last-restore
 
-    # 1. SSTable snapshot restore
-    if [ -n "$BACKUP_NAME" ] && [ -n "$RESTORE_KEY" ]; then
+    # 1. SSTable snapshot restore: executed if RESTORE_KEY is provided and either BACKUP_NAME is set
+    # or RESTORE_MAPPING contains a PITR configuration.
+    if [ -n "$RESTORE_KEY" ] && { [ -n "$BACKUP_NAME" ] || [[ "$RESTORE_MAPPING" =~ "pitr" ]]; }; then
         if [ -f "$last_restore_file" ]; then
             restore_key=$(cat "$last_restore_file")
         else
@@ -396,7 +397,7 @@ restore() {
         if [ "$restore_key" == "$RESTORE_KEY" ]; then
             echo "Skipping SSTable restore operation"
         else
-            echo "Restoring backup $BACKUP_NAME"
+            echo "Restoring SSTable snapshot"
             poetry run python -m medusa.service.grpc.restore "/etc/medusa/medusa.ini" "$RESTORE_KEY"
             echo "$RESTORE_KEY" > "$last_restore_file"
         fi
