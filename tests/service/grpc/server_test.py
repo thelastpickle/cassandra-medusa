@@ -11,8 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import concurrent
 import configparser
+import os
+import signal
+import tempfile
 import unittest
 
 from datetime import datetime
@@ -22,7 +26,7 @@ from unittest.mock import Mock, patch
 from medusa.backup_manager import BackupMan
 from medusa.config import MedusaConfig, _namedtuple_from_dict, StorageConfig, CassandraConfig
 from medusa.service.grpc import medusa_pb2
-from medusa.service.grpc.server import MedusaService
+from medusa.service.grpc.server import MedusaService, Server
 from medusa.storage import Storage
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_unfinished_node_backup
@@ -374,6 +378,55 @@ class ServerTest(unittest.TestCase):
             # I'm not sure this is because of faking the backup
             start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
             self.assertEqual(123456, start_time)
+
+
+class ServerStopSignalTest(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        config = configparser.ConfigParser(interpolation=None)
+        config['storage'] = {
+            'storage_provider': 'local',
+            'fqdn': 'node1',
+            'base_path': self.tmp_dir.name,
+            'bucket_name': 'medusa_server_stop_signal_test_bucket',
+        }
+        config['grpc'] = {
+            'enabled': 'True',
+            'port': '0',
+        }
+        self.config_file = os.path.join(self.tmp_dir.name, 'medusa.ini')
+        with open(self.config_file, 'w') as f:
+            config.write(f)
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    async def _wait_for_stop_signal_handlers(self):
+        for _ in range(100):
+            if signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL:
+                return
+            await asyncio.sleep(0.05)
+        self.fail('the server did not install its stop signal handlers')
+
+    async def test_stop_signal_stops_the_server_and_cleans_up(self):
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            with self.subTest(signal=sig.name):
+                server = Server(self.config_file)
+                with patch('medusa.service.grpc.server.handle_backup_removal_all') as cleanup:
+                    serving = asyncio.create_task(server.serve())
+                    try:
+                        await self._wait_for_stop_signal_handlers()
+                        os.kill(os.getpid(), sig)
+                        await asyncio.wait_for(asyncio.shield(serving), timeout=10)
+                    finally:
+                        if not serving.done():
+                            await server.grpc_server.stop(0)
+                            await serving
+
+                cleanup.assert_called_once()
+                self.assertIs(signal.SIG_DFL, signal.getsignal(signal.SIGTERM))
+                self.assertIs(signal.default_int_handler, signal.getsignal(signal.SIGINT))
 
 
 if __name__ == '__main__':
