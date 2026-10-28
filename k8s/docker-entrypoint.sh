@@ -47,7 +47,8 @@ restore() {
 }
 
 stop_medusa() {
-    kill -"$1" "$MEDUSA_PID" 2>/dev/null || true
+    local signal=$1
+    kill -"$signal" "$MEDUSA_PID" 2>/dev/null || true
     wait "$MEDUSA_PID"
     exit
 }
