@@ -508,6 +508,39 @@ class StorageTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             nb.manifest_stats()
 
+    def test_manifest_stats_memo_avoids_second_download(self):
+        NodeBackup.clear_manifest_stats_memo()
+        self._upload_manifest("node1", "m1", self._two_section_manifest())
+        # the same index blob (same last_modified) seen by two listings
+        indexed_at = datetime(2026, 10, 29, 12, 0, 0)
+        first = make_node_backup(self.storage, "m1", indexed_at, fqdn="node1")
+        self.assertEqual((127, 3), first.manifest_stats())
+        second = make_node_backup(self.storage, "m1", indexed_at, fqdn="node1")
+        with patch.object(self.storage.storage_driver, "get_blob_content_as_string") as spy:
+            self.assertEqual((127, 3), second.manifest_stats())
+            self.assertEqual(0, spy.call_count)
+
+    def test_manifest_stats_memo_keyed_by_blob_version(self):
+        NodeBackup.clear_manifest_stats_memo()
+        self._upload_manifest("node1", "m2", self._two_section_manifest())
+        old = make_node_backup(self.storage, "m2", datetime(2020, 1, 1), fqdn="node1")
+        self.assertEqual((127, 3), old.manifest_stats())
+        self._upload_manifest("node1", "m2", [{"keyspace": "k", "columnfamily": "c",
+                                               "objects": [{"path": "p", "MD5": "m", "size": 9}]}])
+        new = make_node_backup(self.storage, "m2", datetime(2021, 1, 1), fqdn="node1")
+        self.assertEqual((9, 1), new.manifest_stats())
+
+    def test_manifest_stats_no_memo_without_manifest_blob(self):
+        NodeBackup.clear_manifest_stats_memo()
+        self._upload_manifest("node1", "m3", self._two_section_manifest())
+        nb = make_unfinished_node_backup(self.storage, "m3", datetime.now(), fqdn="node1")
+        self.assertEqual((127, 3), nb.manifest_stats())
+        nb2 = make_unfinished_node_backup(self.storage, "m3", datetime.now(), fqdn="node1")
+        with patch.object(self.storage.storage_driver, "get_blob_content_as_string",
+                          wraps=self.storage.storage_driver.get_blob_content_as_string) as spy:
+            nb2.manifest_stats()
+            self.assertEqual(1, spy.call_count)
+
 
 def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):
     if differential is True:

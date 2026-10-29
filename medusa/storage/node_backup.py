@@ -18,6 +18,12 @@ import pathlib
 import re
 
 
+# Process-wide memo of manifest stats: (fqdn, backup name, manifest blob version) -> (size, num_objects).
+# A finished manifest never changes, so listing backups repeatedly (e.g. the operator's sync every night)
+# should not download every manifest again. One small tuple per node backup, so this stays tiny.
+_MANIFEST_STATS_MEMO = {}
+
+
 class NodeBackup(object):
 
     def __init__(self,
@@ -258,7 +264,18 @@ class NodeBackup(object):
     def manifest(self, manifest):
         self.cached_manifest = None
         self._manifest_stats = None
+        _MANIFEST_STATS_MEMO.pop(self._manifest_stats_memo_key(), None)
         self._storage.storage_driver.upload_blob_from_string(self.manifest_path, manifest)
+
+    @staticmethod
+    def clear_manifest_stats_memo():
+        _MANIFEST_STATS_MEMO.clear()
+
+    def _manifest_stats_memo_key(self):
+        # without an index blob we have no version stamp for the manifest, so we don't memoize
+        if self.cached_manifest_blob is None:
+            return None
+        return self._fqdn, self._name, str(self.cached_manifest_blob.last_modified)
 
     def read_manifest(self):
         """
@@ -280,6 +297,11 @@ class NodeBackup(object):
         if self._manifest_stats is not None:
             return self._manifest_stats
 
+        memo_key = self._manifest_stats_memo_key()
+        if memo_key is not None and memo_key in _MANIFEST_STATS_MEMO:
+            self._manifest_stats = _MANIFEST_STATS_MEMO[memo_key]
+            return self._manifest_stats
+
         if self.cached_manifest is not None:
             manifest = json.loads(self.cached_manifest)
         else:
@@ -294,6 +316,8 @@ class NodeBackup(object):
             num_objects += len(objects)
             size += sum(obj['size'] for obj in objects)
         self._manifest_stats = (size, num_objects)
+        if memo_key is not None:
+            _MANIFEST_STATS_MEMO[memo_key] = self._manifest_stats
         return self._manifest_stats
 
     def datapath(self, *, keyspace, columnfamily):
