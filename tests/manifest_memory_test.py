@@ -36,7 +36,8 @@ PEAK_LIMIT = 40 * 1024 * 1024         # 30 manifests would be >120 MiB if all we
 
 class ManifestMemoryTest(unittest.TestCase):
     """
-    Listing backups must not hold every node's manifest of every backup in memory (DESIGN §2.2).
+    Listing backups (GetBackups / status) must not hold every node's manifest of every backup in memory:
+    memory used to grow as nodes x backups x manifest size (see #393 for the same pattern in purge).
     """
     base = "/tmp/medusa_manifest_memory"
 

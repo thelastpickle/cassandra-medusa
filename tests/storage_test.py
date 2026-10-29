@@ -30,6 +30,7 @@ from unittest.mock import patch
 import medusa.storage.abstract_storage
 
 from medusa.storage import NodeBackup, ClusterBackup
+from medusa.storage.node_backup import ManifestNotFoundError
 from medusa.storage.abstract_storage import AbstractStorage, AbstractBlob, ManifestObject
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
@@ -488,13 +489,31 @@ class StorageTest(unittest.TestCase):
         self.assertEqual(2, len(nb.read_manifest()))
         self.assertIsNone(nb.cached_manifest)
 
-    def test_manifest_stats_missing_manifest_is_zero_and_not_cached(self):
+    def test_manifest_stats_missing_manifest_raises_and_is_not_cached(self):
+        # a node backup must not pretend to be empty: backup_node.py reads size() right after uploading
+        # the manifest, and a failure there has to fail the backup as it did before
         nb = make_node_backup(self.storage, "nope", datetime.now(), fqdn="node1")
         self.assertIsNone(nb.read_manifest())
-        with self.assertLogs(level="WARNING") as logs:
-            self.assertEqual((0, 0), nb.manifest_stats())
-        self.assertTrue(any("nope" in line and "node1" in line for line in logs.output), logs.output)
+        with self.assertRaises(ManifestNotFoundError):
+            nb.manifest_stats()
+        with self.assertRaises(ManifestNotFoundError):
+            nb.size()
         self.assertIsNone(nb._manifest_stats)
+
+    def test_cluster_backup_stats_skip_node_without_manifest_with_warning(self):
+        # the listing (GetBackups / status) degrades per node instead of failing the whole call
+        self._upload_manifest("node1", "cb1", self._two_section_manifest())
+        # make_node_backup points the tokenmap blob at localhost/<name>/meta/tokenmap.json
+        self.storage.storage_driver.upload_blob_from_string(
+            "localhost/cb1/meta/tokenmap.json",
+            json.dumps({n: {"tokens": [1], "is_up": True, "rack": "r", "dc": "d"} for n in ("node1", "node2")}))
+        with_manifest = make_node_backup(self.storage, "cb1", datetime.now(), fqdn="node1")
+        without_manifest = make_node_backup(self.storage, "cb1", datetime.now(), fqdn="node2")
+        cluster_backup = ClusterBackup("cb1", [with_manifest, without_manifest])
+        with self.assertLogs(level="WARNING") as logs:
+            self.assertEqual(127, cluster_backup.size())
+            self.assertEqual(3, cluster_backup.num_objects())
+        self.assertTrue(any("cb1" in line and "node2" in line for line in logs.output), logs.output)
 
     def test_manifest_setter_resets_stats(self):
         self._upload_manifest("node1", "b3", self._two_section_manifest())
@@ -512,7 +531,6 @@ class StorageTest(unittest.TestCase):
             nb.manifest_stats()
 
     def test_manifest_stats_memo_avoids_second_download(self):
-        NodeBackup.clear_manifest_stats_memo()
         self._upload_manifest("node1", "m1", self._two_section_manifest())
         # the same index blob (same last_modified) seen by two listings
         indexed_at = datetime(2026, 10, 29, 12, 0, 0)
@@ -524,7 +542,6 @@ class StorageTest(unittest.TestCase):
             self.assertEqual(0, spy.call_count)
 
     def test_manifest_stats_memo_keyed_by_blob_version(self):
-        NodeBackup.clear_manifest_stats_memo()
         self._upload_manifest("node1", "m2", self._two_section_manifest())
         old = make_node_backup(self.storage, "m2", datetime(2020, 1, 1), fqdn="node1")
         self.assertEqual((127, 3), old.manifest_stats())
@@ -533,8 +550,28 @@ class StorageTest(unittest.TestCase):
         new = make_node_backup(self.storage, "m2", datetime(2021, 1, 1), fqdn="node1")
         self.assertEqual((9, 1), new.manifest_stats())
 
+    def test_manifest_stats_memo_keyed_by_storage(self):
+        # same fqdn / backup name / blob version in a different bucket is a different manifest
+        indexed_at = datetime(2026, 10, 29, 12, 0, 0)
+        self._upload_manifest("node1", "m4", self._two_section_manifest())
+        first = make_node_backup(self.storage, "m4", indexed_at, fqdn="node1")
+        self.assertEqual((127, 3), first.manifest_stats())
+        config = configparser.ConfigParser(interpolation=None)
+        config['storage'] = {
+            'host_file_separator': ',',
+            'storage_provider': 'local',
+            'base_path': self.local_storage_dir,
+            'bucket_name': 'other_bucket',
+            'fqdn': 'node1',
+        }
+        other_storage = Storage(config=_namedtuple_from_dict(StorageConfig, config['storage']))
+        other_storage.storage_driver.upload_blob_from_string(
+            "node1/m4/meta/manifest.json",
+            json.dumps([{"keyspace": "k", "columnfamily": "c", "objects": [{"path": "p", "MD5": "m", "size": 9}]}]))
+        other = make_node_backup(other_storage, "m4", indexed_at, fqdn="node1")
+        self.assertEqual((9, 1), other.manifest_stats())
+
     def test_manifest_stats_no_memo_without_manifest_blob(self):
-        NodeBackup.clear_manifest_stats_memo()
         self._upload_manifest("node1", "m3", self._two_section_manifest())
         nb = make_unfinished_node_backup(self.storage, "m3", datetime.now(), fqdn="node1")
         self.assertEqual((127, 3), nb.manifest_stats())

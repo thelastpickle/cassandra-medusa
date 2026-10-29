@@ -18,10 +18,24 @@ import pathlib
 import re
 
 
-# Process-wide memo of manifest stats: (fqdn, backup name, manifest blob version) -> (size, num_objects).
+# Process-wide memo of manifest stats:
+# (bucket, prefix, fqdn, backup name, manifest blob version) -> (size, num_objects).
 # A finished manifest never changes, so listing backups repeatedly (e.g. the operator's sync every night)
 # should not download every manifest again. One small tuple per node backup, so this stays tiny.
+# The key carries the storage identity so that two Storage instances in one process never share an entry.
 _MANIFEST_STATS_MEMO = {}
+
+
+class ManifestNotFoundError(Exception):
+    """
+    Raised when a node backup's manifest.json is missing from storage, i.e. the backup is not (yet) complete
+    or has been partially deleted.
+    """
+
+    def __init__(self, fqdn, backup_name):
+        super().__init__('Backup {} of node {} has no manifest'.format(backup_name, fqdn))
+        self.fqdn = fqdn
+        self.backup_name = backup_name
 
 
 class NodeBackup(object):
@@ -275,7 +289,8 @@ class NodeBackup(object):
         # without an index blob we have no version stamp for the manifest, so we don't memoize
         if self.cached_manifest_blob is None:
             return None
-        return self._fqdn, self._name, str(self.cached_manifest_blob.last_modified)
+        return (self._storage.config.bucket_name, self._storage.prefix_path,
+                self._fqdn, self._name, str(self.cached_manifest_blob.last_modified))
 
     def read_manifest(self):
         """
@@ -292,7 +307,8 @@ class NodeBackup(object):
         """
         Returns (total size in bytes, number of objects) of this backup's manifest.
         The manifest is downloaded and parsed at most once; only the two integers are kept.
-        Returns (0, 0) when there is no manifest.
+        Raises ManifestNotFoundError when there is no manifest, like size()/num_objects() used to fail on it;
+        ClusterBackup degrades per node for the listing instead.
         """
         if self._manifest_stats is not None:
             return self._manifest_stats
@@ -307,9 +323,7 @@ class NodeBackup(object):
         else:
             manifest = self.read_manifest()
         if manifest is None:
-            # a finished backup should always have one; count it as empty rather than failing the whole listing
-            logging.warning('Backup {} of node {} has no manifest, counting it as empty'.format(self._name, self._fqdn))
-            return 0, 0
+            raise ManifestNotFoundError(self._fqdn, self._name)
 
         size = 0
         num_objects = 0

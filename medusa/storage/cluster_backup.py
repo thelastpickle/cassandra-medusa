@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import logging
 import operator
+
+from medusa.storage.node_backup import ManifestNotFoundError
 
 
 class ClusterBackup(object):
@@ -90,17 +93,27 @@ class ClusterBackup(object):
 
     def size(self):
         return sum(
-            node_backup.size()
+            self._node_stats(node_backup)[0]
             for node_backup in self.expected_node_backups()
             if node_backup.finished
         )
 
     def num_objects(self):
         return sum(
-            node_backup.num_objects()
+            self._node_stats(node_backup)[1]
             for node_backup in self.expected_node_backups()
             if node_backup.finished
         )
+
+    @staticmethod
+    def _node_stats(node_backup):
+        # A finished node whose manifest vanished (purge in flight, partial delete) must not fail the whole
+        # listing; it is skipped with a warning. NodeBackup itself still raises, so the backup path stays strict.
+        try:
+            return node_backup.manifest_stats()
+        except ManifestNotFoundError as e:
+            logging.warning('{}; not counted in the cluster backup stats'.format(e))
+            return 0, 0
 
     def to_json_dict(self):
         nodes_list = []
@@ -116,8 +129,7 @@ class ClusterBackup(object):
                 'release_version': node_backup.release_version
             }
             if node_backup.finished:
-                node_size = node_backup.size()
-                node_objects = node_backup.num_objects()
+                node_size, node_objects = self._node_stats(node_backup)
                 node_dict['size'] = node_size
                 node_dict['num_objects'] = node_objects
                 nodes_list.append(node_dict)
