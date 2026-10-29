@@ -307,6 +307,8 @@ class NodeBackup(object):
         else:
             manifest = self.read_manifest()
         if manifest is None:
+            # a finished backup should always have one; count it as empty rather than failing the whole listing
+            logging.warning('Backup {} of node {} has no manifest, counting it as empty'.format(self._name, self._fqdn))
             return 0, 0
 
         size = 0

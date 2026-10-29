@@ -42,6 +42,7 @@ class ManifestMemoryTest(unittest.TestCase):
 
     def setUp(self):
         shutil.rmtree(self.base, ignore_errors=True)
+        NodeBackup.clear_manifest_stats_memo()
         os.makedirs(self.base)
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {

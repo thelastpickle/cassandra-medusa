@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.storage import Storage
+from medusa.storage import NodeBackup, Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
 from medusa.purge import get_file_paths_from_manifests_for_complete_differential_backups
@@ -36,6 +36,7 @@ class PurgeTest(unittest.TestCase):
 
     def setUp(self):
         shutil.rmtree('/tmp/purge_test', ignore_errors=True)
+        NodeBackup.clear_manifest_stats_memo()
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {
             'host_file_separator': ',',

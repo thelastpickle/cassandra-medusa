@@ -51,6 +51,7 @@ class StorageTest(unittest.TestCase):
         self.medusa_bucket_dir = "/tmp/medusa_test_bucket"
 
     def setUp(self):
+        NodeBackup.clear_manifest_stats_memo()
         if os.path.isdir(self.local_storage_dir):
             shutil.rmtree(self.local_storage_dir)
         if os.path.isdir(self.medusa_bucket_dir):
@@ -490,7 +491,9 @@ class StorageTest(unittest.TestCase):
     def test_manifest_stats_missing_manifest_is_zero_and_not_cached(self):
         nb = make_node_backup(self.storage, "nope", datetime.now(), fqdn="node1")
         self.assertIsNone(nb.read_manifest())
-        self.assertEqual((0, 0), nb.manifest_stats())
+        with self.assertLogs(level="WARNING") as logs:
+            self.assertEqual((0, 0), nb.manifest_stats())
+        self.assertTrue(any("nope" in line and "node1" in line for line in logs.output), logs.output)
         self.assertIsNone(nb._manifest_stats)
 
     def test_manifest_setter_resets_stats(self):
