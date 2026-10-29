@@ -941,14 +941,14 @@ six = "*"
 
 [[package]]
 name = "filelock"
-version = "3.28.0"
+version = "4.2.1"
 description = "A platform independent file lock."
 optional = false
-python-versions = ">=3.10"
-groups = ["test"]
+python-versions = ">=3.11"
+groups = ["dev", "test"]
 files = [
-    {file = "filelock-3.28.0-py3-none-any.whl", hash = "sha256:de9af6712788e7171df1b28b15eba2446c69721433fa427a9bee07b17820a9db"},
-    {file = "filelock-3.28.0.tar.gz", hash = "sha256:4ed1010aae813c4ee8d9c660e4792475ee60c4a0ba76073ceaf862bd317e3ca6"},
+    {file = "filelock-4.2.1-py3-none-any.whl", hash = "sha256:7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44"},
+    {file = "filelock-4.2.1.tar.gz", hash = "sha256:c4c937ccac2a813cee448e662a56366cfb374c0f8702e75f295c412cc1c5d5a3"},
 ]
 
 [[package]]
@@ -2658,19 +2658,20 @@ zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 
 [[package]]
 name = "virtualenv"
-version = "21.7.13"
+version = "21.14.5"
 description = "Virtual Python Environment builder"
 optional = false
 python-versions = ">=3.9"
 groups = ["test"]
 files = [
-    {file = "virtualenv-21.7.13-py3-none-any.whl", hash = "sha256:1bea5af7463f59c4719db48fe739579a2a4f569c96f26c086edda85c96da9f59"},
-    {file = "virtualenv-21.7.13.tar.gz", hash = "sha256:0355558b6f33619aab31347e43643b0ebc97f61ea3acf617b2b69e1f8a843d11"},
+    {file = "virtualenv-21.14.5-py3-none-any.whl", hash = "sha256:b0651e0174982bba17cc6f0aaa2ef496730cb85a3f35eb5d1119d1c904f7d1da"},
+    {file = "virtualenv-21.14.5.tar.gz", hash = "sha256:c4cb6c13e46b57225a999c7e22a09b163393878facc7ac4c059a57f46faa1647"},
 ]
 
 [package.dependencies]
 distlib = ">=0.3.7,<1"
-filelock = {version = ">=3.24.2,<4", markers = "python_version >= \"3.10\""}
+filelock = {version = ">=3.24.2,<5", markers = "python_version >= \"3.10\""}
+packaging = ">=23.1"
 platformdirs = ">=3.9.1,<5"
 python-discovery = ">=1.6"
 
