@@ -16,6 +16,7 @@
 import base64
 import configparser
 import hashlib
+import json
 import os
 import pathlib
 import shutil
@@ -455,6 +456,57 @@ class StorageTest(unittest.TestCase):
         self.assertEqual('localhost/data/', self.storage._get_table_prefix(None, 'localhost'))
         self.assertEqual('localhost/data/', self.storage._get_table_prefix('', 'localhost'))
         self.assertEqual('prefix/localhost/data/', self.storage._get_table_prefix('prefix', 'localhost'))
+
+    def _upload_manifest(self, fqdn, backup_name, sections):
+        path = "{}{}/{}/meta/manifest.json".format(self.storage.prefix_path, fqdn, backup_name)
+        self.storage.storage_driver.upload_blob_from_string(path, json.dumps(sections))
+
+    def _two_section_manifest(self):
+        return [
+            {"keyspace": "ks1", "columnfamily": "t1-cfid",
+             "objects": [{"path": "node1/data/ks1/t1-cfid/a-Data.db", "MD5": "x", "size": 100},
+                         {"path": "node1/data/ks1/t1-cfid/a-Index.db", "MD5": "y", "size": 20}]},
+            {"keyspace": "ks1", "columnfamily": "t2-cfid",
+             "objects": [{"path": "node1/data/ks1/t2-cfid/b-Data.db", "MD5": "z", "size": 7}]},
+        ]
+
+    def test_manifest_stats_sums_size_and_count_in_one_download(self):
+        self._upload_manifest("node1", "b1", self._two_section_manifest())
+        nb = make_node_backup(self.storage, "b1", datetime.now(), fqdn="node1")
+        with patch.object(self.storage.storage_driver, "get_blob_content_as_string",
+                          wraps=self.storage.storage_driver.get_blob_content_as_string) as spy:
+            self.assertEqual((127, 3), nb.manifest_stats())
+            self.assertEqual(127, nb.size())
+            self.assertEqual(3, nb.num_objects())
+            self.assertEqual(1, spy.call_count)
+        self.assertIsNone(nb.cached_manifest)
+
+    def test_read_manifest_does_not_cache(self):
+        self._upload_manifest("node1", "b2", self._two_section_manifest())
+        nb = make_node_backup(self.storage, "b2", datetime.now(), fqdn="node1")
+        self.assertEqual(2, len(nb.read_manifest()))
+        self.assertIsNone(nb.cached_manifest)
+
+    def test_manifest_stats_missing_manifest_is_zero_and_not_cached(self):
+        nb = make_node_backup(self.storage, "nope", datetime.now(), fqdn="node1")
+        self.assertIsNone(nb.read_manifest())
+        self.assertEqual((0, 0), nb.manifest_stats())
+        self.assertIsNone(nb._manifest_stats)
+
+    def test_manifest_setter_resets_stats(self):
+        self._upload_manifest("node1", "b3", self._two_section_manifest())
+        nb = make_node_backup(self.storage, "b3", datetime.now(), fqdn="node1")
+        self.assertEqual((127, 3), nb.manifest_stats())
+        nb.manifest = json.dumps([{"keyspace": "k", "columnfamily": "c",
+                                   "objects": [{"path": "p", "MD5": "m", "size": 5}]}])
+        self.assertEqual((5, 1), nb.manifest_stats())
+
+    def test_manifest_stats_malformed_raises(self):
+        path = "{}node1/bad/meta/manifest.json".format(self.storage.prefix_path)
+        self.storage.storage_driver.upload_blob_from_string(path, json.dumps([{"keyspace": "k"}]))
+        nb = make_node_backup(self.storage, "bad", datetime.now(), fqdn="node1")
+        with self.assertRaises(KeyError):
+            nb.manifest_stats()
 
 
 def make_node_backup(storage, name, backup_date, differential=False, fqdn="localhost"):

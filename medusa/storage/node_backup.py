@@ -74,6 +74,8 @@ class NodeBackup(object):
         self._cached_blobs = {pathlib.Path(blob.name): blob for blob in preloaded_blobs}
 
         self.cached_manifest = None
+        # (total size, number of objects) of the manifest, computed once and kept instead of the manifest itself
+        self._manifest_stats = None
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
         self.cached_tokenmap_blob = tokenmap_blob
@@ -255,7 +257,44 @@ class NodeBackup(object):
     @manifest.setter
     def manifest(self, manifest):
         self.cached_manifest = None
+        self._manifest_stats = None
         self._storage.storage_driver.upload_blob_from_string(self.manifest_path, manifest)
+
+    def read_manifest(self):
+        """
+        Downloads and parses the manifest without keeping it on this object.
+        Returns None when the manifest does not exist (yet).
+        Use this when the manifest is only needed transiently; the `manifest` property caches the whole string.
+        """
+        content = self._storage.storage_driver.get_blob_content_as_string(self.manifest_path)
+        if content is None:
+            return None
+        return json.loads(content)
+
+    def manifest_stats(self):
+        """
+        Returns (total size in bytes, number of objects) of this backup's manifest.
+        The manifest is downloaded and parsed at most once; only the two integers are kept.
+        Returns (0, 0) when there is no manifest.
+        """
+        if self._manifest_stats is not None:
+            return self._manifest_stats
+
+        if self.cached_manifest is not None:
+            manifest = json.loads(self.cached_manifest)
+        else:
+            manifest = self.read_manifest()
+        if manifest is None:
+            return 0, 0
+
+        size = 0
+        num_objects = 0
+        for section in manifest:
+            objects = section['objects']
+            num_objects += len(objects)
+            size += sum(obj['size'] for obj in objects)
+        self._manifest_stats = (size, num_objects)
+        return self._manifest_stats
 
     def datapath(self, *, keyspace, columnfamily):
         return self.data_path / keyspace / columnfamily
@@ -268,14 +307,7 @@ class NodeBackup(object):
         return self._blob(self.schema_path) is not None
 
     def size(self):
-        return sum(
-            obj['size']
-            for section in json.loads(self.manifest)
-            for obj in section['objects']
-        )
+        return self.manifest_stats()[0]
 
     def num_objects(self):
-        return sum(
-            len(section['objects'])
-            for section in json.loads(self.manifest)
-        )
+        return self.manifest_stats()[1]
