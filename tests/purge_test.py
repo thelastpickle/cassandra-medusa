@@ -14,14 +14,18 @@
 # limitations under the License.
 
 import configparser
+import json
+import shutil
 import unittest
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
+from medusa.purge import get_file_paths_from_manifests_for_complete_differential_backups
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
 
@@ -31,6 +35,7 @@ class PurgeTest(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
     def setUp(self):
+        shutil.rmtree('/tmp/purge_test', ignore_errors=True)
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {
             'host_file_separator': ',',
@@ -148,6 +153,35 @@ class PurgeTest(unittest.TestCase):
 
         # non-existent backup name raises KeyError
         self.assertRaises(KeyError, backups_to_purge_by_name, self.storage, cluster_backups, ["nonexistent"], False)
+
+    def _upload_manifest(self, backup_name, paths):
+        sections = [{"keyspace": "ks", "columnfamily": "cf",
+                     "objects": [{"path": p, "MD5": "m", "size": 1} for p in paths]}]
+        self.storage.storage_driver.upload_blob_from_string(
+            "{}node1/{}/meta/manifest.json".format(self.storage.prefix_path, backup_name), json.dumps(sections))
+
+    def test_paths_from_manifests_union_without_caching(self):
+        self._upload_manifest("d1", ["node1/data/ks/cf/a.db", "node1/data/ks/cf/b.db"])
+        self._upload_manifest("d2", ["node1/data/ks/cf/b.db", "node1/data/ks/cf/c.db"])
+        self._upload_manifest("f1", ["node1/f1/data/ks/cf/z.db"])
+        backups = [
+            make_node_backup(self.storage, "d1", datetime.now(), differential=True, fqdn="node1"),
+            make_node_backup(self.storage, "d2", datetime.now(), differential=True, fqdn="node1"),
+            make_node_backup(self.storage, "f1", datetime.now(), differential=False, fqdn="node1"),
+            make_node_backup(self.storage, "incomplete", datetime.now(), differential=True, fqdn="node1"),
+        ]
+        paths = get_file_paths_from_manifests_for_complete_differential_backups(backups)
+        self.assertEqual({"node1/data/ks/cf/a.db", "node1/data/ks/cf/b.db", "node1/data/ks/cf/c.db"}, paths)
+        for b in backups:
+            self.assertIsNone(b.cached_manifest)
+
+    def test_paths_from_manifests_reads_each_manifest_once(self):
+        self._upload_manifest("d3", ["node1/data/ks/cf/a.db"])
+        backups = [make_node_backup(self.storage, "d3", datetime.now(), differential=True, fqdn="node1")]
+        with patch.object(self.storage.storage_driver, "get_blob_content_as_string",
+                          wraps=self.storage.storage_driver.get_blob_content_as_string) as spy:
+            get_file_paths_from_manifests_for_complete_differential_backups(backups)
+            self.assertEqual(1, spy.call_count)
 
 
 if __name__ == '__main__':
