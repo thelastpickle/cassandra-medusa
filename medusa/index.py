@@ -129,9 +129,21 @@ def clean_backup_from_index(storage, node_backup):
     index_files = storage.storage_driver.list_objects(
         "{}index/backup_index/{}/".format(storage.prefix_path, node_backup.name))
     for obj in index_files:
-        if "_" + node_backup.fqdn in obj.name:
+        if index_blob_fqdn(obj.name) == node_backup.fqdn:
             logging.debug("Cleaning from backup index: {}".format(obj.name))
             storage.storage_driver.delete_object(obj)
+
+
+def index_blob_fqdn(blob_name):
+    """
+    The fqdn an index entry belongs to, parsed from its file name only (e.g. manifest_<fqdn>.json,
+    started_<fqdn>_<timestamp>.timestamp), or None if the name is not an index entry. A substring test on the
+    whole path would also match another node whose fqdn extends this one (node1 / node10), or the backup name.
+    """
+    file_name = blob_name.rsplit('/', 1)[-1]
+    match = medusa.storage.INDEX_BLOB_WITH_TIMESTAMP_PATTERN.match(file_name) \
+        or medusa.storage.INDEX_BLOB_NAME_PATTERN.match(file_name)
+    return medusa.storage.Storage.remove_extension(match.group(2)) if match else None
 
 
 def index_exists(storage):
