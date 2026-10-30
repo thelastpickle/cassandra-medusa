@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import json
 import logging
 import sys
 import traceback
@@ -192,22 +191,17 @@ def is_older_than_gc_grace(blob_datetime, gc_grace) -> bool:
 
 
 def get_file_paths_from_manifests_for_complete_differential_backups(backups):
-    differential_backups = filter_differential_backups(backups)
-    complete_differential_backups = list(filter(lambda backup: backup.manifest is not None, differential_backups))
-
-    manifests = [json.loads(backup.manifest) for backup in complete_differential_backups]
-
-    objects_in_manifests = [
-        obj
-        for manifest in manifests
-        for columnfamily_manifest in manifest
-        for obj in columnfamily_manifest['objects']
-    ]
-
-    paths_in_manifest = {
-        "{}".format(obj['path'])
-        for obj in objects_in_manifests
-    }
+    # Manifests are read one at a time and dropped right after, so memory stays bounded by a single manifest
+    # plus the set of unique paths, regardless of how many backups the node has (see #393).
+    paths_in_manifest = set()
+    for backup in filter_differential_backups(backups):
+        manifest = backup.read_manifest()
+        if manifest is None:
+            # incomplete backup, no manifest yet
+            continue
+        for columnfamily_manifest in manifest:
+            for obj in columnfamily_manifest['objects']:
+                paths_in_manifest.add("{}".format(obj['path']))
 
     return paths_in_manifest
 
