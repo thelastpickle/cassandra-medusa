@@ -18,6 +18,7 @@
 
 import fileinput
 import functools
+import ipaddress
 import itertools
 import logging
 import os
@@ -281,6 +282,27 @@ class CassandraConfigReader(object):
         return resolve_name(socket.getfqdn())
 
     @property
+    def rpc_address(self):
+        """
+        Address the native transport (CQL) is bound to. Falls back to listen_address when rpc_address is unset or a
+        wildcard (eg 0.0.0.0): the native transport is reachable there too, and the address the local node is known
+        by (eg in the tokenmap) stays the same as before.
+        """
+        rpc_address = self._config.get('rpc_address')
+        if rpc_address and not self._is_wildcard_address(rpc_address):
+            return rpc_address
+
+        return self.listen_address
+
+    @staticmethod
+    def _is_wildcard_address(address):
+        try:
+            return ipaddress.ip_address(address).is_unspecified
+        except ValueError:
+            # not an ip address (eg a hostname), so not a wildcard either
+            return False
+
+    @property
     def storage_port(self):
         """
         SSL port, for legacy encrypted communication. The ssl_storage_port is unused unless enabled in
@@ -374,7 +396,7 @@ class Cassandra(object):
             self._dse_metadata_folder = 'metadata'
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
-        self._hostname = contact_point if contact_point is not None else config_reader.listen_address
+        self._hostname = contact_point if contact_point is not None else config_reader.rpc_address
         self._storage_port = config_reader.storage_port
         self._native_port = config_reader.native_port
         self._cql_session_provider = CqlSessionProvider(

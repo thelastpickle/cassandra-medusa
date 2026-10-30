@@ -1067,5 +1067,43 @@ class CassandraUtilsTest(unittest.TestCase):
             # the snapshot must not have copied its own (still growing) snapshots dir into itself
             self.assertFalse((metadata_dir / 'snapshots' / snapshot._tag / 'snapshots').exists())
 
+    def _cassandra_with_addresses(self, listen_address, rpc_address):
+        # rpc_address=None removes the key from cassandra.yaml altogether
+        base_yaml_path = os.path.join(os.path.dirname(__file__), 'resources/yaml/original/default-c4.yaml')
+        with open(base_yaml_path) as f:
+            yaml_dict = yaml.load(f, Loader=yaml.BaseLoader)
+        yaml_dict['listen_address'] = listen_address
+        if rpc_address is None:
+            yaml_dict.pop('rpc_address', None)
+        else:
+            yaml_dict['rpc_address'] = rpc_address
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.safe_dump(yaml_dict, f)
+            yaml_path = f.name
+        try:
+            return Cassandra(self.get_simple_medusa_config(yaml_path))
+        finally:
+            os.unlink(yaml_path)
+
+    def test_hostname_uses_rpc_address(self):
+        # the native transport only listens on rpc_address, so listen_address can't be used for CQL
+        c = self._cassandra_with_addresses(listen_address='10.0.0.1', rpc_address='10.0.1.1')
+
+        self.assertEqual('10.0.1.1', c.hostname)
+
+    def test_hostname_falls_back_to_listen_address_on_wildcard_rpc_address(self):
+        for rpc_address in ['0.0.0.0', '::', '0:0:0:0:0:0:0:0']:
+            with self.subTest(rpc_address=rpc_address):
+                c = self._cassandra_with_addresses(listen_address='10.0.0.1', rpc_address=rpc_address)
+
+                self.assertEqual('10.0.0.1', c.hostname)
+
+    def test_hostname_falls_back_to_listen_address_without_rpc_address(self):
+        for rpc_address in [None, '']:
+            with self.subTest(rpc_address=rpc_address):
+                c = self._cassandra_with_addresses(listen_address='10.0.0.1', rpc_address=rpc_address)
+
+                self.assertEqual('10.0.0.1', c.hostname)
+
     if __name__ == '__main__':
         unittest.main()
