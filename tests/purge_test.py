@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import configparser
+import pathlib
+import shutil
 import unittest
 
 from datetime import datetime, timedelta
@@ -22,6 +24,7 @@ from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
+from medusa.purge import purge_backup, get_file_paths_from_storage
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
 
@@ -51,6 +54,112 @@ class PurgeTest(unittest.TestCase):
             kubernetes=None,
         )
         self.storage = Storage(config=self.config.storage)
+
+    def test_purge_backup_leaves_prefix_sibling_intact(self):
+        # A backup name can be a string prefix of another backup's name, as with
+        # backup-2 and backup-2026. Purging the first must not take the second's
+        # objects with it.
+        root = pathlib.Path('/tmp/purge_test')
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for name in ('backup-2', 'backup-2026'):
+            meta_dir = root / 'localhost' / name / 'meta'
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            (meta_dir / 'manifest.json').write_text('[]')
+            index_dir = root / 'index' / 'backup_index' / name
+            index_dir.mkdir(parents=True, exist_ok=True)
+            (index_dir / 'finished_localhost_1.timestamp').write_text('1')
+
+        purge_backup(self.storage, make_node_backup(self.storage, 'backup-2', datetime.now()))
+
+        assert not (root / 'localhost' / 'backup-2' / 'meta' / 'manifest.json').exists()
+        assert (root / 'localhost' / 'backup-2026' / 'meta' / 'manifest.json').exists()
+        assert not (root / 'index' / 'backup_index' / 'backup-2' / 'finished_localhost_1.timestamp').exists()
+        assert (root / 'index' / 'backup_index' / 'backup-2026' / 'finished_localhost_1.timestamp').exists()
+
+    def _storage_tree(self, prefix=''):
+        # Fresh local bucket for tests that lay out real objects. Returns its root and a Storage on it.
+        root = pathlib.Path('/tmp/purge_test')
+        shutil.rmtree(root, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        storage_config = self.config.storage._replace(prefix=prefix) if prefix else self.config.storage
+        return root, Storage(config=storage_config)
+
+    @staticmethod
+    def _put_node_backup(root, fqdn, name, differential=False):
+        # The objects and index entries a node backup leaves in storage, named as medusa names them.
+        # Returns their paths relative to the bucket root.
+        meta = ['manifest.json', 'schema.cql', 'tokenmap.json', 'server_version.json']
+        index = ['tokenmap_{f}.json', 'schema_{f}.cql', 'manifest_{f}.json',
+                 'started_{f}_1700000000.timestamp', 'finished_{f}_1700000100.timestamp']
+        if differential:
+            meta.append('differential')
+            index.append('differential_{f}')
+        paths = ['{}/{}/meta/{}'.format(fqdn, name, m) for m in meta]
+        if not differential:
+            paths.append('{}/{}/data/ks/t-1/nb-1-big-Data.db'.format(fqdn, name))
+        paths += ['index/backup_index/{}/{}'.format(name, i.format(f=fqdn)) for i in index]
+        for path in paths:
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_text(path)
+        return set(paths)
+
+    @staticmethod
+    def _files(root):
+        return {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
+
+    def test_purge_backup_deletes_exactly_its_own_objects(self):
+        # Two nodes whose names are prefixes of each other (as with pods ...-sts-1 and ...-sts-10), two backups
+        # whose names are prefixes of each other, full and differential, plus the node's shared data folder.
+        # Purging one node's backup must remove all of its objects and index entries, and nothing else.
+        root, storage = self._storage_tree()
+        target = self._put_node_backup(root, 'node1', 'backup-2')
+        for fqdn in ('node1', 'node10'):
+            for name, differential in (('backup-2', False), ('backup-2026', True)):
+                if (fqdn, name) != ('node1', 'backup-2'):
+                    self._put_node_backup(root, fqdn, name, differential)
+            (root / fqdn / 'data' / 'ks' / 't-1').mkdir(parents=True, exist_ok=True)
+            (root / fqdn / 'data' / 'ks' / 't-1' / 'nb-7-big-Data.db').write_text('shared')
+        before = self._files(root)
+
+        purge_backup(storage, make_node_backup(storage, 'backup-2', datetime.now(), fqdn='node1'))
+
+        self.assertEqual(target, before - self._files(root))
+
+    def test_purge_backup_ignores_fqdn_appearing_in_backup_name(self):
+        # The node is identified by the index file name, not by a substring anywhere in the path:
+        # in index/backup_index/nightly_node1/manifest_node2.json the "_node1" belongs to the backup name.
+        root, storage = self._storage_tree()
+        target = self._put_node_backup(root, 'node1', 'nightly_node1')
+        self._put_node_backup(root, 'node2', 'nightly_node1')
+        before = self._files(root)
+
+        purge_backup(storage, make_node_backup(storage, 'nightly_node1', datetime.now(), fqdn='node1'))
+
+        self.assertEqual(target, before - self._files(root))
+
+    def test_purge_backup_is_scoped_under_a_storage_prefix(self):
+        # Multi-tenant buckets put everything under <prefix>/; the scoping must hold there too.
+        root, storage = self._storage_tree(prefix='tenant')
+        target = {'tenant/' + p for p in self._put_node_backup(root / 'tenant', 'node1', 'backup-2')}
+        self._put_node_backup(root / 'tenant', 'node1', 'backup-2026')
+        self._put_node_backup(root / 'tenant', 'node10', 'backup-2')
+        before = self._files(root)
+
+        purge_backup(storage, make_node_backup(storage, 'backup-2', datetime.now(), fqdn='node1'))
+
+        self.assertEqual(target, before - self._files(root))
+
+    def test_obsolete_file_candidates_exclude_a_backup_named_like_the_data_folder(self):
+        # cleanup_obsolete_files() deletes what get_file_paths_from_storage() returns and no manifest references.
+        # A backup named data-weekly lives at <fqdn>/data-weekly/, next to the shared <fqdn>/data/ folder.
+        root, storage = self._storage_tree()
+        self._put_node_backup(root, 'node1', 'data-weekly')
+        (root / 'node1' / 'data' / 'ks' / 't-1').mkdir(parents=True)
+        (root / 'node1' / 'data' / 'ks' / 't-1' / 'nb-9-big-Data.db').write_text('orphan')
+
+        candidates = get_file_paths_from_storage(storage, 'node1')
+
+        self.assertEqual({'node1/data/ks/t-1/nb-9-big-Data.db'}, set(candidates))
 
     def test_purge_backups_by_date(self):
         backups = list()
