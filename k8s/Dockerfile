@@ -22,10 +22,10 @@ COPY . /build/
 
 # General requirements
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-RUN pip3 install --ignore-installed --user poetry==2.3.3
+RUN pip3 install --ignore-installed --user poetry==2.3.4
 
 # Build medusa itself so we can add the executables in the final image
-RUN cd /build && poetry build && poetry install
+RUN cd /build && poetry build && poetry install --without test
 
 # Could be python:slim, but we have a .sh entrypoint
 FROM --platform=linux/${TARGETARCH} registry.access.redhat.com/ubi10/ubi-minimal:latest
