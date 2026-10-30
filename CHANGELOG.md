@@ -1,5 +1,9 @@
 ## Change Log
 
+### 0.31.1 (2026-10-30) 16:00 +00:00
+
+- Version bumps to fix CVEs (#1041) (@rzvoncek)
+
 ### 0.31.0 (2026-10-21) 16:00 +00:00
 
 - Bump certifi from 2026.2.25 to 2026.10.19 (#1016) (@dependabot)
