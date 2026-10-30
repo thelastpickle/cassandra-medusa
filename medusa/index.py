@@ -127,7 +127,7 @@ def set_latest_backup_in_index(storage, node_backup):
 
 def clean_backup_from_index(storage, node_backup):
     index_files = storage.storage_driver.list_objects(
-        "{}index/backup_index/{}".format(storage.prefix_path, node_backup.name))
+        "{}index/backup_index/{}/".format(storage.prefix_path, node_backup.name))
     for obj in index_files:
         if "_" + node_backup.fqdn in obj.name:
             logging.debug("Cleaning from backup index: {}".format(obj.name))

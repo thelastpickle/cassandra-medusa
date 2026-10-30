@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import configparser
+import pathlib
+import shutil
 import unittest
 
 from datetime import datetime, timedelta
@@ -22,6 +24,7 @@ from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.storage import Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
+from medusa.purge import purge_backup
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
 
@@ -51,6 +54,27 @@ class PurgeTest(unittest.TestCase):
             kubernetes=None,
         )
         self.storage = Storage(config=self.config.storage)
+
+    def test_purge_backup_leaves_prefix_sibling_intact(self):
+        # A backup name can be a string prefix of another backup's name, as with
+        # backup-2 and backup-2026. Purging the first must not take the second's
+        # objects with it.
+        root = pathlib.Path('/tmp/purge_test')
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for name in ('backup-2', 'backup-2026'):
+            meta_dir = root / 'localhost' / name / 'meta'
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            (meta_dir / 'manifest.json').write_text('[]')
+            index_dir = root / 'index' / 'backup_index' / name
+            index_dir.mkdir(parents=True, exist_ok=True)
+            (index_dir / 'finished_localhost_1.timestamp').write_text('1')
+
+        purge_backup(self.storage, make_node_backup(self.storage, 'backup-2', datetime.now()))
+
+        assert not (root / 'localhost' / 'backup-2' / 'meta' / 'manifest.json').exists()
+        assert (root / 'localhost' / 'backup-2026' / 'meta' / 'manifest.json').exists()
+        assert not (root / 'index' / 'backup_index' / 'backup-2' / 'finished_localhost_1.timestamp').exists()
+        assert (root / 'index' / 'backup_index' / 'backup-2026' / 'finished_localhost_1.timestamp').exists()
 
     def test_purge_backups_by_date(self):
         backups = list()
