@@ -46,12 +46,21 @@ restore() {
     fi
 }
 
+stop_medusa() {
+    local signal=$1
+    kill -"$signal" "$MEDUSA_PID" 2>/dev/null || true
+    wait "$MEDUSA_PID"
+    exit
+}
+
 grpc() {
     ORIGINAL_MEDUSA_INI_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
     echo "Starting Medusa gRPC service"
 
     exec poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
+    trap 'stop_medusa TERM' TERM
+    trap 'stop_medusa INT' INT
 
     # Loop while Medusa process is running
     while kill -0 "$MEDUSA_PID" 2>/dev/null; do
@@ -67,7 +76,8 @@ grpc() {
           echo "Backup in progress, postponing restart"
         fi
       fi
-      sleep 5
+      sleep 5 &
+      wait $! || true
     done
 
     # Exit with the Medusa process exit code.
