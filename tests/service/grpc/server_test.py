@@ -119,8 +119,9 @@ class ServerTest(unittest.TestCase):
             nodes=['node1'],
             differential=True
         )
-        cluster_backup.size = lambda: 0
-        cluster_backup.num_objects = lambda: 0
+        # Avoid accessing storage when the summary calculates both values from
+        # each node manifest in a single pass.
+        cluster_backup.node_backups['node1'].size_and_num_objects = lambda: (0, 0)
         tokenmap_dict = {
             "node1": {"tokens": [-1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"},
             "node2": {"tokens": [1094266504216117253], "is_up": True, "rack": "r1", "dc": "dc1"}

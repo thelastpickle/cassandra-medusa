@@ -56,6 +56,10 @@ ENV DEBUG_SLEEP 0
 ENV PATH=/home/cassandra/.local/bin:/home/cassandra/google-cloud-sdk/bin:/home/cassandra/bin:$PATH
 ENV PYTHONPATH=/home/cassandra
 
+# Limit glibc allocator fragmentation and return unused heap memory sooner.
+ENV MALLOC_ARENA_MAX=2
+ENV MALLOC_TRIM_THRESHOLD_=61708864
+
 COPY --from=base --chown=cassandra:cassandra /root/.local /home/cassandra/.local
 COPY --from=base --chown=cassandra:cassandra /build/.venv /home/cassandra/.venv
 COPY --from=base --chown=cassandra:cassandra /build/pyproject.toml /home/cassandra/pyproject.toml

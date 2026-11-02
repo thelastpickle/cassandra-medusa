@@ -387,8 +387,22 @@ def get_backup_summary(backup):
 
     summary.backupType = backup.backup_type
 
-    summary.totalSize = backup.size()
-    summary.totalObjects = backup.num_objects()
+    # GetBackups builds many summaries in one request. Parse each manifest once
+    # and release its cached contents immediately to keep memory use bounded.
+    total_size = 0
+    total_objects = 0
+    try:
+        for node_backup in backup.expected_node_backups():
+            if node_backup.finished:
+                node_size, node_objects = node_backup.size_and_num_objects()
+                total_size += node_size
+                total_objects += node_objects
+    finally:
+        for node_backup in backup.node_backups.values():
+            node_backup.cached_manifest = None
+
+    summary.totalSize = total_size
+    summary.totalObjects = total_objects
 
     return summary
 

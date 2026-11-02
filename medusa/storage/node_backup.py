@@ -279,3 +279,13 @@ class NodeBackup(object):
             len(section['objects'])
             for section in json.loads(self.manifest)
         )
+
+    def size_and_num_objects(self):
+        """Return manifest size and object count after parsing it once."""
+        total_size = 0
+        total_objects = 0
+        for section in json.loads(self.manifest):
+            objects = section['objects']
+            total_objects += len(objects)
+            total_size += sum(obj['size'] for obj in objects)
+        return total_size, total_objects
