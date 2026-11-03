@@ -29,7 +29,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import medusa.utils
 from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
-from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
+from medusa.index import (
+    add_backup_start_to_index,
+    add_backup_finish_to_index,
+    add_snapshot_time_to_index,
+    set_latest_backup_in_index
+)
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str, NodeBackup
 from medusa.storage.abstract_storage import ManifestObject
@@ -185,7 +190,7 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
     md5_check_concurrency = max(configured_md5_check_concurrency, 1)
     num_files, num_replaced, num_kept = do_backup(
         cassandra, node_backup, storage, enable_md5, md5_check_concurrency, backup_name, keep_snapshot,
-        use_existing_snapshot
+        use_existing_snapshot, pitr_enabled=is_pitr_enabled(config)
     )
     end = datetime.datetime.now()
     actual_backup_duration = end - actual_start
@@ -222,8 +227,18 @@ def get_server_type_and_version(cassandra):
     return server_type, release_version
 
 
+def is_pitr_enabled(config):
+    """
+    PITR is off unless [pitr] enabled = true. A config without a [pitr] section/field counts as off.
+    """
+    pitr_config = getattr(config, 'pitr', None)
+    if pitr_config is None:
+        return False
+    return medusa.utils.evaluate_boolean(getattr(pitr_config, 'enabled', False))
+
+
 def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_concurrency, backup_name,
-              keep_snapshot=False, use_existing_snapshot=False):
+              keep_snapshot=False, use_existing_snapshot=False, pitr_enabled=False):
 
     if use_existing_snapshot:
         logging.debug('Skipping snapshot creation')
@@ -237,6 +252,8 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
     # so even if exception is thrown, a new snapshot will be created on the next run
     # this is not too good and we will use just one snapshot in the future
     with snapshot:
+        # must be read here: leaving the block deletes the snapshot dirs the value comes from
+        snapshot_time = snapshot.get_snapshot_time() if pitr_enabled else None
         manifest = []
         num_files, num_replaced, num_kept = backup_snapshots(
             storage, manifest, node_backup, snapshot, enable_md5_checks, md5_check_concurrency
@@ -255,6 +272,7 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
     logging.info('Updating backup index')
     node_backup.manifest = json.dumps(manifest)
     add_backup_finish_to_index(storage, node_backup)
+    add_snapshot_time_to_index(storage, node_backup, snapshot_time)
     set_latest_backup_in_index(storage, node_backup)
     return num_files, num_replaced, num_kept
 

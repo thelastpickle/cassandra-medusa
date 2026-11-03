@@ -118,6 +118,21 @@ def add_backup_finish_to_index(storage, node_backup):
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.finished))
 
 
+def add_snapshot_time_to_index(storage, node_backup, snapshot_time):
+    """
+    Records when the snapshot of this node backup was frozen (integer epoch seconds), so that
+    NodeBackup.snapshot_time can read it back. Does nothing if snapshot_time is None: a backup
+    without this blob is not PITR-capable, and there is no fallback to started/finished.
+    Deliberately not called from build_indices: old backups have no snapshot dir to read it from.
+    """
+    if snapshot_time is None:
+        return
+    dst = '{}index/backup_index/{}/snapshot_time_{}_{}.timestamp'.format(
+        storage.prefix_path, node_backup.name, node_backup.fqdn, snapshot_time
+    )
+    storage.storage_driver.upload_blob_from_string(dst, str(snapshot_time))
+
+
 def set_latest_backup_in_index(storage, node_backup):
     dst = '{}index/latest_backup/{}/tokenmap.json'.format(storage.prefix_path, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
