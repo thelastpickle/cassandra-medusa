@@ -18,6 +18,10 @@ import pathlib
 import re
 
 
+# sentinel meaning "snapshot_time was not looked up yet", needed because None is a valid (cached) result
+_UNSET = object()
+
+
 class NodeBackup(object):
 
     def __init__(self,
@@ -34,6 +38,8 @@ class NodeBackup(object):
                  started_blob=None,
                  finished_timestamp=None,
                  finished_blob=None,
+                 snapshot_time_timestamp=_UNSET,
+                 snapshot_time_blob=None,
                  differential_blob=None,
                  differential_mode=False,
                  server_version_blob=None):
@@ -82,6 +88,8 @@ class NodeBackup(object):
         self.finished_blob = finished_blob
         self._started = started_timestamp
         self._finished = finished_timestamp
+        self.snapshot_time_blob = snapshot_time_blob
+        self._snapshot_time = snapshot_time_timestamp
 
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
@@ -241,6 +249,25 @@ class NodeBackup(object):
         # if we still failed to work out the timestamp of manifest blob, we are in trouble
         logging.debug("No manifest blob for backup {} of fqdn {}".format(self._name, self._fqdn))
         return None
+
+    @property
+    def snapshot_time(self):
+        """
+        Epoch seconds of the PITR snapshot time of this node backup, or None if the backup is not PITR-capable.
+        There is deliberately no fallback to started/finished.
+        When not provided by the constructor, it is resolved lazily with a single list_objects call and cached.
+        """
+        if self._snapshot_time is _UNSET:
+            prefix = '{}index/backup_index/{}/snapshot_time_{}_'.format(
+                self._storage.prefix_path, self._name, self._fqdn)
+            self._snapshot_time = None
+            # list_objects is a prefix match, so 'node1' would also match 'node1_a': filter by exact fqdn
+            for blob in self._storage.storage_driver.list_objects(prefix):
+                if self._storage.get_fqdn_from_any_index_blob(blob) == self._fqdn:
+                    self.snapshot_time_blob = blob
+                    self._snapshot_time = self._storage.get_timestamp_from_blob_name(blob.name)
+                    break
+        return self._snapshot_time
 
     @property
     def manifest_path(self):

@@ -365,6 +365,112 @@ class StorageTest(unittest.TestCase):
             self.storage.get_timestamp_from_blob_name('index/bi/third_backup/finished_localhost_1574343029.timestamp')
         )
 
+    def test_snapshot_time_blob_name_parsing(self):
+        blob_name = "snapshot_time_localhost_1574343029.timestamp"
+        self.assertEqual("localhost", self.storage.get_fqdn_from_any_index_blob(blob_name))
+        self.assertEqual(1574343029, self.storage.get_timestamp_from_blob_name(blob_name))
+
+        blob_name = "index/backup_index/third_backup/snapshot_time_some_underscores.host.net_1574343029.timestamp"
+        self.assertEqual("some_underscores.host.net", self.storage.get_fqdn_from_any_index_blob(blob_name))
+        self.assertEqual(1574343029, self.storage.get_timestamp_from_blob_name(blob_name))
+
+        blob_name = "prefix/index/backup_index/third_backup/snapshot_time_localhost_1574343029.timestamp"
+        self.assertEqual("localhost", self.storage.get_fqdn_from_any_index_blob(blob_name))
+        self.assertEqual(1574343029, self.storage.get_timestamp_from_blob_name(blob_name))
+
+    def _upload_index_blobs(self, backup_name, fqdn, started, finished, snapshot_time=None):
+        index_dir = '{}index/backup_index/{}'.format(self.storage.prefix_path, backup_name)
+        driver = self.storage.storage_driver
+        # list_node_backups only returns backups whose schema blob exists in the data folder
+        driver.upload_blob_from_string(
+            '{}{}/{}/meta/schema.cql'.format(self.storage.prefix_path, fqdn, backup_name), 'schema')
+        driver.upload_blob_from_string('{}/tokenmap_{}.json'.format(index_dir, fqdn), '{}')
+        driver.upload_blob_from_string('{}/schema_{}.cql'.format(index_dir, fqdn), 'schema')
+        driver.upload_blob_from_string('{}/manifest_{}.json'.format(index_dir, fqdn), '[]')
+        driver.upload_blob_from_string('{}/started_{}_{}.timestamp'.format(index_dir, fqdn, started), str(started))
+        driver.upload_blob_from_string('{}/finished_{}_{}.timestamp'.format(index_dir, fqdn, finished), str(finished))
+        if snapshot_time is not None:
+            driver.upload_blob_from_string(
+                '{}/snapshot_time_{}_{}.timestamp'.format(index_dir, fqdn, snapshot_time), str(snapshot_time))
+
+    def test_list_node_backups_with_snapshot_time(self):
+        self._upload_index_blobs('backup1', 'node1', 1000, 2000, snapshot_time=1500)
+        self._upload_index_blobs('backup2', 'node1', 3000, 4000)
+
+        with patch.object(self.storage.storage_driver, 'list_objects',
+                          wraps=self.storage.storage_driver.list_objects) as list_objects:
+            node_backups = {nb.name: nb for nb in self.storage.list_node_backups()}
+            calls_after_listing = list_objects.call_count
+            self.assertEqual(1500, node_backups['backup1'].snapshot_time)
+            # no fallback to started/finished when the blob is missing
+            self.assertIsNone(node_backups['backup2'].snapshot_time)
+            # reading snapshot_time does not trigger any extra storage call when listing
+            self.assertEqual(calls_after_listing, list_objects.call_count)
+
+        self.assertEqual(1000, node_backups['backup1'].started)
+        self.assertEqual(2000, node_backups['backup1'].finished)
+        self.assertEqual(3000, node_backups['backup2'].started)
+        self.assertEqual(4000, node_backups['backup2'].finished)
+        self.assertEqual(['backup1', 'backup2'], [nb.name for nb in self.storage.list_node_backups()])
+
+    def test_list_node_backups_without_any_snapshot_time(self):
+        self._upload_index_blobs('backup1', 'node1', 1000, 2000)
+        node_backups = list(self.storage.list_node_backups())
+        self.assertEqual(1, len(node_backups))
+        self.assertIsNone(node_backups[0].snapshot_time)
+        self.assertEqual(1000, node_backups[0].started)
+
+    def test_node_backup_snapshot_time_lazy_lookup(self):
+        self._upload_index_blobs('backup1', 'node1', 1000, 2000, snapshot_time=1500)
+        node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
+
+        with patch.object(self.storage.storage_driver, 'list_objects',
+                          wraps=self.storage.storage_driver.list_objects) as list_objects:
+            self.assertEqual(1500, node_backup.snapshot_time)
+            self.assertEqual(1500, node_backup.snapshot_time)
+            list_objects.assert_called_once_with(
+                '{}index/backup_index/backup1/snapshot_time_node1_'.format(self.storage.prefix_path))
+
+    def test_node_backup_snapshot_time_lazy_lookup_absent_is_cached(self):
+        self._upload_index_blobs('backup1', 'node1', 1000, 2000)
+        node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
+
+        with patch.object(self.storage.storage_driver, 'list_objects',
+                          wraps=self.storage.storage_driver.list_objects) as list_objects:
+            self.assertIsNone(node_backup.snapshot_time)
+            self.assertIsNone(node_backup.snapshot_time)
+            self.assertEqual(1, list_objects.call_count)
+
+    def test_node_backup_snapshot_time_lazy_lookup_fqdn_collision(self):
+        # 'snapshot_time_node1_' is also a prefix of node1_a's blob
+        self._upload_index_blobs('backup1', 'node1_a', 1000, 2000, snapshot_time=1700)
+        self._upload_index_blobs('backup1', 'node1', 1000, 2000)
+        self._upload_index_blobs('backup2', 'node1_a', 1000, 2000, snapshot_time=1800)
+        self._upload_index_blobs('backup2', 'node1', 1000, 2000, snapshot_time=1600)
+
+        self.assertIsNone(NodeBackup(storage=self.storage, fqdn='node1', name='backup1').snapshot_time)
+        self.assertEqual(1700, NodeBackup(storage=self.storage, fqdn='node1_a', name='backup1').snapshot_time)
+        self.assertEqual(1600, NodeBackup(storage=self.storage, fqdn='node1', name='backup2').snapshot_time)
+
+    def test_cluster_backup_min_max_snapshot_time(self):
+        def node_backup(fqdn, snapshot_time):
+            return NodeBackup(storage=self.storage, fqdn=fqdn, name='backup1', snapshot_time_timestamp=snapshot_time)
+
+        cluster_backup = ClusterBackup('backup1', [node_backup('n1', 100), node_backup('n2', 300),
+                                                   node_backup('n3', 200)])
+        self.assertEqual(100, cluster_backup.min_snapshot_time)
+        self.assertEqual(300, cluster_backup.max_snapshot_time)
+
+        # nodes without snapshot_time are ignored
+        cluster_backup = ClusterBackup('backup1', [node_backup('n1', None), node_backup('n2', 300),
+                                                   node_backup('n3', 200)])
+        self.assertEqual(200, cluster_backup.min_snapshot_time)
+        self.assertEqual(300, cluster_backup.max_snapshot_time)
+
+        cluster_backup = ClusterBackup('backup1', [node_backup('n1', None), node_backup('n2', None)])
+        self.assertIsNone(cluster_backup.min_snapshot_time)
+        self.assertIsNone(cluster_backup.max_snapshot_time)
+
     def test_list_files_per_table_with_prefix(self):
 
         def fake_blob(s):
