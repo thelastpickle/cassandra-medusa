@@ -32,6 +32,51 @@ class ConfigTest(unittest.TestCase):
     def setUp(self):
         self.medusa_config_file = pathlib.Path(__file__).parent / "resources/config/medusa.ini"
 
+    def test_pitr_defaults_without_config_section(self):
+        config = medusa.config.load_config({'fqdn': 'localhost'}, self.medusa_config_file)
+
+        assert isinstance(config.pitr, medusa.config.PitrConfig)
+        assert config.pitr.enabled == 'false'
+        assert not medusa.utils.evaluate_boolean(config.pitr.enabled)
+        assert config.pitr.commitlog_archive_interval_seconds == '60'
+        assert config.pitr.commitlog_spool_dir == '/var/lib/cassandra/commitlog_spool_dir'
+        assert config.pitr.commitlog_staging_dir == '/var/lib/cassandra/medusa_commitlog_staging'
+        assert config.pitr.commitlog_restore_grace_period_seconds == '3600'
+
+    def test_pitr_custom_config_section(self):
+        config_file = pathlib.Path(__file__).parent / "resources/config/medusa-pitr.ini"
+        config = medusa.config.load_config({}, config_file)
+
+        assert config.pitr.enabled == 'true'
+        assert medusa.utils.evaluate_boolean(config.pitr.enabled)
+        assert config.pitr.commitlog_archive_interval_seconds == '120'
+        assert config.pitr.commitlog_spool_dir == '/data/cassandra/commitlog_spool'
+        assert config.pitr.commitlog_staging_dir == '/data/cassandra/commitlog_staging'
+        assert config.pitr.commitlog_restore_grace_period_seconds == '7200'
+
+    def test_generic_enabled_arg_does_not_enable_pitr(self):
+        config = medusa.config.load_config({'enabled': 'True', 'fqdn': 'localhost'}, self.medusa_config_file)
+
+        assert not medusa.utils.evaluate_boolean(config.pitr.enabled)
+        assert medusa.utils.evaluate_boolean(config.logging.enabled)
+        assert medusa.utils.evaluate_boolean(config.grpc.enabled)
+        assert medusa.utils.evaluate_boolean(config.kubernetes.enabled)
+
+    def test_generic_enabled_arg_does_not_disable_pitr(self):
+        config_file = pathlib.Path(__file__).parent / "resources/config/medusa-pitr.ini"
+        config = medusa.config.load_config({'enabled': 'False'}, config_file)
+
+        assert medusa.utils.evaluate_boolean(config.pitr.enabled)
+
+    def test_medusa_config_without_pitr_argument(self):
+        config = medusa.config.MedusaConfig(
+            file_path=None, storage=None, cassandra=None, ssh=None, checks=None,
+            monitoring=None, logging=None, grpc=None, kubernetes=None
+        )
+
+        assert config.pitr is None
+        assert medusa.config.MedusaConfig(*([None] * 9)).pitr is None
+
     def test_no_auth_env_variables(self):
         """
         Ensure that CQL credentials, Nodetool credentials, and keystore/truststore passwords
