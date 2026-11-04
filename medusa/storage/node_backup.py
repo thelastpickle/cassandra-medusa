@@ -18,6 +18,26 @@ import pathlib
 import re
 
 
+# Process-wide memo of manifest stats:
+# (bucket, prefix, fqdn, backup name, manifest blob version) -> (size, num_objects).
+# A finished manifest never changes, so listing backups repeatedly (e.g. the operator's sync every night)
+# should not download every manifest again. One small tuple per node backup, so this stays tiny.
+# The key carries the storage identity so that two Storage instances in one process never share an entry.
+_MANIFEST_STATS_MEMO = {}
+
+
+class ManifestNotFoundError(Exception):
+    """
+    Raised when a node backup's manifest.json is missing from storage, i.e. the backup is not (yet) complete
+    or has been partially deleted.
+    """
+
+    def __init__(self, fqdn, backup_name):
+        super().__init__('Backup {} of node {} has no manifest'.format(backup_name, fqdn))
+        self.fqdn = fqdn
+        self.backup_name = backup_name
+
+
 class NodeBackup(object):
 
     def __init__(self,
@@ -74,6 +94,8 @@ class NodeBackup(object):
         self._cached_blobs = {pathlib.Path(blob.name): blob for blob in preloaded_blobs}
 
         self.cached_manifest = None
+        # (total size, number of objects) of the manifest, computed once and kept instead of the manifest itself
+        self._manifest_stats = None
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
         self.cached_tokenmap_blob = tokenmap_blob
@@ -255,7 +277,64 @@ class NodeBackup(object):
     @manifest.setter
     def manifest(self, manifest):
         self.cached_manifest = None
+        self._manifest_stats = None
+        _MANIFEST_STATS_MEMO.pop(self._manifest_stats_memo_key(), None)
         self._storage.storage_driver.upload_blob_from_string(self.manifest_path, manifest)
+
+    @staticmethod
+    def clear_manifest_stats_memo():
+        _MANIFEST_STATS_MEMO.clear()
+
+    def _manifest_stats_memo_key(self):
+        # without an index blob we have no version stamp for the manifest, so we don't memoize
+        if self.cached_manifest_blob is None:
+            return None
+        return (self._storage.config.bucket_name, self._storage.prefix_path,
+                self._fqdn, self._name, str(self.cached_manifest_blob.last_modified))
+
+    def read_manifest(self):
+        """
+        Downloads and parses the manifest without keeping it on this object.
+        Returns None when the manifest does not exist (yet).
+        Use this when the manifest is only needed transiently; the `manifest` property caches the whole string.
+        """
+        content = self._storage.storage_driver.get_blob_content_as_string(self.manifest_path)
+        if content is None:
+            return None
+        return json.loads(content)
+
+    def manifest_stats(self):
+        """
+        Returns (total size in bytes, number of objects) of this backup's manifest.
+        The manifest is downloaded and parsed at most once; only the two integers are kept.
+        Raises ManifestNotFoundError when there is no manifest, like size()/num_objects() used to fail on it;
+        ClusterBackup degrades per node for the listing instead.
+        """
+        if self._manifest_stats is not None:
+            return self._manifest_stats
+
+        memo_key = self._manifest_stats_memo_key()
+        if memo_key is not None and memo_key in _MANIFEST_STATS_MEMO:
+            self._manifest_stats = _MANIFEST_STATS_MEMO[memo_key]
+            return self._manifest_stats
+
+        if self.cached_manifest is not None:
+            manifest = json.loads(self.cached_manifest)
+        else:
+            manifest = self.read_manifest()
+        if manifest is None:
+            raise ManifestNotFoundError(self._fqdn, self._name)
+
+        size = 0
+        num_objects = 0
+        for section in manifest:
+            objects = section['objects']
+            num_objects += len(objects)
+            size += sum(obj['size'] for obj in objects)
+        self._manifest_stats = (size, num_objects)
+        if memo_key is not None:
+            _MANIFEST_STATS_MEMO[memo_key] = self._manifest_stats
+        return self._manifest_stats
 
     def datapath(self, *, keyspace, columnfamily):
         return self.data_path / keyspace / columnfamily
@@ -268,14 +347,7 @@ class NodeBackup(object):
         return self._blob(self.schema_path) is not None
 
     def size(self):
-        return sum(
-            obj['size']
-            for section in json.loads(self.manifest)
-            for obj in section['objects']
-        )
+        return self.manifest_stats()[0]
 
     def num_objects(self):
-        return sum(
-            len(section['objects'])
-            for section in json.loads(self.manifest)
-        )
+        return self.manifest_stats()[1]

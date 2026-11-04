@@ -29,6 +29,7 @@ def make_node_backup(fqdn, started, finished, tokenmap):
     node_backup.is_differential = True
     node_backup.size.return_value = 1
     node_backup.num_objects.return_value = 1
+    node_backup.manifest_stats.return_value = (1, 1)
     return node_backup
 
 
