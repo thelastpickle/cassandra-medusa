@@ -54,6 +54,16 @@ class MedusaStub(object):
                 request_serializer=medusa__pb2.PrepareRestoreRequest.SerializeToString,
                 response_deserializer=medusa__pb2.PrepareRestoreResponse.FromString,
                 )
+        self.GetCommitLogArchiveStatus = channel.unary_unary(
+                '/Medusa/GetCommitLogArchiveStatus',
+                request_serializer=medusa__pb2.GetCommitLogArchiveStatusRequest.SerializeToString,
+                response_deserializer=medusa__pb2.GetCommitLogArchiveStatusResponse.FromString,
+                )
+        self.PreparePitrRestore = channel.unary_unary(
+                '/Medusa/PreparePitrRestore',
+                request_serializer=medusa__pb2.PreparePitrRestoreRequest.SerializeToString,
+                response_deserializer=medusa__pb2.PreparePitrRestoreResponse.FromString,
+                )
 
 
 class MedusaServicer(object):
@@ -107,6 +117,18 @@ class MedusaServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetCommitLogArchiveStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PreparePitrRestore(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MedusaServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -149,6 +171,16 @@ def add_MedusaServicer_to_server(servicer, server):
                     servicer.PrepareRestore,
                     request_deserializer=medusa__pb2.PrepareRestoreRequest.FromString,
                     response_serializer=medusa__pb2.PrepareRestoreResponse.SerializeToString,
+            ),
+            'GetCommitLogArchiveStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCommitLogArchiveStatus,
+                    request_deserializer=medusa__pb2.GetCommitLogArchiveStatusRequest.FromString,
+                    response_serializer=medusa__pb2.GetCommitLogArchiveStatusResponse.SerializeToString,
+            ),
+            'PreparePitrRestore': grpc.unary_unary_rpc_method_handler(
+                    servicer.PreparePitrRestore,
+                    request_deserializer=medusa__pb2.PreparePitrRestoreRequest.FromString,
+                    response_serializer=medusa__pb2.PreparePitrRestoreResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -293,5 +325,39 @@ class Medusa(object):
         return grpc.experimental.unary_unary(request, target, '/Medusa/PrepareRestore',
             medusa__pb2.PrepareRestoreRequest.SerializeToString,
             medusa__pb2.PrepareRestoreResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetCommitLogArchiveStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Medusa/GetCommitLogArchiveStatus',
+            medusa__pb2.GetCommitLogArchiveStatusRequest.SerializeToString,
+            medusa__pb2.GetCommitLogArchiveStatusResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PreparePitrRestore(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/Medusa/PreparePitrRestore',
+            medusa__pb2.PreparePitrRestoreRequest.SerializeToString,
+            medusa__pb2.PreparePitrRestoreResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
