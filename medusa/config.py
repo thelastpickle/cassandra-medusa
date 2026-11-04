@@ -64,8 +64,9 @@ MedusaConfig = collections.namedtuple(
     'MedusaConfig',
     [
         'file_path',  # Store a specific config file path, None for default file
-        'storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc', 'kubernetes'
-    ]
+        'storage', 'cassandra', 'ssh', 'checks', 'monitoring', 'logging', 'grpc', 'kubernetes', 'pitr'
+    ],
+    defaults=[None]
 )
 
 LoggingConfig = collections.namedtuple(
@@ -83,6 +84,12 @@ KubernetesConfig = collections.namedtuple(
     ['enabled', 'cassandra_url', 'use_mgmt_api', 'ca_cert', 'tls_cert', 'tls_key']
 )
 
+PitrConfig = collections.namedtuple(
+    'PitrConfig',
+    ['enabled', 'commitlog_archive_interval_seconds', 'commitlog_spool_dir', 'commitlog_staging_dir',
+     'commitlog_restore_grace_period_seconds']
+)
+
 CONFIG_SECTIONS = {
     'storage': StorageConfig,
     'cassandra': CassandraConfig,
@@ -91,7 +98,8 @@ CONFIG_SECTIONS = {
     'monitoring': MonitoringConfig,
     'logging': LoggingConfig,
     'grpc': GrpcConfig,
-    'kubernetes': KubernetesConfig
+    'kubernetes': KubernetesConfig,
+    'pitr': PitrConfig
 }
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -186,6 +194,14 @@ def _build_default_config():
         'tls_cert': '',
         'tls_key': ''
     }
+
+    config['pitr'] = {
+        'enabled': 'false',
+        'commitlog_archive_interval_seconds': '60',
+        'commitlog_spool_dir': '/var/lib/cassandra/commitlog_spool_dir',
+        'commitlog_staging_dir': '/var/lib/cassandra/medusa_commitlog_staging',
+        'commitlog_restore_grace_period_seconds': '3600'
+    }
     return config
 
 
@@ -228,6 +244,8 @@ def _override_config_with_args(config, args):
         if config_section == 'DEFAULT':
             continue
         settings = CONFIG_SECTIONS[config_section]._fields
+        if config_section == 'pitr':
+            settings = [field for field in settings if field != 'enabled']
         config.read_dict({config_section: {
             key: value
             for key, value in _zip_fields_with_arg_values(settings, args)
@@ -353,7 +371,8 @@ def load_config(args, config_file):
         monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
         logging=_namedtuple_from_dict(LoggingConfig, config['logging']),
         grpc=_namedtuple_from_dict(GrpcConfig, config['grpc']),
-        kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes'])
+        kubernetes=_namedtuple_from_dict(KubernetesConfig, config['kubernetes']),
+        pitr=_namedtuple_from_dict(PitrConfig, config['pitr'])
     )
 
     for field in ['bucket_name', 'storage_provider']:
