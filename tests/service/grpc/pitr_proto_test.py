@@ -58,10 +58,14 @@ class PitrProtoTest(unittest.TestCase):
         self.assertEqual('spool directory unreadable', parsed.lastError)
 
     def test_prepare_pitr_restore_request_round_trip(self):
-        original = medusa_pb2.PreparePitrRestoreRequest(targetTimestamp='2026-01-01T00:00:00Z')
+        original = medusa_pb2.PreparePitrRestoreRequest(
+            targetTimestamp='2026-01-01T00:00:00Z',
+            datacenter='dc1',
+        )
         parsed = medusa_pb2.PreparePitrRestoreRequest()
         parsed.ParseFromString(original.SerializeToString())
         self.assertEqual('2026-01-01T00:00:00Z', parsed.targetTimestamp)
+        self.assertEqual('dc1', parsed.datacenter)
 
     def test_prepare_pitr_restore_response_accepts_map_entries(self):
         response = medusa_pb2.PreparePitrRestoreResponse(

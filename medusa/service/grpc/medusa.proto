@@ -130,6 +130,7 @@ message GetCommitLogArchiveStatusResponse {
 
 message PreparePitrRestoreRequest {
   string targetTimestamp = 1;  // Unix epoch float string or ISO-8601 (UTC)
+  string datacenter      = 2;  // Cassandra DC to restore (MedusaRestoreJob.spec.cassandraDatacenter); scopes the base-backup check to this DC
 }
 
 message PreparePitrRestoreResponse {
