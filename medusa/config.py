@@ -245,7 +245,6 @@ def _override_config_with_args(config, args):
             continue
         settings = CONFIG_SECTIONS[config_section]._fields
         if config_section == 'pitr':
-            # PITR must be explicitly enabled in its own section, never by the generic CLI flag.
             settings = [field for field in settings if field != 'enabled']
         config.read_dict({config_section: {
             key: value
