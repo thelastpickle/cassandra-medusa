@@ -97,6 +97,83 @@ class BackupNodeTest(unittest.TestCase):
                 backup_node.print_backup_stats(now - now, now, now, node_backup, 0, 0, 0, now)
             self.assertIn('INFO:root:Backup done: backup-name ({})'.format(mode), logs.output)
 
+    def _run_do_backup(self, pitr_enabled, snapshot_time=1500, **kwargs):
+        events = []
+        snapshot = MagicMock()
+        snapshot.__enter__.return_value = snapshot
+        snapshot.__exit__.side_effect = lambda *args: events.append('snapshot_deleted')
+        snapshot.get_snapshot_time.side_effect = lambda: events.append('snapshot_time_read') or snapshot_time
+        cassandra = MagicMock()
+        cassandra.create_snapshot.return_value = snapshot
+        cassandra.get_snapshot.return_value = snapshot
+        node_backup = MagicMock()
+        node_backup.is_dse_6 = False
+        node_backup.snapshot_time = None
+        storage = MagicMock()
+
+        with patch('medusa.backup_node.backup_snapshots', return_value=(1, 0, 0)), \
+                patch('medusa.backup_node.add_backup_finish_to_index'), \
+                patch('medusa.backup_node.set_latest_backup_in_index'), \
+                patch('medusa.backup_node.add_snapshot_time_to_index',
+                      side_effect=lambda *args: events.append('index_written')) as add_snapshot_time:
+            backup_node.do_backup(cassandra, node_backup, storage, False, 1, 'backup1',
+                                  pitr_enabled=pitr_enabled, **kwargs)
+        return events, add_snapshot_time, snapshot, storage, node_backup
+
+    def test_do_backup_reads_snapshot_time_before_snapshot_is_deleted(self):
+        events, add_snapshot_time, _, storage, node_backup = self._run_do_backup(pitr_enabled=True)
+
+        self.assertEqual(['snapshot_time_read', 'snapshot_deleted', 'index_written'], events)
+        self.assertEqual(1500, node_backup.snapshot_time)
+        add_snapshot_time.assert_called_once_with(storage, node_backup)
+
+    def test_do_backup_reads_snapshot_time_with_existing_snapshot(self):
+        events, add_snapshot_time, _, storage, node_backup = self._run_do_backup(
+            pitr_enabled=True, use_existing_snapshot=True)
+
+        self.assertEqual(['snapshot_time_read', 'snapshot_deleted', 'index_written'], events)
+        self.assertEqual(1500, node_backup.snapshot_time)
+        add_snapshot_time.assert_called_once_with(storage, node_backup)
+
+    def test_do_backup_does_not_read_snapshot_time_when_pitr_disabled(self):
+        _, add_snapshot_time, snapshot, storage, node_backup = self._run_do_backup(pitr_enabled=False)
+
+        snapshot.get_snapshot_time.assert_not_called()
+        self.assertIsNone(node_backup.snapshot_time)
+        add_snapshot_time.assert_called_once_with(storage, node_backup)
+
+    def test_do_backup_does_not_set_snapshot_time_when_there_is_none(self):
+        _, add_snapshot_time, _, storage, node_backup = self._run_do_backup(pitr_enabled=True, snapshot_time=None)
+
+        self.assertIsNone(node_backup.snapshot_time)
+        add_snapshot_time.assert_called_once_with(storage, node_backup)
+
+    def test_do_backup_with_pitr_disabled_uploads_no_snapshot_time_blob(self):
+        # exercise the real index function: no snapshot_time blob must be uploaded
+        snapshot = MagicMock()
+        snapshot.__enter__.return_value = snapshot
+        cassandra = MagicMock()
+        cassandra.create_snapshot.return_value = snapshot
+        node_backup = MagicMock()
+        node_backup.is_dse_6 = False
+        node_backup.snapshot_time = None
+        storage = MagicMock()
+        storage.prefix_path = ''
+
+        with patch('medusa.backup_node.backup_snapshots', return_value=(1, 0, 0)), \
+                patch('medusa.backup_node.add_backup_finish_to_index'), \
+                patch('medusa.backup_node.set_latest_backup_in_index'):
+            backup_node.do_backup(cassandra, node_backup, storage, False, 1, 'backup1', pitr_enabled=False)
+
+        storage.storage_driver.upload_blob_from_string.assert_not_called()
+
+    def test_is_pitr_enabled(self):
+        self.assertFalse(backup_node.is_pitr_enabled(self.medusa_config))
+        self.assertFalse(backup_node.is_pitr_enabled(MagicMock(pitr=None)))
+        self.assertFalse(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='false'))))
+        self.assertTrue(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='true'))))
+        self.assertTrue(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled=True))))
+
     @patch("medusa.storage")
     @patch("medusa.storage.node_backup.NodeBackup")
     def test_check_already_uploaded(self, mock_storage, mock_node_backup):

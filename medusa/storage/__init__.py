@@ -43,7 +43,7 @@ from medusa.utils import evaluate_boolean
 # the path is covered by the initial .*
 # also retains extension if the name has any
 INDEX_BLOB_NAME_PATTERN = re.compile('.*(tokenmap|schema|manifest|differential|incremental)_(.*)$')
-INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished)_(.*)_([0-9]+).timestamp$')
+INDEX_BLOB_WITH_TIMESTAMP_PATTERN = re.compile('.*(started|finished|snapshot_time)_(.*)_([0-9]+).timestamp$')
 
 
 def divide_chunks(values, step):
@@ -211,12 +211,14 @@ class Storage(object):
             manifest_blob, schema_blob, tokenmap_blob = None, None, None
             started_blob, finished_blob = None, None
             started_timestamp, finished_timestamp = None, None
+            snapshot_time_blob, snapshot_time_timestamp = None, None
             if tokenmap_fqdn in blobs_by_backup[backup_name]:
                 manifest_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'manifest')
                 schema_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'schema')
                 tokenmap_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'tokenmap')
                 started_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'started')
                 finished_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'finished')
+                snapshot_time_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'snapshot_time')
                 differential_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'differential')
                 # Should be removed after while. Here for backwards compatibility.
                 incremental_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'incremental')
@@ -228,11 +230,14 @@ class Storage(object):
                     finished_timestamp = self.get_timestamp_from_blob_name(finished_blob.name)
                 else:
                     finished_timestamp = None
+                if snapshot_time_blob is not None:
+                    snapshot_time_timestamp = self.get_timestamp_from_blob_name(snapshot_time_blob.name)
 
             nb = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
                             manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
                             started_timestamp=started_timestamp, started_blob=started_blob,
                             finished_timestamp=finished_timestamp, finished_blob=finished_blob,
+                            snapshot_time_timestamp=snapshot_time_timestamp, snapshot_time_blob=snapshot_time_blob,
                             differential_blob=differential_blob if differential_blob is not None else incremental_blob)
             node_backups.append(nb)
 
@@ -353,7 +358,7 @@ class Storage(object):
         """
         This function looks up blobs in blobs_by_backup, which is a double dict (k->k->v).
         The blob_name_chunk tells which blob for given backup and fqdn we want.
-        It can be 'schema', 'manifest', 'started', 'finished'
+        It can be 'schema', 'manifest', 'started', 'finished', 'snapshot_time'
         """
         blob_list = list(filter(lambda blob: blob_name_chunk in blob.name,
                                 blobs_by_backup[backup_name][fqdn]))

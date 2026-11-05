@@ -1067,5 +1067,46 @@ class CassandraUtilsTest(unittest.TestCase):
             # the snapshot must not have copied its own (still growing) snapshots dir into itself
             self.assertFalse((metadata_dir / 'snapshots' / snapshot._tag / 'snapshots').exists())
 
+    def _make_snapshot_dir(self, root, keyspace, table, tag, mtime):
+        snapshot_dir = Path(root) / keyspace / table / 'snapshots' / tag
+        snapshot_dir.mkdir(parents=True)
+        os.utime(snapshot_dir, (mtime, mtime))
+        return snapshot_dir
+
+    def test_get_snapshot_time_is_latest_mtime_of_snapshot_dirs(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._make_snapshot_dir(root, 'ks1', 't1', 'medusa-b', 1000)
+            self._make_snapshot_dir(root, 'ks1', 't2', 'medusa-b', 3000)
+            self._make_snapshot_dir(root, 'ks2', 't3', 'medusa-b', 2000)
+            # a different snapshot must not be considered, even if it is newer
+            self._make_snapshot_dir(root, 'ks1', 't1', 'medusa-other', 9000)
+            snapshot = Cassandra.Snapshot(mock.MagicMock(root=Path(root)), 'medusa-b')
+
+            self.assertEqual(3000, snapshot.get_snapshot_time())
+
+    def test_get_snapshot_time_is_integer_seconds(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._make_snapshot_dir(root, 'ks1', 't1', 'medusa-b', 1234.75)
+            snapshot = Cassandra.Snapshot(mock.MagicMock(root=Path(root)), 'medusa-b')
+
+            snapshot_time = snapshot.get_snapshot_time()
+            self.assertIsInstance(snapshot_time, int)
+            self.assertEqual(1234, snapshot_time)
+
+    def test_get_snapshot_time_is_none_without_snapshot_dirs(self):
+        with tempfile.TemporaryDirectory() as root:
+            snapshot = Cassandra.Snapshot(mock.MagicMock(root=Path(root)), 'medusa-b')
+
+            self.assertIsNone(snapshot.get_snapshot_time())
+
+    def test_get_snapshot_time_is_none_when_mtime_cannot_be_read(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._make_snapshot_dir(root, 'ks1', 't1', 'medusa-b', 1000)
+            snapshot = Cassandra.Snapshot(mock.MagicMock(root=Path(root)), 'medusa-b')
+
+            with mock.patch.object(Path, 'stat', side_effect=OSError('boom')):
+                with self.assertLogs(level='WARNING'):
+                    self.assertIsNone(snapshot.get_snapshot_time())
+
     if __name__ == '__main__':
         unittest.main()

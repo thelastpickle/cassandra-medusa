@@ -560,6 +560,21 @@ class Cassandra(object):
                     not in CqlSession.EXCLUDED_KEYSPACES)
             ]
 
+        def get_snapshot_time(self):
+            """
+            Returns the time (integer epoch seconds) at which this snapshot was frozen on the node,
+            or None if it cannot be determined (no snapshot dirs, or the mtime could not be read).
+
+            Rule: use the LATEST mtime of all snapshot dirs, so that the snapshotted SSTables hold
+            no data written after the returned value.
+            """
+            try:
+                mtimes = [snapshot_path.path.stat().st_mtime for snapshot_path in self.find_dirs()]
+            except OSError as e:
+                logging.warning('Could not read the snapshot time of snapshot {}: {}'.format(self._tag, e))
+                return None
+            return int(max(mtimes)) if mtimes else None
+
         def delete(self):
             self._parent.delete_snapshot(self._tag)
 

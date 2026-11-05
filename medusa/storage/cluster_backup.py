@@ -49,6 +49,20 @@ class ClusterBackup(object):
         else:
             return None
 
+    def _snapshot_times(self):
+        snapshot_times = (node_backup.snapshot_time for node_backup in self.node_backups.values())
+        return [snapshot_time for snapshot_time in snapshot_times if snapshot_time is not None]
+
+    @property
+    def min_snapshot_time(self):
+        snapshot_times = self._snapshot_times()
+        return min(snapshot_times) if snapshot_times else None
+
+    @property
+    def max_snapshot_time(self):
+        snapshot_times = self._snapshot_times()
+        return max(snapshot_times) if snapshot_times else None
+
     @property
     def tokenmap(self):
         if self._tokenmap is None:

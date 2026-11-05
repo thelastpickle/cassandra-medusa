@@ -18,6 +18,10 @@ import pathlib
 import re
 
 
+# sentinel meaning "snapshot_time was not looked up yet", needed because None is a valid (cached) result
+_UNSET = object()
+
+
 class NodeBackup(object):
 
     def __init__(self,
@@ -34,6 +38,8 @@ class NodeBackup(object):
                  started_blob=None,
                  finished_timestamp=None,
                  finished_blob=None,
+                 snapshot_time_timestamp=_UNSET,
+                 snapshot_time_blob=None,
                  differential_blob=None,
                  differential_mode=False,
                  server_version_blob=None):
@@ -65,6 +71,7 @@ class NodeBackup(object):
         self._differential_path = self._meta_path / 'differential'
         self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
         self._server_version_path = self._meta_path / 'server_version.json'
+        self._snapshot_time_path = self._meta_path / 'snapshot_time.txt'
 
         if preloaded_blobs is None:
             preloaded_blobs = []
@@ -82,6 +89,8 @@ class NodeBackup(object):
         self.finished_blob = finished_blob
         self._started = started_timestamp
         self._finished = finished_timestamp
+        self.snapshot_time_blob = snapshot_time_blob
+        self._snapshot_time = snapshot_time_timestamp
 
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
@@ -241,6 +250,28 @@ class NodeBackup(object):
         # if we still failed to work out the timestamp of manifest blob, we are in trouble
         logging.debug("No manifest blob for backup {} of fqdn {}".format(self._name, self._fqdn))
         return None
+
+    @property
+    def snapshot_time(self):
+        """
+        Epoch seconds of the PITR snapshot time of this node backup, or None if the backup is not PITR-capable.
+        """
+        if self._snapshot_time is _UNSET:
+            content = self._storage.storage_driver.get_blob_content_as_string(self._snapshot_time_path)
+            self._snapshot_time = int(content) if content and content.strip() else None
+        return self._snapshot_time
+
+    @snapshot_time.setter
+    def snapshot_time(self, snapshot_time):
+        """
+        Persists the snapshot time in the backup meta
+        """
+        self._storage.storage_driver.upload_blob_from_string(self._snapshot_time_path, str(snapshot_time))
+        self._snapshot_time = snapshot_time
+
+    @property
+    def snapshot_time_path(self):
+        return self._snapshot_time_path
 
     @property
     def manifest_path(self):

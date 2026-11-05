@@ -27,7 +27,7 @@ import medusa.storage.abstract_storage
 from medusa.storage.abstract_storage import AbstractStorage
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
-from medusa.storage import Storage
+from medusa.storage import NodeBackup, Storage
 
 
 class RestoreNodeTest(unittest.TestCase):
@@ -396,6 +396,33 @@ class RestoreNodeTest(unittest.TestCase):
         backup_index = self.storage.storage_driver.list_objects(path)
         backups = self.storage.list_node_backups(fqdn="127.0.0.10", backup_index_blobs=backup_index)
         self.assertEquals(2, len(list(backups)))
+
+    def test_snapshot_time_with_prefix(self):
+        self.assertEqual('pre/', self.storage.prefix_path)
+        driver = self.storage.storage_driver
+        for backup_name, snapshot_time in (('backup1', 1500), ('backup2', None)):
+            index_dir = '{}index/backup_index/{}'.format(self.storage.prefix_path, backup_name)
+            driver.upload_blob_from_string(
+                '{}node1/{}/meta/schema.cql'.format(self.storage.prefix_path, backup_name), 'schema')
+            driver.upload_blob_from_string('{}/tokenmap_node1.json'.format(index_dir), '{}')
+            driver.upload_blob_from_string('{}/schema_node1.cql'.format(index_dir), 'schema')
+            driver.upload_blob_from_string('{}/manifest_node1.json'.format(index_dir), '[]')
+            driver.upload_blob_from_string('{}/started_node1_1000.timestamp'.format(index_dir), '1000')
+            driver.upload_blob_from_string('{}/finished_node1_2000.timestamp'.format(index_dir), '2000')
+            if snapshot_time is not None:
+                driver.upload_blob_from_string(
+                    '{}/snapshot_time_node1_{}.timestamp'.format(index_dir, snapshot_time), str(snapshot_time))
+
+        # value is read from the index blobs when listing
+        node_backups = {nb.name: nb for nb in self.storage.list_node_backups()}
+        self.assertEqual(1500, node_backups['backup1'].snapshot_time)
+        self.assertIsNone(node_backups['backup2'].snapshot_time)
+
+        # and resolved lazily from the backup meta, honouring the prefix, when there is no preloaded index data
+        driver.upload_blob_from_string(
+            '{}node1/backup1/meta/snapshot_time.txt'.format(self.storage.prefix_path), '1500')
+        self.assertEqual(1500, NodeBackup(storage=self.storage, fqdn='node1', name='backup1').snapshot_time)
+        self.assertIsNone(NodeBackup(storage=self.storage, fqdn='node1', name='backup2').snapshot_time)
 
 
 if __name__ == '__main__':
