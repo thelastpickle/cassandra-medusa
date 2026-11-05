@@ -50,7 +50,6 @@ class ClusterBackup(object):
             return None
 
     def _snapshot_times(self):
-        # None means the node backup is not PITR-capable; such nodes are ignored
         snapshot_times = (node_backup.snapshot_time for node_backup in self.node_backups.values())
         return [snapshot_time for snapshot_time in snapshot_times if snapshot_time is not None]
 

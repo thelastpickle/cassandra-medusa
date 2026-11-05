@@ -252,7 +252,6 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
     # so even if exception is thrown, a new snapshot will be created on the next run
     # this is not too good and we will use just one snapshot in the future
     with snapshot:
-        # must be read here: leaving the block deletes the snapshot dirs the value comes from
         snapshot_time = snapshot.get_snapshot_time() if pitr_enabled else None
         manifest = []
         num_files, num_replaced, num_kept = backup_snapshots(

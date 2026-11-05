@@ -230,7 +230,6 @@ class Storage(object):
                     finished_timestamp = self.get_timestamp_from_blob_name(finished_blob.name)
                 else:
                     finished_timestamp = None
-                # no fallback to started/finished: a missing blob means the backup is not PITR-capable
                 if snapshot_time_blob is not None:
                     snapshot_time_timestamp = self.get_timestamp_from_blob_name(snapshot_time_blob.name)
 

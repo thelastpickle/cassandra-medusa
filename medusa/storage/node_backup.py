@@ -262,7 +262,6 @@ class NodeBackup(object):
             prefix = '{}index/backup_index/{}/snapshot_time_{}_'.format(
                 self._storage.prefix_path, self._name, self._fqdn)
             self._snapshot_time = None
-            # list_objects is a prefix match, so 'node1' would also match 'node1_a': filter by exact fqdn
             for blob in self._storage.storage_driver.list_objects(prefix):
                 if self._storage.get_fqdn_from_any_index_blob(blob) == self._fqdn:
                     self.snapshot_time_blob = blob

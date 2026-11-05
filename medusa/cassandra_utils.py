@@ -566,10 +566,7 @@ class Cassandra(object):
             or None if it cannot be determined (no snapshot dirs, or the mtime could not be read).
 
             Rule: use the LATEST mtime of all snapshot dirs, so that the snapshotted SSTables hold
-            no data written after the returned value. There is deliberately no fallback to the backup
-            start/finish time or to the current time.
-
-            Must be called while the snapshot still exists: Snapshot.__exit__ deletes the dirs.
+            no data written after the returned value.
             """
             try:
                 mtimes = [snapshot_path.path.stat().st_mtime for snapshot_path in self.find_dirs()]
