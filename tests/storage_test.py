@@ -322,10 +322,10 @@ class StorageTest(unittest.TestCase):
 
     def test_node_backup_snapshot_time_setter_stores_it_in_meta(self):
         node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
-        self.assertIsNone(node_backup.read_snapshot_time_from_meta())
+        self.assertIsNone(node_backup.snapshot_time)
         node_backup.snapshot_time = 1500
         self.assertEqual(1500, node_backup.snapshot_time)
-        self.assertEqual(1500, node_backup.read_snapshot_time_from_meta())
+        self.assertEqual(1500, NodeBackup(storage=self.storage, fqdn='node1', name='backup1').snapshot_time)
         self.assertEqual(
             '1500',
             self.storage.storage_driver.get_blob_content_as_string(

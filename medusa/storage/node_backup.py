@@ -273,15 +273,6 @@ class NodeBackup(object):
     def snapshot_time_path(self):
         return self._snapshot_time_path
 
-    def read_snapshot_time_from_meta(self):
-        """
-        Read epoch seconds stored in the backup meta
-        """
-        content = self._storage.storage_driver.get_blob_content_as_string(self._snapshot_time_path)
-        if content is None or not content.strip():
-            return None
-        return int(content.strip())
-
     @property
     def manifest_path(self):
         return self._manifest_path
