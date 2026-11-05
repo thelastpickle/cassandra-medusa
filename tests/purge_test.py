@@ -17,11 +17,13 @@ import configparser
 import unittest
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
-from medusa.storage import Storage
+from medusa.config import MedusaConfig, PitrConfig, StorageConfig, _namedtuple_from_dict
+from medusa.storage import NodeBackup, Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
+from medusa.purge import main, oldest_kept_snapshot_time, purge_commitlogs
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
 
@@ -148,6 +150,118 @@ class PurgeTest(unittest.TestCase):
 
         # non-existent backup name raises KeyError
         self.assertRaises(KeyError, backups_to_purge_by_name, self.storage, cluster_backups, ["nonexistent"], False)
+
+    # --- commitlog purge (PITR) ---
+
+    def _commitlog_storage(self, blobs, prefix_path=''):
+        storage = MagicMock()
+        storage.prefix_path = prefix_path
+        storage.storage_driver.list_objects.return_value = blobs
+        storage.storage_driver.get_object_datetime.side_effect = lambda blob: blob.last_modified
+        return storage
+
+    def _pitr_node_backup(self, name, started, snapshot_time):
+        return NodeBackup(storage=self.storage, fqdn='node1', name=name,
+                          started_timestamp=started, finished_timestamp=started,
+                          snapshot_time_timestamp=snapshot_time)
+
+    def _pitr_config(self, enabled, interval_seconds='60'):
+        pitr = _namedtuple_from_dict(PitrConfig, {
+            'enabled': enabled,
+            'commitlog_archive_interval_seconds': interval_seconds,
+        })
+        return self.config._replace(pitr=pitr)
+
+    def test_purge_commitlogs_boundaries(self):
+        # oldest_kept_snapshot_ts = 1000, interval = 60 -> purge_threshold = 910
+        blobs = {ts: make_blob("node1/commitlogs/CommitLog-{}.log".format(ts), ts)
+                 for ts in (0, 909, 910, 911, 10 ** 9)}
+        storage = self._commitlog_storage(list(blobs.values()))
+        self.assertIsInstance(blobs[909].last_modified, datetime)
+
+        deleted = purge_commitlogs(storage, 'node1', 1000, 60)
+
+        self.assertEqual(2, deleted)
+        deleted_blobs = {call.args[0] for call in storage.storage_driver.delete_object.call_args_list}
+        self.assertEqual({blobs[0], blobs[909]}, deleted_blobs)
+
+    def test_purge_commitlogs_empty(self):
+        storage = self._commitlog_storage([])
+        self.assertEqual(0, purge_commitlogs(storage, 'node1', 1000, 60))
+        storage.storage_driver.delete_object.assert_not_called()
+
+    def test_purge_commitlogs_threshold_depends_on_interval(self):
+        for interval_seconds, threshold in ((0, 970), (60, 910), (300, 670)):
+            below = make_blob("node1/commitlogs/below.log", threshold - 1)
+            at = make_blob("node1/commitlogs/at.log", threshold)
+            storage = self._commitlog_storage([below, at])
+
+            self.assertEqual(1, purge_commitlogs(storage, 'node1', 1000, interval_seconds))
+            storage.storage_driver.delete_object.assert_called_once_with(below)
+
+    def test_purge_commitlogs_lists_only_node_prefix(self):
+        storage = self._commitlog_storage([])
+        purge_commitlogs(storage, 'node1', 1000, 60)
+        storage.storage_driver.list_objects.assert_called_once_with('node1/commitlogs/')
+
+        storage = self._commitlog_storage([], prefix_path='some/prefix/')
+        purge_commitlogs(storage, 'node1', 1000, 60)
+        storage.storage_driver.list_objects.assert_called_once_with('some/prefix/node1/commitlogs/')
+
+    def test_purge_commitlogs_logs_deleted_count(self):
+        blobs = [make_blob("node1/commitlogs/{}.log".format(ts), ts) for ts in (1, 2, 3, 5000)]
+        storage = self._commitlog_storage(blobs)
+        with self.assertLogs(level='INFO') as logs:
+            purge_commitlogs(storage, 'node1', 1000, 60)
+        self.assertIn('INFO:root:Purged 3 commitlog segments of node1', logs.output)
+
+    def test_oldest_kept_snapshot_time(self):
+        backups = [
+            self._pitr_node_backup('one', 100, None),
+            self._pitr_node_backup('two', 200, 1500),
+            self._pitr_node_backup('three', 300, 1200),
+        ]
+        self.assertEqual(1200, oldest_kept_snapshot_time(backups))
+        self.assertIsNone(oldest_kept_snapshot_time([self._pitr_node_backup('one', 100, None)]))
+        self.assertIsNone(oldest_kept_snapshot_time([]))
+
+    def _run_main(self, config, backups, max_backup_count=0):
+        with patch('medusa.purge.Storage') as storage_cls, \
+                patch('medusa.purge.Monitoring'), \
+                patch('medusa.purge.purge_backups', return_value=(0, 0, 0)), \
+                patch('medusa.purge.purge_commitlogs') as purge_commitlogs_mock:
+            storage = storage_cls.return_value.__enter__.return_value
+            storage.list_backup_index_blobs.return_value = []
+            storage.list_node_backups.return_value = backups
+            result = main(config, max_backup_age=0, max_backup_count=max_backup_count)
+        return result, storage, purge_commitlogs_mock
+
+    def test_main_skips_commitlog_purge_when_pitr_disabled(self):
+        backups = [self._pitr_node_backup('one', 100, 1000)]
+        # no [pitr] section at all
+        _, _, purge_commitlogs_mock = self._run_main(self.config, backups)
+        purge_commitlogs_mock.assert_not_called()
+        # [pitr] enabled = false
+        _, _, purge_commitlogs_mock = self._run_main(self._pitr_config('false'), backups)
+        purge_commitlogs_mock.assert_not_called()
+
+    def test_main_purges_commitlogs_anchored_on_surviving_backups(self):
+        backups = [
+            self._pitr_node_backup('one', 100, 1000),   # purged by count
+            self._pitr_node_backup('two', 200, None),   # purged by count
+            self._pitr_node_backup('three', 300, 1300),  # kept -> anchor
+        ]
+        result, storage, purge_commitlogs_mock = self._run_main(self._pitr_config('true'), backups,
+                                                                max_backup_count=1)
+        purge_commitlogs_mock.assert_called_once_with(storage, 'node1', 1300, 60)
+        self.assertEqual((0, 0, 0, 2), result)
+
+    def test_main_no_anchor_deletes_nothing(self):
+        backups = [self._pitr_node_backup('one', 100, None), self._pitr_node_backup('two', 200, None)]
+        with self.assertLogs(level='INFO') as logs:
+            _, _, purge_commitlogs_mock = self._run_main(self._pitr_config('true'), backups)
+        purge_commitlogs_mock.assert_not_called()
+        self.assertTrue(any('snapshot time' in record.getMessage() for record in logs.records))
 
 
 if __name__ == '__main__':
