@@ -71,6 +71,7 @@ class NodeBackup(object):
         self._differential_path = self._meta_path / 'differential'
         self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
         self._server_version_path = self._meta_path / 'server_version.json'
+        self._snapshot_time_path = self._meta_path / 'snapshot_time.txt'
 
         if preloaded_blobs is None:
             preloaded_blobs = []
@@ -268,6 +269,27 @@ class NodeBackup(object):
                     self._snapshot_time = self._storage.get_timestamp_from_blob_name(blob.name)
                     break
         return self._snapshot_time
+
+    @snapshot_time.setter
+    def snapshot_time(self, snapshot_time):
+        """
+        Persists the snapshot time in the backup meta
+        """
+        self._storage.storage_driver.upload_blob_from_string(self._snapshot_time_path, str(snapshot_time))
+        self._snapshot_time = snapshot_time
+
+    @property
+    def snapshot_time_path(self):
+        return self._snapshot_time_path
+
+    def read_snapshot_time_from_meta(self):
+        """
+        Read epoch seconds stored in the backup meta
+        """
+        content = self._storage.storage_driver.get_blob_content_as_string(self._snapshot_time_path)
+        if content is None or not content.strip():
+            return None
+        return int(content.strip())
 
     @property
     def manifest_path(self):

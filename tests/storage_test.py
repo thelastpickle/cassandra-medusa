@@ -300,6 +300,37 @@ class StorageTest(unittest.TestCase):
         self.assertTrue("node1" in blobs_by_backup["backup2"])
         self.assertFalse("node2" in blobs_by_backup["backup2"])
 
+    def test_build_indices_restores_snapshot_time_from_backup_meta(self):
+        driver = self.storage.storage_driver
+        prefix_path = self.storage.prefix_path
+        # backup1 has snapshot time in its meta, backup2 does not (e.g. it was made before PITR)
+        for backup_name in ('backup1', 'backup2'):
+            for meta_file in ('tokenmap.json', 'manifest.json', 'schema.cql'):
+                driver.upload_blob_from_string(
+                    "{}node1/{}/meta/{}".format(prefix_path, backup_name, meta_file), "content")
+        driver.upload_blob_from_string("{}node1/backup1/meta/snapshot_time.txt".format(prefix_path), "1500")
+
+        build_indices(self.config, False)
+
+        node_backups = {nb.name: nb for nb in self.storage.list_node_backups()}
+        self.assertEqual(1500, node_backups['backup1'].snapshot_time)
+        self.assertIsNone(node_backups['backup2'].snapshot_time)
+        index_blobs = [b.name for b in driver.list_objects('{}index/backup_index'.format(prefix_path))]
+        self.assertIn('{}index/backup_index/backup1/snapshot_time_node1_1500.timestamp'.format(prefix_path),
+                      index_blobs)
+        self.assertEqual([], [b for b in index_blobs if 'backup2/snapshot_time' in b])
+
+    def test_node_backup_snapshot_time_setter_stores_it_in_meta(self):
+        node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
+        self.assertIsNone(node_backup.read_snapshot_time_from_meta())
+        node_backup.snapshot_time = 1500
+        self.assertEqual(1500, node_backup.snapshot_time)
+        self.assertEqual(1500, node_backup.read_snapshot_time_from_meta())
+        self.assertEqual(
+            '1500',
+            self.storage.storage_driver.get_blob_content_as_string(
+                '{}node1/backup1/meta/snapshot_time.txt'.format(self.storage.prefix_path)))
+
     def test_parse_backup_index_with_wrong_names(self):
         file_content = "content of the test file"
         prefix_path = self.storage.prefix_path

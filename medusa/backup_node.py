@@ -271,6 +271,8 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
 
     logging.info('Updating backup index')
     node_backup.manifest = json.dumps(manifest)
+    if snapshot_time is not None:
+        node_backup.snapshot_time = snapshot_time
     add_backup_finish_to_index(storage, node_backup)
     add_snapshot_time_to_index(storage, node_backup, snapshot_time)
     set_latest_backup_in_index(storage, node_backup)

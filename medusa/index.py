@@ -87,6 +87,7 @@ def process_backup(node_backup, latest_node_backups, storage, noop):
     if not noop:
         add_backup_start_to_index(storage, node_backup)
         add_backup_finish_to_index(storage, node_backup)
+        add_snapshot_time_to_index(storage, node_backup, node_backup.read_snapshot_time_from_meta())
 
     return latest_node_backups
 
@@ -122,8 +123,7 @@ def add_snapshot_time_to_index(storage, node_backup, snapshot_time):
     """
     Records when the snapshot of this node backup was frozen (integer epoch seconds), so that
     NodeBackup.snapshot_time can read it back. Does nothing if snapshot_time is None: a backup
-    without this blob is not PITR-capable, and there is no fallback to started/finished.
-    Deliberately not called from build_indices: old backups have no snapshot dir to read it from.
+    without this blob is not PITR-capable.
     """
     if snapshot_time is None:
         return
