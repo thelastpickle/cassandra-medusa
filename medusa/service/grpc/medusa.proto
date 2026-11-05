@@ -136,5 +136,5 @@ message PreparePitrRestoreRequest {
 message PreparePitrRestoreResponse {
   StatusType          status           = 1;
   map<string, string> nodeBaseBackups  = 2;  // node FQDN -> backup name
-  double              targetTimestampS = 3;  // echo of the parsed target timestamp (Unix epoch float)
+  double              targetTimestamp  = 3;  // echo of the parsed target timestamp (Unix epoch float)
 }

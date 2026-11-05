@@ -36,7 +36,7 @@ class PitrProtoTest(unittest.TestCase):
         response = medusa_pb2.PreparePitrRestoreResponse()
         self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, response.status)
         self.assertEqual(0, len(response.nodeBaseBackups))
-        self.assertEqual(0.0, response.targetTimestampS)
+        self.assertEqual(0.0, response.targetTimestamp)
 
     def test_commitlog_archive_status_response_round_trip(self):
         original = medusa_pb2.GetCommitLogArchiveStatusResponse(
@@ -70,7 +70,7 @@ class PitrProtoTest(unittest.TestCase):
     def test_prepare_pitr_restore_response_accepts_map_entries(self):
         response = medusa_pb2.PreparePitrRestoreResponse(
             status=medusa_pb2.StatusType.SUCCESS,
-            targetTimestampS=1700000000.5,
+            targetTimestamp=1700000000.5,
         )
         response.nodeBaseBackups['node1.example.com'] = 'backup1'
         response.nodeBaseBackups['node2.example.com'] = 'backup2'
@@ -83,7 +83,7 @@ class PitrProtoTest(unittest.TestCase):
             dict(parsed.nodeBaseBackups),
         )
         self.assertEqual(medusa_pb2.StatusType.SUCCESS, parsed.status)
-        self.assertEqual(1700000000.5, parsed.targetTimestampS)
+        self.assertEqual(1700000000.5, parsed.targetTimestamp)
 
     def test_servicer_has_new_rpcs(self):
         servicer = medusa_pb2_grpc.MedusaServicer()
