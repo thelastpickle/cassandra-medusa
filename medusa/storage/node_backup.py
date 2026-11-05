@@ -255,18 +255,10 @@ class NodeBackup(object):
     def snapshot_time(self):
         """
         Epoch seconds of the PITR snapshot time of this node backup, or None if the backup is not PITR-capable.
-        There is deliberately no fallback to started/finished.
-        When not provided by the constructor, it is resolved lazily with a single list_objects call and cached.
         """
         if self._snapshot_time is _UNSET:
-            prefix = '{}index/backup_index/{}/snapshot_time_{}_'.format(
-                self._storage.prefix_path, self._name, self._fqdn)
-            self._snapshot_time = None
-            for blob in self._storage.storage_driver.list_objects(prefix):
-                if self._storage.get_fqdn_from_any_index_blob(blob) == self._fqdn:
-                    self.snapshot_time_blob = blob
-                    self._snapshot_time = self._storage.get_timestamp_from_blob_name(blob.name)
-                    break
+            content = self._storage.storage_driver.get_blob_content_as_string(self._snapshot_time_path)
+            self._snapshot_time = int(content) if content and content.strip() else None
         return self._snapshot_time
 
     @snapshot_time.setter

@@ -27,16 +27,17 @@ class IndexTest(unittest.TestCase):
         storage.prefix_path = prefix_path
         return storage
 
-    def _node_backup(self, name='backup1', fqdn='node1'):
+    def _node_backup(self, name='backup1', fqdn='node1', snapshot_time=1500):
         node_backup = MagicMock()
         node_backup.name = name
         node_backup.fqdn = fqdn
+        node_backup.snapshot_time = snapshot_time
         return node_backup
 
     def test_add_snapshot_time_to_index_uploads_blob_with_exact_name_and_content(self):
         storage = self._storage()
 
-        add_snapshot_time_to_index(storage, self._node_backup(), 1500)
+        add_snapshot_time_to_index(storage, self._node_backup())
 
         storage.storage_driver.upload_blob_from_string.assert_called_once_with(
             'index/backup_index/backup1/snapshot_time_node1_1500.timestamp', '1500')
@@ -44,14 +45,14 @@ class IndexTest(unittest.TestCase):
     def test_add_snapshot_time_to_index_honours_prefix_path(self):
         storage = self._storage('prefix/')
 
-        add_snapshot_time_to_index(storage, self._node_backup(), 1500)
+        add_snapshot_time_to_index(storage, self._node_backup())
 
         storage.storage_driver.upload_blob_from_string.assert_called_once_with(
             'prefix/index/backup_index/backup1/snapshot_time_node1_1500.timestamp', '1500')
 
     def test_add_snapshot_time_to_index_blob_name_is_readable_by_storage(self):
         storage = self._storage('prefix/')
-        add_snapshot_time_to_index(storage, self._node_backup(fqdn='some_host.example.com'), 1500)
+        add_snapshot_time_to_index(storage, self._node_backup(fqdn='some_host.example.com'))
         blob_name = storage.storage_driver.upload_blob_from_string.call_args[0][0]
 
         self.assertEqual('some_host.example.com', Storage.get_fqdn_from_any_index_blob(blob_name))
@@ -60,7 +61,7 @@ class IndexTest(unittest.TestCase):
     def test_add_snapshot_time_to_index_uploads_nothing_for_none(self):
         storage = self._storage()
 
-        add_snapshot_time_to_index(storage, self._node_backup(), None)
+        add_snapshot_time_to_index(storage, self._node_backup(snapshot_time=None))
 
         storage.storage_driver.upload_blob_from_string.assert_not_called()
 

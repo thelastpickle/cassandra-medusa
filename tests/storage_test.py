@@ -451,33 +451,33 @@ class StorageTest(unittest.TestCase):
         self.assertIsNone(node_backups[0].snapshot_time)
         self.assertEqual(1000, node_backups[0].started)
 
-    def test_node_backup_snapshot_time_lazy_lookup(self):
-        self._upload_index_blobs('backup1', 'node1', 1000, 2000, snapshot_time=1500)
+    def _upload_snapshot_time_meta(self, fqdn, backup_name, snapshot_time):
+        self.storage.storage_driver.upload_blob_from_string(
+            '{}{}/{}/meta/snapshot_time.txt'.format(self.storage.prefix_path, fqdn, backup_name), str(snapshot_time))
+
+    def test_node_backup_snapshot_time_lazy_lookup_reads_meta(self):
+        self._upload_snapshot_time_meta('node1', 'backup1', 1500)
         node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
 
-        with patch.object(self.storage.storage_driver, 'list_objects',
-                          wraps=self.storage.storage_driver.list_objects) as list_objects:
+        with patch.object(self.storage.storage_driver, 'get_blob_content_as_string',
+                          wraps=self.storage.storage_driver.get_blob_content_as_string) as get_content:
             self.assertEqual(1500, node_backup.snapshot_time)
             self.assertEqual(1500, node_backup.snapshot_time)
-            list_objects.assert_called_once_with(
-                '{}index/backup_index/backup1/snapshot_time_node1_'.format(self.storage.prefix_path))
+            self.assertEqual(1, get_content.call_count)
 
     def test_node_backup_snapshot_time_lazy_lookup_absent_is_cached(self):
-        self._upload_index_blobs('backup1', 'node1', 1000, 2000)
         node_backup = NodeBackup(storage=self.storage, fqdn='node1', name='backup1')
 
-        with patch.object(self.storage.storage_driver, 'list_objects',
-                          wraps=self.storage.storage_driver.list_objects) as list_objects:
+        with patch.object(self.storage.storage_driver, 'get_blob_content_as_string',
+                          wraps=self.storage.storage_driver.get_blob_content_as_string) as get_content:
             self.assertIsNone(node_backup.snapshot_time)
             self.assertIsNone(node_backup.snapshot_time)
-            self.assertEqual(1, list_objects.call_count)
+            self.assertEqual(1, get_content.call_count)
 
-    def test_node_backup_snapshot_time_lazy_lookup_fqdn_collision(self):
-        # 'snapshot_time_node1_' is also a prefix of node1_a's blob
-        self._upload_index_blobs('backup1', 'node1_a', 1000, 2000, snapshot_time=1700)
-        self._upload_index_blobs('backup1', 'node1', 1000, 2000)
-        self._upload_index_blobs('backup2', 'node1_a', 1000, 2000, snapshot_time=1800)
-        self._upload_index_blobs('backup2', 'node1', 1000, 2000, snapshot_time=1600)
+    def test_node_backup_snapshot_time_lazy_lookup_is_per_node_and_backup(self):
+        self._upload_snapshot_time_meta('node1_a', 'backup1', 1700)
+        self._upload_snapshot_time_meta('node1_a', 'backup2', 1800)
+        self._upload_snapshot_time_meta('node1', 'backup2', 1600)
 
         self.assertIsNone(NodeBackup(storage=self.storage, fqdn='node1', name='backup1').snapshot_time)
         self.assertEqual(1700, NodeBackup(storage=self.storage, fqdn='node1_a', name='backup1').snapshot_time)

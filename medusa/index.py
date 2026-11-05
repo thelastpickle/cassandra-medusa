@@ -87,7 +87,7 @@ def process_backup(node_backup, latest_node_backups, storage, noop):
     if not noop:
         add_backup_start_to_index(storage, node_backup)
         add_backup_finish_to_index(storage, node_backup)
-        add_snapshot_time_to_index(storage, node_backup, node_backup.read_snapshot_time_from_meta())
+        add_snapshot_time_to_index(storage, node_backup)
 
     return latest_node_backups
 
@@ -119,18 +119,18 @@ def add_backup_finish_to_index(storage, node_backup):
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.finished))
 
 
-def add_snapshot_time_to_index(storage, node_backup, snapshot_time):
+def add_snapshot_time_to_index(storage, node_backup):
     """
     Records when the snapshot of this node backup was frozen (integer epoch seconds), so that
     NodeBackup.snapshot_time can read it back. Does nothing if snapshot_time is None: a backup
     without this blob is not PITR-capable.
     """
-    if snapshot_time is None:
+    if node_backup.snapshot_time is None:
         return
     dst = '{}index/backup_index/{}/snapshot_time_{}_{}.timestamp'.format(
-        storage.prefix_path, node_backup.name, node_backup.fqdn, snapshot_time
+        storage.prefix_path, node_backup.name, node_backup.fqdn, node_backup.snapshot_time
     )
-    storage.storage_driver.upload_blob_from_string(dst, str(snapshot_time))
+    storage.storage_driver.upload_blob_from_string(dst, str(node_backup.snapshot_time))
 
 
 def set_latest_backup_in_index(storage, node_backup):

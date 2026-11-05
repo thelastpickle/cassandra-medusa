@@ -418,7 +418,9 @@ class RestoreNodeTest(unittest.TestCase):
         self.assertEqual(1500, node_backups['backup1'].snapshot_time)
         self.assertIsNone(node_backups['backup2'].snapshot_time)
 
-        # and resolved lazily, honouring the prefix, when there is no preloaded index data
+        # and resolved lazily from the backup meta, honouring the prefix, when there is no preloaded index data
+        driver.upload_blob_from_string(
+            '{}node1/backup1/meta/snapshot_time.txt'.format(self.storage.prefix_path), '1500')
         self.assertEqual(1500, NodeBackup(storage=self.storage, fqdn='node1', name='backup1').snapshot_time)
         self.assertIsNone(NodeBackup(storage=self.storage, fqdn='node1', name='backup2').snapshot_time)
 

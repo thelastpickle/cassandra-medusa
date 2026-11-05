@@ -188,9 +188,10 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
     enable_md5 = enable_md5_checks_flag or medusa.utils.evaluate_boolean(config.checks.enable_md5_checks)
     configured_md5_check_concurrency = int(config.checks.md5_check_concurrency or 0)
     md5_check_concurrency = max(configured_md5_check_concurrency, 1)
+    pitr_enabled = is_pitr_enabled(config)
     num_files, num_replaced, num_kept = do_backup(
         cassandra, node_backup, storage, enable_md5, md5_check_concurrency, backup_name, keep_snapshot,
-        use_existing_snapshot, pitr_enabled=is_pitr_enabled(config)
+        use_existing_snapshot, pitr_enabled
     )
     end = datetime.datetime.now()
     actual_backup_duration = end - actual_start
@@ -273,7 +274,7 @@ def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_conc
     if snapshot_time is not None:
         node_backup.snapshot_time = snapshot_time
     add_backup_finish_to_index(storage, node_backup)
-    add_snapshot_time_to_index(storage, node_backup, snapshot_time)
+    add_snapshot_time_to_index(storage, node_backup)
     set_latest_backup_in_index(storage, node_backup)
     return num_files, num_replaced, num_kept
 
