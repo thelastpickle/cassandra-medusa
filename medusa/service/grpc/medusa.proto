@@ -16,6 +16,8 @@ service Medusa {
   rpc PurgeBackups(PurgeBackupsRequest) returns (PurgeBackupsResponse);
 
   rpc PrepareRestore(PrepareRestoreRequest) returns (PrepareRestoreResponse);
+  rpc GetCommitLogArchiveStatus(GetCommitLogArchiveStatusRequest) returns (GetCommitLogArchiveStatusResponse);
+  rpc PreparePitrRestore(PreparePitrRestoreRequest) returns (PreparePitrRestoreResponse);
 }
 
 enum StatusType {
@@ -112,4 +114,27 @@ message PrepareRestoreRequest {
 }
 
 message PrepareRestoreResponse {
+}
+
+message GetCommitLogArchiveStatusRequest {
+}
+
+message GetCommitLogArchiveStatusResponse {
+  bool       running         = 1;
+  int64      lastUploadTime  = 2;  // Unix epoch seconds; 0 if never uploaded
+  int32      pendingCount    = 3;  // segments in spool not yet uploaded
+  int32      intervalSeconds = 4;
+  StatusType status          = 5;
+  string     lastError       = 6;  // non-empty when the last poll could not read the spool directory; empty otherwise
+}
+
+message PreparePitrRestoreRequest {
+  string targetTimestamp = 1;  // Unix epoch float string or ISO-8601 (UTC)
+  string datacenter      = 2;  // Cassandra DC to restore; scopes the base-backup check to this DC
+}
+
+message PreparePitrRestoreResponse {
+  StatusType          status           = 1;
+  map<string, string> nodeBaseBackups  = 2;  // node FQDN -> backup name
+  double              targetTimestamp  = 3;  // echo of the parsed target timestamp (Unix epoch float)
 }
