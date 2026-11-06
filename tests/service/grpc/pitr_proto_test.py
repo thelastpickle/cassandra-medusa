@@ -15,6 +15,8 @@ import unittest
 
 import grpc
 
+from google.protobuf.descriptor import FieldDescriptor as FD
+
 from medusa.service.grpc import medusa_pb2, medusa_pb2_grpc
 
 
@@ -31,7 +33,9 @@ class PitrProtoTest(unittest.TestCase):
         self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, status.status)
         self.assertEqual('', status.lastError)
 
-        self.assertEqual('', medusa_pb2.PreparePitrRestoreRequest().targetTimestamp)
+        request = medusa_pb2.PreparePitrRestoreRequest()
+        self.assertEqual('', request.targetTimestamp)
+        self.assertEqual('', request.datacenter)
 
         response = medusa_pb2.PreparePitrRestoreResponse()
         self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, response.status)
@@ -84,6 +88,36 @@ class PitrProtoTest(unittest.TestCase):
         )
         self.assertEqual(medusa_pb2.StatusType.SUCCESS, parsed.status)
         self.assertEqual(1700000000.5, parsed.targetTimestamp)
+
+    def test_new_messages_field_numbers_and_types_are_pinned(self):
+        # Field numbers and types are the wire contract shared with k8ssandra-operator's Go stubs.
+        # Renumbering or retyping a field would still pass the round-trip tests above,
+        # but would silently break the operator.
+        expected = {
+            'GetCommitLogArchiveStatusRequest': {},
+            'GetCommitLogArchiveStatusResponse': {
+                'running': (1, FD.TYPE_BOOL),
+                'lastUploadTime': (2, FD.TYPE_INT64),
+                'pendingCount': (3, FD.TYPE_INT32),
+                'intervalSeconds': (4, FD.TYPE_INT32),
+                'status': (5, FD.TYPE_ENUM),
+                'lastError': (6, FD.TYPE_STRING),
+            },
+            'PreparePitrRestoreRequest': {
+                'targetTimestamp': (1, FD.TYPE_STRING),
+                'datacenter': (2, FD.TYPE_STRING),
+            },
+            'PreparePitrRestoreResponse': {
+                'status': (1, FD.TYPE_ENUM),
+                # map<string, string> is encoded as a repeated map-entry message
+                'nodeBaseBackups': (2, FD.TYPE_MESSAGE),
+                'targetTimestamp': (3, FD.TYPE_DOUBLE),
+            },
+        }
+        for message_name, expected_fields in expected.items():
+            descriptor = medusa_pb2.DESCRIPTOR.message_types_by_name[message_name]
+            actual_fields = {f.name: (f.number, f.type) for f in descriptor.fields}
+            self.assertEqual(expected_fields, actual_fields, message_name)
 
     def test_servicer_has_new_rpcs(self):
         servicer = medusa_pb2_grpc.MedusaServicer()
