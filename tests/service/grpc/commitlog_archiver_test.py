@@ -105,9 +105,9 @@ class CommitLogArchiverTest(unittest.TestCase):
                 return MagicMock(st_dev=2)
             return real_stat(path, *args, **kwargs)
 
-        with patch(MODULE + '.os.stat', side_effect=fake_stat):
-            with self.assertRaises(RuntimeError) as ctx:
-                CommitLogArchiver(self._make_config())
+        with patch(MODULE + '.os.stat', side_effect=fake_stat), \
+                self.assertRaises(RuntimeError) as ctx:
+            CommitLogArchiver(self._make_config())
         message = str(ctx.exception)
         self.assertIn(str(self.spool), message)
         self.assertIn(str(self.commitlog), message)
@@ -272,10 +272,10 @@ class CommitLogArchiverTest(unittest.TestCase):
 
                 # the same segment again (e.g. after a restart) is skipped, not uploaded again
                 self._write_spool('CommitLog-7-1.log', content=b'hello')
-                with patch.object(Storage, '__enter__', autospec=True, side_effect=Storage.__enter__):
-                    with patch('medusa.storage.local_storage.LocalStorage.upload_blobs') as upload:
-                        self.assertEqual((0, 1, 0), tuple(archiver.drain_spool()[:3]))
-                        upload.assert_not_called()
+                with patch.object(Storage, '__enter__', autospec=True, side_effect=Storage.__enter__), \
+                        patch('medusa.storage.local_storage.LocalStorage.upload_blobs') as upload:
+                    self.assertEqual((0, 1, 0), tuple(archiver.drain_spool()[:3]))
+                    upload.assert_not_called()
                 self.assertFalse((self.spool / 'CommitLog-7-1.log').exists())
 
     # ---- _run_once ----
@@ -403,7 +403,7 @@ class CommitLogArchiverTest(unittest.TestCase):
 
     def test_status_failed_after_unexpected_exit(self):
         archiver = self._make_archiver()
-        with patch.object(CommitLogArchiver, 'run', lambda self: None):
+        with patch.object(CommitLogArchiver, 'run', return_value=None):
             archiver.start()
             archiver.join(5)
         self.assertFalse(archiver.is_alive())

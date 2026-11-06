@@ -153,33 +153,33 @@ class ServerTest(unittest.TestCase):
             tokenmap.__iter__ = lambda _: list(tokenmap_dict.keys()).__iter__()
             tokenmap.__len__ = lambda _: len(tokenmap_dict.keys())
             # we don't ever create any file, so we won't get a timestamp to get the finish time from
-            with patch('medusa.storage.ClusterBackup.started', return_value=12345):
-                with patch('medusa.storage.ClusterBackup.finished', return_value=123456):
-                    # prevent calls to the storage by faking the get_cluster_backup method
-                    with patch('medusa.storage.Storage.get_cluster_backup', return_value=cluster_backup):
-                        request = medusa_pb2.BackupStatusRequest(backupName='backup1')
-                        context = Mock(spec=ServicerContext)
-                        get_backup_response = service.GetBackup(request, context)
+            # (and we prevent calls to the storage by faking the get_cluster_backup method)
+            with patch('medusa.storage.ClusterBackup.started', return_value=12345), \
+                    patch('medusa.storage.ClusterBackup.finished', return_value=123456), \
+                    patch('medusa.storage.Storage.get_cluster_backup', return_value=cluster_backup):
+                request = medusa_pb2.BackupStatusRequest(backupName='backup1')
+                context = Mock(spec=ServicerContext)
+                get_backup_response = service.GetBackup(request, context)
 
-                        self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.status)
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.status)
 
-                        self.assertEqual('backup1', get_backup_response.backup.backupName)
+                self.assertEqual('backup1', get_backup_response.backup.backupName)
 
-                        # because of MagicMock-ing and @property annotation, we cannot make this work properly
-                        self.assertEqual(1, get_backup_response.backup.startTime)
-                        self.assertEqual(1, get_backup_response.backup.finishTime)
+                # because of MagicMock-ing and @property annotation, we cannot make this work properly
+                self.assertEqual(1, get_backup_response.backup.startTime)
+                self.assertEqual(1, get_backup_response.backup.finishTime)
 
-                        self.assertEqual(2, get_backup_response.backup.totalNodes)
-                        self.assertEqual(1, get_backup_response.backup.finishedNodes)
-                        # the BackupNode records ought to be more populated than this, but we test that in ITs instead
-                        self.assertEqual(
-                            [medusa_pb2.BackupNode(host='node1'), medusa_pb2.BackupNode(host='node2')],
-                            get_backup_response.backup.nodes
-                        )
-                        # this should also be IN_PROGRESS but because the ClusterBackup.finished is a mock
-                        # we cannot correctly make it be 'None' when needed (some other things break)
-                        self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.backup.status)
-                        self.assertEqual('differential', get_backup_response.backup.backupType)
+                self.assertEqual(2, get_backup_response.backup.totalNodes)
+                self.assertEqual(1, get_backup_response.backup.finishedNodes)
+                # the BackupNode records ought to be more populated than this, but we test that in ITs instead
+                self.assertEqual(
+                    [medusa_pb2.BackupNode(host='node1'), medusa_pb2.BackupNode(host='node2')],
+                    get_backup_response.backup.nodes
+                )
+                # this should also be IN_PROGRESS but because the ClusterBackup.finished is a mock
+                # we cannot correctly make it be 'None' when needed (some other things break)
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, get_backup_response.backup.status)
+                self.assertEqual('differential', get_backup_response.backup.backupType)
 
     def test_get_backup_status_unknown_backup_with_future(self):
         # Backup isn't started yet and we have a future for it. We consider it in UNKNOWN state.
@@ -541,10 +541,10 @@ class ServerTest(unittest.TestCase):
             mock_aio_server.return_value = mock_server
             server = Server(ini_path, testing=True)
 
-            with patch('medusa.service.grpc.server.CommitLogArchiver', side_effect=RuntimeError("Device mismatch")):
-                with self.assertRaises(RuntimeError) as ctx:
-                    asyncio.run(server.serve())
-                self.assertIn("Device mismatch", str(ctx.exception))
+            with patch('medusa.service.grpc.server.CommitLogArchiver', side_effect=RuntimeError("Device mismatch")), \
+                    self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(server.serve())
+            self.assertIn("Device mismatch", str(ctx.exception))
 
     def test_serve_pitr_disabled_no_archiver(self):
         ini_path = self._write_temp_ini(pitr_enabled='false')

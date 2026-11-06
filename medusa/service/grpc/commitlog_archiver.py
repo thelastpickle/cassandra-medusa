@@ -109,7 +109,7 @@ class CommitLogArchiver(threading.Thread):
         try:
             result = self.drain_spool()
         except Exception as e:
-            logging.error('Commitlog archiver tick failed: {}'.format(e), exc_info=True)
+            logging.exception('Commitlog archiver tick failed: {}'.format(e), exc_info=True)
             with self._lock:
                 self._last_error = str(e)
             return
@@ -159,7 +159,7 @@ class CommitLogArchiver(threading.Thread):
                         uploaded_bytes += size
                     os.remove(path)
                 except Exception as e:
-                    logging.error('Failed to archive commitlog segment {}: {}'.format(name, e), exc_info=True)
+                    logging.exception('Failed to archive commitlog segment {}: {}'.format(name, e), exc_info=True)
                     failed += 1
         return DrainResult(uploaded, skipped, failed, uploaded_bytes)
 
