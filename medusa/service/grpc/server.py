@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 from collections import defaultdict
 from concurrent import futures
@@ -45,6 +46,8 @@ BACKUP_MODE_DIFFERENTIAL = "differential"
 BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
+STOP_SIGNALS = (signal.SIGTERM, signal.SIGINT)
+STOP_GRACE_SECONDS = 5
 
 
 class Server:
@@ -52,6 +55,7 @@ class Server:
         self.config_file_path = config_file_path
         self.medusa_config = self.create_config()
         self.testing = testing
+        self.stop_task = None
         self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
@@ -91,11 +95,23 @@ class Server:
         await self.grpc_server.start()
 
         if not self.testing:
+            loop = asyncio.get_running_loop()
+            for sig in STOP_SIGNALS:
+                loop.add_signal_handler(sig, self.stop_on_signal, sig)
             try:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:
                 logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
+            finally:
+                for sig in STOP_SIGNALS:
+                    loop.remove_signal_handler(sig)
             handle_backup_removal_all()
+
+    def stop_on_signal(self, sig):
+        if self.stop_task is not None:
+            return
+        logging.info(f"Received {signal.Signals(sig).name}, stopping the gRPC server")
+        self.stop_task = asyncio.get_running_loop().create_task(self.grpc_server.stop(STOP_GRACE_SECONDS))
 
     def create_config(self):
         config_file = Path(self.config_file_path)
