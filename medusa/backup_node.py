@@ -198,6 +198,11 @@ def start_backup(storage, node_backup, cassandra, differential_mode, stagger_tim
 
     print_backup_stats(actual_backup_duration, actual_start, end, node_backup, num_files, num_replaced, num_kept, start)
     update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup)
+
+    # print_backup_stats() downloads and caches the full manifest. The gRPC server
+    # keeps this NodeBackup for the lifetime of the process, so release the cache.
+    node_backup.cached_manifest = None
+
     return {
         "actual_backup_duration": actual_backup_duration,
         "actual_start_time": actual_start,
