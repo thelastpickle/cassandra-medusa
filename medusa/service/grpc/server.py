@@ -38,7 +38,9 @@ from medusa.purge import delete_backup
 from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
+from medusa.service.grpc.commitlog_archiver import CommitLogArchiver
 from medusa.storage import Storage
+from medusa.utils import evaluate_boolean
 
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 BACKUP_MODE_DIFFERENTIAL = "differential"
@@ -52,6 +54,7 @@ class Server:
         self.config_file_path = config_file_path
         self.medusa_config = self.create_config()
         self.testing = testing
+        self.commitlog_archiver = None
         self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
@@ -59,15 +62,39 @@ class Server:
         logging.info("GRPC server initialized")
 
     def shutdown(self):
+        self._stop_commitlog_archiver()
         logging.info("Shutting down GRPC server")
         handle_backup_removal_all()
         asyncio.get_event_loop().run_until_complete(self.grpc_server.stop(0))
+
+    def _stop_commitlog_archiver(self):
+        if self.commitlog_archiver is None or not self.commitlog_archiver.is_alive():
+            return
+        logging.info("Stopping commitlog archiver")
+        self.commitlog_archiver.stop()
+        logging.info("Commitlog archiver stopped")
 
     async def serve(self):
         config = self.create_config()
         self.configure_console_logging()
 
-        medusa_pb2_grpc.add_MedusaServicer_to_server(MedusaService(config), self.grpc_server)
+        # The archiver is created here rather than in __init__ so that tests which build a Server without
+        # running it do not leak threads. It is created before the gRPC server starts, and the RuntimeError its
+        # constructor raises on a bad spool mount (missing directory, or not on the commitlog device) is
+        # deliberately not caught: the process must exit before it accepts any call, instead of running without
+        # archiving while Cassandra's archive_command fails.
+        if config.pitr and evaluate_boolean(config.pitr.enabled):
+            self.commitlog_archiver = CommitLogArchiver(config)
+            self.commitlog_archiver.start()
+            logging.info(
+                f"Started commitlog archiver with spool directory {config.pitr.commitlog_spool_dir} "
+                f"and interval {config.pitr.commitlog_archive_interval_seconds}s"
+            )
+
+        medusa_pb2_grpc.add_MedusaServicer_to_server(
+            MedusaService(config, commitlog_archiver=self.commitlog_archiver),
+            self.grpc_server
+        )
         health_pb2_grpc.add_HealthServicer_to_server(grpc_health.v1.health.HealthServicer(), self.grpc_server)
 
         grpc_port = int(self.medusa_config.grpc.port)
@@ -95,6 +122,9 @@ class Server:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:
                 logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
+            finally:
+                # shutdown() is not called on this path, so stop the archiver here
+                self._stop_commitlog_archiver()
             handle_backup_removal_all()
 
     def create_config(self):
@@ -126,10 +156,11 @@ class Server:
 
 class MedusaService(medusa_pb2_grpc.MedusaServicer):
 
-    def __init__(self, config):
+    def __init__(self, config, commitlog_archiver=None):
         logging.info("Init service")
         self.config = config
         self.storage_config = config.storage
+        self.commitlog_archiver = commitlog_archiver
 
     async def AsyncBackup(self, request, context):
         # TODO pass the staggered arg
@@ -344,6 +375,29 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             context.set_details("Failed to prepare restore: {}".format(e))
             context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Failed restore prep {} for backup {}".format(request.restoreKey, request.backupName))
+        return response
+
+    def GetCommitLogArchiveStatus(self, request, context):
+        response = medusa_pb2.GetCommitLogArchiveStatusResponse()
+        try:
+            if self.commitlog_archiver is None:
+                # PITR is disabled. UNKNOWN rather than the proto default (IN_PROGRESS), which would mislead.
+                response.running = False
+                response.pendingCount = 0
+                response.status = medusa_pb2.StatusType.UNKNOWN
+                return response
+
+            archiver_status = self.commitlog_archiver.status()
+            response.running = archiver_status['running']
+            response.lastUploadTime = archiver_status['last_upload_time']
+            response.pendingCount = archiver_status['pending_count']
+            response.intervalSeconds = archiver_status['interval_seconds']
+            response.status = archiver_status['status']
+            response.lastError = archiver_status['last_error']
+        except Exception as e:
+            context.set_details("Failed to get commitlog archive status: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Failed to get commitlog archive status: {}".format(e))
         return response
 
 
