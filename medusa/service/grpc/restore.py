@@ -52,6 +52,7 @@ def configure_console_logging(config):
 def apply_mapping_env():
     # By default we consider that we're restoring in place.
     in_place = True
+    mapping = {}
     if "RESTORE_MAPPING" in os.environ.keys():
         logging.info("Reading restore mapping from environment variable")
         mapping = json.loads(os.environ["RESTORE_MAPPING"])
@@ -74,11 +75,37 @@ def apply_mapping_env():
             else:
                 print(f"POD_NAME {os.environ['POD_NAME']} not found in mapping")
                 return None
-    return in_place
+    return in_place, mapping
 
 
-def restore_backup(in_place, config):
-    backup_name = os.environ["BACKUP_NAME"]
+def resolve_node_address(mapping: dict, config) -> str:
+    pod_name = os.getenv("POD_NAME")
+    pod_ip = os.getenv("POD_IP")
+
+    host_map = (mapping or {}).get("host_map", {})
+    if pod_name in host_map:
+        sources = host_map[pod_name].get("source", [])
+        if sources:
+            return sources[0]
+
+    if pod_ip:
+        return pod_ip
+
+    return config.storage.fqdn
+
+
+def restore_backup(in_place, config, backup_name=None, mapping=None) -> str:
+    is_pitr = mapping is not None and mapping.get("pitr") is not None
+    if backup_name is None:
+        if is_pitr:
+            node_address = resolve_node_address(mapping, config)
+            node_backups = mapping.get("pitr").get("node_backups", {})
+
+            if node_address not in node_backups:
+                raise ValueError(f"No PITR base backup for node {node_address}")
+            backup_name = node_backups[node_address]
+        else:
+            backup_name = os.environ["BACKUP_NAME"]
     tmp_dir = Path("/tmp") if "MEDUSA_TMP_DIR" not in os.environ else Path(os.environ["MEDUSA_TMP_DIR"])
     print(f"Downloading backup {backup_name} to {tmp_dir}")
     keep_auth = False if in_place else True
@@ -100,6 +127,8 @@ def restore_backup(in_place, config):
                                                  seeds, verify, keyspaces, tables, use_sstableloader)
                 return f"Finished restore of backup {backup_name}"
 
+    if is_pitr:
+        raise RuntimeError(f"Missing PITR base backup {backup_name} for node {config.storage.fqdn}")
     return f"Skipped restore of missing backup {backup_name}"
 
 
@@ -111,11 +140,12 @@ if __name__ == '__main__':
         logging.error("Usage: {} <config_file_path> <restore_key>".format(sys.argv[0]))
         sys.exit(1)
 
-    in_place = apply_mapping_env()
-    # If in_place is None, it means that there's no corresponding backup and we can skip the restore phase.
-    if in_place is not None:
+    mapping_result = apply_mapping_env()
+    # If mapping_result is None, it means that there's no corresponding backup and we can skip the restore phase.
+    if mapping_result is not None:
+        in_place, mapping = mapping_result
         config = create_config(config_file_path)
         configure_console_logging(config.logging)
 
-        output_message = restore_backup(in_place, config)
+        output_message = restore_backup(in_place, config, mapping=mapping)
         logging.info(output_message)

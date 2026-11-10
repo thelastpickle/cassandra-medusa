@@ -453,10 +453,10 @@ restore() {
 
 **`medusa.service.grpc.pitr_restore` execution logic:**
 
-`resolve_node_fqdn` lives in `restore.py` and is shared with `restore_backup()`.
+`resolve_node_address` lives in `restore.py` and is shared with `restore_backup()`.
 
 ```python
-from medusa.service.grpc.restore import resolve_node_fqdn
+from medusa.service.grpc.restore import resolve_node_address
 
 
 def main():
@@ -489,7 +489,7 @@ def main():
         logging.info("Active PITR restore detected: downloading commitlog segments")
         pitr_meta = mapping["pitr"]
         target_timestamp_s = pitr_meta["target_timestamp_s"]
-        fqdn = resolve_node_fqdn(mapping, config)
+        fqdn = resolve_node_address(mapping, config)
         backup_name = pitr_meta["node_backups"][fqdn]
 
         with Storage(config=config.storage) as storage:
