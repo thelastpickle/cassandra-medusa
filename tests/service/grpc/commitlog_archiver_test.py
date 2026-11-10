@@ -111,9 +111,10 @@ class CommitLogArchiverTest(unittest.TestCase):
                 return with_dev(st, 2)
             return st
 
-        with patch(MODULE + '.os.stat', side_effect=fake_stat), \
-                self.assertRaises(RuntimeError) as ctx:
-            CommitLogArchiver(self._make_config())
+        config = self._make_config()
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
+            with self.assertRaises(RuntimeError) as ctx:
+                CommitLogArchiver(config)
         message = str(ctx.exception)
         self.assertIn(str(self.spool), message)
         self.assertIn(str(self.commitlog), message)
@@ -127,8 +128,9 @@ class CommitLogArchiverTest(unittest.TestCase):
     def test_init_raises_when_spool_cannot_be_created(self):
         blocker = self.spool.parent / 'file'
         blocker.write_bytes(b'')
+        config = self._make_config(spool=blocker / 'spool')
         with self.assertRaises(RuntimeError) as ctx:
-            CommitLogArchiver(self._make_config(spool=blocker / 'spool'))
+            CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, OSError)
 
     def test_init_raises_when_stat_of_spool_fails(self):
@@ -139,33 +141,39 @@ class CommitLogArchiverTest(unittest.TestCase):
                 raise FileNotFoundError(path)
             return real_stat(path, *args, **kwargs)
 
-        with patch(MODULE + '.os.stat', side_effect=fake_stat), self.assertRaises(RuntimeError) as ctx:
-            CommitLogArchiver(self._make_config())
+        config = self._make_config()
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
+            with self.assertRaises(RuntimeError) as ctx:
+                CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
         self.assertIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
 
     def test_init_raises_when_commitlog_dir_missing(self):
         self.commitlog.rmdir()
+        config = self._make_config()
         with self.assertRaises(RuntimeError) as ctx:
-            CommitLogArchiver(self._make_config())
+            CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
 
     def test_init_raises_when_cassandra_yaml_missing(self):
         self.cassandra_yaml.unlink()
+        config = self._make_config()
         with self.assertRaises(RuntimeError):
-            CommitLogArchiver(self._make_config())
+            CommitLogArchiver(config)
 
     def test_init_rejects_spool_names_that_change_the_storage_key(self):
         for name in ('.spool', 'spool_nodes'):
             bad = self.spool.parent / name
             bad.mkdir()
+            config = self._make_config(spool=bad)
             with self.assertRaises(RuntimeError, msg=name):
-                CommitLogArchiver(self._make_config(spool=bad))
+                CommitLogArchiver(config)
 
     def test_init_rejects_interval_below_one(self):
         for interval in ('0', '-5'):
+            config = self._make_config(interval=interval)
             with self.assertRaises(RuntimeError, msg=interval):
-                CommitLogArchiver(self._make_config(interval=interval))
+                CommitLogArchiver(config)
 
     # ---- drain_spool ----
 
