@@ -16,6 +16,7 @@ import concurrent
 import configparser
 import os
 import socket
+import ssl
 import tempfile
 import unittest
 import urllib.request
@@ -502,7 +503,7 @@ class ServerTest(unittest.TestCase):
         context.set_details.assert_called_once()
         self.assertIn('unexpected disk failure', context.set_details.call_args[0][0])
 
-    def _write_temp_ini(self, pitr_enabled='false', prometheus_port=None):
+    def _write_temp_ini(self, pitr_enabled='false', prometheus_port=None, prometheus_tls=None):
         f = tempfile.NamedTemporaryFile('w', delete=False)
         if prometheus_port is not None:
             f.write(
@@ -510,6 +511,8 @@ class ServerTest(unittest.TestCase):
                 f"prometheus_port = {prometheus_port}\n"
                 "prometheus_address = 127.0.0.1\n"
             )
+            for key, value in (prometheus_tls or {}).items():
+                f.write(f"{key} = {value}\n")
         f.write(
             "[storage]\n"
             "storage_provider = local\n"
@@ -674,6 +677,38 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertIn('python_info', body)
         self.assertNotIn('medusa_commitlog_archiver', body)
+
+    def test_metrics_endpoint_serves_https_with_client_certificates(self):
+        from tests.service.grpc.tls_helper import make_tls_files
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        files = make_tls_files(tmp.name)
+        port = self._free_port()
+        ini_path = self._write_temp_ini(prometheus_port=port, prometheus_tls={
+            'prometheus_tls_cert': files.server_cert,
+            'prometheus_tls_key': files.server_key,
+            'prometheus_ca_cert': files.ca,
+        })
+        self._serve(ini_path)
+
+        context = ssl.create_default_context(cafile=str(files.ca))
+        context.load_cert_chain(str(files.client_cert), str(files.client_key))
+        with urllib.request.urlopen(f'https://127.0.0.1:{port}/metrics', timeout=5, context=context) as response:
+            self.assertEqual(200, response.status)
+            self.assertIn('python_info', response.read().decode())
+
+    def test_metrics_endpoint_incomplete_tls_settings_fail_startup(self):
+        ini_path = self._write_temp_ini(prometheus_port=self._free_port(),
+                                        prometheus_tls={'prometheus_tls_cert': '/nonexistent.crt'})
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(server.serve())
+        self.assertIn('prometheus_tls_key', str(ctx.exception))
+        mock_server.start.assert_not_called()
 
     def test_metrics_endpoint_port_in_use_fails_startup(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as busy:

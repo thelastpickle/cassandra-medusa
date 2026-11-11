@@ -39,7 +39,7 @@ from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.service.grpc.commitlog_archiver import CommitLogArchiver
-from medusa.service.grpc.metrics import MetricsEndpoint, build_registry, parse_prometheus_port
+from medusa.service.grpc.metrics import MetricsEndpoint, build_registry, parse_prometheus_port, parse_tls_settings
 from medusa.storage import Storage
 from medusa.utils import evaluate_boolean
 
@@ -90,7 +90,8 @@ class Server:
         if port is None:
             return
         address = getattr(config.monitoring, 'prometheus_address', None) or '0.0.0.0'
-        self.metrics_endpoint = MetricsEndpoint(port, address, build_registry(self.commitlog_archiver))
+        tls = parse_tls_settings(config.monitoring)
+        self.metrics_endpoint = MetricsEndpoint(port, address, build_registry(self.commitlog_archiver), tls=tls)
 
     async def serve(self):
         config = self.create_config()

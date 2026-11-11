@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import socket
+import ssl
+import tempfile
 import unittest
+import urllib.error
+import urllib.request
 from unittest.mock import Mock
 
 from prometheus_client import CollectorRegistry, generate_latest
@@ -21,7 +26,9 @@ from prometheus_client.parser import text_string_to_metric_families
 
 from medusa.config import MonitoringConfig
 from medusa.service.grpc import medusa_pb2
-from medusa.service.grpc.metrics import CommitLogArchiverCollector, build_registry, parse_prometheus_port
+from medusa.service.grpc.metrics import (CommitLogArchiverCollector, MetricsEndpoint, TlsSettings, build_registry,
+                                         parse_prometheus_port, parse_tls_settings)
+from tests.service.grpc.tls_helper import make_tls_files
 
 P = 'medusa_commitlog_archiver_'
 
@@ -145,8 +152,7 @@ class CommitLogArchiverCollectorTest(unittest.TestCase):
 class ParsePrometheusPortTest(unittest.TestCase):
 
     def _monitoring(self, port):
-        return MonitoringConfig(monitoring_provider='None', send_backup_name_tag='False', prometheus_port=port,
-                                prometheus_address='0.0.0.0')
+        return _monitoring(prometheus_port=port, prometheus_address='0.0.0.0')
 
     def test_unset_means_disabled(self):
         for value in (None, '', '  '):
@@ -161,6 +167,114 @@ class ParsePrometheusPortTest(unittest.TestCase):
         for value in ('abc', '0', '70000'):
             with self.assertRaises(RuntimeError, msg=value):
                 parse_prometheus_port(self._monitoring(value))
+
+
+def _monitoring(**values):
+    fields = {f: None for f in MonitoringConfig._fields}
+    fields.update(values)
+    return MonitoringConfig(**fields)
+
+
+class ParseTlsSettingsTest(unittest.TestCase):
+
+    def test_plain_http_when_nothing_is_set(self):
+        self.assertIsNone(parse_tls_settings(_monitoring()))
+        self.assertIsNone(parse_tls_settings(_monitoring(prometheus_tls_cert='', prometheus_tls_key=' ')))
+        self.assertIsNone(parse_tls_settings({}))
+
+    def test_server_tls_and_mutual_tls(self):
+        self.assertEqual(TlsSettings('c.crt', 'k.key', None),
+                         parse_tls_settings(_monitoring(prometheus_tls_cert='c.crt', prometheus_tls_key='k.key')))
+        self.assertEqual(TlsSettings('c.crt', 'k.key', 'ca.pem'),
+                         parse_tls_settings(_monitoring(prometheus_tls_cert='c.crt', prometheus_tls_key='k.key',
+                                                        prometheus_ca_cert='ca.pem')))
+
+    def test_incomplete_settings_are_rejected(self):
+        for values in ({'prometheus_tls_cert': 'c.crt'}, {'prometheus_tls_key': 'k.key'},
+                       {'prometheus_ca_cert': 'ca.pem'},
+                       {'prometheus_tls_cert': 'c.crt', 'prometheus_ca_cert': 'ca.pem'}):
+            with self.assertRaises(RuntimeError, msg=values):
+                parse_tls_settings(_monitoring(**values))
+
+
+class MetricsEndpointTlsTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.files = make_tls_files(cls._tmp.name)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    @staticmethod
+    def _free_port():
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('127.0.0.1', 0))
+            return s.getsockname()[1]
+
+    def _start(self, tls):
+        port = self._free_port()
+        endpoint = MetricsEndpoint(port, '127.0.0.1', build_registry(), tls=tls)
+        self.addCleanup(endpoint.stop)
+        return port
+
+    def _client_context(self, with_client_cert=False):
+        context = ssl.create_default_context(cafile=str(self.files.ca))
+        if with_client_cert:
+            context.load_cert_chain(str(self.files.client_cert), str(self.files.client_key))
+        return context
+
+    @staticmethod
+    def _get(url, context=None):
+        with urllib.request.urlopen(url, timeout=5, context=context) as response:
+            return response.status, response.read().decode()
+
+    def test_https(self):
+        port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), None))
+
+        status, body = self._get(f'https://127.0.0.1:{port}/metrics', self._client_context())
+        self.assertEqual(200, status)
+        self.assertIn('python_info', body)
+
+        # plain HTTP is not served
+        with self.assertRaises((urllib.error.URLError, ConnectionError, OSError)):
+            self._get(f'http://127.0.0.1:{port}/metrics')
+
+    def test_tls_below_1_2_is_refused(self):
+        port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), None))
+        context = self._client_context()
+        context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+        try:
+            context.maximum_version = ssl.TLSVersion.TLSv1_1
+        except (ValueError, ssl.SSLError):
+            self.skipTest('the local OpenSSL cannot offer TLS 1.1')
+        with self.assertRaises((urllib.error.URLError, ssl.SSLError, ConnectionError)):
+            self._get(f'https://127.0.0.1:{port}/metrics', context)
+
+    def test_mutual_tls_requires_a_client_certificate(self):
+        port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca)))
+        url = f'https://127.0.0.1:{port}/metrics'
+
+        status, _ = self._get(url, self._client_context(with_client_cert=True))
+        self.assertEqual(200, status)
+
+        with self.assertRaises((urllib.error.URLError, ssl.SSLError, ConnectionError)):
+            self._get(url, self._client_context())
+
+    def test_bad_tls_files_fail_before_binding(self):
+        port = self._free_port()
+        missing = str(self.files.ca.parent / 'missing.crt')
+        for tls in (TlsSettings(missing, str(self.files.server_key), None),
+                    TlsSettings(str(self.files.server_cert), str(self.files.client_key), None),
+                    TlsSettings(str(self.files.server_cert), str(self.files.server_key), missing)):
+            with self.subTest(tls=tls), self.assertRaises(RuntimeError) as ctx:
+                MetricsEndpoint(port, '127.0.0.1', build_registry(), tls=tls)
+            self.assertIn('TLS', str(ctx.exception))
+        # nothing was left listening on the port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('127.0.0.1', port))
 
 
 if __name__ == '__main__':

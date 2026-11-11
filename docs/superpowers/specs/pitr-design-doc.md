@@ -200,9 +200,16 @@ This ensures the generated `commitlog_archiving.properties` is always consistent
 prometheus_port = 9500
 ; default 0.0.0.0
 prometheus_address = 0.0.0.0
+; optional: HTTPS when both are set
+prometheus_tls_cert = metrics_server.crt
+prometheus_tls_key = metrics_server.key
+; optional: require client certificates signed by this CA (mutual TLS)
+prometheus_ca_cert = metrics_ca.pem
 ```
 
-The endpoint is opt-in (G3): nothing listens unless `prometheus_port` is set. There is no default port because the usual exporter ports are taken on Cassandra hosts, and collide when k8ssandra runs with `hostNetwork`: 9100 (node_exporter), 9000 (management-api metrics), 9103 (MCAC). When the port is set but cannot be bound, the gRPC server fails at startup, the same way a bad spool mount does, so an operator who asked for metrics never silently runs without them. The endpoint runs whether or not PITR is enabled. Operators scrape `http://<pod-ip>:<prometheus_port>/metrics` (Vector.dev in k8ssandra deployments).
+The endpoint is opt-in (G3): nothing listens unless `prometheus_port` is set. There is no default port because the usual exporter ports are taken on Cassandra hosts, and collide when k8ssandra runs with `hostNetwork`: 9100 (node_exporter), 9000 (management-api metrics), 9103 (MCAC). When the port is set but cannot be bound, the gRPC server fails at startup, the same way a bad spool mount does, so an operator who asked for metrics never silently runs without them. The endpoint runs whether or not PITR is enabled. Operators scrape `http(s)://<pod-ip>:<prometheus_port>/metrics` (Vector.dev in k8ssandra deployments).
+
+TLS is optional. With `prometheus_tls_cert` and `prometheus_tls_key` (PEM) the endpoint serves HTTPS only, with TLS 1.2 as the minimum version. Adding `prometheus_ca_cert` turns on mutual TLS: scrapers must present a client certificate signed by that CA. The keys are separate from the `[grpc]` TLS settings, so each endpoint can be secured on its own. An incomplete combination (only one of cert/key, or a CA without them) or a file that cannot be loaded fails startup, like a bind failure; the files are loaded before the port is bound.
 
 ### 4.4 CommitLogArchiver
 
@@ -723,7 +730,7 @@ medusa_commitlog_archiver_uploaded_bytes_total 4.764729344e+09
     summary: "CommitLogArchiver ticks are failing (details: GetCommitLogArchiveStatus lastError)"
 ```
 
-**Wiring:** in `Server.serve()`, after the archiver is created and before its thread and the gRPC server start, the server builds the registry (with the collector when the archiver exists) and calls `start_http_server(prometheus_port, prometheus_address, registry=...)`, keeping the returned server and thread. A bind failure raises and stops startup with nothing left running. The HTTP server is shut down in `Server.shutdown()` and in the `finally` path of `serve()` that already stops the archiver. Scrape configuration (Vector / k8ssandra-operator) is out of scope.
+**Wiring:** in `Server.serve()`, after the archiver is created and before its thread and the gRPC server start, the server builds the registry (with the collector when the archiver exists) and calls `start_http_server(prometheus_port, prometheus_address, registry=...)`, keeping the returned server and thread. With TLS configured it also passes `certfile`, `keyfile`, `client_cafile`, `client_auth_required` (true when a CA is set) and `tls_min_version=TLSv1_2`; `prometheus_client` then wraps the listening socket, so the TLS handshake runs on the thread that accepts connections. A bind failure raises and stops startup with nothing left running. The HTTP server is shut down in `Server.shutdown()` and in the `finally` path of `serve()` that already stops the archiver. Scrape configuration (Vector / k8ssandra-operator) is out of scope.
 
 ---
 
@@ -801,7 +808,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 - All storage access uses the existing `AbstractStorage` credential chain (IAM role, service account key, etc.) — no new credentials.
 - Commitlog segments contain raw mutation data. They are subject to the same object-storage ACL and encryption-at-rest controls as backup snapshots.
 - Segment download in the initContainer uses the existing storage driver directly — no SSH, no new network credentials.
-- The Prometheus metrics endpoint is opt-in: it adds a TCP listener only when `[monitoring] prometheus_port` is set (bound to `prometheus_address`, default `0.0.0.0`). Operators must open this port to their scrapers (NetworkPolicy, Service, or security group). The endpoint serves plain HTTP with no authentication or TLS — it exposes only operational counters and gauges, not backup data, error text or credentials.
+- The Prometheus metrics endpoint is opt-in: it adds a TCP listener only when `[monitoring] prometheus_port` is set (bound to `prometheus_address`, default `0.0.0.0`). Operators must open this port to their scrapers (NetworkPolicy, Service, or security group). It serves plain HTTP unless `prometheus_tls_cert` / `prometheus_tls_key` are set (HTTPS, TLS 1.2+); `prometheus_ca_cert` adds client-certificate authentication (mutual TLS). It exposes only operational counters and gauges, not backup data, error text or credentials.
 
 ### 6.3 Observability & Monitoring
 
@@ -839,7 +846,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 - [`tests/service/grpc/pitr_restore_test.py`](../../../tests/service/grpc/pitr_restore_test.py): `medusa.service.grpc.pitr_restore` queries storage, downloads correct segments, and writes valid `commitlog_archiving.properties` for both active restore and skip/normal paths; `restore_key=""` with a PITR mapping present asserts `is_pitr_restore=False` (empty key must not trigger replay).
 - [`tests/service/grpc/metrics_test.py`](../../../tests/service/grpc/metrics_test.py): `CommitLogArchiverCollector` exposes every metric of §4.12 with the right type and value from a mocked `status()`; unset timestamps are omitted; the error text is never exported.
 - [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py) (additions): tick counters, uploaded/skipped/bytes, `last_success_time` and `last_progress_time` after successful and failing ticks (segment failure, storage cannot be opened, spool cannot be listed); `status()` with an unreadable spool does not modify `last_error`; `oldest_pending_age_seconds` is `0` on an empty spool and follows the oldest mtime otherwise.
-- [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py) (additions): with `prometheus_port` unset nothing listens; with it set `GET /metrics` returns 200 with the archiver families when PITR is enabled and none when it is disabled; a port already in use fails startup; the endpoint stops on shutdown.
+- [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py) (additions): with `prometheus_port` unset nothing listens; with it set `GET /metrics` returns 200 with the archiver families when PITR is enabled and none when it is disabled; a port already in use fails startup; the endpoint stops on shutdown; with TLS settings it serves HTTPS with client certificates; incomplete TLS settings fail startup. `metrics_test.py` also covers HTTPS, refusal of plain HTTP and TLS below 1.2, mutual TLS without a client certificate, and bad TLS files failing before the port is bound.
 
 **Integration tests :**
 1. Start cluster; run workload; take snapshot.

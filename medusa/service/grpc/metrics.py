@@ -19,13 +19,20 @@ Prometheus /metrics endpoint of the gRPC server.
 Only the gRPC server imports this module, so the CLI does not need prometheus_client.
 """
 
+import collections
 import logging
+import ssl
 
 from prometheus_client import CollectorRegistry, GCCollector, PlatformCollector, ProcessCollector, start_http_server
 from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 from prometheus_client.registry import Collector
 
 PREFIX = 'medusa_commitlog_archiver_'
+
+# cert and key are PEM files; ca is the PEM CA that client certificates must be signed by, or None (no client auth)
+TlsSettings = collections.namedtuple('TlsSettings', ['cert', 'key', 'ca'])
+
+TLS_MIN_VERSION = ssl.TLSVersion.TLSv1_2
 
 
 class CommitLogArchiverCollector(Collector):
@@ -107,17 +114,34 @@ def build_registry(archiver=None):
 
 
 class MetricsEndpoint:
-    """The /metrics HTTP server. It runs in its own thread, so a busy gRPC event loop cannot stall scrapes."""
+    """
+    The /metrics HTTP(S) server. It runs in its own thread, so a busy gRPC event loop cannot stall scrapes.
+    With tls, it serves HTTPS (TLS 1.2 or later), and requires client certificates signed by tls.ca when it is set.
+    """
 
-    def __init__(self, port, address, registry):
+    def __init__(self, port, address, registry, tls=None):
         self.port = port
         self.address = address
+        tls_kwargs = {}
+        if tls is not None:
+            _check_tls_files(tls)
+            tls_kwargs = {
+                'certfile': tls.cert,
+                'keyfile': tls.key,
+                'client_cafile': tls.ca,
+                'client_auth_required': tls.ca is not None,
+                'tls_min_version': TLS_MIN_VERSION,
+            }
         try:
-            self._httpd, self._thread = start_http_server(port, addr=address, registry=registry)
+            self._httpd, self._thread = start_http_server(port, addr=address, registry=registry, **tls_kwargs)
         except OSError as e:
             raise RuntimeError('Cannot start the Prometheus metrics endpoint on {}:{}: {}'.format(
                 address, port, e)) from e
-        logging.info('Prometheus metrics endpoint listening on {}:{}'.format(address, port))
+        if tls is None:
+            mode = 'HTTP'
+        else:
+            mode = 'HTTPS with client certificates' if tls.ca else 'HTTPS'
+        logging.info('Prometheus metrics endpoint listening on {}:{} ({})'.format(address, port, mode))
 
     def stop(self):
         self._httpd.shutdown()
@@ -138,3 +162,42 @@ def parse_prometheus_port(monitoring_config):
     if not 0 < port < 65536:
         raise RuntimeError("[monitoring] prometheus_port must be between 1 and 65535, got {}".format(port))
     return port
+
+
+def _setting(monitoring_config, name):
+    value = getattr(monitoring_config, name, None)
+    if value is None or str(value).strip() == '':
+        return None
+    return str(value).strip()
+
+
+def parse_tls_settings(monitoring_config):
+    """
+    Returns TlsSettings when prometheus_tls_cert and prometheus_tls_key are set, None for plain HTTP.
+    Raises RuntimeError for an incomplete combination, so a TLS setup the operator asked for is never dropped.
+    """
+    cert = _setting(monitoring_config, 'prometheus_tls_cert')
+    key = _setting(monitoring_config, 'prometheus_tls_key')
+    ca = _setting(monitoring_config, 'prometheus_ca_cert')
+    if cert is None and key is None:
+        if ca is not None:
+            raise RuntimeError('[monitoring] prometheus_ca_cert requires prometheus_tls_cert and prometheus_tls_key')
+        return None
+    if cert is None or key is None:
+        raise RuntimeError('[monitoring] prometheus_tls_cert and prometheus_tls_key must be set together')
+    return TlsSettings(cert, key, ca)
+
+
+def _check_tls_files(tls):
+    """
+    Loads the certificate, key and CA once before the server binds its port, so a bad file fails startup with a
+    clear message and without leaving a bound socket behind.
+    """
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(tls.cert, tls.key)
+        if tls.ca:
+            context.load_verify_locations(cafile=tls.ca)
+    except (OSError, ssl.SSLError) as e:
+        raise RuntimeError('Cannot load the TLS files of the Prometheus metrics endpoint (cert {}, key {}, ca {}): {}'
+                           .format(tls.cert, tls.key, tls.ca, e)) from e
