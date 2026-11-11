@@ -39,6 +39,7 @@ from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc import medusa_pb2_grpc
 from medusa.service.grpc.commitlog_archiver import CommitLogArchiver
+from medusa.service.grpc.metrics import MetricsEndpoint, build_registry, parse_prometheus_port
 from medusa.storage import Storage
 from medusa.utils import evaluate_boolean
 
@@ -55,6 +56,7 @@ class Server:
         self.medusa_config = self.create_config()
         self.testing = testing
         self.commitlog_archiver = None
+        self.metrics_endpoint = None
         self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
@@ -62,6 +64,7 @@ class Server:
         logging.info("GRPC server initialized")
 
     def shutdown(self):
+        self._stop_metrics_endpoint()
         self._stop_commitlog_archiver()
         logging.info("Shutting down GRPC server")
         handle_backup_removal_all()
@@ -74,6 +77,21 @@ class Server:
         self.commitlog_archiver.stop()
         logging.info("Commitlog archiver stopped")
 
+    def _stop_metrics_endpoint(self):
+        if self.metrics_endpoint is None:
+            return
+        self.metrics_endpoint.stop()
+        self.metrics_endpoint = None
+
+    def _start_metrics_endpoint(self, config):
+        # Opt-in: without prometheus_port nothing listens. When it is set, a bind failure is not caught, so the
+        # server does not start without the metrics the operator asked for.
+        port = parse_prometheus_port(config.monitoring)
+        if port is None:
+            return
+        address = getattr(config.monitoring, 'prometheus_address', None) or '0.0.0.0'
+        self.metrics_endpoint = MetricsEndpoint(port, address, build_registry(self.commitlog_archiver))
+
     async def serve(self):
         config = self.create_config()
         self.configure_console_logging()
@@ -85,6 +103,11 @@ class Server:
         # archiving while Cassandra's archive_command fails.
         if config.pitr and evaluate_boolean(config.pitr.enabled):
             self.commitlog_archiver = CommitLogArchiver(config)
+
+        # before the archiver thread starts, so a failed bind leaves nothing running
+        self._start_metrics_endpoint(config)
+
+        if self.commitlog_archiver is not None:
             self.commitlog_archiver.start()
             logging.info(
                 f"Started commitlog archiver with spool directory {config.pitr.commitlog_spool_dir} "
@@ -123,7 +146,8 @@ class Server:
             except asyncio.exceptions.CancelledError:
                 logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
             finally:
-                # shutdown() is not called on this path, so stop the archiver here
+                # shutdown() is not called on this path, so stop the archiver and the metrics endpoint here
+                self._stop_metrics_endpoint()
                 self._stop_commitlog_archiver()
             handle_backup_removal_all()
 

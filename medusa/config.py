@@ -57,7 +57,7 @@ ChecksConfig = collections.namedtuple(
 
 MonitoringConfig = collections.namedtuple(
     'MonitoringConfig',
-    ['monitoring_provider', 'send_backup_name_tag']
+    ['monitoring_provider', 'send_backup_name_tag', 'prometheus_port', 'prometheus_address']
 )
 
 MedusaConfig = collections.namedtuple(
@@ -176,7 +176,10 @@ def _build_default_config():
 
     config['monitoring'] = {
         'monitoring_provider': 'None',
-        'send_backup_name_tag': 'False'
+        'send_backup_name_tag': 'False',
+        # empty: the gRPC server does not start the Prometheus /metrics endpoint
+        'prometheus_port': '',
+        'prometheus_address': '0.0.0.0'
     }
 
     config['grpc'] = {

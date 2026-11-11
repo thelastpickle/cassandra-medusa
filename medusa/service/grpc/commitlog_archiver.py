@@ -50,13 +50,23 @@ class CommitLogArchiver(threading.Thread):
     retried on the next tick. Continuing would not help: failures are nearly always storage-wide (each one costing
     the storage driver's own retries), and a point-in-time restore cannot replay past a missing segment anyway.
 
+    All state is owned by the archiver and guarded by ``_lock``; ``status()`` returns a snapshot of it. Only ticks
+    write it, ``status()`` itself writes nothing but the result of its own spool listing.
+
     ``last_error`` rules (``status()``):
     - set to the exception message when a tick cannot read the spool, cannot open storage, or fails to archive a
-      segment; also set when ``status()`` itself cannot list the spool,
+      segment,
     - reset to ``''`` by the next tick that archives everything it listed.
-    ``pending_count`` is the number of files in the spool, listed again on every ``status()`` call. If that listing
-    fails the last known value is kept, so ``pending_count=0`` with an empty ``last_error`` means an empty spool,
-    while ``pending_count=0`` with a non-empty ``last_error`` means the spool could not be read.
+    ``pending_count`` and ``oldest_pending_age_seconds`` come from listing the spool again on every ``status()``
+    call. If that listing fails, ``spool_listing_error`` describes it (it is not stored, and does not touch
+    ``last_error``), ``pending_count`` keeps the last known value and the age keeps growing from the last known
+    oldest segment.
+
+    Tick bookkeeping: a tick is an error if ``drain_spool()`` raised or returned an error, otherwise a success
+    (``ticks_error`` / ``ticks_success``). ``segments_uploaded``, ``segments_skipped`` and ``uploaded_bytes`` add
+    up the ``DrainResult`` of every tick. ``last_progress_time`` is set when a tick starts and after every segment
+    that was archived, so it keeps moving during a long drain and stops when the thread dies or hangs.
+    ``last_success_time`` is the end of the last successful tick. Timestamps are ``0`` until first set.
     """
 
     def __init__(self, config):
@@ -101,6 +111,15 @@ class CommitLogArchiver(threading.Thread):
         self._last_upload_time = 0
         self._last_error = ''
         self._pending_count = 0
+        # mtime of the oldest spooled file at the last successful listing, None when the spool was empty
+        self._oldest_pending_mtime = None
+        self._ticks_success = 0
+        self._ticks_error = 0
+        self._segments_uploaded = 0
+        self._segments_skipped = 0
+        self._uploaded_bytes = 0
+        self._last_progress_time = 0
+        self._last_success_time = 0
 
     def run(self):
         # the storage drivers run their coroutines on the thread's event loop
@@ -116,8 +135,9 @@ class CommitLogArchiver(threading.Thread):
 
     def _run_once(self):
         """
-        Runs one tick and never raises an Exception. The outcome is stored in last_error.
+        Runs one tick and never raises an Exception. The outcome is stored in last_error and the tick counters.
         """
+        self._record_progress()
         try:
             result = self.drain_spool()
             error = result.error
@@ -125,18 +145,53 @@ class CommitLogArchiver(threading.Thread):
             logging.exception('Commitlog archiver tick failed: {}'.format(e))
             result, error = None, str(e)
 
+        now = time.time()
         with self._lock:
             self._last_error = error
-            if result is not None and result.uploaded:
-                self._last_upload_time = int(time.time())
+            if error:
+                self._ticks_error += 1
+            else:
+                self._ticks_success += 1
+                self._last_success_time = now
+            if result is not None:
+                self._segments_uploaded += result.uploaded
+                self._segments_skipped += result.skipped
+                self._uploaded_bytes += result.uploaded_bytes
+                if result.uploaded:
+                    self._last_upload_time = int(now)
 
         if result is not None and (result.uploaded or result.skipped):
             logging.info('Archived {} commitlog segment(s) ({}), skipped {} already in storage'.format(
                 result.uploaded, AbstractStorage.human_readable_size(result.uploaded_bytes), result.skipped))
 
+    def _record_progress(self):
+        now = time.time()
+        with self._lock:
+            self._last_progress_time = now
+
     def _list_spool(self):
         with os.scandir(self._spool_dir) as entries:
             return sorted(e.name for e in entries if e.is_file(follow_symlinks=False))
+
+    def _scan_spool(self):
+        """
+        Returns the number of spooled files and the mtime of the oldest one (None for an empty spool).
+        Raises OSError if the spool cannot be listed.
+        """
+        count, oldest = 0, None
+        with os.scandir(self._spool_dir) as entries:
+            for entry in entries:
+                try:
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    mtime = entry.stat(follow_symlinks=False).st_mtime
+                except FileNotFoundError:
+                    # archived and removed by the tick while we were listing
+                    continue
+                count += 1
+                if oldest is None or mtime < oldest:
+                    oldest = mtime
+        return count, oldest
 
     def drain_spool(self):
         """
@@ -171,6 +226,7 @@ class CommitLogArchiver(threading.Thread):
                         uploaded += 1
                         uploaded_bytes += size
                     os.remove(path)
+                    self._record_progress()
                 except Exception as e:
                     logging.exception('Failed to archive commitlog segment {}, {} file(s) left in the spool'.format(
                         name, len(names) - i))
@@ -187,19 +243,32 @@ class CommitLogArchiver(threading.Thread):
 
     def status(self):
         try:
-            pending, listing_error = len(self._list_spool()), None
+            pending, oldest_mtime = self._scan_spool()
+            listing_error = ''
         except OSError as e:
-            pending, listing_error = None, str(e)
+            listing_error = str(e)
             logging.warning('Cannot read commitlog spool directory {}: {}'.format(self._spool_dir, e))
 
+        now = time.time()
         with self._lock:
-            if listing_error is None:
+            # only ticks own last_error: a failed listing here must neither hide a tick's error nor report
+            # an error for a healthy archiver until the next tick
+            if not listing_error:
                 self._pending_count = pending
-            else:
-                self._last_error = listing_error
-            last_error = self._last_error
-            pending_count = self._pending_count
-            last_upload_time = self._last_upload_time
+                self._oldest_pending_mtime = oldest_mtime
+            oldest_mtime = self._oldest_pending_mtime
+            snapshot = {
+                'last_upload_time': self._last_upload_time,
+                'pending_count': self._pending_count,
+                'last_error': self._last_error,
+                'ticks_success': self._ticks_success,
+                'ticks_error': self._ticks_error,
+                'segments_uploaded': self._segments_uploaded,
+                'segments_skipped': self._segments_skipped,
+                'uploaded_bytes': self._uploaded_bytes,
+                'last_progress_time': self._last_progress_time,
+                'last_success_time': self._last_success_time,
+            }
 
         running = self.is_alive()
         if self.ident is None:
@@ -212,11 +281,11 @@ class CommitLogArchiver(threading.Thread):
         else:
             status = medusa_pb2.StatusType.FAILED
 
-        return {
+        snapshot.update({
             'running': running,
-            'last_upload_time': last_upload_time,
-            'pending_count': pending_count,
             'interval_seconds': self._interval,
             'status': status,
-            'last_error': last_error,
-        }
+            'oldest_pending_age_seconds': 0 if oldest_mtime is None else max(0.0, now - oldest_mtime),
+            'spool_listing_error': listing_error,
+        })
+        return snapshot

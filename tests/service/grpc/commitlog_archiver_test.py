@@ -28,7 +28,11 @@ from medusa.storage import Storage
 from medusa.storage.abstract_storage import AbstractBlob
 
 MODULE = 'medusa.service.grpc.commitlog_archiver'
-STATUS_KEYS = {'running', 'last_upload_time', 'pending_count', 'interval_seconds', 'status', 'last_error'}
+STATUS_KEYS = {
+    'running', 'last_upload_time', 'pending_count', 'interval_seconds', 'status', 'last_error',
+    'ticks_success', 'ticks_error', 'segments_uploaded', 'segments_skipped', 'uploaded_bytes',
+    'last_progress_time', 'last_success_time', 'oldest_pending_age_seconds', 'spool_listing_error',
+}
 
 
 def _namedtuple(cls, **values):
@@ -396,6 +400,100 @@ class CommitLogArchiverTest(unittest.TestCase):
             archiver._run_once()
         self.assertEqual(4, archiver._pending_count)
 
+    def test_run_once_success_records_counters_and_timestamps(self):
+        driver = self._mock_storage()
+        driver.get_object.side_effect = lambda key: (
+            AbstractBlob('k', 7, 'h', None, None) if key.endswith('c.log') else None)
+        driver.file_matches_storage.return_value = True
+        self._write_spool('a.log', 'b.log', content=b'12345')
+        self._write_spool('c.log', content=b'skipped')
+        archiver = self._make_archiver()
+        progress = []
+        real_record = archiver._record_progress
+
+        def record():
+            real_record()
+            progress.append(archiver._last_progress_time)
+
+        archiver._record_progress = record
+        before = time.time()
+
+        archiver._run_once()
+
+        status = archiver.status()
+        self.assertEqual(1, status['ticks_success'])
+        self.assertEqual(0, status['ticks_error'])
+        self.assertEqual(2, status['segments_uploaded'])
+        self.assertEqual(1, status['segments_skipped'])
+        self.assertEqual(10, status['uploaded_bytes'])
+        self.assertGreaterEqual(status['last_success_time'], before)
+        self.assertGreaterEqual(status['last_progress_time'], before)
+        self.assertGreaterEqual(status['last_upload_time'], int(before))
+        self.assertEqual('', status['last_error'])
+        # once at tick start and once per archived segment
+        self.assertEqual(4, len(progress))
+        self.assertEqual(sorted(progress), progress)
+
+        # the counters add up over ticks
+        self._write_spool('d.log', content=b'123')
+        archiver._run_once()
+        status = archiver.status()
+        self.assertEqual(2, status['ticks_success'])
+        self.assertEqual(3, status['segments_uploaded'])
+        self.assertEqual(13, status['uploaded_bytes'])
+
+    def test_run_once_empty_spool_is_a_successful_tick(self):
+        archiver = self._make_archiver()
+        archiver._run_once()
+        status = archiver.status()
+        self.assertEqual(1, status['ticks_success'])
+        self.assertGreater(status['last_success_time'], 0)
+        self.assertGreater(status['last_progress_time'], 0)
+        self.assertEqual(0, status['last_upload_time'])
+
+    def test_run_once_segment_failure_counts_error_and_keeps_last_success_time(self):
+        driver = self._mock_storage()
+        driver.get_object.return_value = None
+        self._write_spool('a.log')
+        archiver = self._make_archiver()
+        archiver._run_once()
+        first_success = archiver.status()['last_success_time']
+        self.assertGreater(first_success, 0)
+
+        driver.upload_blobs.side_effect = [None, Exception('boom')]
+        self._write_spool('b.log', 'c.log', content=b'1234')
+        archiver._run_once()
+
+        status = archiver.status()
+        self.assertEqual(1, status['ticks_success'])
+        self.assertEqual(1, status['ticks_error'])
+        self.assertEqual(first_success, status['last_success_time'])
+        self.assertIn('boom', status['last_error'])
+        self.assertIn('c.log', status['last_error'])
+        # the segment archived before the failure still counts
+        self.assertEqual(2, status['segments_uploaded'])
+        self.assertEqual(len(b'segment') + 4, status['uploaded_bytes'])
+
+    def test_run_once_counts_error_when_storage_cannot_be_opened(self):
+        self._write_spool('a.log')
+        archiver = self._make_archiver()
+        with patch(MODULE + '.Storage', side_effect=Exception('no storage')):
+            archiver._run_once()
+        status = archiver.status()
+        self.assertEqual(1, status['ticks_error'])
+        self.assertEqual(0, status['ticks_success'])
+        self.assertEqual(0, status['last_success_time'])
+        self.assertGreater(status['last_progress_time'], 0)
+        self.assertEqual('no storage', status['last_error'])
+
+    def test_run_once_counts_error_when_spool_cannot_be_listed(self):
+        archiver = self._make_archiver()
+        with patch(MODULE + '.os.scandir', side_effect=PermissionError('denied')):
+            archiver._run_once()
+        status = archiver.status()
+        self.assertEqual(1, status['ticks_error'])
+        self.assertEqual(0, status['last_success_time'])
+
     def test_run_finishes_whole_batch_before_waiting(self):
         driver = self._mock_storage()
         driver.get_object.return_value = None
@@ -438,14 +536,67 @@ class CommitLogArchiverTest(unittest.TestCase):
         self._write_spool('a.log', 'b.log', 'c.log')
         self.assertEqual(3, self._make_archiver().status()['pending_count'])
 
-    def test_status_keeps_pending_count_and_sets_error_when_listing_fails(self):
+    def test_status_keeps_pending_count_and_reports_listing_error_separately(self):
         self._write_spool('a.log', 'b.log')
         archiver = self._make_archiver()
         self.assertEqual(2, archiver.status()['pending_count'])
         with patch(MODULE + '.os.scandir', side_effect=PermissionError('denied')):
             status = archiver.status()
         self.assertEqual(2, status['pending_count'])
-        self.assertEqual('denied', status['last_error'])
+        self.assertEqual('denied', status['spool_listing_error'])
+        self.assertEqual('', status['last_error'])
+        self.assertEqual('', archiver._last_error)
+        self.assertEqual('', archiver.status()['spool_listing_error'])
+
+    def test_status_with_unreadable_spool_keeps_the_tick_error(self):
+        driver = self._mock_storage()
+        driver.get_object.return_value = None
+        driver.upload_blobs.side_effect = Exception('403 Forbidden')
+        self._write_spool('a.log')
+        archiver = self._make_archiver()
+        archiver._run_once()
+
+        with patch(MODULE + '.os.scandir', side_effect=PermissionError('denied')):
+            status = archiver.status()
+
+        self.assertIn('403 Forbidden', status['last_error'])
+        self.assertIn('403 Forbidden', archiver._last_error)
+        self.assertEqual('denied', status['spool_listing_error'])
+
+    def test_status_oldest_pending_age_is_zero_on_empty_spool(self):
+        status = self._make_archiver().status()
+        self.assertEqual(0, status['oldest_pending_age_seconds'])
+        self.assertEqual(0, status['pending_count'])
+
+    def test_status_oldest_pending_age_follows_oldest_mtime(self):
+        self._write_spool('a.log', 'b.log', 'c.log')
+        now = time.time()
+        os.utime(self.spool / 'a.log', (now - 30, now - 30))
+        os.utime(self.spool / 'b.log', (now - 300, now - 300))
+        os.utime(self.spool / 'c.log', (now - 5, now - 5))
+        (self.spool / 'subdir').mkdir()
+        os.utime(self.spool / 'subdir', (now - 9999, now - 9999))
+        archiver = self._make_archiver()
+
+        age = archiver.status()['oldest_pending_age_seconds']
+        self.assertGreaterEqual(age, 300)
+        self.assertLess(age, 360)
+
+        # a failed listing keeps the last known oldest segment, so the age keeps growing
+        with patch(MODULE + '.os.scandir', side_effect=PermissionError('denied')):
+            self.assertGreaterEqual(archiver.status()['oldest_pending_age_seconds'], age)
+
+        (self.spool / 'b.log').unlink()
+        age = archiver.status()['oldest_pending_age_seconds']
+        self.assertGreaterEqual(age, 30)
+        self.assertLess(age, 90)
+
+    def test_status_counters_start_at_zero(self):
+        status = self._make_archiver().status()
+        for key in ('ticks_success', 'ticks_error', 'segments_uploaded', 'segments_skipped', 'uploaded_bytes',
+                    'last_progress_time', 'last_success_time', 'last_upload_time'):
+            self.assertEqual(0, status[key], key)
+        self.assertEqual('', status['spool_listing_error'])
 
     def test_status_in_progress_while_alive_and_success_after_stop(self):
         archiver = self._make_archiver(interval='30')

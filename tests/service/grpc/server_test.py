@@ -15,8 +15,10 @@ import asyncio
 import concurrent
 import configparser
 import os
+import socket
 import tempfile
 import unittest
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
@@ -500,8 +502,14 @@ class ServerTest(unittest.TestCase):
         context.set_details.assert_called_once()
         self.assertIn('unexpected disk failure', context.set_details.call_args[0][0])
 
-    def _write_temp_ini(self, pitr_enabled='false'):
+    def _write_temp_ini(self, pitr_enabled='false', prometheus_port=None):
         f = tempfile.NamedTemporaryFile('w', delete=False)
+        if prometheus_port is not None:
+            f.write(
+                "[monitoring]\n"
+                f"prometheus_port = {prometheus_port}\n"
+                "prometheus_address = 127.0.0.1\n"
+            )
         f.write(
             "[storage]\n"
             "storage_provider = local\n"
@@ -611,6 +619,130 @@ class ServerTest(unittest.TestCase):
                     server.shutdown()
             finally:
                 loop.close()
+
+    # ---- Prometheus /metrics endpoint ----
+
+    @staticmethod
+    def _free_port():
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('127.0.0.1', 0))
+            return s.getsockname()[1]
+
+    def _serve(self, ini_path, archiver_status=None):
+        """Runs serve() in testing mode with a mocked gRPC server and archiver class."""
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+            self.addCleanup(server._stop_metrics_endpoint)
+            with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls:
+                mock_archiver_cls.return_value.status.return_value = archiver_status
+                asyncio.run(server.serve())
+        return server, mock_server, mock_archiver_cls
+
+    @staticmethod
+    def _get_metrics(port):
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/metrics', timeout=5) as response:
+            return response.status, response.read().decode()
+
+    def test_metrics_endpoint_disabled_by_default(self):
+        server, _, _ = self._serve(self._write_temp_ini(pitr_enabled='true'), archiver_status={})
+        self.assertIsNone(server.metrics_endpoint)
+        self.assertEqual('', server.medusa_config.monitoring.prometheus_port)
+
+    def test_metrics_endpoint_serves_archiver_metrics_when_pitr_enabled(self):
+        from tests.service.grpc.metrics_test import STATUS
+        port = self._free_port()
+        server, _, archiver_cls = self._serve(
+            self._write_temp_ini(pitr_enabled='true', prometheus_port=port), archiver_status=STATUS)
+
+        self.assertIsNotNone(server.metrics_endpoint)
+        status, body = self._get_metrics(port)
+        self.assertEqual(200, status)
+        self.assertIn('medusa_commitlog_archiver_pending_segments 3.0', body)
+        self.assertIn('medusa_commitlog_archiver_ticks_total{result="error"} 2.0', body)
+        self.assertIn('python_info', body)
+        archiver_cls.return_value.start.assert_called_once()
+
+    def test_metrics_endpoint_without_archiver_families_when_pitr_disabled(self):
+        port = self._free_port()
+        server, _, archiver_cls = self._serve(self._write_temp_ini(pitr_enabled='false', prometheus_port=port))
+
+        archiver_cls.assert_not_called()
+        status, body = self._get_metrics(port)
+        self.assertEqual(200, status)
+        self.assertIn('python_info', body)
+        self.assertNotIn('medusa_commitlog_archiver', body)
+
+    def test_metrics_endpoint_port_in_use_fails_startup(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as busy:
+            busy.bind(('127.0.0.1', 0))
+            busy.listen(1)
+            port = busy.getsockname()[1]
+            ini_path = self._write_temp_ini(pitr_enabled='true', prometheus_port=port)
+            with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+                mock_server = Mock()
+                mock_server.start = AsyncMock()
+                mock_aio_server.return_value = mock_server
+                server = Server(ini_path, testing=True)
+                with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls, \
+                        self.assertRaises(RuntimeError) as ctx:
+                    asyncio.run(server.serve())
+        self.assertIn(str(port), str(ctx.exception))
+        self.assertIsNone(server.metrics_endpoint)
+        # neither the archiver thread nor the gRPC server were started
+        mock_archiver_cls.return_value.start.assert_not_called()
+        mock_server.start.assert_not_called()
+
+    def test_metrics_endpoint_invalid_port_fails_startup(self):
+        ini_path = self._write_temp_ini(prometheus_port='not-a-port')
+        with patch('medusa.service.grpc.server.aio.server'):
+            server = Server(ini_path, testing=True)
+            with self.assertRaises(RuntimeError):
+                asyncio.run(server.serve())
+
+    def test_shutdown_stops_metrics_endpoint(self):
+        port = self._free_port()
+        server, mock_server, _ = self._serve(self._write_temp_ini(prometheus_port=port))
+        self.assertEqual(200, self._get_metrics(port)[0])
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            mock_server.stop.return_value = loop.create_future()
+            mock_server.stop.return_value.set_result(None)
+            with patch('medusa.service.grpc.server.handle_backup_removal_all'):
+                server.shutdown()
+        finally:
+            loop.close()
+
+        self.assertIsNone(server.metrics_endpoint)
+        with self.assertRaises(OSError):
+            self._get_metrics(port)
+        # the listening socket is closed, so the port can be bound again (SO_REUSEADDR as the endpoint itself
+        # uses, since the scrape above leaves the server side of its connection in TIME_WAIT)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('127.0.0.1', port))
+            s.listen(1)
+
+    def test_serve_stops_metrics_endpoint_when_server_terminates(self):
+        port = self._free_port()
+        ini_path = self._write_temp_ini(prometheus_port=port)
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_server.wait_for_termination = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=False)
+            with patch('medusa.service.grpc.server.MetricsEndpoint') as endpoint_cls, \
+                    patch('medusa.service.grpc.server.handle_backup_removal_all'):
+                asyncio.run(server.serve())
+        endpoint_cls.assert_called_once()
+        self.assertEqual((port, '127.0.0.1'), endpoint_cls.call_args[0][:2])
+        endpoint_cls.return_value.stop.assert_called_once()
+        self.assertIsNone(server.metrics_endpoint)
 
 
 if __name__ == '__main__':
