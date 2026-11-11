@@ -11,18 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import concurrent
 import configparser
+import os
+import tempfile
 import unittest
-
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+import grpc
 from grpc import ServicerContext
-from unittest.mock import Mock, patch
 
 from medusa.backup_manager import BackupMan
-from medusa.config import MedusaConfig, _namedtuple_from_dict, StorageConfig, CassandraConfig
+from medusa.config import MedusaConfig, _namedtuple_from_dict, StorageConfig, CassandraConfig, PitrConfig
 from medusa.service.grpc import medusa_pb2
-from medusa.service.grpc.server import MedusaService
+from medusa.service.grpc.commitlog_archiver import CommitLogArchiver
+from medusa.service.grpc.server import MedusaService, Server
 from medusa.storage import Storage
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_unfinished_node_backup
@@ -33,7 +39,12 @@ class ServerTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _make_config(self):
+    def setUp(self):
+        self._fqdn_patcher = patch('socket.getfqdn', return_value='node1')
+        self._fqdn_patcher.start()
+        self.addCleanup(self._fqdn_patcher.stop)
+
+    def _make_config(self, pitr_enabled='false'):
         config = configparser.ConfigParser(interpolation=None)
         config['storage'] = {
             'storage_provider': 'local',
@@ -44,6 +55,13 @@ class ServerTest(unittest.TestCase):
         config['cassandra'] = {
             'is_ccm': '0'
         }
+        config['pitr'] = {
+            'enabled': pitr_enabled,
+            'commitlog_archive_interval_seconds': '60',
+            'commitlog_spool_dir': '/tmp/spool',
+            'commitlog_staging_dir': '/tmp/staging',
+            'commitlog_restore_grace_period_seconds': '3600',
+        }
         medusa_config = MedusaConfig(
             file_path=None,
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
@@ -53,7 +71,8 @@ class ServerTest(unittest.TestCase):
             checks=None,
             logging=None,
             grpc=None,
-            kubernetes=None
+            kubernetes=None,
+            pitr=_namedtuple_from_dict(PitrConfig, config['pitr']),
         )
         return medusa_config
 
@@ -374,6 +393,224 @@ class ServerTest(unittest.TestCase):
             # I'm not sure this is because of faking the backup
             start_time = int(datetime.strptime(backup_status.startTime, '%Y-%m-%d %H:%M:%S').timestamp())
             self.assertEqual(123456, start_time)
+
+    def test_get_commitlog_archive_status_no_archiver(self):
+        medusa_config = self._make_config()
+        service = MedusaService(medusa_config)
+
+        request = medusa_pb2.GetCommitLogArchiveStatusRequest()
+        context = Mock(spec=ServicerContext)
+        response = service.GetCommitLogArchiveStatus(request, context)
+
+        self.assertFalse(response.running)
+        self.assertEqual(0, response.pendingCount)
+        self.assertEqual(0, response.lastUploadTime)
+        self.assertEqual(0, response.intervalSeconds)
+        self.assertEqual('', response.lastError)
+        self.assertEqual(medusa_pb2.StatusType.UNKNOWN, response.status)
+
+    def test_get_commitlog_archive_status_with_files_in_spool(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            spool = root / 'spool'
+            commitlog = root / 'commitlog'
+            storage_dir = root / 'storage'
+            for d in (spool, commitlog, storage_dir):
+                d.mkdir()
+            cassandra_yaml = root / 'cassandra.yaml'
+            cassandra_yaml.write_text(f'commitlog_directory: {commitlog}\n')
+
+            # Create 3 dummy files in spool
+            for name in ('CommitLog-6-1.log', 'CommitLog-6-2.log', 'CommitLog-6-3.log'):
+                (spool / name).write_bytes(b'dummy')
+
+            config = MedusaConfig(
+                file_path=None,
+                storage=_namedtuple_from_dict(StorageConfig, {
+                    'storage_provider': 'local',
+                    'fqdn': 'node1',
+                    'base_path': str(storage_dir),
+                    'bucket_name': 'bucket',
+                }),
+                cassandra=_namedtuple_from_dict(CassandraConfig, {
+                    'is_ccm': '0',
+                    'config_file': str(cassandra_yaml),
+                }),
+                monitoring={},
+                ssh=None,
+                checks=None,
+                logging=None,
+                grpc=None,
+                kubernetes=None,
+                pitr=_namedtuple_from_dict(PitrConfig, {
+                    'enabled': 'true',
+                    'commitlog_archive_interval_seconds': '10',
+                    'commitlog_spool_dir': str(spool),
+                    'commitlog_staging_dir': str(root / 'staging'),
+                    'commitlog_restore_grace_period_seconds': '3600',
+                }),
+            )
+            archiver = CommitLogArchiver(config)
+            service = MedusaService(config, commitlog_archiver=archiver)
+
+            request = medusa_pb2.GetCommitLogArchiveStatusRequest()
+            context = Mock(spec=ServicerContext)
+            response = service.GetCommitLogArchiveStatus(request, context)
+
+            self.assertEqual(3, response.pendingCount)
+            self.assertEqual(10, response.intervalSeconds)
+            self.assertFalse(response.running)
+
+    def test_get_commitlog_archive_status_maps_fields(self):
+        medusa_config = self._make_config()
+        mock_archiver = Mock()
+        mock_archiver.status.return_value = {
+            'running': True,
+            'last_upload_time': 1600000000,
+            'pending_count': 7,
+            'interval_seconds': 42,
+            'status': medusa_pb2.StatusType.IN_PROGRESS,
+            'last_error': 'something went wrong',
+        }
+        service = MedusaService(medusa_config, commitlog_archiver=mock_archiver)
+
+        request = medusa_pb2.GetCommitLogArchiveStatusRequest()
+        context = Mock(spec=ServicerContext)
+        response = service.GetCommitLogArchiveStatus(request, context)
+
+        self.assertTrue(response.running)
+        self.assertEqual(1600000000, response.lastUploadTime)
+        self.assertEqual(7, response.pendingCount)
+        self.assertEqual(42, response.intervalSeconds)
+        self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, response.status)
+        self.assertEqual('something went wrong', response.lastError)
+
+    def test_get_commitlog_archive_status_archiver_raises_internal(self):
+        medusa_config = self._make_config()
+        mock_archiver = Mock()
+        mock_archiver.status.side_effect = Exception('unexpected disk failure')
+        service = MedusaService(medusa_config, commitlog_archiver=mock_archiver)
+
+        request = medusa_pb2.GetCommitLogArchiveStatusRequest()
+        context = Mock(spec=ServicerContext)
+        response = service.GetCommitLogArchiveStatus(request, context)
+
+        self.assertIsNotNone(response)
+        context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+        context.set_details.assert_called_once()
+        self.assertIn('unexpected disk failure', context.set_details.call_args[0][0])
+
+    def _write_temp_ini(self, pitr_enabled='false'):
+        f = tempfile.NamedTemporaryFile('w', delete=False)
+        f.write(
+            "[storage]\n"
+            "storage_provider = local\n"
+            "fqdn = 127.0.0.1\n"
+            "base_path = /tmp/medusa\n"
+            "bucket_name = bucket\n"
+            "[cassandra]\n"
+            "is_ccm = 0\n"
+            "resolve_ip_addresses = False\n"
+            "[pitr]\n"
+            f"enabled = {pitr_enabled}\n"
+            "commitlog_archive_interval_seconds = 10\n"
+            "commitlog_spool_dir = /tmp/spool\n"
+        )
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_serve_pitr_enabled_creates_and_starts_archiver(self):
+        ini_path = self._write_temp_ini(pitr_enabled='true')
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+
+            with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls:
+                asyncio.run(server.serve())
+                mock_archiver_cls.assert_called_once()
+                mock_archiver_cls.return_value.start.assert_called_once()
+                self.assertEqual(server.commitlog_archiver, mock_archiver_cls.return_value)
+
+    def test_serve_pitr_enabled_constructor_raises_runtime_error_propagates(self):
+        ini_path = self._write_temp_ini(pitr_enabled='true')
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+
+            with patch('medusa.service.grpc.server.CommitLogArchiver', side_effect=RuntimeError("Device mismatch")), \
+                    self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(server.serve())
+            self.assertIn("Device mismatch", str(ctx.exception))
+
+    def test_serve_pitr_disabled_no_archiver(self):
+        ini_path = self._write_temp_ini(pitr_enabled='false')
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+
+            with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls:
+                asyncio.run(server.serve())
+                mock_archiver_cls.assert_not_called()
+                self.assertIsNone(server.commitlog_archiver)
+
+    def test_serve_stops_archiver_when_server_terminates(self):
+        ini_path = self._write_temp_ini(pitr_enabled='true')
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_server.wait_for_termination = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=False)
+
+            with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls, \
+                    patch('medusa.service.grpc.server.handle_backup_removal_all'):
+                asyncio.run(server.serve())
+            mock_archiver_cls.return_value.stop.assert_called_once()
+
+    def test_shutdown_calls_stop_on_archiver(self):
+        ini_path = self._write_temp_ini()
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+            mock_archiver = Mock()
+            server.commitlog_archiver = mock_archiver
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                mock_server.stop.return_value = loop.create_future()
+                mock_server.stop.return_value.set_result(None)
+                with patch('medusa.service.grpc.server.handle_backup_removal_all'):
+                    server.shutdown()
+                mock_archiver.stop.assert_called_once()
+            finally:
+                loop.close()
+
+    def test_shutdown_no_archiver_does_not_fail(self):
+        ini_path = self._write_temp_ini()
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+            server.commitlog_archiver = None
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                mock_server.stop.return_value = loop.create_future()
+                mock_server.stop.return_value.set_result(None)
+                with patch('medusa.service.grpc.server.handle_backup_removal_all'):
+                    server.shutdown()
+            finally:
+                loop.close()
 
 
 if __name__ == '__main__':
