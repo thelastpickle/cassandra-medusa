@@ -260,6 +260,30 @@ class FindCommitlogSegmentsTest(unittest.TestCase):
         _, storage = self._find([b])
         storage.storage_driver.get_object_datetime.assert_called_with(b)
 
+    # KNOWN BUG: Cassandra only calls archive_command for a segment when it is full, drained or restarted,
+    # not on snapshot/flush. So a segment holding writes made before the restore target can be sealed, and thus
+    # uploaded, after next_backup.snapshot_time + grace. Its blob last_modified (upload time) is then greater than
+    # upper_bound_s and the segment is silently left out of the restore. Remove expectedFailure once fixed.
+    @unittest.expectedFailure
+    def test_segment_open_across_next_backup_is_selected(self):
+        t = 1767225600  # 2026-01-01 00:00:00 UTC, "day 1 00:00"
+        base_started = t + 7200  # day 1 02:00, base backup started / snapshot_time
+        # restore target is day 1 14:00 (t + 50400); next backup snapshot_time is day 2 02:00 (t + 93600)
+        upper_bound = t + 93600 + 3600  # next snapshot_time + 1h grace = day 2 03:00
+
+        # CommitLog-6-9 was uploaded at day 1 01:00, before the base backup: not needed
+        n6 = blob('prefix/{}/commitlogs/CommitLog-6-9.log'.format(FQDN), utc(t + 3600))
+        # CommitLog-7-1 was the active segment from day 1 00:00 to day 2 06:00. It holds the write made at
+        # day 1 10:00 (before the target) and was only archived and uploaded at day 2 06:01.
+        n7 = blob('prefix/{}/commitlogs/CommitLog-7-1.log'.format(FQDN), utc(t + 86400 + 21660))
+
+        storage = make_driver_storage([n6, n7])
+        found = find_commitlog_segments(
+            storage, 'prefix', FQDN, after_snapshot_time_s=base_started, upper_bound_s=upper_bound
+        )
+
+        self.assertIn(n7, found)
+
 
 class DownloadCommitlogSegmentsTest(unittest.TestCase):
 
