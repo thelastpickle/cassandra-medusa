@@ -22,7 +22,7 @@ import traceback
 from datetime import datetime, timedelta
 
 import medusa.utils
-from medusa.backup_node import is_pitr_enabled
+from medusa.config import is_pitr_enabled
 from medusa.index import clean_backup_from_index
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
