@@ -23,7 +23,7 @@ from medusa.config import MedusaConfig, PitrConfig, StorageConfig, _namedtuple_f
 from medusa.storage import NodeBackup, Storage
 from medusa.purge import backups_to_purge_by_age, backups_to_purge_by_count, backups_to_purge_by_name
 from medusa.purge import filter_differential_backups, filter_files_within_gc_grace
-from medusa.purge import main, oldest_kept_snapshot_time, purge_commitlogs
+from medusa.purge import main, oldest_kept_pitr_backup_start, purge_commitlogs
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_blob
 
@@ -173,7 +173,7 @@ class PurgeTest(unittest.TestCase):
         return self.config._replace(pitr=pitr)
 
     def test_purge_commitlogs_boundaries(self):
-        # oldest_kept_snapshot_ts = 1000, interval = 60 -> purge_threshold = 910
+        # oldest_kept_pitr_start = 1000, interval = 60 -> purge_threshold = 910
         blobs = {ts: make_blob("node1/commitlogs/CommitLog-{}.log".format(ts), ts)
                  for ts in (0, 909, 910, 911, 10 ** 9)}
         storage = self._commitlog_storage(list(blobs.values()))
@@ -215,15 +215,15 @@ class PurgeTest(unittest.TestCase):
             purge_commitlogs(storage, 'node1', 1000, 60)
         self.assertIn('INFO:root:Purged 3 commitlog segments of node1', logs.output)
 
-    def test_oldest_kept_snapshot_time(self):
+    def test_oldest_kept_pitr_backup_start(self):
         backups = [
-            self._pitr_node_backup('one', 100, None),
+            self._pitr_node_backup('one', 100, None),    # pre-PITR: ignored even though it started first
             self._pitr_node_backup('two', 200, 1500),
-            self._pitr_node_backup('three', 300, 1200),
+            self._pitr_node_backup('three', 300, 1200),  # earliest snapshot_time, but not the anchor
         ]
-        self.assertEqual(1200, oldest_kept_snapshot_time(backups))
-        self.assertIsNone(oldest_kept_snapshot_time([self._pitr_node_backup('one', 100, None)]))
-        self.assertIsNone(oldest_kept_snapshot_time([]))
+        self.assertEqual(200, oldest_kept_pitr_backup_start(backups))
+        self.assertIsNone(oldest_kept_pitr_backup_start([self._pitr_node_backup('one', 100, None)]))
+        self.assertIsNone(oldest_kept_pitr_backup_start([]))
 
     def _run_main(self, config, backups, max_backup_count=0):
         with patch('medusa.purge.Storage') as storage_cls, \
@@ -249,12 +249,19 @@ class PurgeTest(unittest.TestCase):
         backups = [
             self._pitr_node_backup('one', 100, 1000),   # purged by count
             self._pitr_node_backup('two', 200, None),   # purged by count
-            self._pitr_node_backup('three', 300, 1300),  # kept -> anchor
+            self._pitr_node_backup('three', 300, 1300),  # kept -> anchor on its started, not its snapshot_time
         ]
         result, storage, purge_commitlogs_mock = self._run_main(self._pitr_config('true'), backups,
                                                                 max_backup_count=1)
-        purge_commitlogs_mock.assert_called_once_with(storage, 'node1', 1300, 60)
+        purge_commitlogs_mock.assert_called_once_with(storage, 'node1', 300, 60)
         self.assertEqual((0, 0, 0, 2), result)
+
+    def test_main_anchor_is_started_even_when_snapshot_time_is_far_later(self):
+        # tables flushed early in a long-running snapshot have writes before snapshot_time only in the commitlogs,
+        # so the anchor must be started: with interval 60 the threshold is 300 - 90 = 210, not 3000 - 90.
+        backups = [self._pitr_node_backup('one', 300, 3000)]
+        _, storage, purge_commitlogs_mock = self._run_main(self._pitr_config('true'), backups)
+        purge_commitlogs_mock.assert_called_once_with(storage, 'node1', 300, 60)
 
     def test_main_no_anchor_deletes_nothing(self):
         backups = [self._pitr_node_backup('one', 100, None), self._pitr_node_backup('two', 200, None)]

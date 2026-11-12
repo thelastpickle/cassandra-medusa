@@ -50,12 +50,13 @@ def main(config, max_backup_age=0, max_backup_count=0):
             nb_objects_purged, total_purged_size, total_objects_within_grace = object_counts
 
             if is_pitr_enabled(config):
-                oldest_kept_snapshot_ts = oldest_kept_snapshot_time([b for b in backups if b not in backups_to_purge])
-                if oldest_kept_snapshot_ts is None:
+                kept_backups = [b for b in backups if b not in backups_to_purge]
+                oldest_kept_pitr_start = oldest_kept_pitr_backup_start(kept_backups)
+                if oldest_kept_pitr_start is None:
                     logging.info('No kept backup of {} has a snapshot time, not purging commitlogs'
                                  .format(config.storage.fqdn))
                 else:
-                    purge_commitlogs(storage, config.storage.fqdn, oldest_kept_snapshot_ts,
+                    purge_commitlogs(storage, config.storage.fqdn, oldest_kept_pitr_start,
                                      int(config.pitr.commitlog_archive_interval_seconds))
 
             logging.debug('Emitting metrics')
@@ -189,20 +190,25 @@ def get_file_paths_from_storage(storage, fqdn):
     return data_files
 
 
-def oldest_kept_snapshot_time(backups):
-    """Commitlog retention anchor: smallest snapshot_time of the kept backups, None when none has one (pre-PITR)."""
-    return min((b.snapshot_time for b in backups if b.snapshot_time is not None), default=None)
+def oldest_kept_pitr_backup_start(backups):
+    """
+    Commitlog retention anchor: smallest started of the kept PITR-capable backups (those with a snapshot_time),
+    None when there is none (pre-PITR). Restore replays segments from base_backup.started, not snapshot_time:
+    snapshot_time is the latest per-table snapshot mtime, so writes to early-flushed tables made before it are
+    only in the commitlogs.
+    """
+    return min((b.started for b in backups if b.snapshot_time is not None), default=None)
 
 
-def purge_commitlogs(storage, fqdn, oldest_kept_snapshot_ts, interval_seconds):
+def purge_commitlogs(storage, fqdn, oldest_kept_pitr_start, interval_seconds):
     """
     Deletes archived commitlog segments of fqdn whose last_modified is strictly below
-    oldest_kept_snapshot_ts - interval_seconds - 30, and returns how many were deleted.
-    The anchor is the smallest snapshot_time of the backups purge keeps for this node, so every segment the
-    oldest kept backup may replay stays. The archiver interval covers upload lag, the 30 s cover clock skew.
+    oldest_kept_pitr_start - interval_seconds - 30, and returns how many were deleted.
+    The anchor is the smallest started of the PITR-capable backups purge keeps for this node, so every segment
+    the oldest kept backup may replay stays. The archiver interval covers upload lag, the 30 s cover clock skew.
     Only blob.last_modified is used (file names are never parsed) and only this node's prefix is listed.
     """
-    purge_threshold = oldest_kept_snapshot_ts - interval_seconds - 30
+    purge_threshold = oldest_kept_pitr_start - interval_seconds - 30
     commitlogs_path = "{}{}/commitlogs/".format(storage.prefix_path, fqdn)
     deleted_segments = 0
 
