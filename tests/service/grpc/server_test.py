@@ -650,9 +650,30 @@ class ServerTest(unittest.TestCase):
             return response.status, response.read().decode()
 
     def test_metrics_endpoint_disabled_by_default(self):
-        server, _, _ = self._serve(self._write_temp_ini(pitr_enabled='true'), archiver_status={})
+        with patch('medusa.service.grpc.server.MetricsEndpoint') as endpoint_cls:
+            server, _, _ = self._serve(self._write_temp_ini(pitr_enabled='true'), archiver_status={})
+        endpoint_cls.assert_not_called()
         self.assertIsNone(server.metrics_endpoint)
         self.assertEqual('', server.medusa_config.monitoring.prometheus_port)
+
+    def test_grpc_startup_failure_stops_metrics_endpoint_and_archiver(self):
+        port = self._free_port()
+        ini_path = self._write_temp_ini(pitr_enabled='true', prometheus_port=port)
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.start = AsyncMock()
+            mock_server.add_insecure_port.side_effect = RuntimeError('gRPC port in use')
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+            self.addCleanup(server._stop_metrics_endpoint)
+            with patch('medusa.service.grpc.server.CommitLogArchiver') as mock_archiver_cls, \
+                    self.assertRaises(RuntimeError):
+                asyncio.run(server.serve())
+        mock_archiver_cls.return_value.start.assert_called_once()
+        mock_archiver_cls.return_value.stop.assert_called_once()
+        self.assertIsNone(server.metrics_endpoint)
+        with self.assertRaises(OSError):
+            self._get_metrics(port)
 
     def test_metrics_endpoint_serves_archiver_metrics_when_pitr_enabled(self):
         from tests.service.grpc.metrics_test import STATUS

@@ -16,6 +16,7 @@
 import socket
 import ssl
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -26,6 +27,7 @@ from prometheus_client.parser import text_string_to_metric_families
 
 from medusa.config import MonitoringConfig
 from medusa.service.grpc import medusa_pb2
+from medusa.service.grpc import metrics as metrics_module
 from medusa.service.grpc.metrics import (CommitLogArchiverCollector, MetricsEndpoint, TlsSettings, build_registry,
                                          parse_prometheus_port, parse_tls_settings)
 from tests.service.grpc.tls_helper import make_tls_files
@@ -242,16 +244,46 @@ class MetricsEndpointTlsTest(unittest.TestCase):
         with self.assertRaises((urllib.error.URLError, ConnectionError, OSError)):
             self._get(f'http://127.0.0.1:{port}/metrics')
 
-    def test_tls_below_1_2_is_refused(self):
-        port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), None))
-        context = self._client_context()
-        context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+    def test_server_context_requires_tls_1_2_and_client_certificates_only_with_a_ca(self):
+        # Checked on the context: a modern OpenSSL client cannot even offer TLS 1.1, so a handshake test would
+        # pass whatever the server allows.
+        server_only = metrics_module._ssl_context(
+            TlsSettings(str(self.files.server_cert), str(self.files.server_key), None))
+        mutual = metrics_module._ssl_context(
+            TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca)))
+        for ctx in (server_only, mutual):
+            self.assertEqual(ssl.TLSVersion.TLSv1_2, ctx.minimum_version)
+        self.assertEqual(ssl.CERT_NONE, server_only.verify_mode)
+        self.assertEqual(ssl.CERT_REQUIRED, mutual.verify_mode)
+
+    def _assert_idle_connection_does_not_block(self, tls):
+        port = self._free_port()
+        endpoint = MetricsEndpoint(port, '127.0.0.1', build_registry(), tls=tls)
+        stopped = False
         try:
-            context.maximum_version = ssl.TLSVersion.TLSv1_1
-        except (ValueError, ssl.SSLError):
-            self.skipTest('the local OpenSSL cannot offer TLS 1.1')
-        with self.assertRaises((urllib.error.URLError, ssl.SSLError, ConnectionError)):
-            self._get(f'https://127.0.0.1:{port}/metrics', context)
+            scheme = 'http' if tls is None else 'https'
+            context = None if tls is None else self._client_context(with_client_cert=tls.ca is not None)
+            # connects and never sends anything (no ClientHello, no request line)
+            with socket.create_connection(('127.0.0.1', port)):
+                begin = time.monotonic()
+                status, _ = self._get(f'{scheme}://127.0.0.1:{port}/metrics', context)
+                self.assertEqual(200, status)
+                self.assertLess(time.monotonic() - begin, 3)
+
+                begin = time.monotonic()
+                endpoint.stop()
+                stopped = True
+                self.assertLess(time.monotonic() - begin, 3)
+        finally:
+            if not stopped:
+                endpoint.stop()
+
+    def test_idle_connection_blocks_neither_scrapes_nor_stop(self):
+        for tls in (None,
+                    TlsSettings(str(self.files.server_cert), str(self.files.server_key), None),
+                    TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca))):
+            with self.subTest(tls=tls):
+                self._assert_idle_connection_does_not_block(tls)
 
     def test_mutual_tls_requires_a_client_certificate(self):
         port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca)))

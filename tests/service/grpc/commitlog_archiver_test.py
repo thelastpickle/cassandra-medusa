@@ -308,9 +308,27 @@ class CommitLogArchiverTest(unittest.TestCase):
         result = archiver.drain_spool()
 
         self.assertEqual((1, 0), tuple(result[:2]))
+        self.assertTrue(result.stopped)
+        self.assertEqual('', result.error)
         self.assertFalse((self.spool / 'a.log').exists())
         self.assertTrue((self.spool / 'b.log').exists())
         self.assertTrue((self.spool / 'c.log').exists())
+
+    def test_run_once_stopped_mid_drain_is_neither_success_nor_error(self):
+        driver = self._mock_storage()
+        driver.get_object.return_value = None
+        self._write_spool('a.log', 'b.log')
+        archiver = self._make_archiver()
+        driver.upload_blobs.side_effect = lambda *args, **kwargs: archiver._stop_event.set()
+
+        archiver._run_once()
+
+        status = archiver.status()
+        self.assertEqual(0, status['ticks_success'])
+        self.assertEqual(0, status['ticks_error'])
+        self.assertEqual(0, status['last_success_time'])
+        self.assertEqual(1, status['segments_uploaded'])
+        self.assertEqual('', status['last_error'])
 
     def test_drain_end_to_end_with_local_storage(self):
         for prefix in ('', 'myprefix'):

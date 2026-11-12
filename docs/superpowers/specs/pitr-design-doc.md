@@ -133,7 +133,7 @@ graph TD
 
 | File | Change | Responsibility |
 |---|---|---|
-| [`medusa/config.py`](../../../medusa/config.py) | Modify | `PitrConfig` namedtuple; `[pitr]` section defaults; `MedusaConfig.pitr` field; adds `prometheus_port` / `prometheus_address` to `MonitoringConfig` |
+| [`medusa/config.py`](../../../medusa/config.py) | Modify | `PitrConfig` namedtuple; `[pitr]` section defaults; `MedusaConfig.pitr` field; adds `prometheus_port`, `prometheus_address`, `prometheus_tls_cert`, `prometheus_tls_key` and `prometheus_ca_cert` to `MonitoringConfig` |
 | [`medusa/service/grpc/commitlog_archiver.py`](../../../medusa/service/grpc/commitlog_archiver.py) | Create | `CommitLogArchiver` background thread; `drain_spool()` helper; records tick counters, progress/success timestamps and the oldest pending segment age, all returned by `status()`; knows nothing about metrics |
 | [`medusa/service/grpc/server.py`](../../../medusa/service/grpc/server.py) | Modify | Archiver lifecycle; `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPC handlers; starts the `prometheus_client` HTTP server when `[monitoring] prometheus_port` is set (bind failure is fatal); stops it in `shutdown()` and when `serve()` ends |
 | [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Update `restore_backup(..., backup_name=...)` signature to support per-node base backup override |
@@ -147,7 +147,8 @@ graph TD
 | [`medusa/index.py`](../../../medusa/index.py) | Modify | Persist `snapshot_time_{fqdn}_{timestamp}.timestamp` index blob; written only when `pitr.enabled = true` |
 | [`medusa/storage/__init__.py`](../../../medusa/storage/__init__.py) | Modify | Read `snapshot_time` index blob in `list_node_backups()` to populate `NodeBackup` |
 | [`medusa/purge.py`](../../../medusa/purge.py) | Modify | `purge_commitlogs()`; PITR hook in `main()` |
-| [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `[pitr]` config section; document `prometheus_port` / `prometheus_address` under `[monitoring]` |
+| [`medusa-example.ini`](../../../medusa-example.ini) | Modify | Document `[pitr]` config section; document the `prometheus_*` settings under `[monitoring]` |
+| [`docs/Configuration.md`](../../../docs/Configuration.md) | Modify | Document the `prometheus_*` settings under `[monitoring]` |
 | [`medusa/service/grpc/metrics.py`](../../../medusa/service/grpc/metrics.py) | Create | `CommitLogArchiverCollector` (pull collector over `CommitLogArchiver.status()`), per-server registry, `/metrics` HTTP endpoint via `prometheus_client` |
 | [`pyproject.toml`](../../../pyproject.toml) | Modify | `prometheus-client` (pinned) in the `grpc` and `grpc-runtime` dependency groups; only the gRPC server imports it |
 
@@ -264,7 +265,7 @@ The archiver does not know about metrics. It keeps the following state under its
 
 | Field | Meaning |
 |---|---|
-| `ticks_success`, `ticks_error` | Tick outcomes. A tick is an error if `drain_spool()` raised (spool unreadable, storage cannot be opened) or returned a non-empty `error`. |
+| `ticks_success`, `ticks_error` | Tick outcomes. A tick is an error if `drain_spool()` raised (spool unreadable, storage cannot be opened) or returned a non-empty `error`. A tick cut short by `stop()` counts as neither. |
 | `segments_uploaded`, `segments_skipped`, `uploaded_bytes` | Cumulative, from each tick's `DrainResult`. |
 | `last_progress_time` | Set at tick start and after each segment is archived, so a long backlog drain does not look stalled. Stops advancing if the thread dies or hangs inside an upload. |
 | `last_success_time` | End of the last tick that archived everything it listed. |
@@ -640,7 +641,7 @@ message PreparePitrRestoreResponse {
 
 ### 4.12 Prometheus Metrics Endpoint
 
-When `[monitoring] prometheus_port` is set, the gRPC server serves `GET /metrics` with [`prometheus_client`](https://github.com/prometheus/client_python) (pure Python, no transitive dependencies, Apache-2.0, maintained by the Prometheus project). It handles text/OpenMetrics content negotiation, escaping, float formatting, gzip and HEAD, so Medusa does not own the exposition format. `prometheus_client.start_http_server(port, addr)` runs the HTTP server in its own thread, so a busy gRPC event loop cannot stall scrapes. `prometheus_client` is imported only from the gRPC server code path, never from the CLI.
+When `[monitoring] prometheus_port` is set, the gRPC server serves `GET /metrics` with [`prometheus_client`](https://github.com/prometheus/client_python) (pure Python, no transitive dependencies, Apache-2.0, maintained by the Prometheus project). It handles text/OpenMetrics content negotiation, escaping, float formatting, gzip and HEAD, so Medusa does not own the exposition format. The endpoint is a small thread-per-connection WSGI server built from `prometheus_client.make_wsgi_app(registry)`; it runs in its own thread, so a busy gRPC event loop cannot stall scrapes. `prometheus_client.start_http_server` is not used: with TLS it wraps the listening socket, so the handshake runs inside `accept()` and a single client that connects and sends nothing blocks every scrape and makes shutdown hang. `prometheus_client` is imported only from the gRPC server code path, never from the CLI.
 
 **Pull, not push.** `CommitLogArchiverCollector(archiver)` ([`medusa/service/grpc/metrics.py`](../../../medusa/service/grpc/metrics.py)) is a custom collector that calls `archiver.status()` once per scrape and yields metric families from that snapshot. The dependency goes one way, metrics → archiver: the archiver does not import metrics, needs no `metrics=None` guards, and its constructor does not change. Each `Server` builds its own registry holding the process, platform and GC collectors `prometheus_client` normally puts on its default registry, plus the archiver collector when an archiver exists.
 
@@ -730,7 +731,7 @@ medusa_commitlog_archiver_uploaded_bytes_total 4.764729344e+09
     summary: "CommitLogArchiver ticks are failing (details: GetCommitLogArchiveStatus lastError)"
 ```
 
-**Wiring:** in `Server.serve()`, after the archiver is created and before its thread and the gRPC server start, the server builds the registry (with the collector when the archiver exists) and calls `start_http_server(prometheus_port, prometheus_address, registry=...)`, keeping the returned server and thread. With TLS configured it also passes `certfile`, `keyfile`, `client_cafile`, `client_auth_required` (true when a CA is set) and `tls_min_version=TLSv1_2`; `prometheus_client` then wraps the listening socket, so the TLS handshake runs on the thread that accepts connections. A bind failure raises and stops startup with nothing left running. The HTTP server is shut down in `Server.shutdown()` and in the `finally` path of `serve()` that already stops the archiver. Scrape configuration (Vector / k8ssandra-operator) is out of scope.
+**Wiring:** in `Server.serve()`, after the archiver is created and before its thread and the gRPC server start, the server builds the registry (with the collector when the archiver exists) and starts the endpoint on `prometheus_address:prometheus_port`, keeping the server and its thread. With TLS configured it builds an `SSLContext` (minimum TLS 1.2; `CERT_REQUIRED` with the CA when `prometheus_ca_cert` is set) before binding, and wraps each accepted connection in that connection's own thread, with a 10 second timeout for the handshake and for each read or write. The accept loop therefore never waits on a client. A bind or TLS failure raises and stops startup with nothing left running; a later gRPC startup failure stops the endpoint and the archiver before it propagates. The HTTP server is shut down in `Server.shutdown()` and in the `finally` path of `serve()` that already stops the archiver. Scrape configuration (Vector / k8ssandra-operator) is out of scope.
 
 ---
 
@@ -846,7 +847,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 - [`tests/service/grpc/pitr_restore_test.py`](../../../tests/service/grpc/pitr_restore_test.py): `medusa.service.grpc.pitr_restore` queries storage, downloads correct segments, and writes valid `commitlog_archiving.properties` for both active restore and skip/normal paths; `restore_key=""` with a PITR mapping present asserts `is_pitr_restore=False` (empty key must not trigger replay).
 - [`tests/service/grpc/metrics_test.py`](../../../tests/service/grpc/metrics_test.py): `CommitLogArchiverCollector` exposes every metric of §4.12 with the right type and value from a mocked `status()`; unset timestamps are omitted; the error text is never exported.
 - [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py) (additions): tick counters, uploaded/skipped/bytes, `last_success_time` and `last_progress_time` after successful and failing ticks (segment failure, storage cannot be opened, spool cannot be listed); `status()` with an unreadable spool does not modify `last_error`; `oldest_pending_age_seconds` is `0` on an empty spool and follows the oldest mtime otherwise.
-- [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py) (additions): with `prometheus_port` unset nothing listens; with it set `GET /metrics` returns 200 with the archiver families when PITR is enabled and none when it is disabled; a port already in use fails startup; the endpoint stops on shutdown; with TLS settings it serves HTTPS with client certificates; incomplete TLS settings fail startup. `metrics_test.py` also covers HTTPS, refusal of plain HTTP and TLS below 1.2, mutual TLS without a client certificate, and bad TLS files failing before the port is bound.
+- [`tests/service/grpc/server_test.py`](../../../tests/service/grpc/server_test.py) (additions): with `prometheus_port` unset nothing listens; with it set `GET /metrics` returns 200 with the archiver families when PITR is enabled and none when it is disabled; a port already in use fails startup; the endpoint stops on shutdown; with TLS settings it serves HTTPS with client certificates; incomplete TLS settings fail startup; a gRPC startup failure stops the endpoint and the archiver. `metrics_test.py` also covers HTTPS, refusal of plain HTTP, the server context (TLS 1.2 minimum, client certificates required only with a CA), mutual TLS without a client certificate, an idle connection blocking neither scrapes nor `stop()` (HTTP and HTTPS), and bad TLS files failing before the port is bound. `commitlog_archiver_test.py` also checks that a tick cut short by `stop()` is neither a success nor an error.
 
 **Integration tests :**
 1. Start cluster; run workload; take snapshot.

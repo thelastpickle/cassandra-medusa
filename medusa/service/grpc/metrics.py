@@ -21,9 +21,13 @@ Only the gRPC server imports this module, so the CLI does not need prometheus_cl
 
 import collections
 import logging
+import socket
 import ssl
+import threading
+from socketserver import ThreadingMixIn
+from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
-from prometheus_client import CollectorRegistry, GCCollector, PlatformCollector, ProcessCollector, start_http_server
+from prometheus_client import CollectorRegistry, GCCollector, PlatformCollector, ProcessCollector, make_wsgi_app
 from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 from prometheus_client.registry import Collector
 
@@ -33,6 +37,10 @@ PREFIX = 'medusa_commitlog_archiver_'
 TlsSettings = collections.namedtuple('TlsSettings', ['cert', 'key', 'ca'])
 
 TLS_MIN_VERSION = ssl.TLSVersion.TLSv1_2
+
+# Seconds a connection may take for the TLS handshake and for each read/write of a request. It only bounds the
+# worker thread of that connection: the accept loop never waits on a client.
+CONNECTION_TIMEOUT_SECONDS = 10
 
 
 class CommitLogArchiverCollector(Collector):
@@ -113,6 +121,58 @@ def build_registry(archiver=None):
     return registry
 
 
+class _QuietHandler(WSGIRequestHandler):
+    timeout = CONNECTION_TIMEOUT_SECONDS
+
+    def log_message(self, format, *args):
+        pass
+
+
+class _MetricsServer(ThreadingMixIn, WSGIServer):
+    """
+    Thread-per-connection WSGI server. With an SSL context, every accepted connection is wrapped and its TLS
+    handshake done in that connection's own thread, with a timeout. prometheus_client.start_http_server wraps the
+    listening socket instead, so the handshake runs inside accept(): one client that connects and sends nothing
+    blocks every other scrape and makes shutdown() hang.
+    """
+    daemon_threads = True
+    block_on_close = False
+    ssl_context = None
+
+    def finish_request(self, request, client_address):
+        if self.ssl_context is None:
+            super().finish_request(request, client_address)
+            return
+        request.settimeout(CONNECTION_TIMEOUT_SECONDS)
+        try:
+            tls_request = self.ssl_context.wrap_socket(request, server_side=True)
+        except (OSError, ssl.SSLError) as e:
+            logging.debug('TLS handshake with {} failed: {}'.format(client_address, e))
+            return
+        try:
+            super().finish_request(tls_request, client_address)
+        finally:
+            tls_request.close()
+
+
+def _ssl_context(tls):
+    """
+    Builds the server SSL context. A missing or invalid file fails here, before the port is bound, so startup stops
+    with a clear message and without leaving a bound socket behind.
+    """
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = TLS_MIN_VERSION
+        context.load_cert_chain(tls.cert, tls.key)
+        if tls.ca:
+            context.load_verify_locations(cafile=tls.ca)
+            context.verify_mode = ssl.CERT_REQUIRED
+    except (OSError, ssl.SSLError) as e:
+        raise RuntimeError('Cannot load the TLS files of the Prometheus metrics endpoint (cert {}, key {}, ca {}): {}'
+                           .format(tls.cert, tls.key, tls.ca, e)) from e
+    return context
+
+
 class MetricsEndpoint:
     """
     The /metrics HTTP(S) server. It runs in its own thread, so a busy gRPC event loop cannot stall scrapes.
@@ -122,21 +182,21 @@ class MetricsEndpoint:
     def __init__(self, port, address, registry, tls=None):
         self.port = port
         self.address = address
-        tls_kwargs = {}
-        if tls is not None:
-            _check_tls_files(tls)
-            tls_kwargs = {
-                'certfile': tls.cert,
-                'keyfile': tls.key,
-                'client_cafile': tls.ca,
-                'client_auth_required': tls.ca is not None,
-                'tls_min_version': TLS_MIN_VERSION,
-            }
+        self.ssl_context = _ssl_context(tls) if tls is not None else None
         try:
-            self._httpd, self._thread = start_http_server(port, addr=address, registry=registry, **tls_kwargs)
+            family, bind_address = _address_family(address, port)
+
+            class Server(_MetricsServer):
+                address_family = family
+                ssl_context = self.ssl_context
+
+            self._httpd = make_server(bind_address, port, make_wsgi_app(registry), Server,
+                                      handler_class=_QuietHandler)
         except OSError as e:
             raise RuntimeError('Cannot start the Prometheus metrics endpoint on {}:{}: {}'.format(
                 address, port, e)) from e
+        self._thread = threading.Thread(target=self._httpd.serve_forever, name='prometheus-metrics', daemon=True)
+        self._thread.start()
         if tls is None:
             mode = 'HTTP'
         else:
@@ -144,10 +204,18 @@ class MetricsEndpoint:
         logging.info('Prometheus metrics endpoint listening on {}:{} ({})'.format(address, port, mode))
 
     def stop(self):
+        # serve_forever() only waits in select(), so shutdown() returns within its poll interval
         self._httpd.shutdown()
         self._httpd.server_close()
         self._thread.join(timeout=5)
         logging.info('Prometheus metrics endpoint stopped')
+
+
+def _address_family(address, port):
+    """IPv4 or IPv6 family for the address (WSGIServer defaults to IPv4), as prometheus_client does."""
+    family, _, _, _, sockaddr = socket.getaddrinfo(address, port, type=socket.SOCK_STREAM,
+                                                   flags=socket.AI_PASSIVE)[0]
+    return family, sockaddr[0]
 
 
 def parse_prometheus_port(monitoring_config):
@@ -186,18 +254,3 @@ def parse_tls_settings(monitoring_config):
     if cert is None or key is None:
         raise RuntimeError('[monitoring] prometheus_tls_cert and prometheus_tls_key must be set together')
     return TlsSettings(cert, key, ca)
-
-
-def _check_tls_files(tls):
-    """
-    Loads the certificate, key and CA once before the server binds its port, so a bad file fails startup with a
-    clear message and without leaving a bound socket behind.
-    """
-    try:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(tls.cert, tls.key)
-        if tls.ca:
-            context.load_verify_locations(cafile=tls.ca)
-    except (OSError, ssl.SSLError) as e:
-        raise RuntimeError('Cannot load the TLS files of the Prometheus metrics endpoint (cert {}, key {}, ca {}): {}'
-                           .format(tls.cert, tls.key, tls.ca, e)) from e

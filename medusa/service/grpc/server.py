@@ -108,13 +108,33 @@ class Server:
         # before the archiver thread starts, so a failed bind leaves nothing running
         self._start_metrics_endpoint(config)
 
-        if self.commitlog_archiver is not None:
-            self.commitlog_archiver.start()
-            logging.info(
-                f"Started commitlog archiver with spool directory {config.pitr.commitlog_spool_dir} "
-                f"and interval {config.pitr.commitlog_archive_interval_seconds}s"
-            )
+        try:
+            if self.commitlog_archiver is not None:
+                self.commitlog_archiver.start()
+                logging.info(
+                    f"Started commitlog archiver with spool directory {config.pitr.commitlog_spool_dir} "
+                    f"and interval {config.pitr.commitlog_archive_interval_seconds}s"
+                )
 
+            await self._start_grpc_server(config)
+        except BaseException:
+            # a gRPC startup failure (port in use, bad TLS files) must not leave the archiver or endpoint running
+            self._stop_metrics_endpoint()
+            self._stop_commitlog_archiver()
+            raise
+
+        if not self.testing:
+            try:
+                await self.grpc_server.wait_for_termination()
+            except asyncio.exceptions.CancelledError:
+                logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
+            finally:
+                # shutdown() is not called on this path, so stop the archiver and the metrics endpoint here
+                self._stop_metrics_endpoint()
+                self._stop_commitlog_archiver()
+            handle_backup_removal_all()
+
+    async def _start_grpc_server(self, config):
         medusa_pb2_grpc.add_MedusaServicer_to_server(
             MedusaService(config, commitlog_archiver=self.commitlog_archiver),
             self.grpc_server
@@ -140,17 +160,6 @@ class Server:
             self.grpc_server.add_insecure_port(f"[::]:{grpc_port}")
 
         await self.grpc_server.start()
-
-        if not self.testing:
-            try:
-                await self.grpc_server.wait_for_termination()
-            except asyncio.exceptions.CancelledError:
-                logging.info("Swallowing asyncio.exceptions.CancelledError. This should get fixed at some point")
-            finally:
-                # shutdown() is not called on this path, so stop the archiver and the metrics endpoint here
-                self._stop_metrics_endpoint()
-                self._stop_commitlog_archiver()
-            handle_backup_removal_all()
 
     def create_config(self):
         config_file = Path(self.config_file_path)

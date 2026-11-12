@@ -28,9 +28,9 @@ from medusa.storage.abstract_storage import AbstractStorage, ManifestObject
 from medusa.utils import evaluate_boolean
 
 # error is '' when every listed segment was archived (or a stop was requested), otherwise it describes the
-# segment that failed and ended the tick.
-DrainResult = collections.namedtuple('DrainResult', ['uploaded', 'skipped', 'uploaded_bytes', 'error'],
-                                     defaults=[0, ''])
+# segment that failed and ended the tick. stopped is True when a stop request ended the drain early.
+DrainResult = collections.namedtuple('DrainResult', ['uploaded', 'skipped', 'uploaded_bytes', 'error', 'stopped'],
+                                     defaults=[0, '', False])
 
 
 class CommitLogArchiver(threading.Thread):
@@ -63,9 +63,10 @@ class CommitLogArchiver(threading.Thread):
     oldest segment.
 
     Tick bookkeeping: a tick is an error if ``drain_spool()`` raised or returned an error, otherwise a success
-    (``ticks_error`` / ``ticks_success``). ``segments_uploaded``, ``segments_skipped`` and ``uploaded_bytes`` add
-    up the ``DrainResult`` of every tick. ``last_progress_time`` is set when a tick starts and after every segment
-    that was archived, so it keeps moving during a long drain and stops when the thread dies or hangs.
+    (``ticks_error`` / ``ticks_success``); a tick cut short by ``stop()`` counts as neither. ``segments_uploaded``,
+    ``segments_skipped`` and ``uploaded_bytes`` add up the ``DrainResult`` of every tick.
+    ``last_progress_time`` is set when a tick starts and after every segment that was archived, so it keeps moving
+    during a long drain and stops when the thread dies or hangs.
     ``last_success_time`` is the end of the last successful tick. Timestamps are ``0`` until first set.
     """
 
@@ -150,6 +151,9 @@ class CommitLogArchiver(threading.Thread):
             self._last_error = error
             if error:
                 self._ticks_error += 1
+            elif result is not None and result.stopped:
+                # not every listed segment was archived, so this is not a success; nor is it an error
+                pass
             else:
                 self._ticks_success += 1
                 self._last_success_time = now
@@ -209,7 +213,7 @@ class CommitLogArchiver(threading.Thread):
             for i, name in enumerate(names):
                 if self._stop_event.is_set():
                     logging.info('Stop requested, {} file(s) left in the commitlog spool'.format(len(names) - i))
-                    break
+                    return DrainResult(uploaded, skipped, uploaded_bytes, stopped=True)
                 path = self._spool_dir / name
                 try:
                     # get_object() rather than get_blob(): the next tick is the retry, the long tenacity
