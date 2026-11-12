@@ -96,6 +96,7 @@ def resolve_node_address(mapping: dict, config) -> str:
 
 def restore_backup(in_place, config, backup_name=None, mapping=None) -> str:
     is_pitr = mapping is not None and mapping.get("pitr") is not None
+    node_address = None
     if backup_name is None:
         if is_pitr:
             node_address = resolve_node_address(mapping, config)
@@ -128,7 +129,7 @@ def restore_backup(in_place, config, backup_name=None, mapping=None) -> str:
                 return f"Finished restore of backup {backup_name}"
 
     if is_pitr:
-        raise RuntimeError(f"Missing PITR base backup {backup_name} for node {config.storage.fqdn}")
+        raise RuntimeError(f"Missing PITR base backup {backup_name} for node {node_address}")
     return f"Skipped restore of missing backup {backup_name}"
 
 
