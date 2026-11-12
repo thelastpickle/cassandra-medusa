@@ -210,16 +210,16 @@ def purge_commitlogs(storage, fqdn, oldest_kept_pitr_start, interval_seconds):
     """
     purge_threshold = oldest_kept_pitr_start - interval_seconds - 30
     commitlogs_path = "{}{}/commitlogs/".format(storage.prefix_path, fqdn)
-    deleted_segments = 0
 
-    for blob in storage.storage_driver.list_objects(commitlogs_path):
-        if storage.storage_driver.get_object_datetime(blob).timestamp() < purge_threshold:
-            logging.debug("Purging commitlog segment {}".format(blob.name))
-            storage.storage_driver.delete_object(blob)
-            deleted_segments += 1
+    expired_segments = [blob for blob in storage.storage_driver.list_objects(commitlogs_path)
+                        if storage.storage_driver.get_object_datetime(blob).timestamp() < purge_threshold]
+    for blob in expired_segments:
+        logging.debug("Purging commitlog segment {}".format(blob.name))
+    if expired_segments:
+        storage.storage_driver.delete_objects(expired_segments)
 
-    logging.info("Purged {} commitlog segments of {}".format(deleted_segments, fqdn))
-    return deleted_segments
+    logging.info("Purged {} commitlog segments of {}".format(len(expired_segments), fqdn))
+    return len(expired_segments)
 
 
 def filter_files_within_gc_grace(storage, blobs, paths_in_storage, backup_grace_period_in_days):

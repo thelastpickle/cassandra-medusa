@@ -182,13 +182,13 @@ class PurgeTest(unittest.TestCase):
         deleted = purge_commitlogs(storage, 'node1', 1000, 60)
 
         self.assertEqual(2, deleted)
-        deleted_blobs = {call.args[0] for call in storage.storage_driver.delete_object.call_args_list}
-        self.assertEqual({blobs[0], blobs[909]}, deleted_blobs)
+        storage.storage_driver.delete_objects.assert_called_once()
+        self.assertEqual({blobs[0], blobs[909]}, set(storage.storage_driver.delete_objects.call_args.args[0]))
 
     def test_purge_commitlogs_empty(self):
         storage = self._commitlog_storage([])
         self.assertEqual(0, purge_commitlogs(storage, 'node1', 1000, 60))
-        storage.storage_driver.delete_object.assert_not_called()
+        storage.storage_driver.delete_objects.assert_not_called()
 
     def test_purge_commitlogs_threshold_depends_on_interval(self):
         for interval_seconds, threshold in ((0, 970), (60, 910), (300, 670)):
@@ -197,7 +197,7 @@ class PurgeTest(unittest.TestCase):
             storage = self._commitlog_storage([below, at])
 
             self.assertEqual(1, purge_commitlogs(storage, 'node1', 1000, interval_seconds))
-            storage.storage_driver.delete_object.assert_called_once_with(below)
+            storage.storage_driver.delete_objects.assert_called_once_with([below])
 
     def test_purge_commitlogs_lists_only_node_prefix(self):
         storage = self._commitlog_storage([])
