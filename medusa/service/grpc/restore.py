@@ -94,13 +94,24 @@ def resolve_node_address(mapping: dict, config) -> str:
     return config.storage.fqdn
 
 
+def get_pitr_mapping(mapping: dict | None) -> dict | None:
+    """Return the optional PITR block and reject a non-object value."""
+    if mapping is None or "pitr" not in mapping:
+        return None
+
+    pitr_mapping = mapping["pitr"]
+    if not isinstance(pitr_mapping, dict):
+        raise ValueError("The 'pitr' field in RESTORE_MAPPING must be a JSON object")
+    return pitr_mapping
+
+
 def restore_backup(in_place, config, backup_name=None, mapping=None) -> str:
-    is_pitr = mapping is not None and mapping.get("pitr") is not None
+    pitr_mapping = get_pitr_mapping(mapping)
     node_address = None
     if backup_name is None:
-        if is_pitr:
+        if pitr_mapping is not None:
             node_address = resolve_node_address(mapping, config)
-            node_backups = mapping.get("pitr").get("node_backups", {})
+            node_backups = pitr_mapping.get("node_backups", {})
 
             if node_address not in node_backups:
                 raise ValueError(f"No PITR base backup for node {node_address}")
@@ -128,7 +139,7 @@ def restore_backup(in_place, config, backup_name=None, mapping=None) -> str:
                                                  seeds, verify, keyspaces, tables, use_sstableloader)
                 return f"Finished restore of backup {backup_name}"
 
-    if is_pitr:
+    if pitr_mapping is not None:
         raise RuntimeError(f"Missing PITR base backup {backup_name} for node {node_address}")
     return f"Skipped restore of missing backup {backup_name}"
 

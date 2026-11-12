@@ -234,6 +234,17 @@ def test_restore_backup_accepts_positional_backup_name(config, restore_io):
     assert_sstable_restore(restore_io, config, 'explicit-base')
 
 
+@pytest.mark.parametrize('pitr', [None, []], ids=['null', 'array'])
+def test_restore_backup_rejects_non_object_pitr_block(monkeypatch, config, restore_io, pitr):
+    monkeypatch.setenv('BACKUP_NAME', 'env-backup')
+
+    with pytest.raises(ValueError, match="The 'pitr' field in RESTORE_MAPPING must be a JSON object"):
+        restore.restore_backup(True, config, mapping={'pitr': pitr})
+
+    restore_io.storage.assert_not_called()
+    restore_io.restore_node.assert_not_called()
+
+
 @pytest.mark.parametrize(
     'pod_name,pod_ip,fqdn',
     [

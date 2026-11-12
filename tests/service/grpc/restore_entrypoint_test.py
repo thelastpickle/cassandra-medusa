@@ -182,6 +182,17 @@ def test_entrypoint_skips_unmapped_remote_pod(monkeypatch, local_restore, pitr):
     assert 'POD_IP' not in os.environ
 
 
+def test_entrypoint_rejects_null_pitr_block(monkeypatch, local_restore):
+    local_restore.mapping['pitr'] = None
+    monkeypatch.setenv('BACKUP_NAME', 'legacy-backup')
+    monkeypatch.setenv('RESTORE_MAPPING', json.dumps(local_restore.mapping))
+
+    with pytest.raises(ValueError, match="The 'pitr' field in RESTORE_MAPPING must be a JSON object"):
+        run_restore_entrypoint(monkeypatch, local_restore.config_path)
+
+    local_restore.restore_node.assert_not_called()
+
+
 def test_entrypoint_missing_pitr_assignment_does_not_restore_legacy_backup(monkeypatch, local_restore):
     mapping = local_restore.mapping
     del mapping['pitr']['node_backups']['node-0.example']
