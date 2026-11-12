@@ -25,7 +25,7 @@ Design doc reference: section 4.8.
 
 ### New module `medusa/service/grpc/pitr_restore.py`
 
-- Import `resolve_node_address` from `medusa.service.grpc.restore` (PITR-09). Do not redefine it.
+- Import `resolve_node_fqdn` from `medusa.service.grpc.restore` (PITR-09). Do not redefine it.
 - Add `main()`. It reads `sys.argv[1]` (config path) and `sys.argv[2]` (restore key). If `sys.argv[2]` is missing, use the `RESTORE_KEY` env var, or `""`.
 - Parse `RESTORE_MAPPING` first.
 - If `config.pitr.enabled` is false:
@@ -40,7 +40,7 @@ Design doc reference: section 4.8.
   - An empty `restore_key` MUST give `False`, even when the mapping has a `pitr` block.
 - If `is_pitr_restore` is `True`:
   - Read `target_timestamp_s` from `mapping["pitr"]`.
-  - Resolve `fqdn` with `resolve_node_address`.
+  - Resolve `fqdn` with `resolve_node_fqdn`.
   - Read `backup_name` from `mapping["pitr"]["node_backups"][fqdn]`.
   - Open `Storage(config=config.storage)` in a `with` block.
   - Load the base backup with `storage.get_node_backup(fqdn=fqdn, name=backup_name)`. Use `base_backup.started` as `after_snapshot_time_s` (lazy `snapshot_time` is not used for the lower bound; design doc 4.5).
@@ -98,7 +98,7 @@ Design doc reference: section 4.8.
 
 Mock `Storage`, the `medusa.pitr_restore` functions, and the filesystem (use `tmp_path`).
 
-- `resolve_node_address`:
+- `resolve_node_fqdn`:
   - `POD_NAME` in `host_map` returns `source[0]`.
   - `POD_NAME` not in `host_map` falls back to `POD_IP`.
   - No `POD_NAME` and no `POD_IP` falls back to `config.storage.fqdn`.

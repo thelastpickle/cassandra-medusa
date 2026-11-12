@@ -35,7 +35,7 @@ In point-in-time recovery restores, nodes in a cluster may restore from differen
     - Fallback to `os.environ["BACKUP_NAME"]` (guarantees backward compatibility for non-PITR restores).
   - Execute existing SSTable restore flow via `medusa.restore_node.restore_node()` with the resolved `backup_name`.
   - Move the FQDN rule into a module-level function in `restore.py`:
-    `def resolve_node_address(mapping: dict, config) -> str:` (same body as in design doc 4.8). `restore_backup()` calls it. PITR-10 imports it. Do not duplicate it.
+    `def resolve_node_fqdn(mapping: dict, config) -> str:` (same body as in design doc 4.8). `restore_backup()` calls it. PITR-10 imports it. Do not duplicate it.
   - If the resolved FQDN is not a key of `mapping["pitr"]["node_backups"]`, raise `ValueError(f"No PITR base backup for node {fqdn}")`. Do not fall back to `BACKUP_NAME`.
 - Update `__main__` entrypoint in `medusa/service/grpc/restore.py`:
   - Call `mapping_result = apply_mapping_env()`.
@@ -47,7 +47,7 @@ In point-in-time recovery restores, nodes in a cluster may restore from differen
   - Add test verifying `restore_backup` resolves `backup_name` from `mapping["pitr"]["node_backups"]` when `POD_NAME` is in `host_map`.
   - Add test verifying `restore_backup` resolves `backup_name` using `POD_IP` and `config.storage.fqdn` fallbacks.
   - Add test verifying `restore_backup` falls back to `os.environ["BACKUP_NAME"]` when no PITR block is present.
-  - `restore_backup` raises `ValueError` when the FQDN is missing from `node_backups`; add test for `resolve_node_address` (three cases).
+  - `restore_backup` raises `ValueError` when the FQDN is missing from `node_backups`; add test for `resolve_node_fqdn` (three cases).
 
 ## Definition of Done (Acceptance Criteria)
 > How will we know we did the work right?
@@ -57,7 +57,7 @@ Plain-English deliverables and verification checklist:
 - [ ] `restore_backup()` supports `backup_name` and `mapping` parameters.
 - [ ] FQDN resolution handles `POD_NAME` / `host_map`, `POD_IP`, and `config.storage.fqdn`.
 - [ ] Non-PITR backward compatibility with `BACKUP_NAME` env var verified.
-- [ ] resolve_node_address is defined once in restore.py.
+- [ ] resolve_node_fqdn is defined once in restore.py.
 - [ ] Unit test coverage in `tests/service/grpc/restore_test.py` >= 80% for new logic.
 - [ ] Linters and CI pass cleanly.
 
