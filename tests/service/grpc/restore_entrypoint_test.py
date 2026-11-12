@@ -34,7 +34,8 @@ from medusa.storage import NodeBackup, Storage
 @pytest.fixture
 def local_restore(tmp_path, monkeypatch):
     for name in ('POD_IP', 'POD_NAME', 'RESTORE_MAPPING', 'BACKUP_NAME', 'MEDUSA_TMP_DIR'):
-        monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv(name, '')
+        monkeypatch.delenv(name)
 
     config_path = tmp_path / 'medusa.ini'
     config_path.write_text(
