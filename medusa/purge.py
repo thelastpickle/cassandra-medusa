@@ -205,7 +205,10 @@ def purge_commitlogs(storage, fqdn, oldest_kept_pitr_start, interval_seconds):
     Deletes archived commitlog segments of fqdn whose last_modified is strictly below
     oldest_kept_pitr_start - interval_seconds - 30, and returns how many were deleted.
     The anchor is the smallest started of the PITR-capable backups purge keeps for this node, so every segment
-    the oldest kept backup may replay stays. The archiver interval covers upload lag, the 30 s cover clock skew.
+    the oldest kept backup may replay stays. The interval_seconds + 30 margin guards against clock skew between
+    the node, which stamps started, and the storage backend, which stamps last_modified: a late upload only makes
+    last_modified later, which is already safe, but a backend clock running behind the node's could stamp a
+    needed segment earlier than started.
     Only blob.last_modified is used (file names are never parsed) and only this node's prefix is listed.
     """
     purge_threshold = oldest_kept_pitr_start - interval_seconds - 30
