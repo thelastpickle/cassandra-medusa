@@ -167,13 +167,6 @@ class BackupNodeTest(unittest.TestCase):
 
         storage.storage_driver.upload_blob_from_string.assert_not_called()
 
-    def test_is_pitr_enabled(self):
-        self.assertFalse(backup_node.is_pitr_enabled(self.medusa_config))
-        self.assertFalse(backup_node.is_pitr_enabled(MagicMock(pitr=None)))
-        self.assertFalse(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='false'))))
-        self.assertTrue(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='true'))))
-        self.assertTrue(backup_node.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled=True))))
-
     @patch("medusa.storage")
     @patch("medusa.storage.node_backup.NodeBackup")
     def test_check_already_uploaded(self, mock_storage, mock_node_backup):

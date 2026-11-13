@@ -22,6 +22,7 @@ import traceback
 from datetime import datetime, timedelta
 
 import medusa.utils
+from medusa.config import is_pitr_enabled
 from medusa.index import clean_backup_from_index
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
@@ -47,6 +48,16 @@ def main(config, max_backup_age=0, max_backup_count=0):
                 storage, backups_to_purge, config.storage.backup_grace_period_in_days, config.storage.fqdn
             )
             nb_objects_purged, total_purged_size, total_objects_within_grace = object_counts
+
+            if is_pitr_enabled(config):
+                kept_backups = [b for b in backups if b not in backups_to_purge]
+                oldest_kept_pitr_start = oldest_kept_pitr_backup_start(kept_backups)
+                if oldest_kept_pitr_start is None:
+                    logging.info('No kept backup of {} has a snapshot time, not purging commitlogs'
+                                 .format(config.storage.fqdn))
+                else:
+                    purge_commitlogs(storage, config.storage.fqdn, oldest_kept_pitr_start,
+                                     int(config.pitr.commitlog_archive_interval_seconds))
 
             logging.debug('Emitting metrics')
             tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
@@ -177,6 +188,41 @@ def get_file_paths_from_storage(storage, fqdn):
     }
 
     return data_files
+
+
+def oldest_kept_pitr_backup_start(backups):
+    """
+    Commitlog retention anchor: smallest started of the kept PITR-capable backups (those with a snapshot_time),
+    None when there is none (pre-PITR). Restore replays segments from base_backup.started, not snapshot_time:
+    snapshot_time is the latest per-table snapshot mtime, so writes to early-flushed tables made before it are
+    only in the commitlogs.
+    """
+    return min((b.started for b in backups if b.snapshot_time is not None), default=None)
+
+
+def purge_commitlogs(storage, fqdn, oldest_kept_pitr_start, interval_seconds):
+    """
+    Deletes archived commitlog segments of fqdn whose last_modified is strictly below
+    oldest_kept_pitr_start - interval_seconds - 30, and returns how many were deleted.
+    The anchor is the smallest started of the PITR-capable backups purge keeps for this node, so every segment
+    the oldest kept backup may replay stays. The interval_seconds + 30 margin guards against clock skew between
+    the node, which stamps started, and the storage backend, which stamps last_modified: a late upload only makes
+    last_modified later, which is already safe, but a backend clock running behind the node's could stamp a
+    needed segment earlier than started.
+    Only blob.last_modified is used (file names are never parsed) and only this node's prefix is listed.
+    """
+    purge_threshold = oldest_kept_pitr_start - interval_seconds - 30
+    commitlogs_path = "{}{}/commitlogs/".format(storage.prefix_path, fqdn)
+
+    expired_segments = [blob for blob in storage.storage_driver.list_objects(commitlogs_path)
+                        if storage.storage_driver.get_object_datetime(blob).timestamp() < purge_threshold]
+    for blob in expired_segments:
+        logging.debug("Purging commitlog segment {}".format(blob.name))
+    if expired_segments:
+        storage.storage_driver.delete_objects(expired_segments)
+
+    logging.info("Purged {} commitlog segments of {}".format(len(expired_segments), fqdn))
+    return len(expired_segments)
 
 
 def filter_files_within_gc_grace(storage, blobs, paths_in_storage, backup_grace_period_in_days):

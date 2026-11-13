@@ -106,6 +106,16 @@ DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 DEFAULT_GRPC_PORT = 50051
 
 
+def is_pitr_enabled(config):
+    """
+    PITR is off unless [pitr] enabled = true. A config without a [pitr] section/field counts as off.
+    """
+    pitr_config = getattr(config, 'pitr', None)
+    if pitr_config is None:
+        return False
+    return evaluate_boolean(getattr(pitr_config, 'enabled', False))
+
+
 def _build_default_config():
     """Build a INI config parser with default values
 

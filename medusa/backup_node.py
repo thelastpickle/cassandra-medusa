@@ -29,6 +29,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import medusa.utils
 from medusa.backup_manager import BackupMan
 from medusa.cassandra_utils import Cassandra
+from medusa.config import is_pitr_enabled
 from medusa.index import (
     add_backup_start_to_index,
     add_backup_finish_to_index,
@@ -226,16 +227,6 @@ def get_server_type_and_version(cassandra):
     with cassandra.new_session() as cql_session:
         server_type, release_version = cql_session.get_server_type_and_release_version()
     return server_type, release_version
-
-
-def is_pitr_enabled(config):
-    """
-    PITR is off unless [pitr] enabled = true. A config without a [pitr] section/field counts as off.
-    """
-    pitr_config = getattr(config, 'pitr', None)
-    if pitr_config is None:
-        return False
-    return medusa.utils.evaluate_boolean(getattr(pitr_config, 'enabled', False))
 
 
 def do_backup(cassandra, node_backup, storage, enable_md5_checks, md5_check_concurrency, backup_name,
