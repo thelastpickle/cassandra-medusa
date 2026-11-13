@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import base64
 import datetime
 import hashlib
@@ -509,6 +510,49 @@ class S3StorageTest(unittest.TestCase):
                     boto_config = mock_client.call_args.kwargs['config']
                     self.assertEqual('when_required', boto_config.request_checksum_calculation)
                     self.assertEqual('when_required', boto_config.response_checksum_validation)
+
+    def test_list_blobs_without_storage_class(self):
+        # Some S3-compatible stores omit StorageClass from ListObjectsV2 entries
+        with patch(BOTOCORE_HTTPSESSION_PATH, return_value=_make_instance_metadata_mock()):
+            with tempfile.NamedTemporaryFile() as empty_file:
+                config = AttributeDict({
+                    'storage_provider': 's3_compatible',
+                    'region': 'default',
+                    'key_file': empty_file.name,
+                    'api_profile': None,
+                    'kms_id': None,
+                    'sse_c_key': None,
+                    'transfer_max_bandwidth': None,
+                    'bucket_name': 'whatever-bucket',
+                    'secure': 'True',
+                    'ssl_verify': 'False',
+                    'host': 's3.example.com',
+                    'port': '443',
+                    'concurrent_transfers': '1',
+                    'multipart_chunksize': '5MB',
+                    'multipart_max_concurrency': '5',
+                    'multi_part_upload_threshold': str(20 * 1024 * 1024),
+                    's3_addressing_style': 'path'
+                })
+                s3_storage = S3BaseStorage(config)
+                last_modified = datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
+                s3_storage.s3_client = MagicMock()
+                paginator = s3_storage.s3_client.get_paginator.return_value
+                paginator.paginate.return_value.build_full_result.return_value = {
+                    'Contents': [
+                        {'Key': 'a/no-class', 'Size': 1, 'ETag': '"abc"', 'LastModified': last_modified},
+                        {'Key': 'a/standard', 'Size': 2, 'ETag': '"def"', 'LastModified': last_modified,
+                         'StorageClass': 'STANDARD'},
+                    ]
+                }
+
+                blobs = asyncio.run(s3_storage._list_blobs(prefix='a/'))
+
+                self.assertEqual(2, len(blobs))
+                self.assertEqual('a/no-class', blobs[0].name)
+                self.assertEqual('abc', blobs[0].hash)
+                self.assertIsNone(blobs[0].storage_class)
+                self.assertEqual('STANDARD', blobs[1].storage_class)
 
     def test_compare_with_manifest_matches_single_part(self):
         digest = hashlib.md5(b"some file content", usedforsecurity=False).digest()
