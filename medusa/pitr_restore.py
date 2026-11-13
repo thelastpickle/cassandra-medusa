@@ -33,6 +33,12 @@ from medusa.storage.node_backup import NodeBackup
 COMMITLOGS_FOLDER = 'commitlogs'
 RESTORE_COMMAND = '/bin/cp -f %from %to'
 
+# NodeBackup.snapshot_time is the snapshot directory mtime truncated to whole seconds (see
+# Cassandra.Snapshot.get_snapshot_time), so the real capture time lies in [snapshot_time, snapshot_time + 1).
+# Commitlog replay cannot undo writes that are already in the snapshot, so a backup is only safe as a base when
+# even the latest possible capture time, snapshot_time + SNAPSHOT_TIME_RESOLUTION_S, is not after the target.
+SNAPSHOT_TIME_RESOLUTION_S = 1
+
 
 def _valid_snapshot_time(node_backup: NodeBackup) -> t.Optional[t.Union[int, float]]:
     """
@@ -71,7 +77,12 @@ def _backups_with_snapshot_time(storage, fqdn: str) -> t.List[t.Tuple[t.Union[in
 
 def select_node_base_snapshot(storage, fqdn: str, target_timestamp_s: float) -> NodeBackup:
     """
-    Returns the node backup of fqdn with the latest snapshot_time <= target_timestamp_s.
+    Returns the node backup of fqdn with the latest snapshot_time such that
+    snapshot_time + SNAPSHOT_TIME_RESOLUTION_S <= target_timestamp_s.
+
+    snapshot_time is truncated to whole seconds, so the snapshot may really have been captured up to
+    SNAPSHOT_TIME_RESOLUTION_S later. A backup whose snapshot could have been captured after the target is ineligible,
+    because its SSTables could already contain writes past the target, which commitlog replay cannot undo.
 
     Backups without a snapshot_time (pre-PITR backups) are ineligible. We never fall back to `started`: it can be
     earlier than the target while the snapshot itself was finished after it, which would silently restore data
@@ -82,11 +93,12 @@ def select_node_base_snapshot(storage, fqdn: str, target_timestamp_s: float) -> 
     eligible = [
         (snapshot_time, node_backup)
         for snapshot_time, node_backup in _backups_with_snapshot_time(storage, fqdn)
-        if snapshot_time <= target_timestamp_s
+        if snapshot_time + SNAPSHOT_TIME_RESOLUTION_S <= target_timestamp_s
     ]
     if not eligible:
         raise ValueError(
-            'No backup of {} with a snapshot_time at or before {} was found'.format(fqdn, target_timestamp_s)
+            'No backup of {} with a snapshot_time at least {}s before {} was found'.format(
+                fqdn, SNAPSHOT_TIME_RESOLUTION_S, target_timestamp_s)
         )
     return max(eligible, key=lambda pair: pair[0])[1]
 

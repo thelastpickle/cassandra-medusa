@@ -81,9 +81,32 @@ class SelectNodeBaseSnapshotTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             select_node_base_snapshot(storage, FQDN, 250)
 
-    def test_backup_exactly_at_target_is_selected(self):
+    def test_backup_one_second_before_target_is_selected(self):
+        # snapshot_time is truncated to whole seconds: s + 1 is the earliest target for which s is safe
         b1, b2 = FakeNodeBackup('b1', 100), FakeNodeBackup('b2', 200)
-        self.assertIs(b2, select_node_base_snapshot(make_storage([b1, b2]), FQDN, 200.0))
+        self.assertIs(b2, select_node_base_snapshot(make_storage([b1, b2]), FQDN, 201.0))
+
+    def test_backup_less_than_one_second_before_target_is_not_selected(self):
+        b1, b2 = FakeNodeBackup('b1', 100), FakeNodeBackup('b2', 200)
+        self.assertIs(b1, select_node_base_snapshot(make_storage([b1, b2]), FQDN, 200.999))
+
+    def test_backup_exactly_at_target_is_not_selected(self):
+        # the snapshot may have been captured up to 1s after its recorded (truncated) snapshot_time
+        b1, b2 = FakeNodeBackup('b1', 100), FakeNodeBackup('b2', 200)
+        self.assertIs(b1, select_node_base_snapshot(make_storage([b1, b2]), FQDN, 200.0))
+
+    def test_snapshot_captured_after_target_within_the_same_second_is_not_selected(self):
+        # a snapshot captured at 12:07:00.850 is recorded as 12:07:00; a restore to 12:07:00.100 must not use it,
+        # because its SSTables already hold writes from 12:07:00.100 to 12:07:00.850
+        older = FakeNodeBackup('older', T - 3600)
+        same_second = FakeNodeBackup('same_second', T)
+        storage = make_storage([older, same_second])
+        self.assertIs(older, select_node_base_snapshot(storage, FQDN, T + 0.100))
+
+    def test_snapshot_captured_after_target_within_the_same_second_without_older_backup_raises(self):
+        storage = make_storage([FakeNodeBackup('same_second', T)])
+        with self.assertRaises(ValueError):
+            select_node_base_snapshot(storage, FQDN, T + 0.100)
 
     def test_snapshot_time_none_is_ignored_without_fallback_to_started(self):
         # started is far below the target, snapshot_time is None: must not be used as a proxy
