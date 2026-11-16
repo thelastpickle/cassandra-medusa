@@ -14,12 +14,14 @@
 import asyncio
 import concurrent
 import configparser
+import json
 import os
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
 
 import grpc
 from grpc import ServicerContext
@@ -28,7 +30,7 @@ from medusa.backup_manager import BackupMan
 from medusa.config import MedusaConfig, _namedtuple_from_dict, StorageConfig, CassandraConfig, PitrConfig
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc.commitlog_archiver import CommitLogArchiver
-from medusa.service.grpc.server import MedusaService, Server
+from medusa.service.grpc.server import MedusaService, Server, parse_target_timestamp
 from medusa.storage import Storage
 
 from tests.storage_test import make_node_backup, make_cluster_backup, make_unfinished_node_backup
@@ -499,6 +501,271 @@ class ServerTest(unittest.TestCase):
         context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         context.set_details.assert_called_once()
         self.assertIn('unexpected disk failure', context.set_details.call_args[0][0])
+
+    # ---- PreparePitrRestore ----
+
+    TARGET_ISO = '2024-07-15T12:30:00Z'
+    TARGET_S = 1721046600.0
+
+    @staticmethod
+    def _pitr_node_backup(fqdn, name, dc='dc1', snapshot_time=None):
+        node_backup = Mock()
+        node_backup.fqdn = fqdn
+        node_backup.name = name
+        node_backup.snapshot_time = snapshot_time
+        node_backup.tokenmap = json.dumps({fqdn: {'tokens': [1], 'dc': dc}})
+        return node_backup
+
+    @staticmethod
+    def _pitr_cluster_backup(started, nodes, complete=True):
+        cluster_backup = Mock()
+        cluster_backup.started = started
+        cluster_backup.is_complete.return_value = complete
+        cluster_backup.node_backups = {node.fqdn: node for node in nodes}
+        return cluster_backup
+
+    @staticmethod
+    def _select_named(name=None):
+        """A select_node_base_snapshot replacement that returns a backup named `name` or 'b-<fqdn>'."""
+        def select(storage, fqdn, target_timestamp_s):
+            backup = Mock()
+            backup.name = name or 'b-' + fqdn
+            return backup
+        return select
+
+    def _prepare_pitr_restore(self, target, cluster_backups, datacenter='', node_backups_by_fqdn=None, select=None):
+        """
+        Calls PreparePitrRestore against a mocked storage and returns (response, context, storage, select_mock).
+        select_node_base_snapshot is replaced by `select` when given, otherwise the real one runs on top of
+        node_backups_by_fqdn ({fqdn: [NodeBackup, ...]}).
+        """
+        storage = MagicMock()
+        storage.__enter__.return_value = storage
+        if isinstance(cluster_backups, Exception):
+            storage.list_cluster_backups.side_effect = cluster_backups
+        else:
+            storage.list_cluster_backups.return_value = cluster_backups
+        node_backups_by_fqdn = node_backups_by_fqdn or {}
+        storage.list_node_backups.side_effect = lambda fqdn=None: node_backups_by_fqdn.get(fqdn, [])
+
+        service = MedusaService(self._make_config())
+        request = medusa_pb2.PreparePitrRestoreRequest(targetTimestamp=target, datacenter=datacenter)
+        context = Mock(spec=ServicerContext)
+        select_mock = Mock(side_effect=select) if select is not None else None
+        with patch('medusa.service.grpc.server.Storage', return_value=storage):
+            if select_mock is None:
+                response = service.PreparePitrRestore(request, context)
+            else:
+                with patch('medusa.service.grpc.server.select_node_base_snapshot', select_mock):
+                    response = service.PreparePitrRestore(request, context)
+        return response, context, storage, select_mock
+
+    def _assert_pitr_failed(self, response, context):
+        self.assertEqual(medusa_pb2.StatusType.FAILED, response.status)
+        self.assertEqual({}, dict(response.nodeBaseBackups))
+        self.assertEqual(0.0, response.targetTimestamp)
+        context.set_code.assert_not_called()
+
+    def _three_node_cluster(self, started=100, dc='dc1'):
+        nodes = [self._pitr_node_backup(fqdn, 'full', dc) for fqdn in ('node1', 'node2', 'node3')]
+        return [self._pitr_cluster_backup(started, nodes)]
+
+    def test_prepare_pitr_restore_iso_utc_and_epoch_success(self):
+        for target in (self.TARGET_ISO, '2024-07-15T12:30:00+00:00', '2024-07-15T12:30:00',
+                       '1721046600', '1721046600.0'):
+            with self.subTest(target=target):
+                response, context, _, _ = self._prepare_pitr_restore(
+                    target, self._three_node_cluster(), select=self._select_named())
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+                self.assertEqual({'node1': 'b-node1', 'node2': 'b-node2', 'node3': 'b-node3'},
+                                 dict(response.nodeBaseBackups))
+                self.assertEqual(self.TARGET_S, response.targetTimestamp)
+                context.set_code.assert_not_called()
+
+    def test_prepare_pitr_restore_converts_offset_to_utc(self):
+        response, _, _, _ = self._prepare_pitr_restore(
+            '2024-07-15T14:30:00+02:00', self._three_node_cluster(), select=self._select_named())
+        self.assertEqual(self.TARGET_S, response.targetTimestamp)
+
+    def test_prepare_pitr_restore_keeps_fractional_seconds(self):
+        for target in ('1721046600.5', '2024-07-15T12:30:00.500Z'):
+            with self.subTest(target=target):
+                response, _, _, _ = self._prepare_pitr_restore(
+                    target, self._three_node_cluster(), select=self._select_named())
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+                self.assertEqual(self.TARGET_S + 0.5, response.targetTimestamp)
+
+    def test_prepare_pitr_restore_invalid_timestamp_fails_without_touching_storage(self):
+        for target in ('', '   ', 'not-a-date', 'nan', 'inf', '-5', '1e3', '2024-13-45', '99999999999999999999'):
+            with self.subTest(target=target):
+                response, context, storage, _ = self._prepare_pitr_restore(target, self._three_node_cluster())
+                self._assert_pitr_failed(response, context)
+                storage.list_cluster_backups.assert_not_called()
+
+    def test_prepare_pitr_restore_fails_when_a_node_has_no_eligible_base_backup(self):
+        # SC5: node3 only has a backup taken after the target
+        backups = {
+            'node1': [self._pitr_node_backup('node1', 'full', snapshot_time=1721000000)],
+            'node2': [self._pitr_node_backup('node2', 'full', snapshot_time=1721000000)],
+            'node3': [self._pitr_node_backup('node3', 'late', snapshot_time=1721050000)],
+        }
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, self._three_node_cluster(), node_backups_by_fqdn=backups)
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_resolves_the_latest_eligible_backup_per_node(self):
+        backups = {
+            'node1': [self._pitr_node_backup('node1', 'old', snapshot_time=1720000000),
+                      self._pitr_node_backup('node1', 'new', snapshot_time=1721000000),
+                      self._pitr_node_backup('node1', 'late', snapshot_time=1721050000)],
+            'node2': [self._pitr_node_backup('node2', 'old', snapshot_time=1720000000)],
+            'node3': [self._pitr_node_backup('node3', 'new', snapshot_time=1721000000)],
+        }
+        response, _, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, self._three_node_cluster(), node_backups_by_fqdn=backups)
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        self.assertEqual({'node1': 'new', 'node2': 'old', 'node3': 'new'}, dict(response.nodeBaseBackups))
+
+    def test_prepare_pitr_restore_rejects_pre_pitr_backups(self):
+        # snapshot_time is None: there is no fallback to `started`
+        backups = {fqdn: [self._pitr_node_backup(fqdn, 'full', snapshot_time=None)]
+                   for fqdn in ('node1', 'node2', 'node3')}
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, self._three_node_cluster(), node_backups_by_fqdn=backups)
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_no_cluster_backup_fails(self):
+        response, context, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, [])
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_only_incomplete_cluster_backups_fails(self):
+        nodes = [self._pitr_node_backup('node1', 'full')]
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [self._pitr_cluster_backup(100, nodes, complete=False)])
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_ignores_node_only_in_older_backup(self):
+        old = self._pitr_cluster_backup(100, [self._pitr_node_backup(f, 'old') for f in ('node1', 'node2', 'node3')])
+        new = self._pitr_cluster_backup(200, [self._pitr_node_backup(f, 'new') for f in ('node1', 'node2')])
+        response, _, _, select_mock = self._prepare_pitr_restore(
+            self.TARGET_ISO, [old, new], select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        self.assertEqual({'node1', 'node2'}, set(response.nodeBaseBackups))
+        self.assertEqual(2, select_mock.call_count)
+
+    def test_prepare_pitr_restore_uses_newest_complete_backup_not_newest_incomplete(self):
+        complete = self._pitr_cluster_backup(100, [self._pitr_node_backup(f, 'c') for f in ('node1', 'node2')])
+        incomplete = self._pitr_cluster_backup(
+            300, [self._pitr_node_backup(f, 'i') for f in ('node1', 'node2', 'node9')], complete=False)
+        response, _, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [incomplete, complete], select=self._select_named())
+        self.assertEqual({'node1', 'node2'}, set(response.nodeBaseBackups))
+
+    def test_prepare_pitr_restore_filters_nodes_by_datacenter(self):
+        nodes = [self._pitr_node_backup('node1', 'full', 'dc1'), self._pitr_node_backup('node2', 'full', 'dc2'),
+                 self._pitr_node_backup('node3', 'full', 'dc2')]
+        response, _, _, select_mock = self._prepare_pitr_restore(
+            self.TARGET_ISO, [self._pitr_cluster_backup(100, nodes)], datacenter='dc2', select=self._select_named())
+        self.assertEqual({'node2': 'b-node2', 'node3': 'b-node3'}, dict(response.nodeBaseBackups))
+        self.assertEqual(['node2', 'node3'], [call.args[1] for call in select_mock.call_args_list])
+
+    def test_prepare_pitr_restore_datacenter_uses_newest_backup_that_has_nodes_in_it(self):
+        dc1_only = self._pitr_cluster_backup(300, [self._pitr_node_backup('node1', 'new', 'dc1')])
+        both = self._pitr_cluster_backup(
+            200, [self._pitr_node_backup('node1', 'old', 'dc1'), self._pitr_node_backup('node2', 'old', 'dc2')])
+        response, _, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [dc1_only, both], datacenter='dc2', select=self._select_named())
+        self.assertEqual({'node2'}, set(response.nodeBaseBackups))
+
+    def test_prepare_pitr_restore_unknown_datacenter_fails(self):
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, self._three_node_cluster(), datacenter='dcX')
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_tokenmap_without_dc_does_not_match_a_datacenter(self):
+        node = self._pitr_node_backup('node1', 'full')
+        node.tokenmap = json.dumps({'node1': {'tokens': [1]}})
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [self._pitr_cluster_backup(100, [node])], datacenter='dc1')
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_without_datacenter_does_not_read_node_tokenmaps(self):
+        cluster = self._three_node_cluster()
+        for node in cluster[0].node_backups.values():
+            type(node).tokenmap = PropertyMock(side_effect=AssertionError('tokenmap must not be read'))
+        response, _, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, cluster, select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+
+    def test_prepare_pitr_restore_unexpected_exception_in_selection_sets_internal(self):
+        def failing_select(storage, fqdn, target_timestamp_s):
+            raise RuntimeError('storage down')
+
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, self._three_node_cluster(), select=failing_select)
+        self.assertEqual(medusa_pb2.StatusType.FAILED, response.status)
+        self.assertEqual({}, dict(response.nodeBaseBackups))
+        context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+        self.assertIn('storage down', context.set_details.call_args[0][0])
+
+    def test_prepare_pitr_restore_unexpected_exception_in_listing_sets_internal(self):
+        response, context, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, RuntimeError('storage down'))
+        self.assertEqual(medusa_pb2.StatusType.FAILED, response.status)
+        self.assertEqual({}, dict(response.nodeBaseBackups))
+        context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+        self.assertIn('storage down', context.set_details.call_args[0][0])
+
+    def test_prepare_pitr_restore_unreadable_cluster_backup_is_not_skipped(self):
+        broken = self._pitr_cluster_backup(300, [self._pitr_node_backup('node1', 'x')])
+        broken.is_complete.side_effect = ValueError('broken tokenmap')
+        good = self._pitr_cluster_backup(100, [self._pitr_node_backup('node1', 'ok')])
+        response, context, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [broken, good], select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.FAILED, response.status)
+        context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+
+    def test_prepare_pitr_restore_is_read_only(self):
+        with patch('builtins.open') as mock_open, patch('os.makedirs') as mock_makedirs:
+            response, _, storage, _ = self._prepare_pitr_restore(
+                self.TARGET_ISO, self._three_node_cluster(), select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        mock_open.assert_not_called()
+        mock_makedirs.assert_not_called()
+        driver = storage.storage_driver
+        for method in ('list_objects', 'upload_blobs', 'upload_blob_from_string', 'download_blobs', 'delete_object'):
+            getattr(driver, method).assert_not_called()
+
+    def test_parse_target_timestamp(self):
+        accepted = {
+            '1721046600': 1721046600.0,
+            ' 1721046600.25 ': 1721046600.25,
+            '0': 0.0,
+            '2024-07-15T12:30:00Z': 1721046600.0,
+            '2024-07-15T12:30:00+00:00': 1721046600.0,
+            '2024-07-15T12:30:00': 1721046600.0,
+            '2024-07-15T12:30:00.001Z': 1721046600.001,
+            '2024-07-15T14:30:00+02:00': 1721046600.0,
+            '2024-07-15T07:30:00-05:00': 1721046600.0,
+        }
+        for raw, expected in accepted.items():
+            with self.subTest(raw=raw):
+                self.assertAlmostEqual(expected, parse_target_timestamp(raw), places=6)
+        for raw in ('', None, 'abc', 'nan', 'inf', '-1', '1e3', '1_000', '2024-13-45', '99999999999999999999'):
+            with self.subTest(raw=raw):
+                with self.assertRaises(ValueError):
+                    parse_target_timestamp(raw)
+
+    def test_parse_target_timestamp_naive_iso_is_utc_regardless_of_local_timezone(self):
+        original_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'Asia/Kolkata'
+        time.tzset()
+        try:
+            self.assertEqual(self.TARGET_S, parse_target_timestamp('2024-07-15T12:30:00'))
+        finally:
+            if original_tz is None:
+                del os.environ['TZ']
+            else:
+                os.environ['TZ'] = original_tz
+            time.tzset()
 
     def _write_temp_ini(self, pitr_enabled='false'):
         f = tempfile.NamedTemporaryFile('w', delete=False)

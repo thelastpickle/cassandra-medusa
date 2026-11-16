@@ -17,11 +17,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from collections import defaultdict
 from concurrent import futures
 from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import grpc
@@ -34,6 +35,7 @@ from medusa import purge
 from medusa.backup_manager import BackupMan
 from medusa.config import load_config
 from medusa.listing import get_backups
+from medusa.pitr_restore import select_node_base_snapshot
 from medusa.purge import delete_backup
 from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
@@ -47,6 +49,7 @@ BACKUP_MODE_DIFFERENTIAL = "differential"
 BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
+EPOCH_TIMESTAMP_PATTERN = re.compile(r'^\d+(\.\d+)?$')
 
 
 class Server:
@@ -399,6 +402,91 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Failed to get commitlog archive status: {}".format(e))
         return response
+
+    def PreparePitrRestore(self, request, context):
+        logging.info("Preparing PITR restore to {} (datacenter: {})".format(
+            request.targetTimestamp, request.datacenter or "<all>"))
+        response = medusa_pb2.PreparePitrRestoreResponse()
+        # explicit, because the proto default (IN_PROGRESS) would mislead on every failure path
+        response.status = medusa_pb2.StatusType.FAILED
+        try:
+            try:
+                target_timestamp_s = parse_target_timestamp(request.targetTimestamp)
+            except ValueError as e:
+                logging.error("Invalid PITR target timestamp '{}': {}".format(request.targetTimestamp, e))
+                return response
+
+            with Storage(config=self.storage_config) as connected_storage:
+                fqdns = _pitr_node_fqdns(connected_storage, request.datacenter)
+                if not fqdns:
+                    logging.error("No complete cluster backup found for PITR restore (datacenter: {})".format(
+                        request.datacenter or "<all>"))
+                    return response
+
+                node_base_backups = {}
+                for fqdn in fqdns:
+                    try:
+                        node_base_backups[fqdn] = select_node_base_snapshot(
+                            connected_storage, fqdn, target_timestamp_s).name
+                    except ValueError as e:
+                        # fail fast, before the operator restarts or wipes any pod
+                        logging.error("Cannot restore {} to {}: {}".format(fqdn, target_timestamp_s, e))
+                        return response
+
+            response.nodeBaseBackups.update(node_base_backups)
+            response.targetTimestamp = target_timestamp_s
+            response.status = medusa_pb2.StatusType.SUCCESS
+        except Exception as e:
+            response.status = medusa_pb2.StatusType.FAILED
+            context.set_details("Failed to prepare PITR restore: {}".format(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            logging.exception("Failed to prepare PITR restore to {}".format(request.targetTimestamp))
+        return response
+
+
+def parse_target_timestamp(raw):
+    """
+    Parses a PITR target timestamp into a UTC epoch float. Accepts an epoch in seconds ('1721000000', '1721000000.5')
+    or an ISO-8601 string. An ISO-8601 string without an explicit offset is treated as UTC.
+
+    :raises ValueError: if the timestamp cannot be parsed
+    """
+    value = (raw or '').strip()
+    if not value:
+        raise ValueError('empty target timestamp')
+    try:
+        if EPOCH_TIMESTAMP_PATTERN.match(value):
+            timestamp = float(value)
+        else:
+            moment = datetime.fromisoformat(value)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=timezone.utc)
+            timestamp = moment.timestamp()
+        # make sure the value is representable as a date, it gets formatted as one later on
+        datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    except (OverflowError, OSError) as e:
+        raise ValueError('target timestamp out of range: {}'.format(value)) from e
+    return timestamp
+
+
+def _node_datacenter(node_backup):
+    return json.loads(node_backup.tokenmap).get(node_backup.fqdn, {}).get('dc')
+
+
+def _pitr_node_fqdns(storage, datacenter):
+    """
+    FQDNs of the nodes to restore: the node_backups keys of the newest complete cluster backup, limited to the nodes of
+    the datacenter if one is given. The datacenter is read from each node's own tokenmap, because a cluster backup can
+    hold the node backups of several datacenters. Returns an empty list if there is no such backup.
+    """
+    complete_backups = [cluster_backup for cluster_backup in storage.list_cluster_backups()
+                        if cluster_backup.is_complete()]
+    for cluster_backup in sorted(complete_backups, key=lambda cluster_backup: cluster_backup.started, reverse=True):
+        fqdns = [fqdn for fqdn, node_backup in cluster_backup.node_backups.items()
+                 if not datacenter or _node_datacenter(node_backup) == datacenter]
+        if fqdns:
+            return sorted(fqdns)
+    return []
 
 
 def set_overall_status(get_backups_response):
