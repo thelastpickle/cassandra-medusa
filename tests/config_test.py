@@ -16,7 +16,7 @@
 import os
 import pathlib
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import socket
 import tempfile
 
@@ -310,6 +310,13 @@ class ConfigTest(unittest.TestCase):
             medusa.config.load_config(args, self.medusa_config_file)
         self.assertEqual(cm.exception.code, 2)
         mock_log_error.assert_called_with('Required configuration "prefix" cannot contain a slash ("/")')
+
+    def test_is_pitr_enabled(self):
+        self.assertFalse(medusa.config.is_pitr_enabled(MagicMock(spec=[])))  # no pitr field at all
+        self.assertFalse(medusa.config.is_pitr_enabled(MagicMock(pitr=None)))
+        self.assertFalse(medusa.config.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='false'))))
+        self.assertTrue(medusa.config.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled='true'))))
+        self.assertTrue(medusa.config.is_pitr_enabled(MagicMock(pitr=MagicMock(enabled=True))))
 
 
 if __name__ == '__main__':
