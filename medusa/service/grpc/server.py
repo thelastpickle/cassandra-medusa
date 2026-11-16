@@ -407,13 +407,12 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
         logging.info("Preparing PITR restore to {} (datacenter: {})".format(
             request.targetTimestamp, request.datacenter or "<all>"))
         response = medusa_pb2.PreparePitrRestoreResponse()
-        # explicit, because the proto default (IN_PROGRESS) would mislead on every failure path
         response.status = medusa_pb2.StatusType.FAILED
         try:
             try:
                 target_timestamp_s = parse_target_timestamp(request.targetTimestamp)
             except ValueError as e:
-                logging.error("Invalid PITR target timestamp '{}': {}".format(request.targetTimestamp, e))
+                logging.exception("Invalid PITR target timestamp '{}': {}".format(request.targetTimestamp, e))
                 return response
 
             with Storage(config=self.storage_config) as connected_storage:
@@ -430,7 +429,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                             connected_storage, fqdn, target_timestamp_s).name
                     except ValueError as e:
                         # fail fast, before the operator restarts or wipes any pod
-                        logging.error("Cannot restore {} to {}: {}".format(fqdn, target_timestamp_s, e))
+                        logging.exception("Cannot restore {} to {}: {}".format(fqdn, target_timestamp_s, e))
                         return response
 
             response.nodeBaseBackups.update(node_base_backups)
