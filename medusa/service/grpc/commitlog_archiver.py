@@ -27,6 +27,15 @@ from medusa.storage import Storage
 from medusa.storage.abstract_storage import AbstractStorage, ManifestObject
 from medusa.utils import evaluate_boolean
 
+
+def _describe(e):
+    """
+    Never empty, so it can serve as an error flag: str() of some exceptions is '' (TimeoutError(), for example),
+    which would make a failed tick look successful.
+    """
+    return str(e) or type(e).__name__
+
+
 # error is '' when every listed segment was archived (or a stop was requested), otherwise it describes the
 # segment that failed and ended the tick. stopped is True when a stop request ended the drain early.
 DrainResult = collections.namedtuple('DrainResult', ['uploaded', 'skipped', 'uploaded_bytes', 'error', 'stopped'],
@@ -144,7 +153,7 @@ class CommitLogArchiver(threading.Thread):
             error = result.error
         except Exception as e:
             logging.exception('Commitlog archiver tick failed: {}'.format(e))
-            result, error = None, str(e)
+            result, error = None, _describe(e)
 
         now = time.time()
         with self._lock:
@@ -235,7 +244,7 @@ class CommitLogArchiver(threading.Thread):
                     logging.exception('Failed to archive commitlog segment {}, {} file(s) left in the spool'.format(
                         name, len(names) - i))
                     return DrainResult(uploaded, skipped, uploaded_bytes,
-                                       'Failed to archive commitlog segment {}: {}'.format(name, e))
+                                       'Failed to archive commitlog segment {}: {}'.format(name, _describe(e)))
         return DrainResult(uploaded, skipped, uploaded_bytes)
 
     def stop(self):
@@ -250,7 +259,7 @@ class CommitLogArchiver(threading.Thread):
             pending, oldest_mtime = self._scan_spool()
             listing_error = ''
         except OSError as e:
-            listing_error = str(e)
+            listing_error = _describe(e)
             logging.warning('Cannot read commitlog spool directory {}: {}'.format(self._spool_dir, e))
 
         now = time.time()

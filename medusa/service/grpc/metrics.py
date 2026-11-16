@@ -23,6 +23,7 @@ import collections
 import logging
 import socket
 import ssl
+import sys
 import threading
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
@@ -138,6 +139,15 @@ class _MetricsServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
     block_on_close = False
     ssl_context = None
+
+    def handle_error(self, request, client_address):
+        # A peer that resets the connection or stays idle past the timeout (probes, scanners, half-open
+        # connections) is not a server error: socketserver would print a traceback to stderr for it.
+        error = sys.exc_info()[1]
+        if isinstance(error, OSError):
+            logging.debug('Metrics connection from {} ended: {!r}'.format(client_address, error))
+            return
+        logging.exception('Error while serving metrics to {}'.format(client_address))
 
     def finish_request(self, request, client_address):
         if self.ssl_context is None:

@@ -493,16 +493,41 @@ class CommitLogArchiverTest(unittest.TestCase):
         self.assertEqual(len(b'segment') + 4, status['uploaded_bytes'])
 
     def test_run_once_counts_error_when_storage_cannot_be_opened(self):
+        # str(TimeoutError()) is '': the tick must still count as an error, with a non-empty last_error
+        for error, expected in ((Exception('no storage'), 'no storage'), (TimeoutError(), 'TimeoutError')):
+            with self.subTest(error=repr(error)):
+                self._write_spool('a.log')
+                archiver = self._make_archiver()
+                with patch(MODULE + '.Storage', side_effect=error):
+                    archiver._run_once()
+                status = archiver.status()
+                self.assertEqual(1, status['ticks_error'])
+                self.assertEqual(0, status['ticks_success'])
+                self.assertEqual(0, status['last_success_time'])
+                self.assertGreater(status['last_progress_time'], 0)
+                self.assertEqual(expected, status['last_error'])
+
+    def test_run_once_segment_error_with_empty_message_is_named(self):
+        driver = self._mock_storage()
+        driver.get_object.return_value = None
+        driver.upload_blobs.side_effect = TimeoutError()
         self._write_spool('a.log')
         archiver = self._make_archiver()
-        with patch(MODULE + '.Storage', side_effect=Exception('no storage')):
-            archiver._run_once()
+
+        archiver._run_once()
+
         status = archiver.status()
         self.assertEqual(1, status['ticks_error'])
-        self.assertEqual(0, status['ticks_success'])
-        self.assertEqual(0, status['last_success_time'])
-        self.assertGreater(status['last_progress_time'], 0)
-        self.assertEqual('no storage', status['last_error'])
+        self.assertEqual('Failed to archive commitlog segment a.log: TimeoutError', status['last_error'])
+
+    def test_status_listing_error_with_empty_message_is_reported(self):
+        self._write_spool('a.log')
+        archiver = self._make_archiver()
+        archiver.status()
+        with patch(MODULE + '.os.scandir', side_effect=OSError()):
+            status = archiver.status()
+        self.assertEqual('OSError', status['spool_listing_error'])
+        self.assertEqual(1, status['pending_count'])
 
     def test_run_once_counts_error_when_spool_cannot_be_listed(self):
         archiver = self._make_archiver()

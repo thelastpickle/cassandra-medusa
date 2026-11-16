@@ -13,14 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
+import io
 import socket
 import ssl
+import struct
 import tempfile
 import time
 import unittest
 import urllib.error
 import urllib.request
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from prometheus_client import CollectorRegistry, generate_latest
 from prometheus_client.parser import text_string_to_metric_families
@@ -284,6 +287,26 @@ class MetricsEndpointTlsTest(unittest.TestCase):
                     TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca))):
             with self.subTest(tls=tls):
                 self._assert_idle_connection_does_not_block(tls)
+
+    def test_reset_and_timed_out_connections_print_no_traceback(self):
+        stderr = io.StringIO()
+        with patch.object(metrics_module._QuietHandler, 'timeout', 0.3), contextlib.redirect_stderr(stderr):
+            for tls in (None, TlsSettings(str(self.files.server_cert), str(self.files.server_key), None)):
+                port = self._start(tls)
+                # part of a request line, then a reset (RST) instead of a clean close
+                reset = socket.create_connection(('127.0.0.1', port))
+                reset.sendall(b'GET /met')
+                reset.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+                reset.close()
+                # part of a request line, then idle past the timeout
+                with socket.create_connection(('127.0.0.1', port)) as idle:
+                    idle.sendall(b'GET /met')
+                    time.sleep(1)
+                # the endpoint still serves
+                scheme = 'http' if tls is None else 'https'
+                context = None if tls is None else self._client_context()
+                self.assertEqual(200, self._get(f'{scheme}://127.0.0.1:{port}/metrics', context)[0])
+        self.assertEqual('', stderr.getvalue())
 
     def test_mutual_tls_requires_a_client_certificate(self):
         port = self._start(TlsSettings(str(self.files.server_cert), str(self.files.server_key), str(self.files.ca)))
