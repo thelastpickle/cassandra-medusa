@@ -412,7 +412,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             try:
                 target_timestamp_s = parse_target_timestamp(request.targetTimestamp)
             except ValueError as e:
-                logging.exception("Invalid PITR target timestamp '{}': {}".format(request.targetTimestamp, e))
+                logging.error("Invalid PITR target timestamp '{}': {}".format(request.targetTimestamp, e))
                 return response
 
             with Storage(config=self.storage_config) as connected_storage:
@@ -429,7 +429,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                             connected_storage, fqdn, target_timestamp_s).name
                     except ValueError as e:
                         # fail fast, before the operator restarts or wipes any pod
-                        logging.exception("Cannot restore {} to {}: {}".format(fqdn, target_timestamp_s, e))
+                        logging.error("Cannot restore {} to {}: {}".format(fqdn, target_timestamp_s, e))
                         return response
 
             response.nodeBaseBackups.update(node_base_backups)
@@ -468,21 +468,29 @@ def parse_target_timestamp(raw):
     return timestamp
 
 
-def _node_datacenter(node_backup):
-    return json.loads(node_backup.tokenmap).get(node_backup.fqdn, {}).get('dc')
+def _cluster_backup_started(cluster_backup):
+    # Unlike ClusterBackup.started, this needs no storage access (ClusterBackup.started loads the tokenmap), so sorting
+    # all the cluster backups with it is cheap. The started timestamps come from the backup index.
+    return min(node_backup.started or 0 for node_backup in cluster_backup.node_backups.values())
 
 
 def _pitr_node_fqdns(storage, datacenter):
     """
     FQDNs of the nodes to restore: the node_backups keys of the newest complete cluster backup, limited to the nodes of
-    the datacenter if one is given. The datacenter is read from each node's own tokenmap, because a cluster backup can
-    hold the node backups of several datacenters. Returns an empty list if there is no such backup.
+    the datacenter if one is given (according to the tokenmap of the cluster backup). Returns an empty list if there is
+    no such backup.
+
+    The cluster backups are checked newest first, and only until the first usable one: is_complete() loads a tokenmap,
+    so it is not called for the older backups.
     """
-    complete_backups = [cluster_backup for cluster_backup in storage.list_cluster_backups()
-                        if cluster_backup.is_complete()]
-    for cluster_backup in sorted(complete_backups, key=lambda cluster_backup: cluster_backup.started, reverse=True):
-        fqdns = [fqdn for fqdn, node_backup in cluster_backup.node_backups.items()
-                 if not datacenter or _node_datacenter(node_backup) == datacenter]
+    for cluster_backup in sorted(storage.list_cluster_backups(), key=_cluster_backup_started, reverse=True):
+        if not cluster_backup.is_complete():
+            continue
+        if datacenter:
+            tokenmap = cluster_backup.tokenmap  # cached by is_complete()
+            fqdns = [fqdn for fqdn in cluster_backup.node_backups if tokenmap.get(fqdn, {}).get('dc') == datacenter]
+        else:
+            fqdns = list(cluster_backup.node_backups)
         if fqdns:
             return sorted(fqdns)
     return []

@@ -14,7 +14,6 @@
 import asyncio
 import concurrent
 import configparser
-import json
 import os
 import tempfile
 import time
@@ -513,15 +512,18 @@ class ServerTest(unittest.TestCase):
         node_backup.fqdn = fqdn
         node_backup.name = name
         node_backup.snapshot_time = snapshot_time
-        node_backup.tokenmap = json.dumps({fqdn: {'tokens': [1], 'dc': dc}})
+        node_backup.dc = dc
         return node_backup
 
     @staticmethod
     def _pitr_cluster_backup(started, nodes, complete=True):
         cluster_backup = Mock()
-        cluster_backup.started = started
         cluster_backup.is_complete.return_value = complete
         cluster_backup.node_backups = {node.fqdn: node for node in nodes}
+        # the started timestamps come from the index, the tokenmap is the one of the cluster backup
+        for node in nodes:
+            node.started = started
+        cluster_backup.tokenmap = {node.fqdn: {'tokens': [1], 'dc': node.dc} for node in nodes if node.dc}
         return cluster_backup
 
     @staticmethod
@@ -683,18 +685,46 @@ class ServerTest(unittest.TestCase):
         self._assert_pitr_failed(response, context)
 
     def test_prepare_pitr_restore_tokenmap_without_dc_does_not_match_a_datacenter(self):
-        node = self._pitr_node_backup('node1', 'full')
-        node.tokenmap = json.dumps({'node1': {'tokens': [1]}})
-        response, context, _, _ = self._prepare_pitr_restore(
-            self.TARGET_ISO, [self._pitr_cluster_backup(100, [node])], datacenter='dc1')
+        node = self._pitr_node_backup('node1', 'full', dc=None)
+        cluster_backup = self._pitr_cluster_backup(100, [node])
+        cluster_backup.tokenmap = {'node1': {'tokens': [1]}}
+        response, context, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, [cluster_backup], datacenter='dc1')
         self._assert_pitr_failed(response, context)
 
-    def test_prepare_pitr_restore_without_datacenter_does_not_read_node_tokenmaps(self):
+    def test_prepare_pitr_restore_node_missing_from_tokenmap_does_not_match_a_datacenter(self):
+        cluster_backup = self._pitr_cluster_backup(100, [self._pitr_node_backup('node1', 'full')])
+        cluster_backup.tokenmap = {}
+        response, context, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, [cluster_backup], datacenter='dc1')
+        self._assert_pitr_failed(response, context)
+
+    def test_prepare_pitr_restore_checks_completeness_newest_first_and_stops_at_first_hit(self):
+        oldest = self._pitr_cluster_backup(100, [self._pitr_node_backup('node1', 'oldest')])
+        newest = self._pitr_cluster_backup(300, [self._pitr_node_backup('node1', 'newest')])
+        middle = self._pitr_cluster_backup(200, [self._pitr_node_backup('node1', 'middle')])
+        response, _, _, _ = self._prepare_pitr_restore(
+            self.TARGET_ISO, [oldest, newest, middle], select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        newest.is_complete.assert_called_once()
+        middle.is_complete.assert_not_called()
+        oldest.is_complete.assert_not_called()
+
+    def test_prepare_pitr_restore_falls_back_to_older_backup_when_newest_is_incomplete(self):
+        oldest = self._pitr_cluster_backup(100, [self._pitr_node_backup('node1', 'oldest')])
+        newest = self._pitr_cluster_backup(300, [self._pitr_node_backup('node1', 'newest')], complete=False)
+        response, _, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, [oldest, newest], select=self._select_named())
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        newest.is_complete.assert_called_once()
+        oldest.is_complete.assert_called_once()
+
+    def test_prepare_pitr_restore_does_not_read_node_tokenmaps(self):
         cluster = self._three_node_cluster()
         for node in cluster[0].node_backups.values():
-            type(node).tokenmap = PropertyMock(side_effect=AssertionError('tokenmap must not be read'))
-        response, _, _, _ = self._prepare_pitr_restore(self.TARGET_ISO, cluster, select=self._select_named())
-        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+            type(node).tokenmap = PropertyMock(side_effect=AssertionError('node tokenmap must not be read'))
+        for datacenter in ('', 'dc1'):
+            with self.subTest(datacenter=datacenter):
+                response, _, _, _ = self._prepare_pitr_restore(
+                    self.TARGET_ISO, cluster, datacenter=datacenter, select=self._select_named())
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
 
     def test_prepare_pitr_restore_unexpected_exception_in_selection_sets_internal(self):
         def failing_select(storage, fqdn, target_timestamp_s):
