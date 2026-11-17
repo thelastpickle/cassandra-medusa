@@ -89,10 +89,12 @@ protobuf = "6.33.6"
 grpcio = "1.81.0"
 grpcio-health-checking = "1.81.0"
 grpcio-tools = "1.81.0"
+prometheus-client = "0.26.0"
 
 [tool.poetry.group.grpc-runtime.dependencies]
 grpcio = "1.81.0"
 grpcio-health-checking = "1.81.0"
+prometheus-client = "0.26.0"
 
 [tool.poetry.group.test.dependencies]
 behave = "1.2.6"
