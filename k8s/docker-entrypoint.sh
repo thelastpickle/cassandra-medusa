@@ -11,38 +11,49 @@ set -e
 echo "MEDUSA_MODE = $MEDUSA_MODE"
 
 restore() {
-    # The BACKUP_NAME and RESTORE_KEY env vars have to be set in order for a
-    # restore to be performed. BACKUP_NAME specifies the backup to restore.
-    # RESTORE_KEY is written out to a file after the restore completes. We
-    # compare the value in the file to RESTORE_KEY. We perform a restore if the
-    # the file does not exist or if the values differ.
-
     echo "Running Medusa in restore mode"
-    last_restore_file=/var/lib/cassandra/.last-restore
+    local last_restore_file=/var/lib/cassandra/.last-restore
+    local config_file=/etc/medusa/medusa.ini
+    local restore_key="${RESTORE_KEY:-}"
+    local restore_needed
 
-    if [ -z "$BACKUP_NAME" ]; then
-        echo "BACKUP_NAME env var not set, skipping restore operation"
-        exit 0
-    fi
+    # Let set -e abort initialization if the mapping is malformed.
+    restore_needed=$(poetry run python -c '
+import os
+import sys
 
-    if [ -z "$RESTORE_KEY" ]; then
-        echo "RESTORE_KEY env var not set, skipping restore operation"
-        exit 0
-    fi
+from medusa.pitr_restore import get_pitr_target_timestamp_s
+from medusa.service.grpc.pitr_restore import load_restore_mapping, pod_participates, read_last_restore_key
+from medusa.service.grpc.restore import get_pitr_mapping
 
-    if [ -a $last_restore_file ]; then
-      restore_key=`cat $last_restore_file`
-      echo "Last restore is $restore_key"
+last_restore_file, restore_key = sys.argv[1:]
+mapping = load_restore_mapping()
+pitr_mapping = get_pitr_mapping(mapping)
+restore_requested = (
+    restore_key != ""
+    and (bool(os.getenv("BACKUP_NAME")) or pitr_mapping is not None)
+    and pod_participates(mapping, os.getenv("POD_NAME"))
+)
+restore_needed = restore_requested and read_last_restore_key(last_restore_file) != restore_key
+if restore_needed and pitr_mapping is not None:
+    get_pitr_target_timestamp_s(pitr_mapping)
+print("true" if restore_needed else "false")
+' "$last_restore_file" "$restore_key")
+
+    if [ "$restore_needed" = true ]; then
+        echo "Restoring SSTable snapshot"
+        poetry run python -m medusa.service.grpc.restore "$config_file" "$restore_key"
     else
-      restore_key=""
+        echo "Skipping SSTable restore"
     fi
 
-    if [ "$restore_key" == "$RESTORE_KEY" ]; then
-        echo "Skipping restore operation"
-    else
-        echo "Restoring backup $BACKUP_NAME"
-        poetry run python -m medusa.service.grpc.restore "/etc/medusa/medusa.ini" $RESTORE_KEY
-        echo $RESTORE_KEY > $last_restore_file
+    # Refresh archiving settings even when this pod skips the SSTable restore.
+    echo "Configuring commitlog replay and archiving"
+    poetry run python -m medusa.service.grpc.pitr_restore "$config_file" "$restore_key"
+
+    # Record a new key only after both restore steps succeed, so failures can retry.
+    if [ "$restore_needed" = true ]; then
+        printf '%s\n' "$restore_key" > "$last_restore_file"
     fi
 }
 
