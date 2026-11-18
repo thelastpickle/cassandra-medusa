@@ -40,7 +40,7 @@ RUN microdnf install -y shadow-utils \
     && microdnf clean all
 
 # wget could happen in the build-phase
-RUN microdnf install -y python3 python3-setuptools wget jq findutils \
+RUN microdnf upgrade -y && microdnf install -y python3 python3-setuptools wget jq findutils \
     && microdnf clean all
 
 # Download the the latest grpc_health_probe binary build for the correct architecture
