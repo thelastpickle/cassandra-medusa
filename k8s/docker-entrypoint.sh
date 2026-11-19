@@ -12,7 +12,7 @@ echo "MEDUSA_MODE = $MEDUSA_MODE"
 
 restore() {
     echo "Running Medusa in restore mode"
-    local last_restore_file=/var/lib/cassandra/.last-restore
+    local last_restore_file="/var/lib/cassandra/.last-restore"
     local config_file=/etc/medusa/medusa.ini
     local restore_key="${RESTORE_KEY:-}"
     local restore_needed
@@ -54,7 +54,7 @@ print("true" if restore_needed else "false")
 
     # Refresh archiving settings even when this pod skips the SSTable restore.
     echo "Configuring commitlog replay and archiving"
-    poetry run python -m medusa.service.grpc.pitr_restore "$config_file" "$restore_key"
+    poetry run python -m medusa.service.grpc.pitr_restore "$config_file" "$restore_key" "$last_restore_file"
 
     # Record a new key only after both restore steps succeed, so failures can retry.
     if [[ "$restore_needed" = true ]]; then

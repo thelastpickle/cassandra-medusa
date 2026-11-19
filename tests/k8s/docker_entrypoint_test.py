@@ -35,16 +35,21 @@ fi
 if [[ "$3" == -c ]]; then
     exec "$TEST_PYTHON" "${@:3}"
 fi
-if [[ "$3" != -m || $# -ne 6 || "$5" != "$TEST_CONFIG_FILE" ]]; then
+if [[ "$3" != -m || "$5" != "$TEST_CONFIG_FILE" ]]; then
     exit 2
 fi
 case "$4" in
-    medusa.service.grpc.restore | medusa.service.grpc.pitr_restore) step="${4##*.}" ;;
+    medusa.service.grpc.restore)
+        [[ $# -eq 6 ]] || exit 2
+        step=restore ;;
+    medusa.service.grpc.pitr_restore)
+        [[ $# -eq 7 && "$7" == "$TEST_MARKER_FILE" ]] || exit 2
+        step=pitr_restore ;;
     *) exit 2 ;;
 esac
 marker=absent
-if [[ -f .last-restore ]]; then
-    marker=$(cat .last-restore)
+if [[ -f "$TEST_MARKER_FILE" ]]; then
+    marker=$(cat "$TEST_MARKER_FILE")
 fi
 printf '%s|%s|%s\n' "$step" "$6" "$marker" >> calls
 if [[ "$step" == "$TEST_FAIL_STEP" ]]; then
@@ -52,6 +57,8 @@ if [[ "$step" == "$TEST_FAIL_STEP" ]]; then
 fi
 if [[ "$step" == restore ]]; then
     printf 'base snapshot data\n' > "$TEST_DATA_FILE"
+elif [[ "$TEST_RUN_PITR" == true ]]; then
+    exec "$TEST_PYTHON" "${@:3}"
 fi
 """
 
@@ -68,20 +75,27 @@ def pitr_mapping():
 @pytest.fixture
 def restore_container(tmp_path):
     # Keep dispatch and set -e intact while redirecting mounted-volume paths to the test directory.
+    marker = tmp_path / 'restore marker'
+    staging = tmp_path / 'staging'
+    properties = tmp_path / 'commitlog_archiving.properties'
     config = tmp_path / 'medusa.ini'
     config.write_text(
         '[storage]\n'
         'storage_provider = local\n'
         'bucket_name = backups\n'
         'fqdn = source-0\n'
+        '[cassandra]\n'
+        f'config_file = {tmp_path / "cassandra.yaml"}\n'
         '[pitr]\n'
         'enabled = true\n'
+        f'commitlog_staging_dir = {staging}\n'
+        f'commitlog_spool_dir = {tmp_path / "spool"}\n'
     )
     data = tmp_path / 'table-data.db'
     data.write_bytes(b'existing table data')
     script = tmp_path / ENTRYPOINT.name
     script.write_text(
-        ENTRYPOINT.read_text().replace(f'/var/lib/cassandra/{MARKER}', MARKER)
+        ENTRYPOINT.read_text().replace(f'/var/lib/cassandra/{MARKER}', str(marker))
         .replace('/etc/medusa/medusa.ini', str(config))
     )
     stub = tmp_path / 'poetry'
@@ -103,6 +117,7 @@ def restore_container(tmp_path):
             'TEST_FAIL_STEP': fail_step,
             'TEST_CONFIG_FILE': str(config),
             'TEST_DATA_FILE': str(data),
+            'TEST_MARKER_FILE': str(marker),
             **restore_env,
         }
         result = subprocess.run(
@@ -111,7 +126,7 @@ def restore_container(tmp_path):
         steps = calls.read_text().splitlines() if calls.exists() else []
         return result, steps
 
-    return SimpleNamespace(run=run, marker=tmp_path / MARKER, config=config, data=data)
+    return SimpleNamespace(run=run, marker=marker, config=config, data=data, staging=staging, properties=properties)
 
 
 def test_docker_entrypoint_has_valid_bash_syntax():
@@ -154,6 +169,26 @@ def test_records_key_after_both_steps_and_still_runs_pitr_step_on_restart(
     assert new_job.returncode == 0, new_job.stderr
     assert new_job_steps == ['restore|restore-2|restore-1', 'pitr_restore|restore-2|restore-1']
     assert restore_container.marker.read_text().strip() == 'restore-2'
+
+
+def test_shell_and_python_share_completed_restore_marker(restore_container, pitr_mapping):
+    restore_container.marker.write_text('restore-2\n')
+    restore_container.staging.mkdir()
+    (restore_container.staging / 'stale.log').touch()
+    original_data = restore_container.data.read_bytes()
+
+    result, steps = restore_container.run(
+        RESTORE_KEY='restore-2', RESTORE_MAPPING=json.dumps(pitr_mapping), POD_NAME='target-0',
+        TEST_RUN_PITR='true',
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert steps == ['pitr_restore|restore-2|restore-2']
+    properties = dict(line.split('=', 1) for line in restore_container.properties.read_text().splitlines())
+    assert properties == {'archive_command': f'/bin/ln %path {restore_container.config.parent / "spool"}/%name'}
+    assert list(restore_container.staging.iterdir()) == []
+    assert restore_container.data.read_bytes() == original_data
+    assert restore_container.marker.read_text() == 'restore-2\n'
 
 
 @pytest.mark.parametrize(

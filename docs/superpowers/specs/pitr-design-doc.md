@@ -460,7 +460,7 @@ restore() {
     # 2. Always run: stage segments (if needed) and write commitlog_archiving.properties.
     #    This step reads .last-restore to decide if a PITR replay is due.
     echo "Configuring PITR and commitlog archiving settings"
-    poetry run python -m medusa.service.grpc.pitr_restore "/etc/medusa/medusa.ini" "$RESTORE_KEY"
+    poetry run python -m medusa.service.grpc.pitr_restore "/etc/medusa/medusa.ini" "$RESTORE_KEY" "$last_restore_file"
 
     # 3. Record the restore only after BOTH steps succeeded (set -e aborts earlier on failure).
     #    A crash in step 1 or 2 leaves the old key, so the next start re-runs both steps.
@@ -471,6 +471,8 @@ restore() {
 ```
 
 **`medusa.service.grpc.pitr_restore` execution logic:**
+
+The shell passes its completion-marker path as `sys.argv[3]`, so both steps use the same file. If omitted, the command defaults to `/var/lib/cassandra/.last-restore`.
 
 `resolve_node_fqdn` lives in `restore.py` and is shared with `restore_backup()`.
 
@@ -498,7 +500,7 @@ def main():
     # Always ensure staging directory is clean
     clean_staging_dir(config.pitr.commitlog_staging_dir)
 
-    last_restore_file = Path("/var/lib/cassandra/.last-restore")
+    last_restore_file = Path(sys.argv[3] if len(sys.argv) > 3 else "/var/lib/cassandra/.last-restore")
     last_restore_val = last_restore_file.read_text().strip() if last_restore_file.exists() else ""
 
     is_pitr_restore = "pitr" in mapping and restore_key and last_restore_val != restore_key

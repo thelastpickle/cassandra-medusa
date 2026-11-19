@@ -22,6 +22,7 @@ import sys
 import time
 from pathlib import Path
 
+from medusa.config import is_pitr_enabled
 from medusa.pitr_utils import (
     download_commitlog_segments,
     find_commitlog_segments,
@@ -31,7 +32,6 @@ from medusa.pitr_utils import (
 )
 from medusa.service.grpc.restore import configure_console_logging, create_config, get_pitr_mapping, resolve_node_address
 from medusa.storage import Storage
-from medusa.utils import evaluate_boolean
 
 
 def load_restore_mapping():
@@ -84,18 +84,19 @@ def stage_commitlogs(config, source_address, backup_name):
 def main():
     """Prepare the local commitlogs and properties before Cassandra starts."""
     if len(sys.argv) < 2:
-        logging.error("Usage: %s <config_file_path> [restore_key]", sys.argv[0])
+        logging.error("Usage: %s <config_file_path> [restore_key] [last_restore_file]", sys.argv[0])
         sys.exit(1)
 
     config_file_path = sys.argv[1]
     restore_key = sys.argv[2] if len(sys.argv) > 2 else os.getenv("RESTORE_KEY", "")
+    last_restore_file = sys.argv[3] if len(sys.argv) > 3 else "/var/lib/cassandra/.last-restore"
 
     mapping = load_restore_mapping()
     pitr_mapping = get_pitr_mapping(mapping)
     config = create_config(config_file_path)
     configure_console_logging(config.logging)
 
-    if not evaluate_boolean(config.pitr.enabled):
+    if not is_pitr_enabled(config):
         if pitr_mapping is not None:
             logging.error("PITR restore requested, but PITR is disabled")
             sys.exit(1)
@@ -110,7 +111,7 @@ def main():
         pass
     staging_dir.mkdir(parents=True)
 
-    last_restore_value = read_last_restore_key("/var/lib/cassandra/.last-restore")
+    last_restore_value = read_last_restore_key(last_restore_file)
     is_pitr_restore = bool(
         pitr_mapping is not None
         and restore_key

@@ -305,6 +305,32 @@ def test_skipped_replay_replaces_stale_properties_and_empties_staging(
     assert_no_storage_access(restore_io)
 
 
+@pytest.mark.parametrize('marker_key', [None, 'restore-1', RESTORE_KEY], ids=['absent', 'previous-job', 'completed-job'])
+def test_entrypoint_uses_marker_path_from_argument(entrypoint, files, restore_io, mapping, monkeypatch, marker_key):
+    custom_marker = files.ini.parent / 'custom restore marker'
+    marker_value = None if marker_key is None else f'  {marker_key}\n'
+    if marker_value is not None:
+        custom_marker.write_text(marker_value)
+    default_value = 'restore-1\n' if marker_key == RESTORE_KEY else f'{RESTORE_KEY}\n'
+    files.marker.write_text(default_value)
+    monkeypatch.setenv('RESTORE_MAPPING', json.dumps(mapping))
+    monkeypatch.setenv('POD_IP', '192.0.2.9')
+    monkeypatch.setattr(sys, 'argv', [ENTRYPOINT, str(files.ini), RESTORE_KEY, str(custom_marker)])
+    restore_io.find_next.return_value = None
+    restore_io.find_segments.return_value = []
+
+    entrypoint.main()
+
+    if marker_key == RESTORE_KEY:
+        assert_no_storage_access(restore_io)
+        assert read_properties(files.properties) == {'archive_command': archive_command(files)}
+    else:
+        restore_io.storage.get_node_backup.assert_called_once_with(fqdn='192.0.2.9', name='ip-backup')
+        assert 'restore_point_in_time' in read_properties(files.properties)
+    assert (custom_marker.read_text() if custom_marker.exists() else None) == marker_value
+    assert files.marker.read_text() == default_value
+
+
 @pytest.mark.parametrize('key_source', ['empty-argument', 'absent'])
 def test_empty_restore_key_is_boolean_false(
     entrypoint, files, restore_io, mapping, monkeypatch, key_source,
