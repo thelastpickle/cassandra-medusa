@@ -58,7 +58,12 @@ fi
 if [[ "$step" == restore ]]; then
     printf 'base snapshot data\n' > "$TEST_DATA_FILE"
 elif [[ "$TEST_RUN_PITR" == true ]]; then
-    exec "$TEST_PYTHON" "${@:3}"
+    exec "$TEST_PYTHON" -c '
+import sys
+from medusa.service.grpc.pitr_restore import main
+sys.argv = sys.argv[1:]
+main()
+' "${@:4}"
 fi
 """
 
@@ -102,7 +107,13 @@ def restore_container(tmp_path):
     stub.write_text(POETRY_STUB)
     stub.chmod(0o755)
     calls = tmp_path / 'calls'
-    python_paths = [str(REPO_ROOT)]
+    # Redirect the trusted Cassandra directory in the subprocess, too.
+    (tmp_path / 'sitecustomize.py').write_text(
+        'from pathlib import Path\n'
+        'from medusa.service.grpc import pitr_restore\n'
+        f'pitr_restore.LAST_RESTORE_DIR = Path({str(tmp_path)!r})\n'
+    )
+    python_paths = [str(tmp_path), str(REPO_ROOT)]
     if os.environ.get('PYTHONPATH'):
         python_paths.append(os.environ['PYTHONPATH'])
 

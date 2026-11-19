@@ -99,6 +99,7 @@ def files(tmp_path, monkeypatch, entrypoint):
         path = Path(*parts)
         return files.marker if path == LAST_RESTORE else path
 
+    monkeypatch.setattr(entrypoint, 'LAST_RESTORE_DIR', files.marker.parent)
     monkeypatch.setattr(entrypoint, 'Path', path_in_test_volume)
     monkeypatch.setattr(entrypoint, 'configure_console_logging', lambda config: None)
     return files
@@ -417,3 +418,19 @@ def test_active_restore_replays_to_operator_timestamp(
 
     restore_io.storage.get_node_backup.assert_called_once_with(fqdn='node1', name='backup1')
     assert read_properties(files.properties)['restore_point_in_time'] == expected_cutoff
+
+
+@pytest.mark.parametrize('kind', ['absolute', 'traversal', 'symlink'])
+def test_marker_outside_cassandra_directory_is_rejected(entrypoint, tmp_path, monkeypatch, kind):
+    allowed = tmp_path / 'cassandra'
+    allowed.mkdir()
+    outside = tmp_path / 'outside'
+    outside.write_text(RESTORE_KEY)
+    monkeypatch.setattr(entrypoint, 'LAST_RESTORE_DIR', allowed)
+    marker = outside if kind == 'absolute' else allowed / '..' / outside.name
+    if kind == 'symlink':
+        marker = allowed / '.last-restore'
+        marker.symlink_to(outside)
+
+    with pytest.raises(ValueError, match='Restore marker must be directly inside'):
+        entrypoint.read_last_restore_key(marker)

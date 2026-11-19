@@ -34,6 +34,9 @@ from medusa.service.grpc.restore import configure_console_logging, create_config
 from medusa.storage import Storage
 
 
+LAST_RESTORE_DIR = Path("/var/lib/cassandra")
+
+
 def load_restore_mapping():
     """Read the inline restore mapping shared by the shell and Python entrypoint."""
     mapping = json.loads(os.getenv("RESTORE_MAPPING", "{}"))
@@ -49,8 +52,11 @@ def pod_participates(mapping, pod_name):
 
 def read_last_restore_key(path):
     """Read the key recorded by the shell, if a restore has completed."""
+    path = Path(path).resolve()
+    if path.parent != LAST_RESTORE_DIR.resolve():
+        raise ValueError(f"Restore marker must be directly inside {LAST_RESTORE_DIR}")
     try:
-        return Path(path).read_text(encoding="utf-8").strip()
+        return path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         return ""
 
