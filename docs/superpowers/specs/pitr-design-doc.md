@@ -283,14 +283,15 @@ Timestamps are `0` until first set. `drain_spool()` stops at the first failing s
 | `find_next_backup` | `(storage, fqdn: str, base_backup: NodeBackup) -> NodeBackup \| None` | Returns the earliest node backup for `fqdn` whose `snapshot_time > base_backup.snapshot_time`, or `None` if no such backup exists. Used by `medusa.service.grpc.pitr_restore` to compute `upper_bound_s` for segment selection. |
 | `find_commitlog_segments` | `(storage: Storage, prefix_path: str, fqdn: str, after_snapshot_time_s: float, upper_bound_s: float, safety_margin_s: float = 30.0) -> List[AbstractBlob]` | All storage blobs for this node with `blob.last_modified ≥ (after_snapshot_time_s - safety_margin_s)` and `blob.last_modified ≤ upper_bound_s`; sorted ascending by filename. `after_snapshot_time_s` (lower bound; callers pass `base_backup.started`). `upper_bound_s` is required — callers must always pass a computed value (either `next_backup.snapshot_time + grace_period` or `time.time()`). |
 | `download_commitlog_segments` | `(storage: Storage, segments: List[AbstractBlob], destination_dir: Path \| str) -> None` | Downloads the list of commitlog segment blobs from object storage into `destination_dir`. Overwrites existing files with the same name. |
+| `parse_target_timestamp` | `(raw: str) -> float` | Shared timestamp parser for RPC preparation and initContainer replay. Converts the string to UTC epoch seconds, truncating downward to milliseconds before float conversion in both paths. |
 | `get_pitr_target_timestamp_s` | `(pitr_mapping: dict) -> float` | Parses the `target_timestamp` string from the operator's `pitr` block into epoch seconds, truncating to milliseconds. Missing or invalid values raise `ValueError`; numeric mapping values are not accepted. |
 | `generate_commitlog_archiving_properties` | `(archive_command: str, restore_directories: str \| None = None, target_timestamp_s: float \| None = None) -> str` | `commitlog_archiving.properties` file content. Always includes `archive_command`. When `restore_directories` and `target_timestamp_s` are provided, also appends `restore_directories`, `restore_command` and `restore_point_in_time` (formatted as `yyyy:MM:dd HH:mm:ss.SSS` in UTC). When omitted, outputs archiving settings only. |
 
 **Timestamp Parsing and Formatting:**
 - The operator accepts RFC3339 timestamps with a timezone (for example `2024-07-15T12:30:00.500Z`) or Unix epoch seconds as a decimal string (for example `1721046600.5`). Both gRPC `targetTimestamp` fields and `RESTORE_MAPPING.pitr.target_timestamp` carry strings.
-- `PreparePitrRestore` parses the request string into a UTC epoch float (`target_timestamp_s`) for base-backup selection. Its response preserves the original request string unchanged. The operator uses the original job string when constructing the restore mapping.
-- The initContainer calls `get_pitr_target_timestamp_s(mapping["pitr"])` to convert the mapping's `target_timestamp` string to numeric epoch seconds locally. `target_timestamp_s` is an internal variable and helper parameter, not a JSON or protobuf field.
-- Medusa's datetime parsers also accept timezone-free ISO-8601 datetimes and interpret them as UTC; the operator requires a timezone for RFC3339 input.
+- `PreparePitrRestore` calls the shared `parse_target_timestamp()` to obtain a millisecond-truncated UTC epoch float (`target_timestamp_s`) for base-backup selection. Its response preserves the original request string unchanged. The operator uses the original job string when constructing the restore mapping.
+- The initContainer calls `get_pitr_target_timestamp_s(mapping["pitr"])`, which delegates to the same `parse_target_timestamp()` for the millisecond-truncated replay cutoff. `target_timestamp_s` is an internal variable and helper parameter, not a JSON or protobuf field.
+- Medusa's shared parser also accepts timezone-free ISO-8601 datetimes and interprets them as UTC; the operator requires a timezone for RFC3339 input.
 - `generate_commitlog_archiving_properties` formats the replay cutoff as `yyyy:MM:dd HH:mm:ss.SSS` in UTC, truncating finer precision to milliseconds. For example, either `2024-07-15T12:30:00.500Z` or `1721046600.5` produces `restore_point_in_time=2024:07:15 12:30:00.500`.
 
 Segment filenames are used only for ordering and as storage object keys — their embedded ID is not used for time filtering.
@@ -336,7 +337,7 @@ sequenceDiagram
     participant Storage
     
     Operator->>RPC: PreparePitrRestoreRequest(targetTimestamp string, datacenter)
-    RPC->>RPC: Parse targetTimestamp into internal target_timestamp_s
+    RPC->>RPC: parse_target_timestamp(targetTimestamp) -> millisecond-truncated target_timestamp_s
     RPC->>Storage: list_cluster_backups() -> latest complete -> node FQDNs
     RPC->>Storage: list_node_backups()
     loop For each node in the latest complete cluster backup

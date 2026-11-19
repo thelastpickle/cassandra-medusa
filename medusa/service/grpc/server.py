@@ -17,12 +17,11 @@ import asyncio
 import json
 import logging
 import os
-import re
 import sys
 from collections import defaultdict
 from concurrent import futures
 from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import grpc
@@ -35,7 +34,7 @@ from medusa import purge
 from medusa.backup_manager import BackupMan
 from medusa.config import load_config
 from medusa.listing import get_backups
-from medusa.pitr_utils import select_node_base_snapshot
+from medusa.pitr_utils import parse_target_timestamp, select_node_base_snapshot
 from medusa.purge import delete_backup
 from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2
@@ -50,7 +49,6 @@ BACKUP_MODE_DIFFERENTIAL = "differential"
 BACKUP_MODE_FULL = "full"
 RESTORE_MAPPING_LOCATION = "/var/lib/cassandra/.restore_mapping"
 RESTORE_MAPPING_ENV = "RESTORE_MAPPING"
-EPOCH_TIMESTAMP_PATTERN = re.compile(r'^\d+(\.\d+)?$')
 
 
 class Server:
@@ -475,31 +473,6 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             logging.exception("Failed to prepare PITR restore to {}".format(request.targetTimestamp))
         return response
-
-
-def parse_target_timestamp(raw):
-    """
-    Parses a PITR target timestamp into a UTC epoch float. Accepts an epoch in seconds ('1721000000', '1721000000.5')
-    or an ISO-8601 string. An ISO-8601 string without an explicit offset is treated as UTC.
-
-    :raises ValueError: if the timestamp cannot be parsed
-    """
-    value = (raw or '').strip()
-    if not value:
-        raise ValueError('empty target timestamp')
-    try:
-        if EPOCH_TIMESTAMP_PATTERN.match(value):
-            timestamp = float(value)
-        else:
-            moment = datetime.fromisoformat(value)
-            if moment.tzinfo is None:
-                moment = moment.replace(tzinfo=timezone.utc)
-            timestamp = moment.timestamp()
-        # make sure the value is representable as a date, it gets formatted as one later on
-        datetime.fromtimestamp(timestamp, tz=timezone.utc)
-    except (OverflowError, OSError) as e:
-        raise ValueError('target timestamp out of range: {}'.format(value)) from e
-    return timestamp
 
 
 def _cluster_backup_started(cluster_backup):

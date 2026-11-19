@@ -608,6 +608,25 @@ class ServerTest(unittest.TestCase):
                 self.assertEqual([self.TARGET_S + 0.5] * 3, [call.args[2] for call in select_mock.call_args_list])
                 context.set_code.assert_not_called()
 
+    def test_prepare_pitr_restore_truncates_cutoff_to_milliseconds_and_preserves_request(self):
+        cases = (
+            ('1721046600.123999999', 1721046600.123),
+            ('2024-07-15T14:30:00.123999999+02:00', 1721046600.123),
+            ('1721046600.999999999', 1721046600.999),
+        )
+        for target, expected_cutoff in cases:
+            with self.subTest(target=target):
+                cluster_backups = self._three_node_cluster()
+                select = self._select_named()
+
+                response, context, _, select_mock = self._prepare_pitr_restore(
+                    target, cluster_backups, select=select)
+
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+                self.assertEqual(target, response.targetTimestamp)
+                self.assertEqual([expected_cutoff] * 3, [call.args[2] for call in select_mock.call_args_list])
+                context.set_code.assert_not_called()
+
     def test_prepare_pitr_restore_invalid_timestamp_fails_without_touching_storage(self):
         for target in ('', '   ', 'not-a-date', 'nan', 'inf', '-5', '1e3', '2024-13-45', '99999999999999999999'):
             with self.subTest(target=target):

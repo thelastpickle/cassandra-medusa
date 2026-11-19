@@ -21,6 +21,7 @@ node initContainers, and unit tested in isolation.
 import datetime
 import logging
 import math
+import re
 import typing as t
 
 from decimal import Decimal, InvalidOperation, ROUND_FLOOR
@@ -32,6 +33,7 @@ from medusa.storage.node_backup import NodeBackup
 
 COMMITLOGS_FOLDER = 'commitlogs'
 RESTORE_COMMAND = '/bin/cp -f %from %to'
+EPOCH_TIMESTAMP_PATTERN = re.compile(r'^\d+(\.\d+)?$')
 
 # NodeBackup.snapshot_time is the snapshot directory mtime truncated to whole seconds (see
 # Cassandra.Snapshot.get_snapshot_time), so the real capture time lies in [snapshot_time, snapshot_time + 1).
@@ -180,31 +182,46 @@ def _format_restore_point_in_time(target_timestamp_s: float) -> str:
     return '{}.{:03d}'.format(moment.strftime('%Y:%m:%d %H:%M:%S'), millis)
 
 
+def parse_target_timestamp(raw: str) -> float:
+    """Parse decimal epoch seconds or an ISO-8601 datetime, treating a missing timezone as UTC.
+
+    Truncate to milliseconds before converting to float so that backup selection and replay use the same cutoff.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError('expected a nonempty timestamp string')
+
+    value = raw.strip()
+    try:
+        if EPOCH_TIMESTAMP_PATTERN.fullmatch(value):
+            seconds = Decimal(value)
+        else:
+            moment = datetime.datetime.fromisoformat(value)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=datetime.timezone.utc)
+            elapsed = moment - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+            seconds = Decimal(elapsed.days * 86400 + elapsed.seconds) + Decimal(elapsed.microseconds) / 1000000
+
+        seconds = seconds.quantize(Decimal('0.001'), rounding=ROUND_FLOOR)
+        timestamp_s = float(seconds)
+        # Both preparation and replay require a cutoff that Python's datetime can represent.
+        datetime.datetime.fromtimestamp(timestamp_s, tz=datetime.timezone.utc)
+    except (InvalidOperation, OSError, OverflowError, ValueError) as exc:
+        raise ValueError('Invalid target timestamp: {!r}'.format(raw)) from exc
+    return timestamp_s
+
+
 def get_pitr_target_timestamp_s(pitr_mapping: dict) -> float:
-    """Parse the operator's replay target as epoch seconds."""
+    """Read the operator's replay target and truncate it to millisecond precision."""
     if 'target_timestamp' not in pitr_mapping:
         raise ValueError("PITR restore mapping requires 'pitr.target_timestamp'")
 
     value = pitr_mapping['target_timestamp']
     try:
-        if not isinstance(value, str):
-            raise ValueError('expected an ISO-8601 or epoch-seconds string')
-        try:
-            seconds = Decimal(value)
-        except InvalidOperation:
-            if 'T' not in value.upper():
-                raise ValueError('expected an ISO-8601 date and time')
-            moment = datetime.datetime.fromisoformat(value.upper())
-            if moment.tzinfo is None:
-                moment = moment.replace(tzinfo=datetime.timezone.utc)
-            # Truncate before conversion to float so the replay cutoff never rounds up.
-            moment = moment.replace(microsecond=moment.microsecond // 1000 * 1000)
-            seconds = Decimal(str(moment.timestamp()))
-        timestamp_s = float(seconds.quantize(Decimal('0.001'), rounding=ROUND_FLOOR))
+        timestamp_s = parse_target_timestamp(value)
 
         # Check that Cassandra's properties formatter can represent the cutoff.
         _format_restore_point_in_time(timestamp_s)
-    except (InvalidOperation, OSError, OverflowError, ValueError) as exc:
+    except (OSError, OverflowError, ValueError) as exc:
         raise ValueError("Invalid 'pitr.target_timestamp' in RESTORE_MAPPING: {!r}".format(value)) from exc
     return timestamp_s
 
