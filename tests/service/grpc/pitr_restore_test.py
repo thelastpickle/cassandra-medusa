@@ -306,7 +306,9 @@ def test_skipped_replay_replaces_stale_properties_and_empties_staging(
     assert_no_storage_access(restore_io)
 
 
-@pytest.mark.parametrize('marker_key', [None, 'restore-1', RESTORE_KEY], ids=['absent', 'previous-job', 'completed-job'])
+@pytest.mark.parametrize(
+    'marker_key', [None, 'restore-1', RESTORE_KEY], ids=['absent', 'previous-job', 'completed-job'],
+)
 def test_entrypoint_uses_marker_path_from_argument(entrypoint, files, restore_io, mapping, monkeypatch, marker_key):
     custom_marker = files.ini.parent / 'custom restore marker'
     marker_value = None if marker_key is None else f'  {marker_key}\n'
