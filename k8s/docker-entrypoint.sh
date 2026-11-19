@@ -40,7 +40,7 @@ if restore_needed and pitr_mapping is not None:
 print("true" if restore_needed else "false")
 ' "$last_restore_file" "$restore_key")
 
-    if [ "$restore_needed" = true ]; then
+    if [[ "$restore_needed" = true ]]; then
         echo "Restoring SSTable snapshot"
         poetry run python -m medusa.service.grpc.restore "$config_file" "$restore_key"
     else
@@ -52,7 +52,7 @@ print("true" if restore_needed else "false")
     poetry run python -m medusa.service.grpc.pitr_restore "$config_file" "$restore_key"
 
     # Record a new key only after both restore steps succeed, so failures can retry.
-    if [ "$restore_needed" = true ]; then
+    if [[ "$restore_needed" = true ]]; then
         printf '%s\n' "$restore_key" > "$last_restore_file"
     fi
 }
@@ -67,9 +67,9 @@ grpc() {
     # Loop while Medusa process is running
     while kill -0 "$MEDUSA_PID" 2>/dev/null; do
       CURRENT_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
-      if [ "$ORIGINAL_MEDUSA_INI_DIGEST" != "$CURRENT_DIGEST" ]; then
+      if [[ "$ORIGINAL_MEDUSA_INI_DIGEST" != "$CURRENT_DIGEST" ]]; then
         echo "Detected change in medusa.ini, checking for running backups"
-        if ! [ -f /tmp/medusa_backup_in_progress ]; then
+        if ! [[ -f /tmp/medusa_backup_in_progress ]]; then
           echo "No backups in progress, stopping Medusa"
           kill $MEDUSA_PID
           # Always exit with 0 on config change.
@@ -88,9 +88,9 @@ grpc() {
 echo "sleeping for $DEBUG_SLEEP sec"
 sleep $DEBUG_SLEEP
 
-if [ "$MEDUSA_MODE" == "RESTORE" ]; then
+if [[ "$MEDUSA_MODE" == "RESTORE" ]]; then
     restore
-elif [ "$MEDUSA_MODE" == "GRPC" ]; then
+elif [[ "$MEDUSA_MODE" == "GRPC" ]]; then
     grpc
 else
     echo "MEDUSA_MODE env var must be set to either RESTORE or GRPC"
