@@ -467,7 +467,7 @@ class MedusaService(medusa_pb2_grpc.MedusaServicer):
                         return response
 
             response.nodeBaseBackups.update(node_base_backups)
-            response.targetTimestamp = target_timestamp_s
+            response.targetTimestamp = request.targetTimestamp
             response.status = medusa_pb2.StatusType.SUCCESS
         except Exception as e:
             response.status = medusa_pb2.StatusType.FAILED
