@@ -25,7 +25,7 @@ from unittest.mock import patch
 
 import pytest
 
-from medusa import pitr_restore as restore_logic
+from medusa import pitr_utils as restore_logic
 from medusa.service.grpc import restore
 
 ENTRYPOINT = 'medusa.service.grpc.pitr_restore'

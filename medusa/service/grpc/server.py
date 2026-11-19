@@ -35,7 +35,7 @@ from medusa import purge
 from medusa.backup_manager import BackupMan
 from medusa.config import load_config
 from medusa.listing import get_backups
-from medusa.pitr_restore import select_node_base_snapshot
+from medusa.pitr_utils import select_node_base_snapshot
 from medusa.purge import delete_backup
 from medusa.restore_cluster import RestoreJob
 from medusa.service.grpc import medusa_pb2

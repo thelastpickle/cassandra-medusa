@@ -110,7 +110,7 @@ graph TD
     end
 
     subgraph PreparePitrRestore - coordinator only
-        RPC_HANDLER -->|calls| PITR_MODULE[medusa/pitr_restore.py: pure restore logic]
+        RPC_HANDLER -->|calls| PITR_MODULE[medusa/pitr_utils.py: pure restore logic]
         PITR_MODULE -->|select_node_base_snapshot per node| OS
         PITR_MODULE -->|returns per-node backup names| RM[RESTORE_MAPPING inline JSON]
     end
@@ -139,7 +139,7 @@ graph TD
 | [`medusa/service/grpc/restore.py`](../../../medusa/service/grpc/restore.py) | Modify | Update `restore_backup(..., backup_name=...)` signature to support per-node base backup override |
 | [`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py) | Create | Per-node PITR & archiving restore entrypoint: clean staging, check guard, download segments, manage `commitlog_archiving.properties` |
 | [`medusa/service/grpc/medusa.proto`](../../../medusa/service/grpc/medusa.proto) | Modify | Add `GetCommitLogArchiveStatus` + `PreparePitrRestore` RPCs and message types (purely additive — no existing RPCs removed) |
-| [`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) | Create | Pure restore logic: `select_node_base_snapshot`, `find_next_backup`, `find_commitlog_segments`, `download_commitlog_segments`, `generate_commitlog_archiving_properties` |
+| [`medusa/pitr_utils.py`](../../../medusa/pitr_utils.py) | Create | Pure restore logic: `select_node_base_snapshot`, `find_next_backup`, `find_commitlog_segments`, `download_commitlog_segments`, `generate_commitlog_archiving_properties` |
 | [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) | Modify | Always invoke `medusa.service.grpc.pitr_restore` after SSTable restore step |
 | [`medusa/storage/node_backup.py`](../../../medusa/storage/node_backup.py) | Modify | Add `snapshot_time` property. Value comes from the `snapshot_time_*` index blob: preloaded by `list_node_backups()`, or looked up lazily with one `list_objects` call on `index/backup_index/<name>/snapshot_time_<fqdn>_` when the `NodeBackup` was built by `get_node_backup()`. Returns `None` when absent. **`snapshot_time is not None` is the storage-readable PITR-capability flag**: the operator reads this directly from object storage metadata to determine whether a backup can be PITR-restored, without requiring control-plane access. |
 | [`medusa/storage/cluster_backup.py`](../../../medusa/storage/cluster_backup.py) | Modify | Add `min_snapshot_time` and `max_snapshot_time` properties aggregating `node_backup.snapshot_time` across nodes |
@@ -179,7 +179,7 @@ commitlog_restore_grace_period_seconds = 3600
 
 `commitlog_staging_dir` specifies the local staging directory (default: `/var/lib/cassandra/medusa_commitlog_staging`) where the `medusa.service.grpc.pitr_restore` entrypoint downloads commitlog segments from object storage during a PITR restore. Residing directly on the Cassandra persistent data volume, it leverages the volume's high capacity. `medusa.service.grpc.pitr_restore` systematically empties and resets this staging directory on every initContainer startup to ensure no orphaned segments persist across restarts.
 
-`commitlog_restore_grace_period_seconds` (default: `3600`, i.e. 1 hour) sets the upper-bound grace period applied when selecting commit log segments during a restore. At restore time, the `medusa.service.grpc.pitr_restore` entrypoint calls `find_next_backup(storage, fqdn, base_backup)` (from `medusa/pitr_restore.py`) to locate the earliest backup whose `snapshot_time > base_backup.snapshot_time`. When found, the upper bound for segment fetch is `next_backup.snapshot_time + commitlog_restore_grace_period_seconds`. This handles async upload lag: segments belonging to the restore window may still be in flight when the next backup snapshot starts, so a conservative window beyond the next snapshot time ensures they are captured. When there is no subsequent backup, `upper_bound_s` falls back to `time.time()` (the current wall clock) — avoiding an unbounded scan while still capturing any segments that have been uploaded since the base snapshot.
+`commitlog_restore_grace_period_seconds` (default: `3600`, i.e. 1 hour) sets the upper-bound grace period applied when selecting commit log segments during a restore. At restore time, the `medusa.service.grpc.pitr_restore` entrypoint calls `find_next_backup(storage, fqdn, base_backup)` (from `medusa/pitr_utils.py`) to locate the earliest backup whose `snapshot_time > base_backup.snapshot_time`. When found, the upper bound for segment fetch is `next_backup.snapshot_time + commitlog_restore_grace_period_seconds`. This handles async upload lag: segments belonging to the restore window may still be in flight when the next backup snapshot starts, so a conservative window beyond the next snapshot time ensures they are captured. When there is no subsequent backup, `upper_bound_s` falls back to `time.time()` (the current wall clock) — avoiding an unbounded scan while still capturing any segments that have been uploaded since the base snapshot.
 
 `archive_command` is not a config field — it is derived at runtime from `commitlog_spool_dir`:
 
@@ -273,9 +273,9 @@ The archiver does not know about metrics. It keeps the following state under its
 
 Timestamps are `0` until first set. `drain_spool()` stops at the first failing segment, so there is no per-segment error counter: the error signal is `ticks_error`.
 
-### 4.5 medusa/pitr_restore.py — Pure Restore Logic
+### 4.5 medusa/pitr_utils.py — Pure Restore Logic
 
-[`medusa/pitr_restore.py`](../../../medusa/pitr_restore.py) contains only decision logic with no gRPC or SSH dependencies, making it independently testable.
+[`medusa/pitr_utils.py`](../../../medusa/pitr_utils.py) contains only decision logic with no gRPC or SSH dependencies, making it independently testable.
 
 | Function | Signature | Description |
 |---|---|---|
@@ -370,7 +370,7 @@ The `pitr` block contains the full cluster mapping. Each initContainer reads its
 
 ### 4.8 Per-Node PITR Restore & Archiving Configuration
 
-After `PreparePitrRestore` succeeds, the operator restarts the pods. In Kubernetes (`MEDUSA_MODE=RESTORE`), [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) orchestrates two distinct sequential steps during initContainer startup. The PITR step's entrypoint is `medusa.service.grpc.pitr_restore` ([`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py)), which imports the pure logic from `medusa/pitr_restore.py` (§4.5):
+After `PreparePitrRestore` succeeds, the operator restarts the pods. In Kubernetes (`MEDUSA_MODE=RESTORE`), [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) orchestrates two distinct sequential steps during initContainer startup. The PITR step's entrypoint is `medusa.service.grpc.pitr_restore` ([`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py)), which imports the pure logic from `medusa/pitr_utils.py` (§4.5):
 
 ```
 docker-entrypoint.sh (MEDUSA_MODE=RESTORE)
@@ -856,7 +856,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 
 **Unit tests (new):**
 - [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` to crash Medusa when spool dir and commitlog dir are on different devices or inaccessible (mock `os.stat` to return differing `st_dev` values or raise `FileNotFoundError`).
-- [`tests/pitr_restore_test.py`](../../../tests/pitr_restore_test.py): `select_node_base_snapshot` (correct selection per node based on `snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (verifying `%Y:%m:%d %H:%M:%S` UTC formatting from epoch timestamps).
+- [`tests/pitr_utils_test.py`](../../../tests/pitr_utils_test.py): `select_node_base_snapshot` (correct selection per node based on `snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (verifying `%Y:%m:%d %H:%M:%S` UTC formatting from epoch timestamps).
 - [`tests/storage_test.py`](../../../tests/storage_test.py): `NodeBackup.snapshot_time` resolution (from the index blob, preloaded and lazily loaded; returning `None` when absent without fallback to `started`); `ClusterBackup.min_snapshot_time` and `ClusterBackup.max_snapshot_time` aggregation.
 - [`tests/config_test.py`](../../../tests/config_test.py): `PitrConfig` defaults and custom values via `load_config`; `is_pitr_enabled` is false without a `pitr` field, with `pitr=None`, or with `enabled = false`, and true for `'true'`/`True`.
 - [`tests/purge_test.py`](../../../tests/purge_test.py): `purge_commitlogs` boundary values around the threshold, empty prefix, threshold scales with `interval_seconds`, lists only the node's `commitlogs/` prefix, deletes via `delete_objects`, logs and returns the deleted count; `oldest_kept_pitr_backup_start` ignores backups without `snapshot_time` and picks `min(started)` rather than the earliest `snapshot_time`; `main()` skips commitlog purge when PITR is disabled (no `[pitr]` section, or `enabled = false`), anchors on the surviving backups' `started`, uses `started` even when `snapshot_time` is far later, and deletes nothing when no kept backup has a `snapshot_time`.

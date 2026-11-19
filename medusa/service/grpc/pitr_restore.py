@@ -22,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from medusa.pitr_restore import (
+from medusa.pitr_utils import (
     download_commitlog_segments,
     find_commitlog_segments,
     find_next_backup,

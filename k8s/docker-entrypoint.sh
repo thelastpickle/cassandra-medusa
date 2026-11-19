@@ -24,7 +24,7 @@ import os
 import sys
 
 from medusa.config import is_pitr_enabled
-from medusa.pitr_restore import get_pitr_target_timestamp_s
+from medusa.pitr_utils import get_pitr_target_timestamp_s
 from medusa.service.grpc.pitr_restore import load_restore_mapping, pod_participates, read_last_restore_key
 from medusa.service.grpc.restore import create_config, get_pitr_mapping
 

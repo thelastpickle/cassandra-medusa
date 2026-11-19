@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Pure decision logic for point-in-time restore (PITR).
+Reusable utilities for point-in-time restore (PITR).
 
 This module deliberately has no gRPC or SSH dependencies, so that it can be shared by the coordinator RPCs and by the
 node initContainers, and unit tested in isolation.
