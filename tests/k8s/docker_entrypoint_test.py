@@ -232,10 +232,9 @@ def test_unmapped_remote_pod_runs_archiving_step_without_recording_restore(
     )
 
     assert result.returncode == 0, result.stderr
-    # PITR-09 already verifies that restore.py can skip an unmapped pod itself.
     marker_contents = previous_key or 'absent'
     archive_step = f'pitr_restore|restore-2|{marker_contents}'
-    assert steps in ([archive_step], [f'restore|restore-2|{marker_contents}', archive_step])
+    assert steps == [archive_step]
     if previous_key is None:
         assert not restore_container.marker.exists()
     else:
