@@ -181,37 +181,31 @@ def _format_restore_point_in_time(target_timestamp_s: float) -> str:
 
 
 def get_pitr_target_timestamp_s(pitr_mapping: dict) -> float:
-    """Read the replay cutoff from the operator mapping or the legacy numeric field."""
-    field = 'target_timestamp' if 'target_timestamp' in pitr_mapping else 'target_timestamp_s'
-    if field not in pitr_mapping:
+    """Parse the operator's replay target as epoch seconds."""
+    if 'target_timestamp' not in pitr_mapping:
         raise ValueError("PITR restore mapping requires 'pitr.target_timestamp'")
 
-    value = pitr_mapping[field]
+    value = pitr_mapping['target_timestamp']
     try:
-        if field == 'target_timestamp':
-            if not isinstance(value, str):
-                raise ValueError('expected an ISO-8601 or epoch-seconds string')
-            try:
-                seconds = Decimal(value)
-            except InvalidOperation:
-                if 'T' not in value.upper():
-                    raise ValueError('expected an ISO-8601 date and time')
-                moment = datetime.datetime.fromisoformat(value.upper())
-                if moment.tzinfo is None:
-                    moment = moment.replace(tzinfo=datetime.timezone.utc)
-                # Truncate before conversion to float so the replay cutoff never rounds up.
-                moment = moment.replace(microsecond=moment.microsecond // 1000 * 1000)
-                seconds = Decimal(str(moment.timestamp()))
-            timestamp_s = float(seconds.quantize(Decimal('0.001'), rounding=ROUND_FLOOR))
-        else:
-            if type(value) not in (int, float):
-                raise ValueError('expected numeric epoch seconds')
-            timestamp_s = float(value)
+        if not isinstance(value, str):
+            raise ValueError('expected an ISO-8601 or epoch-seconds string')
+        try:
+            seconds = Decimal(value)
+        except InvalidOperation:
+            if 'T' not in value.upper():
+                raise ValueError('expected an ISO-8601 date and time')
+            moment = datetime.datetime.fromisoformat(value.upper())
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=datetime.timezone.utc)
+            # Truncate before conversion to float so the replay cutoff never rounds up.
+            moment = moment.replace(microsecond=moment.microsecond // 1000 * 1000)
+            seconds = Decimal(str(moment.timestamp()))
+        timestamp_s = float(seconds.quantize(Decimal('0.001'), rounding=ROUND_FLOOR))
 
         # Check that Cassandra's properties formatter can represent the cutoff.
         _format_restore_point_in_time(timestamp_s)
     except (InvalidOperation, OSError, OverflowError, ValueError) as exc:
-        raise ValueError("Invalid 'pitr.{}' in RESTORE_MAPPING: {!r}".format(field, value)) from exc
+        raise ValueError("Invalid 'pitr.target_timestamp' in RESTORE_MAPPING: {!r}".format(value)) from exc
     return timestamp_s
 
 

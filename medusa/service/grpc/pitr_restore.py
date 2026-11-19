@@ -55,8 +55,38 @@ def read_last_restore_key(path):
         return ""
 
 
+def stage_commitlogs(config, source_address, backup_name):
+    """Download the source node's commitlogs within the assigned backup's restore window."""
+    with Storage(config=config.storage) as storage:
+        base_backup = storage.get_node_backup(fqdn=source_address, name=backup_name)
+        after_snapshot_time_s = base_backup.started
+        next_backup = find_next_backup(storage, source_address, base_backup)
+        if next_backup is None:
+            upper_bound_s = time.time()
+        else:
+            grace_period_s = int(config.pitr.commitlog_restore_grace_period_seconds)
+            upper_bound_s = next_backup.snapshot_time + grace_period_s
+
+        segments = find_commitlog_segments(
+            storage,
+            config.storage.prefix,
+            source_address,
+            after_snapshot_time_s,
+            upper_bound_s=upper_bound_s,
+        )
+        download_commitlog_segments(
+            storage,
+            segments,
+            config.pitr.commitlog_staging_dir,
+        )
+
+
 def main():
     """Prepare the local commitlogs and properties before Cassandra starts."""
+    if len(sys.argv) < 2:
+        logging.error("Usage: %s <config_file_path> [restore_key]", sys.argv[0])
+        sys.exit(1)
+
     config_file_path = sys.argv[1]
     restore_key = sys.argv[2] if len(sys.argv) > 2 else os.getenv("RESTORE_KEY", "")
 
@@ -93,28 +123,7 @@ def main():
         backup_name = pitr_mapping["node_backups"][source_address]
         target_timestamp_s = get_pitr_target_timestamp_s(pitr_mapping)
 
-        with Storage(config=config.storage) as storage:
-            base_backup = storage.get_node_backup(fqdn=source_address, name=backup_name)
-            after_snapshot_time_s = base_backup.started
-            next_backup = find_next_backup(storage, source_address, base_backup)
-            if next_backup is None:
-                upper_bound_s = time.time()
-            else:
-                grace_period_s = int(config.pitr.commitlog_restore_grace_period_seconds)
-                upper_bound_s = next_backup.snapshot_time + grace_period_s
-
-            segments = find_commitlog_segments(
-                storage,
-                config.storage.prefix,
-                source_address,
-                after_snapshot_time_s,
-                upper_bound_s=upper_bound_s,
-            )
-            download_commitlog_segments(
-                storage,
-                segments,
-                config.pitr.commitlog_staging_dir,
-            )
+        stage_commitlogs(config, source_address, backup_name)
 
         properties = generate_commitlog_archiving_properties(
             archive_command=archive_command,

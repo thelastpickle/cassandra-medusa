@@ -51,7 +51,7 @@ def mapping():
             'target-0': {'source': ['source-node.example', 'other-node.example'], 'seed': False},
         },
         'pitr': {
-            'target_timestamp_s': TARGET_TIMESTAMP_S,
+            'target_timestamp': str(TARGET_TIMESTAMP_S),
             'node_backups': {
                 'source-node.example': 'mapped-backup',
                 '192.0.2.9': 'ip-backup',

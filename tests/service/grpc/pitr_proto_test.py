@@ -40,7 +40,7 @@ class PitrProtoTest(unittest.TestCase):
         response = medusa_pb2.PreparePitrRestoreResponse()
         self.assertEqual(medusa_pb2.StatusType.IN_PROGRESS, response.status)
         self.assertEqual(0, len(response.nodeBaseBackups))
-        self.assertEqual(0.0, response.targetTimestamp)
+        self.assertEqual('', response.targetTimestamp)
 
     def test_commitlog_archive_status_response_round_trip(self):
         original = medusa_pb2.GetCommitLogArchiveStatusResponse(
@@ -72,22 +72,25 @@ class PitrProtoTest(unittest.TestCase):
         self.assertEqual('dc1', parsed.datacenter)
 
     def test_prepare_pitr_restore_response_accepts_map_entries(self):
-        response = medusa_pb2.PreparePitrRestoreResponse(
-            status=medusa_pb2.StatusType.SUCCESS,
-            targetTimestamp=1700000000.5,
-        )
-        response.nodeBaseBackups['node1.example.com'] = 'backup1'
-        response.nodeBaseBackups['node2.example.com'] = 'backup2'
+        # The operator forwards either timestamp format unchanged from spec.targetTimestamp.
+        for target_timestamp in ('2026-01-01T00:00:00Z', '1721046600.5'):
+            with self.subTest(target_timestamp=target_timestamp):
+                response = medusa_pb2.PreparePitrRestoreResponse(
+                    status=medusa_pb2.StatusType.SUCCESS,
+                    targetTimestamp=target_timestamp,
+                )
+                response.nodeBaseBackups['node1.example.com'] = 'backup1'
+                response.nodeBaseBackups['node2.example.com'] = 'backup2'
 
-        parsed = medusa_pb2.PreparePitrRestoreResponse()
-        parsed.ParseFromString(response.SerializeToString())
+                parsed = medusa_pb2.PreparePitrRestoreResponse()
+                parsed.ParseFromString(response.SerializeToString())
 
-        self.assertEqual(
-            {'node1.example.com': 'backup1', 'node2.example.com': 'backup2'},
-            dict(parsed.nodeBaseBackups),
-        )
-        self.assertEqual(medusa_pb2.StatusType.SUCCESS, parsed.status)
-        self.assertEqual(1700000000.5, parsed.targetTimestamp)
+                self.assertEqual(
+                    {'node1.example.com': 'backup1', 'node2.example.com': 'backup2'},
+                    dict(parsed.nodeBaseBackups),
+                )
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, parsed.status)
+                self.assertEqual(target_timestamp, parsed.targetTimestamp)
 
     def test_new_messages_field_numbers_and_types_are_pinned(self):
         # Field numbers and types are the wire contract shared with k8ssandra-operator's Go stubs.
@@ -111,7 +114,7 @@ class PitrProtoTest(unittest.TestCase):
                 'status': (1, FD.TYPE_ENUM),
                 # map<string, string> is encoded as a repeated map-entry message
                 'nodeBaseBackups': (2, FD.TYPE_MESSAGE),
-                'targetTimestamp': (3, FD.TYPE_DOUBLE),
+                'targetTimestamp': (3, FD.TYPE_STRING),
             },
         }
         for message_name, expected_fields in expected.items():

@@ -58,7 +58,7 @@ def pitr_mapping():
     return {
         'in_place': True,
         'host_map': {'target-0': {'source': ['source-0'], 'seed': False}},
-        'pitr': {'target_timestamp_s': 1767225600, 'node_backups': {'source-0': 'base-0'}},
+        'pitr': {'target_timestamp': '1767225600', 'node_backups': {'source-0': 'base-0'}},
     }
 
 
@@ -255,6 +255,7 @@ def test_operator_timestamp_allows_both_restore_steps(restore_container):
     'timestamp_fields',
     [
         pytest.param({}, id='missing'),
+        pytest.param({'target_timestamp_s': 1767225600}, id='removed-numeric-field'),
         pytest.param({'target_timestamp': None}, id='null'),
         pytest.param({'target_timestamp': 1767225600}, id='not-a-string'),
         pytest.param({'target_timestamp': 'yesterday'}, id='invalid-string'),
