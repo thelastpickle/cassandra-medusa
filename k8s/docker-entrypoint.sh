@@ -17,18 +17,23 @@ restore() {
     local restore_key="${RESTORE_KEY:-}"
     local restore_needed
 
-    # Let set -e abort initialization if the mapping is malformed.
+    # Reject invalid mappings and disabled PITR before changing Cassandra data.
     restore_needed=$(poetry run python -c '
+import logging
 import os
 import sys
 
+from medusa.config import is_pitr_enabled
 from medusa.pitr_restore import get_pitr_target_timestamp_s
 from medusa.service.grpc.pitr_restore import load_restore_mapping, pod_participates, read_last_restore_key
-from medusa.service.grpc.restore import get_pitr_mapping
+from medusa.service.grpc.restore import create_config, get_pitr_mapping
 
-last_restore_file, restore_key = sys.argv[1:]
+last_restore_file, restore_key, config_file = sys.argv[1:]
 mapping = load_restore_mapping()
 pitr_mapping = get_pitr_mapping(mapping)
+if pitr_mapping is not None and not is_pitr_enabled(create_config(config_file)):
+    logging.error("PITR restore requested, but PITR is disabled")
+    sys.exit(1)
 restore_requested = (
     restore_key != ""
     and (bool(os.getenv("BACKUP_NAME")) or pitr_mapping is not None)
@@ -38,7 +43,7 @@ restore_needed = restore_requested and read_last_restore_key(last_restore_file) 
 if restore_needed and pitr_mapping is not None:
     get_pitr_target_timestamp_s(pitr_mapping)
 print("true" if restore_needed else "false")
-' "$last_restore_file" "$restore_key")
+' "$last_restore_file" "$restore_key" "$config_file")
 
     if [[ "$restore_needed" = true ]]; then
         echo "Restoring SSTable snapshot"

@@ -35,7 +35,7 @@ fi
 if [[ "$3" == -c ]]; then
     exec "$TEST_PYTHON" "${@:3}"
 fi
-if [[ "$3" != -m || $# -ne 6 || "$5" != /etc/medusa/medusa.ini ]]; then
+if [[ "$3" != -m || $# -ne 6 || "$5" != "$TEST_CONFIG_FILE" ]]; then
     exit 2
 fi
 case "$4" in
@@ -49,6 +49,9 @@ fi
 printf '%s|%s|%s\n' "$step" "$6" "$marker" >> calls
 if [[ "$step" == "$TEST_FAIL_STEP" ]]; then
     exit 42
+fi
+if [[ "$step" == restore ]]; then
+    printf 'base snapshot data\n' > "$TEST_DATA_FILE"
 fi
 """
 
@@ -64,9 +67,23 @@ def pitr_mapping():
 
 @pytest.fixture
 def restore_container(tmp_path):
-    # Keep dispatch and set -e intact while redirecting the mounted-volume marker to the test directory.
+    # Keep dispatch and set -e intact while redirecting mounted-volume paths to the test directory.
+    config = tmp_path / 'medusa.ini'
+    config.write_text(
+        '[storage]\n'
+        'storage_provider = local\n'
+        'bucket_name = backups\n'
+        'fqdn = source-0\n'
+        '[pitr]\n'
+        'enabled = true\n'
+    )
+    data = tmp_path / 'table-data.db'
+    data.write_bytes(b'existing table data')
     script = tmp_path / ENTRYPOINT.name
-    script.write_text(ENTRYPOINT.read_text().replace(f'/var/lib/cassandra/{MARKER}', MARKER))
+    script.write_text(
+        ENTRYPOINT.read_text().replace(f'/var/lib/cassandra/{MARKER}', MARKER)
+        .replace('/etc/medusa/medusa.ini', str(config))
+    )
     stub = tmp_path / 'poetry'
     stub.write_text(POETRY_STUB)
     stub.chmod(0o755)
@@ -84,6 +101,8 @@ def restore_container(tmp_path):
             'DEBUG_SLEEP': '0',
             'TEST_PYTHON': sys.executable,
             'TEST_FAIL_STEP': fail_step,
+            'TEST_CONFIG_FILE': str(config),
+            'TEST_DATA_FILE': str(data),
             **restore_env,
         }
         result = subprocess.run(
@@ -92,7 +111,7 @@ def restore_container(tmp_path):
         steps = calls.read_text().splitlines() if calls.exists() else []
         return result, steps
 
-    return SimpleNamespace(run=run, marker=tmp_path / MARKER)
+    return SimpleNamespace(run=run, marker=tmp_path / MARKER, config=config, data=data)
 
 
 def test_docker_entrypoint_has_valid_bash_syntax():
@@ -121,6 +140,7 @@ def test_records_key_after_both_steps_and_still_runs_pitr_step_on_restart(
 
     assert first.returncode == 0, first.stderr
     assert first_steps == ['restore|restore-1|absent', 'pitr_restore|restore-1|absent']
+    assert restore_container.data.read_bytes() == b'base snapshot data\n'
     assert restore_container.marker.read_text().strip() == 'restore-1'
 
     restart, restart_steps = restore_container.run(RESTORE_KEY='restore-1', **env)
@@ -275,4 +295,59 @@ def test_bad_replay_timestamp_aborts_before_sstable_restore(restore_container, t
     assert result.returncode != 0
     assert 'target_timestamp' in result.stderr
     assert steps == []
+    assert restore_container.marker.read_text() == 'restore-1\n'
+
+
+@pytest.mark.parametrize(
+    'pitr_config',
+    [
+        pytest.param('[pitr]\nenabled = false\n', id='explicitly-disabled'),
+        pytest.param('[pitr]\n', id='enabled-unset'),
+        pytest.param('', id='pitr-section-absent'),
+    ],
+)
+@pytest.mark.parametrize('in_place', [True, False], ids=['in-place', 'out-of-place'])
+@pytest.mark.parametrize('previous_key', [None, 'restore-1'], ids=['no-marker', 'previous-restore'])
+def test_disabled_pitr_aborts_before_changing_data_on_each_attempt(
+    restore_container, pitr_mapping, pitr_config, in_place, previous_key,
+):
+    config = restore_container.config
+    config.write_text(config.read_text().partition('[pitr]')[0] + pitr_config)
+    pitr_mapping['in_place'] = in_place
+    if previous_key is not None:
+        restore_container.marker.write_text(f'{previous_key}\n')
+    original_data = restore_container.data.read_bytes()
+
+    for _ in range(2):
+        result, steps = restore_container.run(
+            RESTORE_KEY='restore-2', RESTORE_MAPPING=json.dumps(pitr_mapping), POD_NAME='target-0',
+        )
+
+        assert result.returncode == 1, result.stderr
+        assert 'PITR restore requested, but PITR is disabled' in result.stderr
+        assert steps == []
+        assert restore_container.data.read_bytes() == original_data
+        if previous_key is None:
+            assert not restore_container.marker.exists()
+        else:
+            assert restore_container.marker.read_text() == f'{previous_key}\n'
+
+
+@pytest.mark.parametrize(
+    'pitr_config',
+    [
+        pytest.param('[pitr]\nenabled = false\n', id='explicitly-disabled'),
+        pytest.param('[pitr]\n', id='enabled-unset'),
+        pytest.param('', id='pitr-section-absent'),
+    ],
+)
+def test_standard_restore_still_runs_when_pitr_is_disabled(restore_container, pitr_config):
+    config = restore_container.config
+    config.write_text(config.read_text().partition('[pitr]')[0] + pitr_config)
+
+    result, steps = restore_container.run(RESTORE_KEY='restore-1', BACKUP_NAME='legacy-backup')
+
+    assert result.returncode == 0, result.stderr
+    assert steps == ['restore|restore-1|absent', 'pitr_restore|restore-1|absent']
+    assert restore_container.data.read_bytes() == b'base snapshot data\n'
     assert restore_container.marker.read_text() == 'restore-1\n'
