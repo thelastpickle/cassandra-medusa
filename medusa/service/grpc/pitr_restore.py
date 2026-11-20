@@ -102,8 +102,16 @@ def main():
     config = create_config(config_file_path)
     configure_console_logging(config.logging)
 
+    last_restore_value = read_last_restore_key(last_restore_file)
+    is_pitr_restore = bool(
+        pitr_mapping is not None
+        and restore_key
+        and last_restore_value != restore_key
+        and pod_participates(mapping, os.getenv("POD_NAME"))
+    )
+
     if not is_pitr_enabled(config):
-        if pitr_mapping is not None:
+        if is_pitr_restore:
             logging.error("PITR restore requested, but PITR is disabled")
             sys.exit(1)
 
@@ -117,13 +125,6 @@ def main():
         pass
     staging_dir.mkdir(parents=True)
 
-    last_restore_value = read_last_restore_key(last_restore_file)
-    is_pitr_restore = bool(
-        pitr_mapping is not None
-        and restore_key
-        and last_restore_value != restore_key
-        and pod_participates(mapping, os.getenv("POD_NAME"))
-    )
     archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
     if is_pitr_restore:
         source_address = resolve_node_address(mapping, config)

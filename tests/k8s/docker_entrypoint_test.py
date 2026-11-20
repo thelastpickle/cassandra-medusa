@@ -396,3 +396,35 @@ def test_standard_restore_still_runs_when_pitr_is_disabled(restore_container, pi
     assert steps == ['restore|restore-1|absent', 'pitr_restore|restore-1|absent']
     assert restore_container.data.read_bytes() == b'base snapshot data\n'
     assert restore_container.marker.read_text() == 'restore-1\n'
+
+
+@pytest.mark.parametrize('pitr_section', [True, False], ids=['disabled', 'section-absent'])
+@pytest.mark.parametrize('restore_state', ['completed', 'unmapped-pod', 'no-restore-key'])
+def test_disabled_pitr_without_pending_restore_allows_startup(
+    restore_container, pitr_mapping, pitr_section, restore_state,
+):
+    config = restore_container.config
+    pitr_config = '[pitr]\nenabled = false\n' if pitr_section else ''
+    config.write_text(config.read_text().partition('[pitr]')[0] + pitr_config)
+    restore_key = '' if restore_state == 'no-restore-key' else 'restore-2'
+    marker_value = 'restore-2' if restore_state == 'completed' else 'restore-1'
+    restore_container.marker.write_text(f'{marker_value}\n')
+    restore_container.staging.mkdir()
+    old_segment = restore_container.staging / 'old.log'
+    old_segment.write_bytes(b'previous segment')
+    restore_container.properties.write_text('previous properties\n')
+    if restore_state == 'unmapped-pod':
+        pitr_mapping['in_place'] = False
+    original_data = restore_container.data.read_bytes()
+
+    result, steps = restore_container.run(
+        RESTORE_KEY=restore_key, RESTORE_MAPPING=json.dumps(pitr_mapping),
+        POD_NAME='unmapped' if restore_state == 'unmapped-pod' else 'target-0', TEST_RUN_PITR='true',
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert steps == [f'pitr_restore|{restore_key}|{marker_value}']
+    assert restore_container.data.read_bytes() == original_data
+    assert restore_container.marker.read_text() == f'{marker_value}\n'
+    assert old_segment.read_bytes() == b'previous segment'
+    assert restore_container.properties.read_text() == 'previous properties\n'

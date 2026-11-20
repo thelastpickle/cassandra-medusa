@@ -184,6 +184,36 @@ def test_disabled_pitr_leaves_files_untouched(
     restore_io.generate_properties.assert_not_called()
 
 
+@pytest.mark.parametrize('pitr_section', [True, False], ids=['disabled', 'section-absent'])
+@pytest.mark.parametrize('restore_state', ['completed', 'unmapped-pod', 'no-restore-key'])
+def test_disabled_pitr_without_pending_restore_leaves_files_untouched(
+    entrypoint, files, restore_io, mapping, monkeypatch, pitr_section, restore_state,
+):
+    write_config(files, enabled='false')
+    if not pitr_section:
+        files.ini.write_text(files.ini.read_text().partition('[pitr]')[0])
+    marker_value = f'{RESTORE_KEY}\n' if restore_state == 'completed' else 'restore-1\n'
+    files.marker.write_text(marker_value)
+    files.staging.mkdir()
+    old_segment = files.staging / 'old.log'
+    old_segment.write_bytes(b'previous segment')
+    files.properties.write_text('previous properties\n')
+    if restore_state == 'unmapped-pod':
+        mapping['in_place'] = False
+        monkeypatch.setenv('POD_NAME', 'unmapped')
+    elif restore_state == 'no-restore-key':
+        monkeypatch.setattr(sys, 'argv', [ENTRYPOINT, str(files.ini), ''])
+    monkeypatch.setenv('RESTORE_MAPPING', json.dumps(mapping))
+
+    entrypoint.main()
+
+    assert files.marker.read_text() == marker_value
+    assert old_segment.read_bytes() == b'previous segment'
+    assert files.properties.read_text() == 'previous properties\n'
+    assert_no_storage_access(restore_io)
+    restore_io.generate_properties.assert_not_called()
+
+
 @pytest.mark.parametrize(
     'next_snapshot,expected_upper_bound',
     [

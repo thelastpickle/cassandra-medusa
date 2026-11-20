@@ -31,9 +31,6 @@ from medusa.service.grpc.restore import create_config, get_pitr_mapping
 last_restore_file, restore_key, config_file = sys.argv[1:]
 mapping = load_restore_mapping()
 pitr_mapping = get_pitr_mapping(mapping)
-if pitr_mapping is not None and not is_pitr_enabled(create_config(config_file)):
-    logging.error("PITR restore requested, but PITR is disabled")
-    sys.exit(1)
 restore_requested = (
     restore_key != ""
     and (bool(os.getenv("BACKUP_NAME")) or pitr_mapping is not None)
@@ -41,6 +38,10 @@ restore_requested = (
 )
 restore_needed = restore_requested and read_last_restore_key(last_restore_file) != restore_key
 if restore_needed and pitr_mapping is not None:
+    if not is_pitr_enabled(create_config(config_file)):
+        logging.error("PITR restore requested, but PITR is disabled")
+        sys.exit(1)
+
     get_pitr_target_timestamp_s(pitr_mapping)
 print("true" if restore_needed else "false")
 ' "$last_restore_file" "$restore_key" "$config_file")
