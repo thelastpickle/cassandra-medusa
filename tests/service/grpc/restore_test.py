@@ -46,7 +46,7 @@ def mapping():
             'target-1': {'source': ['other-node.example'], 'seed': True},
         },
         'pitr': {
-            'target_timestamp_s': 1721000000.0,
+            'target_timestamp': '1721000000.0',
             'node_backups': {
                 'other-node.example': 'other-base',
                 'source-node.example': 'mapped-base',

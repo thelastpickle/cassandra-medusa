@@ -73,7 +73,7 @@ def local_restore(tmp_path, monkeypatch):
             'target-1': {'source': ['node-1.example'], 'seed': True},
         },
         'pitr': {
-            'target_timestamp_s': 1721000000.0,
+            'target_timestamp': '1721000000.0',
             'node_backups': {
                 'node-0.example': 'base-for-node-0',
                 'node-1.example': 'base-for-node-1',

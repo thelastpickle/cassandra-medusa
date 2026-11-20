@@ -568,7 +568,7 @@ class ServerTest(unittest.TestCase):
     def _assert_pitr_failed(self, response, context):
         self.assertEqual(medusa_pb2.StatusType.FAILED, response.status)
         self.assertEqual({}, dict(response.nodeBaseBackups))
-        self.assertEqual(0.0, response.targetTimestamp)
+        self.assertEqual('', response.targetTimestamp)
         context.set_code.assert_not_called()
 
     def _three_node_cluster(self, started=100, dc='dc1'):
@@ -577,28 +577,55 @@ class ServerTest(unittest.TestCase):
 
     def test_prepare_pitr_restore_iso_utc_and_epoch_success(self):
         for target in (self.TARGET_ISO, '2024-07-15T12:30:00+00:00', '2024-07-15T12:30:00',
-                       '1721046600', '1721046600.0'):
+                       '1721046600', '1721046600.0', ' 2024-07-15T12:30:00Z '):
             with self.subTest(target=target):
-                response, context, _, _ = self._prepare_pitr_restore(
+                response, context, _, select_mock = self._prepare_pitr_restore(
                     target, self._three_node_cluster(), select=self._select_named())
                 self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
                 self.assertEqual({'node1': 'b-node1', 'node2': 'b-node2', 'node3': 'b-node3'},
                                  dict(response.nodeBaseBackups))
-                self.assertEqual(self.TARGET_S, response.targetTimestamp)
+                self.assertEqual(target, response.targetTimestamp)
+                self.assertEqual([self.TARGET_S] * 3, [call.args[2] for call in select_mock.call_args_list])
                 context.set_code.assert_not_called()
 
-    def test_prepare_pitr_restore_converts_offset_to_utc(self):
-        response, _, _, _ = self._prepare_pitr_restore(
-            '2024-07-15T14:30:00+02:00', self._three_node_cluster(), select=self._select_named())
-        self.assertEqual(self.TARGET_S, response.targetTimestamp)
+    def test_prepare_pitr_restore_uses_utc_for_selection_and_preserves_offset_in_response(self):
+        target = '2024-07-15T14:30:00+02:00'
+        response, context, _, select_mock = self._prepare_pitr_restore(
+            target, self._three_node_cluster(), select=self._select_named())
+
+        self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+        self.assertEqual(target, response.targetTimestamp)
+        self.assertEqual([self.TARGET_S] * 3, [call.args[2] for call in select_mock.call_args_list])
+        context.set_code.assert_not_called()
 
     def test_prepare_pitr_restore_keeps_fractional_seconds(self):
-        for target in ('1721046600.5', '2024-07-15T12:30:00.500Z'):
+        for target in ('1721046600.5', '2024-07-15T12:30:00.500Z', '1721046600.500000001'):
             with self.subTest(target=target):
-                response, _, _, _ = self._prepare_pitr_restore(
+                response, context, _, select_mock = self._prepare_pitr_restore(
                     target, self._three_node_cluster(), select=self._select_named())
                 self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
-                self.assertEqual(self.TARGET_S + 0.5, response.targetTimestamp)
+                self.assertEqual(target, response.targetTimestamp)
+                self.assertEqual([self.TARGET_S + 0.5] * 3, [call.args[2] for call in select_mock.call_args_list])
+                context.set_code.assert_not_called()
+
+    def test_prepare_pitr_restore_truncates_cutoff_to_milliseconds_and_preserves_request(self):
+        cases = (
+            ('1721046600.123999999', 1721046600.123),
+            ('2024-07-15T14:30:00.123999999+02:00', 1721046600.123),
+            ('1721046600.999999999', 1721046600.999),
+        )
+        for target, expected_cutoff in cases:
+            with self.subTest(target=target):
+                cluster_backups = self._three_node_cluster()
+                select = self._select_named()
+
+                response, context, _, select_mock = self._prepare_pitr_restore(
+                    target, cluster_backups, select=select)
+
+                self.assertEqual(medusa_pb2.StatusType.SUCCESS, response.status)
+                self.assertEqual(target, response.targetTimestamp)
+                self.assertEqual([expected_cutoff] * 3, [call.args[2] for call in select_mock.call_args_list])
+                context.set_code.assert_not_called()
 
     def test_prepare_pitr_restore_invalid_timestamp_fails_without_touching_storage(self):
         for target in ('', '   ', 'not-a-date', 'nan', 'inf', '-5', '1e3', '2024-13-45', '99999999999999999999'):

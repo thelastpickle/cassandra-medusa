@@ -23,7 +23,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
-from medusa.pitr_restore import (
+from medusa.pitr_utils import (
     select_node_base_snapshot,
     find_next_backup,
     find_commitlog_segments,
