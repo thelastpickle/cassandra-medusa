@@ -278,7 +278,7 @@ class S3BaseStorage(AbstractStorage):
 
         for o in response.get('Contents', []):
             obj_hash = o['ETag'].replace('"', '')
-            blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified'], o['StorageClass']))
+            blobs.append(AbstractBlob(o['Key'], o['Size'], obj_hash, o['LastModified'], o.get('StorageClass')))
 
         return blobs
 
