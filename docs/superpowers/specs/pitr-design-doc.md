@@ -374,30 +374,34 @@ The `pitr` block contains the full cluster mapping. `target_timestamp` is a stri
 
 ### 4.8 Per-Node PITR Restore & Archiving Configuration
 
-After `PreparePitrRestore` succeeds, the operator restarts the pods. In Kubernetes (`MEDUSA_MODE=RESTORE`), [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) orchestrates two distinct sequential steps during initContainer startup. The PITR step's entrypoint is `medusa.service.grpc.pitr_restore` ([`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py)), which imports the pure logic from `medusa/pitr_utils.py` (§4.5):
+After `PreparePitrRestore` succeeds, the operator restarts the pods. In Kubernetes (`MEDUSA_MODE=RESTORE`), [`k8s/docker-entrypoint.sh`](../../../k8s/docker-entrypoint.sh) validates the restore request before orchestrating two sequential steps during initContainer startup. The PITR step's entrypoint is `medusa.service.grpc.pitr_restore` ([`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py)), which imports the pure logic from `medusa/pitr_utils.py` (§4.5):
 
 ```
 docker-entrypoint.sh (MEDUSA_MODE=RESTORE)
-  |-- 1. SSTable restore step (restore.py)
-  |     |-- compare /var/lib/cassandra/.last-restore vs $RESTORE_KEY
-  |     |     if equal: skip restore_backup()
-  |     |     if different/absent: run restore.py
+  |-- 0. Preflight validation (before changing Cassandra data)
+  |     |-- parse and validate RESTORE_MAPPING
+  |     |-- restore requested: nonempty RESTORE_KEY, BACKUP_NAME or PITR mapping, pod participates
+  |     |-- restore needed: restore requested AND .last-restore differs from RESTORE_KEY (or file absent)
+  |     +-- if a PITR restore is needed: reject disabled PITR and validate target_timestamp
   |
-  +-- 2. PITR & Archiving properties step (medusa.service.grpc.pitr_restore) [ALWAYS EXECUTED]
-  |     |-- if pitr is disabled in config: exit 1 if mapping has "pitr", otherwise exit immediately
-  |     |-- clean staging directory (/var/lib/cassandra/medusa_commitlog_staging)
-  |     |-- check if active PITR restore:
-  |     |     mapping has "pitr" AND .last-restore != $RESTORE_KEY (or file absent)
+  |-- 1. SSTable restore step (restore.py)
+  |     |-- if restore needed: run restore.py
+  |     +-- otherwise: skip SSTable restore
+  |
+  |-- 2. PITR & Archiving properties step (medusa.service.grpc.pitr_restore) [AFTER STEP 1 SUCCEEDS OR SKIPS]
+  |     |-- read .last-restore and determine whether this pod has a pending PITR restore
+  |     |-- if PITR is disabled: exit 1 only for a pending PITR restore, otherwise return successfully
+  |     |-- if PITR is enabled: clean staging directory (/var/lib/cassandra/medusa_commitlog_staging)
   |     |     |
-  |     |     +-- IF ACTIVE PITR RESTORE:
+  |     |     +-- IF PENDING PITR RESTORE:
   |     |     |     |-- find_commitlog_segments(storage, prefix, fqdn, after_snapshot_time_s, upper_bound_s)
   |     |     |     |-- download segments to local staging dir
-  |     |     |     |-- write commitlog_archiving.properties with archive_command AND restore settings
+  |     |     |     +-- write commitlog_archiving.properties with archive_command AND restore settings
   |     |     |
   |     |     +-- ELSE (normal pod start or skipped restore):
-  |     |           |-- write commitlog_archiving.properties with archive_command ONLY
+  |     |           +-- write commitlog_archiving.properties with archive_command ONLY
   |
-  +-- 3. write $RESTORE_KEY > .last-restore (only after steps 1 and 2 succeeded)
+  +-- 3. write RESTORE_KEY > .last-restore only if a restore was needed and steps 1 and 2 succeeded
 ```
 
 **`RESTORE_MAPPING` format:** `RESTORE_MAPPING` is always inline JSON — the same `json.loads()` path used today. The `pitr` block is an optional top-level key in that JSON, present only for PITR restores. A regular (non-PITR) restore has no `pitr` key and the existing SSTable restore path is completely unchanged.
@@ -410,8 +414,9 @@ docker-entrypoint.sh (MEDUSA_MODE=RESTORE)
 
 **`commitlog_archiving.properties` ownership & lifecycle:** [`medusa/service/grpc/pitr_restore.py`](../../../medusa/service/grpc/pitr_restore.py) is always invoked by `docker-entrypoint.sh` to generate and maintain `commitlog_archiving.properties` in `Path(cassandra_config.config_file).parent` (the directory containing `cassandra.yaml`).
 - When `pitr.enabled` is `true`, archiving configuration is always maintained in `commitlog_archiving.properties` so Cassandra can continuously archive commitlogs once running.
-- If an active PITR restore is running (`"pitr"` in mapping and `.last-restore` not yet matching `RESTORE_KEY`), `medusa.service.grpc.pitr_restore` includes the restore parameters (`restore_directories` pointing to `config.pitr.commitlog_staging_dir`, default `/var/lib/cassandra/medusa_commitlog_staging`, `restore_command`, and `restore_point_in_time` in `yyyy:MM:dd HH:mm:ss.SSS` UTC).
-- If no restore is needed (e.g. normal pod start where `.last-restore` matches `RESTORE_KEY`, or non-PITR restore), the restore parameters (`restore_directories`, `restore_point_in_time`) are omitted from `commitlog_archiving.properties`, ensuring Cassandra starts without replaying mutations while keeping archiving enabled.
+- If an active PITR restore is running (a `pitr` block, a nonempty `RESTORE_KEY`, a participating pod, and `.last-restore` either missing or containing a different key), `medusa.service.grpc.pitr_restore` includes the restore parameters (`restore_directories` pointing to `config.pitr.commitlog_staging_dir`, default `/var/lib/cassandra/medusa_commitlog_staging`, `restore_command`, and `restore_point_in_time` in `yyyy:MM:dd HH:mm:ss.SSS` UTC).
+- With PITR enabled, if no restore is needed (e.g. normal pod start where `.last-restore` matches `RESTORE_KEY`, or non-PITR restore), the restore parameters (`restore_directories`, `restore_point_in_time`) are omitted from `commitlog_archiving.properties`, ensuring Cassandra starts without replaying mutations while keeping archiving enabled.
+- With PITR disabled, a completed restore, an unmapped pod, or an empty restore key returns successfully without changing staging or properties. A pending PITR restore is rejected by the shell before SSTable restoration; the Python entrypoint repeats this guard before cleaning staging.
 - The config directory is a shared volume mounted across initContainers and the Cassandra container, so Medusa can write there directly.
 
 Sample generated `commitlog_archiving.properties` during PITR restore:
@@ -432,125 +437,142 @@ Cassandra startup detects `commitlog_archiving.properties` and replays segments 
 **Entrypoint Flow in `docker-entrypoint.sh`:**
 
 ```bash
+# The entrypoint enables set -e before calling restore().
 restore() {
     echo "Running Medusa in restore mode"
-    last_restore_file=/var/lib/cassandra/.last-restore
+    local last_restore_file="/var/lib/cassandra/.last-restore"
+    local config_file=/etc/medusa/medusa.ini
+    local restore_key="${RESTORE_KEY:-}"
+    local restore_needed
 
-    # True when RESTORE_MAPPING is JSON with a top-level "pitr" key.
-    has_pitr=false
-    if [ -n "$RESTORE_MAPPING" ] && echo "$RESTORE_MAPPING" | \
-        poetry run python -c 'import json,sys; sys.exit(0 if "pitr" in json.load(sys.stdin) else 1)'; then
-        has_pitr=true
+    # Reject invalid mappings and disabled PITR before changing Cassandra data.
+    restore_needed=$(poetry run python -c '
+import logging
+import os
+import sys
+
+from medusa.config import is_pitr_enabled
+from medusa.pitr_utils import get_pitr_target_timestamp_s
+from medusa.service.grpc.pitr_restore import load_restore_mapping, pod_participates, read_last_restore_key
+from medusa.service.grpc.restore import create_config, get_pitr_mapping
+
+last_restore_file, restore_key, config_file = sys.argv[1:]
+mapping = load_restore_mapping()
+pitr_mapping = get_pitr_mapping(mapping)
+restore_requested = (
+    restore_key != ""
+    and (bool(os.getenv("BACKUP_NAME")) or pitr_mapping is not None)
+    and pod_participates(mapping, os.getenv("POD_NAME"))
+)
+restore_needed = restore_requested and read_last_restore_key(last_restore_file) != restore_key
+if restore_needed and pitr_mapping is not None:
+    if not is_pitr_enabled(create_config(config_file)):
+        logging.error("PITR restore requested, but PITR is disabled")
+        sys.exit(1)
+
+    get_pitr_target_timestamp_s(pitr_mapping)
+print("true" if restore_needed else "false")
+' "$last_restore_file" "$restore_key" "$config_file")
+
+    if [[ "$restore_needed" = true ]]; then
+        echo "Restoring SSTable snapshot"
+        poetry run python -m medusa.service.grpc.restore "$config_file" "$restore_key"
+    else
+        echo "Skipping SSTable restore"
     fi
 
-    # 1. SSTable restore: needs RESTORE_KEY and either BACKUP_NAME or a PITR mapping.
-    restore_requested=false
-    if [ -n "$RESTORE_KEY" ] && { [ -n "$BACKUP_NAME" ] || [ "$has_pitr" = true ]; }; then
-        restore_requested=true
-        last_key=""
-        [ -f "$last_restore_file" ] && last_key=$(cat "$last_restore_file")
-        if [ "$last_key" == "$RESTORE_KEY" ]; then
-            echo "Skipping SSTable restore operation"
-        else
-            echo "Restoring SSTable snapshot"
-            poetry run python -m medusa.service.grpc.restore "/etc/medusa/medusa.ini" "$RESTORE_KEY"
-        fi
-    fi
+    # Refresh archiving settings even when this pod skips the SSTable restore.
+    echo "Configuring commitlog replay and archiving"
+    poetry run python -m medusa.service.grpc.pitr_restore "$config_file" "$restore_key" "$last_restore_file"
 
-    # 2. Always run: stage segments (if needed) and write commitlog_archiving.properties.
-    #    This step reads .last-restore to decide if a PITR replay is due.
-    echo "Configuring PITR and commitlog archiving settings"
-    poetry run python -m medusa.service.grpc.pitr_restore "/etc/medusa/medusa.ini" "$RESTORE_KEY" "$last_restore_file"
-
-    # 3. Record the restore only after BOTH steps succeeded (set -e aborts earlier on failure).
-    #    A crash in step 1 or 2 leaves the old key, so the next start re-runs both steps.
-    if [ "$restore_requested" = true ]; then
-        echo "$RESTORE_KEY" > "$last_restore_file"
+    # Record a new key only after both restore steps succeed, so failures can retry.
+    if [[ "$restore_needed" = true ]]; then
+        printf '%s\n' "$restore_key" > "$last_restore_file"
     fi
 }
 ```
 
 **`medusa.service.grpc.pitr_restore` execution logic:**
 
-The shell passes its completion-marker path as `sys.argv[3]`, so both steps use the same file. If omitted, the command defaults to `/var/lib/cassandra/.last-restore`.
+The shell passes the `.last-restore` path as `sys.argv[3]`, so both steps use the same file. If omitted, the command defaults to `/var/lib/cassandra/.last-restore`.
 
-`resolve_node_fqdn` lives in `restore.py` and is shared with `restore_backup()`.
+`resolve_node_address` lives in `restore.py` and is shared with `restore_backup()`. `.last-restore` is read and the pending-restore decision is computed before the disabled-PITR guard. `stage_commitlogs()` passes the selected base backup’s `started` time as `after_snapshot_time_s` (before the segment-selection helper applies its safety margin), and the next backup’s `snapshot_time` plus the configured grace period as the upper bound (or the current time when no next backup exists).
 
 ```python
-from medusa.pitr_utils import get_pitr_target_timestamp_s
-from medusa.service.grpc.restore import resolve_node_fqdn
+import logging
+import os
+import shutil
+import sys
+from pathlib import Path
+
+from medusa.config import is_pitr_enabled
+from medusa.pitr_utils import generate_commitlog_archiving_properties, get_pitr_target_timestamp_s
+from medusa.service.grpc.pitr_restore import (
+    load_restore_mapping, pod_participates, read_last_restore_key, stage_commitlogs,
+)
+from medusa.service.grpc.restore import (
+    configure_console_logging, create_config, get_pitr_mapping, resolve_node_address,
+)
 
 
 def main():
+    """Prepare the local commitlogs and properties before Cassandra starts."""
+    if len(sys.argv) < 2:
+        logging.error("Usage: %s <config_file_path> [restore_key] [last_restore_file]", sys.argv[0])
+        sys.exit(1)
+
     config_file_path = sys.argv[1]
-    restore_key = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("RESTORE_KEY", "")
+    restore_key = sys.argv[2] if len(sys.argv) > 2 else os.getenv("RESTORE_KEY", "")
+    last_restore_file = sys.argv[3] if len(sys.argv) > 3 else "/var/lib/cassandra/.last-restore"
+
+    mapping = load_restore_mapping()
+    pitr_mapping = get_pitr_mapping(mapping)
     config = create_config(config_file_path)
+    configure_console_logging(config.logging)
 
-    mapping = json.loads(os.environ.get("RESTORE_MAPPING", "{}"))
+    last_restore_value = read_last_restore_key(last_restore_file)
+    is_pitr_restore = bool(
+        pitr_mapping is not None
+        and restore_key
+        and last_restore_value != restore_key
+        and pod_participates(mapping, os.getenv("POD_NAME"))
+    )
 
-    if not config.pitr.enabled:
-        if "pitr" in mapping:
-            # Replay was requested but cannot be honoured. Fail loudly instead of
-            # silently restoring to snapshot time only.
-            logging.error("RESTORE_MAPPING has a pitr block but pitr.enabled is false")
+    if not is_pitr_enabled(config):
+        if is_pitr_restore:
+            logging.error("PITR restore requested, but PITR is disabled")
             sys.exit(1)
-        logging.info("PITR is disabled; skipping PITR restore and commitlog archiving configuration")
+
+        logging.info("PITR is disabled. Skipping commitlog configuration")
         return
 
-    # Always ensure staging directory is clean
-    clean_staging_dir(config.pitr.commitlog_staging_dir)
+    staging_dir = Path(config.pitr.commitlog_staging_dir)
+    try:
+        shutil.rmtree(staging_dir)
+    except FileNotFoundError:
+        pass
+    staging_dir.mkdir(parents=True)
 
-    last_restore_file = Path(sys.argv[3] if len(sys.argv) > 3 else "/var/lib/cassandra/.last-restore")
-    last_restore_val = last_restore_file.read_text().strip() if last_restore_file.exists() else ""
-
-    is_pitr_restore = "pitr" in mapping and restore_key and last_restore_val != restore_key
-
-    properties_path = Path(config.cassandra.config_file).parent / "commitlog_archiving.properties"
-
+    archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
     if is_pitr_restore:
-        logging.info("Active PITR restore detected: downloading commitlog segments")
-        pitr_meta = mapping["pitr"]
-        target_timestamp_s = get_pitr_target_timestamp_s(pitr_meta)
-        fqdn = resolve_node_fqdn(mapping, config)
-        backup_name = pitr_meta["node_backups"][fqdn]
+        source_address = resolve_node_address(mapping, config)
+        backup_name = pitr_mapping["node_backups"][source_address]
+        target_timestamp_s = get_pitr_target_timestamp_s(pitr_mapping)
 
-        with Storage(config=config.storage) as storage:
-            # Load the base NodeBackup by name. The backup_name is authoritative (resolved by
-            # PreparePitrRestore). Its `started` time is the segment lower bound: it is earlier
-            # than every snapshot directory, so no needed segment is missed.
-            base_backup = storage.get_node_backup(fqdn=fqdn, name=backup_name)
-            after_snapshot_time_s = base_backup.started
+        stage_commitlogs(config, source_address, backup_name)
 
-            # Compute the upper bound for segment selection from the next available backup.
-            # Falls back to the current wall clock when no subsequent backup exists, so the
-            # scan is always bounded and captures any segments uploaded since the base snapshot.
-            next_backup = find_next_backup(storage, fqdn, base_backup)
-            if next_backup is not None:
-                upper_bound_s = next_backup.snapshot_time + config.pitr.commitlog_restore_grace_period_seconds
-            else:
-                upper_bound_s = time.time()
-
-            segments = find_commitlog_segments(
-                storage,
-                config.storage.prefix,
-                fqdn,
-                after_snapshot_time_s,
-                upper_bound_s=upper_bound_s,
-            )
-            download_commitlog_segments(storage, segments, config.pitr.commitlog_staging_dir)
-
-        props = generate_commitlog_archiving_properties(
-            archive_command=f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name",
+        properties = generate_commitlog_archiving_properties(
+            archive_command=archive_command,
             restore_directories=config.pitr.commitlog_staging_dir,
             target_timestamp_s=target_timestamp_s,
         )
     else:
-        logging.info("Ensuring archiving-only commitlog_archiving.properties without restore parameters")
-        props = generate_commitlog_archiving_properties(
-            archive_command=f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
+        properties = generate_commitlog_archiving_properties(
+            archive_command=archive_command,
         )
 
-    properties_path.write_text(props)
+    properties_path = Path(config.cassandra.config_file).parent / "commitlog_archiving.properties"
+    properties_path.write_text(properties, encoding="utf-8")
 ```
 
 **Semantics by scenario:**
@@ -560,13 +582,15 @@ def main():
 | First restore attempt | File absent → no match | Full SSTable restore, segments downloaded, restore properties written, then key recorded |
 | Pod crash mid-download (step 2) | Not yet written | Both steps re-run on restart. Correct |
 | Pod crash after step 1, before step 2 ends | Not yet written | Both steps re-run (SSTable restore repeats; it is idempotent) |
-| Pod restart after successful PITR restore | Match | Step 1 skipped; step 2 stages 0 segments and writes archiving-only properties (no replay) |
-| New restore job | No match (new `RESTORE_KEY`) | Full execution. Correct |
-| `RESTORE_KEY` empty, `pitr` in mapping | n/a | `is_pitr_restore` is `False`; archiving-only properties; `.last-restore` not written |
+| Pod restart after successful PITR restore, PITR enabled | Match | Step 1 skipped; step 2 stages 0 segments and writes archiving-only properties (no replay) |
+| Pod restart after successful PITR restore, PITR disabled | Match | Step 1 skipped; step 2 returns successfully without changing staging or properties |
+| New PITR restore job, PITR disabled | No match (new `RESTORE_KEY`) | Preflight exits 1 before SSTable restoration or staging cleanup |
+| New restore job, PITR enabled | No match (new `RESTORE_KEY`) | Full execution. Correct |
+| `RESTORE_KEY` empty, `pitr` in mapping | n/a | `is_pitr_restore` is `False`; archiving-only properties if PITR is enabled, otherwise no file changes; `.last-restore` not written |
 
 **Cleanup and Safety Guarantees:**
-1. `medusa.service.grpc.pitr_restore` systematically empties and cleans the staging directory (`/var/lib/cassandra/medusa_commitlog_staging`) on every run.
-2. `medusa.service.grpc.pitr_restore` maintains `commitlog_archiving.properties`: when restore is skipped (`.last-restore` matches `$RESTORE_KEY`), restore settings (`restore_directories`, `restore_point_in_time`) are excluded from `commitlog_archiving.properties` while archiving settings remain active.
+1. `medusa.service.grpc.pitr_restore` empties and cleans the staging directory (`/var/lib/cassandra/medusa_commitlog_staging`) on every run with PITR enabled.
+2. With PITR enabled, `medusa.service.grpc.pitr_restore` maintains `commitlog_archiving.properties`: when restore is skipped (`.last-restore` matches `$RESTORE_KEY`), restore settings (`restore_directories`, `restore_point_in_time`) are excluded from `commitlog_archiving.properties` while archiving settings remain active.
 3. If a pod crashes during step 1 or step 2, .last-restore has not been written (step 3 runs last). On restart, step 2 empties the staging directory and everything re-runs idempotently.
 
 **Point-in-time semantics:** `restore_point_in_time` is a mutation-timestamp cutoff, not a wall-clock receive-time cutoff. Cassandra filters replayed mutations by the timestamp embedded in each mutation, which is the client-supplied CQL `USING TIMESTAMP` value or the coordinator's clock at the time the write was processed — not the time the segment was archived or the time Cassandra received the request. A write with a backdated CQL timestamp before the cutoff will be replayed; a write with a future-dated CQL timestamp after the cutoff will be suppressed even if it was acknowledged before the target time. Operators should be aware of this when the target application uses custom CQL timestamps.
@@ -913,7 +937,7 @@ When Cassandra fails to start after commitlog replay (pod readiness probe fails,
 | Symptom | Recommended path |
 |---|---|
 | Cassandra logs show missing or unreadable segment file | (a) Rollback — the segment cannot be recovered by retrying |
-| Cassandra logs show `restore_point_in_time` parsing error | (b) Retry — ensure `restore_point_in_time` in `commitlog_archiving.properties` matches `%Y:%m:%d %H:%M:%S` UTC |
+| Cassandra logs show `restore_point_in_time` parsing error | (b) Retry — ensure `restore_point_in_time` in `commitlog_archiving.properties` matches `yyyy:MM:dd HH:mm:ss.SSS` UTC (for example, `2024:07:15 12:30:00.500`) |
 | `GetCommitLogArchiveStatus` shows `last_upload_time` after `target_timestamp` on all nodes | (b) Retry with earlier timestamp |
 | Segment gap confirmed (archiver was not running at snapshot time) | (a) Rollback, then enable archiver before the next snapshot |
 
