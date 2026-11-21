@@ -7,7 +7,7 @@ Usage: medusa restore-node [OPTIONS]
 Options:
   --temp-dir TEXT         Directory for temporary storage
   --backup-name TEXT      Backup name  [required]
-  --in-place              Indicates if the restore happens on the node the
+  --in-place / --remote   Indicates if the restore happens on the node the
                           backup was done on.
 
   --keep-auth             Keep system_auth keyspace as found on the node
@@ -22,14 +22,18 @@ Options:
   --use-sstableloader     Use the sstableloader to load the backup into the
                           cluster
 
+  --version-target TEXT   Target Cassandra version
+
   --help                  Show this message and exit.
 ```
 
 In order to restore a backup on a single node, run the following command:
 
 ```
-$ sudo medusa restore-node --in-place --backup-name=<name of the backup>
+$ sudo medusa restore-node --backup-name=<name of the backup>
 ```
+
+The restore happens in-place by default. Use `--remote` to restore on another node (combine it with `--fqdn` to pick the source node's backup).
 
 Medusa will need to run with `sudo` as it will:
 
@@ -42,6 +46,12 @@ Medusa will need to run with `sudo` as it will:
 The `--use-sstableloader` flag will be useful for restoring data when the topology doesn't match between the backed up cluster and the restore one.
 In this mode, Cassandra will not be stopped and downloaded SSTables will be loaded into Cassandra by the sstableloader. Data already present in the cluster will not be altered.
 
-The `--fqdn` argument allows to force the node to act on behalf of another backup node. It can take several hostnames separated by commas in order to restore several nodes backup using the sstableloader.
+The global `--fqdn` option goes before `restore-node` and allows the node to act on behalf of another backup node. For example:
+
+```
+$ sudo medusa --fqdn=host1,host2 restore-node --backup-name=<name of the backup> --use-sstableloader
+```
+
+It can take several hostnames separated by commas when restoring several node backups using the sstableloader.
 
 The `--keyspace` option allows limiting the restore to all tables in the given keyspace. The `--table` option allows limiting the restore to just one table. The tables must be specified in the `keyspace.table` format. It is possible to repeat both of the options. Medusa will make an union of everything specified and restore all keyspaces and tables mentioned. The `--keyspace` option takes precedence, so using `--keyspace ks1` and then adding `--table ks1.t` will not limit the restore to just one table - everything from `ks1` will be restored.
