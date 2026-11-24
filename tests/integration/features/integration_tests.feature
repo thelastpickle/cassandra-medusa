@@ -1240,3 +1240,34 @@ Feature: Integration tests
         Examples: Local storage
         | storage    | client encryption          |
         | local      |  without_client_encryption |
+
+    @36 @pitr
+    Scenario Outline: Restore a node to a point in time between a backup and the end of the workload
+        Given I have a fresh ccm cluster "<client encryption>" running named "scenario36"
+        Given I am using "<storage>" as storage provider in ccm cluster "<client encryption>"
+        Given PITR commitlog archiving and a gRPC server are enabled on the ccm node
+        When I create the "test" table in keyspace "medusa"
+        When I load 100 rows in the "medusa.test" table
+        When I run a "ccm node1 nodetool -- -Dcom.sun.jndi.rmiURLParsing=legacy flush" command
+        When I perform a backup in "full" mode of the node named "pitr_base" with md5 checks "disabled"
+        Then I wait for 2 seconds
+        When I load 100 rows in the "medusa.test" table
+        Then I wait for 2 seconds
+        When I record the PITR target timestamp and the number of rows in the "medusa.test" table
+        Then I wait for 2 seconds
+        When I load 100 rows in the "medusa.test" table
+        When I force the commitlog segments to be sealed and archived by restarting the node
+        Then the commitlog archiver uploads everything that was sealed
+        When I prepare a PITR restore to the recorded target timestamp for the datacenter "datacenter1"
+        When I restore the node to the recorded PITR target the way the Kubernetes init containers do
+        Then I have the number of rows recorded for the PITR target in the "medusa.test" table
+
+        @local
+        Examples: Local storage
+        | storage | client encryption          |
+        | local   | without_client_encryption  |
+
+        @gcs
+        Examples: Google Cloud Storage
+        | storage        | client encryption          |
+        | google_storage | without_client_encryption  |
