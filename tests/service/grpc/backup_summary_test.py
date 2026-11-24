@@ -16,7 +16,7 @@ from unittest.mock import Mock
 
 from medusa.service.grpc import medusa_pb2
 from medusa.service.grpc.server import get_backup_summary
-from medusa.storage import ClusterBackup
+from medusa.storage import ClusterBackup, NodeBackup
 
 
 def make_node_backup(fqdn, started, finished, tokenmap):
@@ -29,7 +29,18 @@ def make_node_backup(fqdn, started, finished, tokenmap):
     node_backup.is_differential = True
     node_backup.size.return_value = 1
     node_backup.num_objects.return_value = 1
+    node_backup.size_and_num_objects.return_value = (1, 1)
     return node_backup
+
+
+def test_node_backup_size_and_num_objects_parses_manifest_once():
+    node_backup = object.__new__(NodeBackup)
+    node_backup.cached_manifest = json.dumps([
+        {'objects': [{'size': 10}, {'size': 20}]},
+        {'objects': [{'size': 5}]},
+    ])
+
+    assert node_backup.size_and_num_objects() == (35, 3)
 
 
 def test_summary_ignores_unexpected_incomplete_node_backup():
@@ -76,3 +87,32 @@ def test_summary_does_not_count_unexpected_node_as_missing_node():
     assert summary.startTime == 9
     assert summary.totalSize == 2
     assert summary.totalObjects == 2
+
+
+def test_summary_totals_parse_manifest_once_and_release_cache():
+    tokenmap = {
+        'node1': {'tokens': [1], 'rack': 'rack1', 'dc': 'dc1'},
+        'node2': {'tokens': [2], 'rack': 'rack1', 'dc': 'dc1'},
+    }
+    node1 = make_node_backup('node1', 8, 10, tokenmap)
+    node1.size_and_num_objects.return_value = (100, 3)
+    node1.cached_manifest = 'manifest-1'
+    node2 = make_node_backup('node2', 9, 11, tokenmap)
+    node2.size_and_num_objects.return_value = (50, 2)
+    node2.cached_manifest = 'manifest-2'
+    unfinished = make_node_backup('old-node', 12, None, tokenmap)
+    unfinished.cached_manifest = 'manifest-3'
+    backup = ClusterBackup('backup1', [node1, node2, unfinished])
+
+    summary = get_backup_summary(backup)
+
+    assert summary.totalSize == 150
+    assert summary.totalObjects == 5
+    node1.size_and_num_objects.assert_called_once_with()
+    node2.size_and_num_objects.assert_called_once_with()
+    unfinished.size_and_num_objects.assert_not_called()
+    node1.size.assert_not_called()
+    node1.num_objects.assert_not_called()
+    assert node1.cached_manifest is None
+    assert node2.cached_manifest is None
+    assert unfinished.cached_manifest is None
