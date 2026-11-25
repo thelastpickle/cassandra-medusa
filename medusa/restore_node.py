@@ -98,6 +98,8 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     # especially around system tables.
     use_sudo = medusa.utils.evaluate_boolean(config.storage.use_sudo_for_restore)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
+    # Clean the hints, so stale hints don't get replayed on top of the restored data.
+    clean_path(cassandra.hints_path, use_sudo, keep_folder=True)
 
     if node_backup.is_dse:
         if node_backup.is_dse_6:

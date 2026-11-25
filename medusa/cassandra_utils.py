@@ -260,6 +260,13 @@ class CassandraConfigReader(object):
         return pathlib.Path(commitlog_directory)
 
     @property
+    def hints_directory(self):
+        hints_directory = self._config.get('hints_directory', '/var/lib/cassandra/hints')
+        if not hints_directory:
+            raise RuntimeError('hints_directory must be properly configured')
+        return pathlib.Path(hints_directory)
+
+    @property
     def saved_caches_directory(self):
         saved_caches_directory = self._config.get('saved_caches_directory', '/var/lib/cassandra/saved_caches')
         if not saved_caches_directory:
@@ -374,6 +381,7 @@ class Cassandra(object):
             self._dse_metadata_folder = 'metadata'
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
+        self._hints_path = config_reader.hints_directory
         self._hostname = contact_point if contact_point is not None else config_reader.listen_address
         self._storage_port = config_reader.storage_port
         self._native_port = config_reader.native_port
@@ -413,6 +421,10 @@ class Cassandra(object):
     @property
     def saved_caches_path(self):
         return self._saved_caches_path
+
+    @property
+    def hints_path(self):
+        return self._hints_path
 
     @property
     def hostname(self):

@@ -14,7 +14,10 @@
 # limitations under the License.
 
 import configparser
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from cassandra.util import Version
@@ -118,6 +121,48 @@ class RestoreNodeTest(unittest.TestCase):
 
         # THEN expect default release version will be captured.
         self.assertEqual(HostMan.get_release_version(), Version(HostMan.DEFAULT_RELEASE_VERSION))
+
+    def test_restore_node_locally_cleans_hints(self):
+        config = mock.Mock()
+        config.kubernetes.enabled = '1'
+        config.storage.use_sudo_for_restore = 'False'
+        config.storage.fqdn = 'node1'
+        node_backup = mock.Mock()
+        node_backup.exists.return_value = True
+        node_backup.is_dse = False
+        node_backup.manifest = '[]'
+        storage_mock = mock.Mock()
+        storage_mock.get_node_backup.return_value = node_backup
+        storage_mock.config.fqdn = 'node1'
+        cassandra = mock.Mock()
+        cassandra.commit_logs_path = Path('/tmp/commitlog')
+        cassandra.hints_path = Path('/tmp/hints')
+
+        with mock.patch.object(restore_node, 'Cassandra', return_value=cassandra), \
+                mock.patch.object(restore_node, 'filter_fqtns', return_value=({'ks.t'}, set())), \
+                mock.patch.object(restore_node, 'download_data'), \
+                mock.patch.object(restore_node, 'get_node_tokens', return_value=['1']), \
+                mock.patch.object(restore_node, 'clean_path') as clean_path, \
+                mock.patch('builtins.open', mock.mock_open(read_data='{}')):
+            restore_node.restore_node_locally(config, Path('/tmp'), 'backup', True, False, None,
+                                              storage_mock, None, None)
+
+        self.assertEqual(
+            [mock.call(Path('/tmp/commitlog'), False, keep_folder=True),
+             mock.call(Path('/tmp/hints'), False, keep_folder=True)],
+            clean_path.call_args_list[:2])
+
+    def test_clean_path_keep_folder_removes_hints_content_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hints = Path(tmp) / 'hints'
+            hints.mkdir()
+            (hints / 'hint1.hints').write_text('x')
+            (hints / 'hint2.crc32').write_text('x')
+
+            restore_node.clean_path(hints, False, keep_folder=True)
+
+            self.assertTrue(hints.is_dir())
+            self.assertEqual([], os.listdir(hints))
 
 
 if __name__ == '__main__':
