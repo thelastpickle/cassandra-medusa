@@ -71,6 +71,8 @@ grpc() {
     MEDUSA_PID=$!
     # tini -g also sends SIGTERM to Medusa; wait for its clean stop, or tini exits and Medusa is killed mid-stop.
     trap 'wait "$MEDUSA_PID"; exit $?' TERM
+    # Medusa starts as a background job with SIGINT ignored, so turn INT into the TERM it stops cleanly on.
+    trap 'kill -TERM "$MEDUSA_PID" 2>/dev/null || true; wait "$MEDUSA_PID"; exit $?' INT
 
     # Loop while Medusa process is running
     while kill -0 "$MEDUSA_PID" 2>/dev/null; do

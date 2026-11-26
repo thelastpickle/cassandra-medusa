@@ -497,11 +497,12 @@ def grpc_container(tmp_path):
         proc.wait()
 
 
+@pytest.mark.parametrize('stop_signal', [signal.SIGTERM, signal.SIGINT], ids=['SIGTERM', 'SIGINT'])
 @pytest.mark.parametrize('term_status', [0, 3])
-def test_sigterm_to_process_group_waits_for_medusa_clean_stop(grpc_container, term_status):
+def test_stop_signal_to_process_group_waits_for_medusa_clean_stop(grpc_container, term_status, stop_signal):
     proc = grpc_container.start(term_status=term_status)
 
-    os.killpg(proc.pid, signal.SIGTERM)
+    os.killpg(proc.pid, stop_signal)
     output, _ = proc.communicate(timeout=5)
 
     assert proc.returncode == term_status, output
