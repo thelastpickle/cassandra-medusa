@@ -266,7 +266,7 @@ def test_active_restore_stages_segments_and_writes_replay_properties(
     assert read_properties(files.properties) == {
         'archive_command': archive_command(files),
         'restore_directories': str(files.staging),
-        'restore_command': '/bin/cp -f %from %to',
+        'restore_command': '/bin/mv -f %from %to',
         'restore_point_in_time': '2026:01:01 00:00:00.123',
     }
     assert not files.marker.exists()

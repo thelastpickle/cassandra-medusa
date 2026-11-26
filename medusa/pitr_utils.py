@@ -32,7 +32,9 @@ from medusa.storage.abstract_storage import AbstractBlob
 from medusa.storage.node_backup import NodeBackup
 
 COMMITLOGS_FOLDER = 'commitlogs'
-RESTORE_COMMAND = '/bin/cp -f %from %to'
+# mv, not cp: the staged segments are throwaway downloads, so moving them into Cassandra's commitlog directory avoids
+# a second copy of every segment on the data volume during replay (design doc 4.8).
+RESTORE_COMMAND = '/bin/mv -f %from %to'
 EPOCH_TIMESTAMP_PATTERN = re.compile(r'^\d+(\.\d+)?$')
 
 # NodeBackup.snapshot_time is the snapshot directory mtime truncated to whole seconds (see
