@@ -263,6 +263,7 @@ def test_active_restore_stages_segments_and_writes_replay_properties(
     )
     restore_io.download.assert_called_once_with(restore_io.storage, segments, str(files.staging))
     assert {file.name for file in files.staging.iterdir()} == {segment.name for segment in segments}
+    assert files.staging.stat().st_mode & 0o777 == 0o777
     assert read_properties(files.properties) == {
         'archive_command': archive_command(files),
         'restore_directories': str(files.staging),
