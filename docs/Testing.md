@@ -48,8 +48,9 @@ To run tests with local storage and using a Cassandra 3.11.7 cluster:
 
 ## Point-in-time restore (PITR) end-to-end test
 
-The `@pitr` scenario in `tests/integration/features/pitr_tests.feature` runs against local storage and is part of the
-default run (`@local`). To run only that scenario:
+The `@pitr` scenario in `tests/integration/features/integration_tests.feature` runs against local storage (`@local`) and
+Google Cloud Storage (`@gcs`). It is part of the default run, and also of the runs that use `--gcs`. To run only that
+scenario:
 
 ```
 ./run_integration_tests.sh -t pitr
