@@ -59,6 +59,7 @@ class Server:
         self.testing = testing
         self.commitlog_archiver = None
         self.metrics_endpoint = None
+        self._stop_task = None
         self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
@@ -71,6 +72,10 @@ class Server:
         logging.info("Shutting down GRPC server")
         handle_backup_removal_all()
         asyncio.get_event_loop().run_until_complete(self.grpc_server.stop(0))
+
+    def _on_sigterm(self):
+        # the loop holds only weak references to tasks, so keep one until stop() has run
+        self._stop_task = asyncio.ensure_future(self.grpc_server.stop(0))
 
     def _stop_commitlog_archiver(self):
         if self.commitlog_archiver is None or not self.commitlog_archiver.is_alive():
@@ -127,8 +132,7 @@ class Server:
 
         if not self.testing:
             # kubelet stops the pod with SIGTERM: stop serving so the cleanup below runs and the process exits 0
-            asyncio.get_running_loop().add_signal_handler(
-                signal.SIGTERM, lambda: asyncio.ensure_future(self.grpc_server.stop(0)))
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, self._on_sigterm)
             try:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:
