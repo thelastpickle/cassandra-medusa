@@ -52,10 +52,9 @@ RUN case "$TARGETARCH" in \
     esac \
     && curl -fsSL --proto "=https" -o /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH}" \
     && echo "${TINI_SHA256}  /usr/bin/tini" | sha256sum -c - \
-    && chmod +x /usr/bin/tini
-
+    && chmod +x /usr/bin/tini \
 # Download the the latest grpc_health_probe binary build for the correct architecture
-RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
+    && curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
     | jq --arg TARGETARCH $TARGETARCH -r ' .assets[] | select(.name | contains("linux")) | select(.name | contains($TARGETARCH)) | .browser_download_url' \
     | xargs -I {} wget -qO/bin/grpc_health_probe {} &&  chmod +x /bin/grpc_health_probe
 
