@@ -50,7 +50,7 @@ RUN case "$TARGETARCH" in \
         arm64) TINI_SHA256=07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81 ;; \
         *) echo "no tini checksum for $TARGETARCH" && exit 1 ;; \
     esac \
-    && wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH}" \
+    && curl -fsSL --proto "=https" -o /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH}" \
     && echo "${TINI_SHA256}  /usr/bin/tini" | sha256sum -c - \
     && chmod +x /usr/bin/tini
 
