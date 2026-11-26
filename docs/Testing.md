@@ -45,3 +45,24 @@ To run tests with local storage and using a Cassandra 3.11.7 cluster:
 ./run_integration_tests.sh --cassandra-version=3.11.7
 ```
 
+
+## Point-in-time restore (PITR) end-to-end test
+
+The `@pitr` scenario in `tests/integration/features/integration_tests.feature` runs against local storage (`@local`) and
+Google Cloud Storage (`@gcs`). It is part of the default run, and also of the runs that use `--gcs`. To run only that
+scenario:
+
+```
+./run_integration_tests.sh -t pitr
+```
+
+It takes a full backup, keeps writing, records a target timestamp, writes some more, forces the commitlog segments to be
+archived (`nodetool drain` and a node restart), waits for the commitlog archiver to upload them, calls
+`PreparePitrRestore` and then restores the node to the target the way the Kubernetes init containers do, by running
+`python -m medusa.service.grpc.restore` and `python -m medusa.service.grpc.pitr_restore` with a `RESTORE_MAPPING`.
+It then checks that only the rows written before the target are back.
+
+The commitlog spool and staging directories live in the ccm node directory (the spool has to be on the same device as the
+commitlog directory) and are removed, together with the gRPC server and its archiver, by `after_scenario`.
+The helpers of the scenario are in `tests/integration/pitr_helpers.py` and are unit tested in
+`tests/pitr_integration_test.py`.
