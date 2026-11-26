@@ -43,6 +43,17 @@ RUN microdnf install -y shadow-utils \
 RUN microdnf install -y python3 python3-setuptools wget jq findutils \
     && microdnf clean all
 
+# tini as PID 1 forwards kubelet's SIGTERM; -g sends it to the whole group, so Medusa gets it too.
+ARG TINI_VERSION=v0.19.0
+RUN case "$TARGETARCH" in \
+        amd64) TINI_SHA256=93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c ;; \
+        arm64) TINI_SHA256=07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81 ;; \
+        *) echo "no tini checksum for $TARGETARCH" && exit 1 ;; \
+    esac \
+    && wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH}" \
+    && echo "${TINI_SHA256}  /usr/bin/tini" | sha256sum -c - \
+    && chmod +x /usr/bin/tini
+
 # Download the the latest grpc_health_probe binary build for the correct architecture
 RUN curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
     | jq --arg TARGETARCH $TARGETARCH -r ' .assets[] | select(.name | contains("linux")) | select(.name | contains($TARGETARCH)) | .browser_download_url' \
@@ -71,4 +82,4 @@ ENV LANG=C.UTF-8
 
 WORKDIR /home/cassandra
 
-ENTRYPOINT ["/home/cassandra/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/home/cassandra/docker-entrypoint.sh"]

@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 from collections import defaultdict
 from concurrent import futures
@@ -125,6 +126,9 @@ class Server:
             raise
 
         if not self.testing:
+            # kubelet stops the pod with SIGTERM: stop serving so the cleanup below runs and the process exits 0
+            asyncio.get_running_loop().add_signal_handler(
+                signal.SIGTERM, lambda: asyncio.ensure_future(self.grpc_server.stop(0)))
             try:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:

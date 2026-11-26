@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Exercise the restore-mode shell entrypoint without running Cassandra."""
+"""Exercise the shell entrypoint and the image entrypoint without running Cassandra or Medusa."""
 
 import json
 import os
+import re
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +28,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = REPO_ROOT / 'k8s' / 'docker-entrypoint.sh'
+DOCKERFILE = REPO_ROOT / 'k8s' / 'Dockerfile'
 MARKER = '.last-restore'
 FAILURE_STATUS = 42
 
@@ -428,3 +432,108 @@ def test_disabled_pitr_without_pending_restore_allows_startup(
     assert restore_container.marker.read_text() == f'{marker_value}\n'
     assert old_segment.read_bytes() == b'previous segment'
     assert restore_container.properties.read_text() == 'previous properties\n'
+
+
+# Stands in for the gRPC server: `poetry run python -m medusa.service.grpc.server server.py` runs this instead.
+FAKE_MEDUSA = r"""
+import os, signal, sys, time
+
+def stop(*_):
+    time.sleep(1)  # a clean stop takes a moment; the entrypoint must wait for it
+    open('stopped', 'w').write('clean')
+    sys.exit(int(os.environ['TEST_TERM_STATUS']))
+
+signal.signal(signal.SIGTERM, stop)
+open('started', 'w').write('yes')
+if os.environ['TEST_EXIT_STATUS']:
+    sys.exit(int(os.environ['TEST_EXIT_STATUS']))
+while True:
+    time.sleep(0.1)
+"""
+
+
+@pytest.fixture
+def grpc_container(tmp_path):
+    config = tmp_path / 'medusa.ini'
+    config.write_text('[grpc]\nenabled = true\n')
+    script = tmp_path / ENTRYPOINT.name
+    script.write_text(ENTRYPOINT.read_text().replace('/etc/medusa/medusa.ini', str(config)))
+    (tmp_path / 'fake_medusa.py').write_text(FAKE_MEDUSA)
+    stub = tmp_path / 'poetry'
+    stub.write_text(
+        '#!/bin/bash\n'
+        '[[ "$*" == "run python -m medusa.service.grpc.server server.py" ]] || exit 2\n'
+        'exec "$TEST_PYTHON" fake_medusa.py\n'
+    )
+    stub.chmod(0o755)
+    started = []
+
+    def start(term_status=0, exit_status=''):
+        env = {
+            'PATH': os.pathsep.join((str(tmp_path), os.environ['PATH'])),
+            'MEDUSA_MODE': 'GRPC',
+            'DEBUG_SLEEP': '0',
+            'TEST_PYTHON': sys.executable,
+            'TEST_TERM_STATUS': str(term_status),
+            'TEST_EXIT_STATUS': str(exit_status),
+        }
+        # own process group, as under tini; `tini -g` signals that whole group
+        proc = subprocess.Popen(['/bin/bash', str(script)], cwd=tmp_path, env=env, start_new_session=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        started.append(proc)
+        deadline = time.monotonic() + 15
+        while not (tmp_path / 'started').exists():
+            assert proc.poll() is None or exit_status, proc.stdout.read()
+            assert time.monotonic() < deadline, 'fake Medusa did not start'
+            time.sleep(0.05)
+        return proc
+
+    yield SimpleNamespace(start=start, config=config, stopped=tmp_path / 'stopped')
+    for proc in started:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+
+
+@pytest.mark.parametrize('term_status', [0, 3])
+def test_sigterm_to_process_group_waits_for_medusa_clean_stop(grpc_container, term_status):
+    proc = grpc_container.start(term_status=term_status)
+
+    os.killpg(proc.pid, signal.SIGTERM)
+    output, _ = proc.communicate(timeout=5)
+
+    assert proc.returncode == term_status, output
+    assert grpc_container.stopped.read_text() == 'clean'
+
+
+def test_medusa_exit_status_is_entrypoint_exit_status(grpc_container):
+    proc = grpc_container.start(exit_status=7)
+
+    output, _ = proc.communicate(timeout=15)
+
+    assert proc.returncode == 7, output
+
+
+def test_config_change_stops_medusa_and_exits_zero(grpc_container):
+    proc = grpc_container.start(term_status=3)
+
+    grpc_container.config.write_text('[grpc]\nenabled = false\n')
+    output, _ = proc.communicate(timeout=15)
+
+    assert proc.returncode == 0, output
+    assert 'Detected change in medusa.ini' in output
+
+
+def test_image_runs_entrypoint_under_pinned_and_verified_tini_signalling_the_group():
+    dockerfile = DOCKERFILE.read_text()
+
+    assert re.findall(r'^ENTRYPOINT .*$', dockerfile, re.M) == [
+        'ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/home/cassandra/docker-entrypoint.sh"]'
+    ]
+    assert re.search(r'^ARG TINI_VERSION=v\d+\.\d+\.\d+$', dockerfile, re.M)
+    for arch in ('amd64', 'arm64'):
+        assert re.search(r'^\s+' + arch + r'\) TINI_SHA256=[0-9a-f]{64} ;;', dockerfile, re.M), arch
+    assert 'tini-${TARGETARCH}"' in dockerfile
+    assert '| sha256sum -c -' in dockerfile

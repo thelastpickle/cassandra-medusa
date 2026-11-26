@@ -69,6 +69,8 @@ grpc() {
 
     exec poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
+    # tini -g also sends SIGTERM to Medusa; wait for its clean stop, or tini exits and Medusa is killed mid-stop.
+    trap 'wait "$MEDUSA_PID"; exit $?' TERM
 
     # Loop while Medusa process is running
     while kill -0 "$MEDUSA_PID" 2>/dev/null; do
