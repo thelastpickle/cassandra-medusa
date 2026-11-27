@@ -153,30 +153,16 @@ def test_entrypoint_reuses_restore_mapping_helpers(entrypoint):
     assert entrypoint.get_pitr_mapping is restore.get_pitr_mapping
 
 
-@pytest.mark.parametrize(
-    'pitr_requested,log_level',
-    [pytest.param(False, logging.INFO, id='standard-startup'), pytest.param(True, logging.ERROR, id='pitr-request')],
-)
-def test_disabled_pitr_leaves_files_untouched(
-    entrypoint, files, restore_io, monkeypatch, caplog, pitr_requested, log_level,
-):
+def test_disabled_pitr_leaves_files_untouched(entrypoint, files, restore_io, caplog):
     write_config(files, enabled='false')
     files.staging.mkdir()
     old_segment = files.staging / 'old.log'
     old_segment.write_bytes(b'previous segment')
-    if pitr_requested:
-        monkeypatch.setenv('RESTORE_MAPPING', json.dumps({'in_place': True, 'pitr': {}}))
 
     with caplog.at_level(logging.INFO):
-        if pitr_requested:
-            with pytest.raises(SystemExit) as error:
-                entrypoint.main()
-        else:
-            entrypoint.main()
+        entrypoint.main()
 
-    if pitr_requested:
-        assert error.value.code == 1
-    assert any(record.levelno == log_level and 'pitr' in record.getMessage().lower() for record in caplog.records)
+    assert any(record.levelno == logging.INFO and 'pitr' in record.getMessage().lower() for record in caplog.records)
     assert old_segment.read_bytes() == b'previous segment'
     assert not files.properties.exists()
     assert not files.marker.exists()
@@ -274,6 +260,66 @@ def test_active_restore_stages_segments_and_writes_replay_properties(
     }
     assert files.spool.stat().st_mode & 0o777 == 0o777
     assert not files.marker.exists()
+
+
+@pytest.mark.parametrize('pitr_section', [True, False], ids=['explicitly-disabled', 'section-absent'])
+@pytest.mark.parametrize('in_place', [True, False], ids=['in-place', 'out-of-place'])
+def test_pending_restore_writes_replay_only_properties(
+    entrypoint, files, restore_io, mapping, monkeypatch, pitr_section, in_place,
+):
+    write_config(files, enabled='false')
+    staging_dir = str(files.staging)
+    if not pitr_section:
+        files.ini.write_text(files.ini.read_text().partition('[pitr]')[0])
+        staging_dir = '/var/lib/cassandra/medusa_commitlog_staging'
+        default_paths = {
+            staging_dir: files.staging,
+            '/var/lib/cassandra/commitlog_spool_dir': files.spool,
+        }
+        path_in_test_volume = entrypoint.Path
+
+        def redirect_default_path(path):
+            if path in default_paths:
+                return default_paths[path]
+            return path_in_test_volume(path)
+
+        monkeypatch.setattr(entrypoint, 'Path', redirect_default_path)
+
+    mapping['in_place'] = in_place
+    monkeypatch.setenv('POD_NAME', 'target-0')
+    monkeypatch.setenv('RESTORE_MAPPING', json.dumps(mapping))
+    restore_io.find_next.return_value = None
+    segments = [SimpleNamespace(name='CommitLog-7-100.log')]
+    restore_io.find_segments.return_value = segments
+
+    entrypoint.main()
+
+    restore_io.storage.get_node_backup.assert_called_once_with(fqdn='source-node.example', name='mapped-backup')
+    restore_io.download.assert_called_once_with(restore_io.storage, segments, staging_dir)
+    assert files.staging.is_dir()
+    assert read_properties(files.properties) == {
+        'restore_directories': staging_dir,
+        'restore_command': '/bin/mv -f %from %to',
+        'restore_point_in_time': '2026:01:01 00:00:00.123',
+    }
+
+
+def test_pending_restore_with_missing_cutoff_keeps_staging(entrypoint, files, restore_io, mapping, monkeypatch):
+    write_config(files, enabled='false')
+    mapping['pitr'].pop('target_timestamp')
+    monkeypatch.setenv('RESTORE_MAPPING', json.dumps(mapping))
+    files.staging.mkdir()
+    old_segment = files.staging / 'old.log'
+    old_segment.touch()
+
+    with pytest.raises(ValueError, match='target_timestamp'):
+        entrypoint.main()
+
+    assert old_segment.is_file()
+    assert not files.properties.exists()
+    assert not files.marker.exists()
+    assert_no_storage_access(restore_io)
+    restore_io.generate_properties.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -441,10 +487,9 @@ def test_module_runs_as_entrypoint(entrypoint, files, monkeypatch):
     write_config(files, enabled='false')
     monkeypatch.setenv('RESTORE_MAPPING', json.dumps({'in_place': True, 'pitr': {}}))
 
-    with patch.object(restore, 'configure_console_logging'), pytest.raises(SystemExit) as error:
+    with patch.object(restore, 'configure_console_logging'), pytest.raises(ValueError, match='target_timestamp'):
         runpy.run_path(entrypoint.__file__, run_name='__main__')
 
-    assert error.value.code == 1
     assert not files.properties.exists()
 
 
