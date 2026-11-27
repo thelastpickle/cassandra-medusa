@@ -36,6 +36,19 @@ def _describe(e):
     return str(e) or type(e).__name__
 
 
+def _stat_nearest_existing(path):
+    """os.stat() of path, or of its nearest ancestor that exists. Only a missing path moves up a level."""
+    path = Path(path).absolute()
+    while True:
+        try:
+            return os.stat(path)
+        except FileNotFoundError:
+            if path == path.parent:
+                raise
+            logging.info('%s does not exist yet, checking the device of its parent', path)
+            path = path.parent
+
+
 # error is '' when every listed segment was archived (or a stop was requested), otherwise it describes the
 # segment that failed and ended the tick. stopped is True when a stop request ended the drain early.
 DrainResult = collections.namedtuple('DrainResult', ['uploaded', 'skipped', 'uploaded_bytes', 'error', 'stopped'],
@@ -49,7 +62,8 @@ class CommitLogArchiver(threading.Thread):
     Cassandra's ``archive_command`` (``/bin/ln %path <commitlog_spool_dir>/%name``) creates a hardlink of every
     finished segment in ``commitlog_spool_dir``. A hardlink cannot cross filesystem boundaries (``ln`` fails with
     ``EXDEV``), so the spool directory must be on the same device as the Cassandra commitlog directory. ``__init__``
-    checks this and raises ``RuntimeError`` if it does not hold, so a bad mount stops the server at startup.
+    checks this and raises ``RuntimeError`` if it does not hold, so a bad mount stops the server at startup. A commitlog
+    directory that Cassandra has not created yet is checked through its nearest existing ancestor.
 
     Every tick uploads the spooled segments in name order to ``<prefix>/<fqdn>/commitlogs/<filename>``, unless a
     matching object is already there (a restart must not upload twice). The hardlink is removed only after the
@@ -101,19 +115,24 @@ class CommitLogArchiver(threading.Thread):
                 "or end with 'nodes'".format(self._spool_dir))
 
         commitlog_dir = CassandraConfigReader(config.cassandra.config_file).commitlog_directory
-        msg = ("commitlog_spool_dir '{}' is on a different device than the Cassandra commitlog directory '{}'. "
-               "Hardlinks cannot cross filesystem boundaries. Mount both paths on the same volume."
-               .format(self._spool_dir, commitlog_dir))
         try:
-            commitlog_dev = os.stat(commitlog_dir).st_dev
+            # Cassandra creates its commitlog directory when the daemon starts, which on a fresh volume is after
+            # the sidecar starts. The directory will be created on the device of its nearest existing ancestor, so
+            # checking that ancestor gives the same answer. Medusa never creates the directory itself.
+            commitlog_dev = _stat_nearest_existing(commitlog_dir).st_dev
             # Creating a missing spool dir is safe: if the shared volume is not mounted, the new folder ends up on
             # another device and the check below still fails.
             self._spool_dir.mkdir(parents=True, exist_ok=True)
             spool_dev = os.stat(self._spool_dir).st_dev
         except OSError as e:
-            raise RuntimeError('{} ({})'.format(msg, e)) from e
+            raise RuntimeError(
+                "Cannot check that commitlog_spool_dir '{}' and the Cassandra commitlog directory '{}' are on the "
+                "same device: {}".format(self._spool_dir, commitlog_dir, e)) from e
         if spool_dev != commitlog_dev:
-            raise RuntimeError(msg)
+            raise RuntimeError(
+                "commitlog_spool_dir '{}' is on a different device than the Cassandra commitlog directory '{}'. "
+                "Hardlinks cannot cross filesystem boundaries. Mount both paths on the same volume."
+                .format(self._spool_dir, commitlog_dir))
 
         super().__init__(name='commitlog-archiver', daemon=True)
         self._stop_event = threading.Event()

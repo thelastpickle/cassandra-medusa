@@ -124,6 +124,9 @@ def main():
     except FileNotFoundError:
         pass
     staging_dir.mkdir(parents=True)
+    # Cassandra's archive_command links into the spool, and fails (losing the segment) if the directory is missing
+    # before the sidecar has created it.
+    Path(config.pitr.commitlog_spool_dir).mkdir(parents=True, exist_ok=True)
 
     archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
     if is_pitr_restore:

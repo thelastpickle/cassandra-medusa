@@ -180,6 +180,7 @@ def test_disabled_pitr_leaves_files_untouched(
     assert old_segment.read_bytes() == b'previous segment'
     assert not files.properties.exists()
     assert not files.marker.exists()
+    assert not files.spool.exists()
     assert_no_storage_access(restore_io)
     restore_io.generate_properties.assert_not_called()
 
@@ -210,6 +211,7 @@ def test_disabled_pitr_without_pending_restore_leaves_files_untouched(
     assert files.marker.read_text() == marker_value
     assert old_segment.read_bytes() == b'previous segment'
     assert files.properties.read_text() == 'previous properties\n'
+    assert not files.spool.exists()
     assert_no_storage_access(restore_io)
     restore_io.generate_properties.assert_not_called()
 
@@ -269,6 +271,7 @@ def test_active_restore_stages_segments_and_writes_replay_properties(
         'restore_command': '/bin/cp -f %from %to',
         'restore_point_in_time': '2026:01:01 00:00:00.123',
     }
+    assert files.spool.is_dir()
     assert not files.marker.exists()
 
 
@@ -332,8 +335,26 @@ def test_skipped_replay_replaces_stale_properties_and_empties_staging(
     assert files.staging.is_dir()
     assert list(files.staging.iterdir()) == []
     assert read_properties(files.properties) == {'archive_command': archive_command(files)}
+    assert files.spool.is_dir()
     assert (files.marker.read_text() if files.marker.exists() else None) == marker
     assert_no_storage_access(restore_io)
+
+
+@pytest.mark.parametrize('restore_requested', [False, True], ids=['normal-startup', 'restore'])
+def test_existing_spool_is_kept(entrypoint, files, restore_io, mapping, monkeypatch, restore_requested):
+    if restore_requested:
+        monkeypatch.setenv('POD_NAME', 'target-0')
+        monkeypatch.setenv('RESTORE_MAPPING', json.dumps(mapping))
+        restore_io.find_next.return_value = None
+    files.spool.mkdir()
+    pending = files.spool / 'CommitLog-7-99.log'
+    pending.write_bytes(b'not yet uploaded')
+
+    entrypoint.main()
+
+    assert pending.read_bytes() == b'not yet uploaded'
+    assert read_properties(files.properties)['archive_command'] == archive_command(files)
+    assert restore_io.download.called == restore_requested
 
 
 @pytest.mark.parametrize(
