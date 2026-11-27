@@ -291,7 +291,7 @@ def test_pending_restore_writes_replay_only_properties(
     assert files.staging.is_dir()
     assert read_properties(files.properties) == {
         'restore_directories': staging_dir,
-        'restore_command': '/bin/cp -f %from %to',
+        'restore_command': '/bin/mv -f %from %to',
         'restore_point_in_time': '2026:01:01 00:00:00.123',
     }
 
