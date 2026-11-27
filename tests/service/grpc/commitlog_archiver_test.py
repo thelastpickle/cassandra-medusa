@@ -189,9 +189,18 @@ class CommitLogArchiverTest(unittest.TestCase):
         self.assertFalse(self.commitlog.exists())
 
     def test_init_raises_when_no_commitlog_ancestor_exists(self):
-        with patch(MODULE + '.os.stat', side_effect=FileNotFoundError(2, 'No such file or directory')):
+        real_stat = os.stat
+        missing = {str(p) for p in (self.commitlog, *self.commitlog.parents)}
+
+        def fake_stat(path, *args, **kwargs):
+            if str(path) in missing:
+                raise FileNotFoundError(2, 'No such file or directory', str(path))
+            return real_stat(path, *args, **kwargs)
+
+        config = self._make_config()
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
             with self.assertRaises(RuntimeError) as ctx:
-                CommitLogArchiver(self._make_config())
+                CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
         self.assertNotIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
 
