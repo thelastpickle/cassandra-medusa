@@ -110,13 +110,15 @@ def main():
         and pod_participates(mapping, os.getenv("POD_NAME"))
     )
 
-    if not is_pitr_enabled(config):
-        if is_pitr_restore:
-            logging.error("PITR restore requested, but PITR is disabled")
-            sys.exit(1)
-
+    archive_enabled = is_pitr_enabled(config)
+    if not archive_enabled and not is_pitr_restore:
         logging.info("PITR is disabled. Skipping commitlog configuration")
         return
+
+    if is_pitr_restore:
+        target_timestamp_s = get_pitr_target_timestamp_s(pitr_mapping)
+        source_address = resolve_node_address(mapping, config)
+        backup_name = pitr_mapping["node_backups"][source_address]
 
     staging_dir = Path(config.pitr.commitlog_staging_dir)
     try:
@@ -134,12 +136,10 @@ def main():
     # directory, which the init container may have created under a different uid.
     staging_dir.chmod(0o777)
 
-    archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
+    archive_command = None
+    if archive_enabled:
+        archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
     if is_pitr_restore:
-        source_address = resolve_node_address(mapping, config)
-        backup_name = pitr_mapping["node_backups"][source_address]
-        target_timestamp_s = get_pitr_target_timestamp_s(pitr_mapping)
-
         stage_commitlogs(config, source_address, backup_name)
 
         properties = generate_commitlog_archiving_properties(

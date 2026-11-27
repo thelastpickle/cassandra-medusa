@@ -228,20 +228,20 @@ def get_pitr_target_timestamp_s(pitr_mapping: dict) -> float:
     return timestamp_s
 
 
-def generate_commitlog_archiving_properties(archive_command: str,
+def generate_commitlog_archiving_properties(archive_command: t.Optional[str],
                                             restore_directories: t.Optional[str] = None,
                                             target_timestamp_s: t.Optional[float] = None) -> str:
     """
     Returns the content of commitlog_archiving.properties.
 
-    archive_command is always written. restore_directories, restore_command and restore_point_in_time are written
-    only when both restore_directories and target_timestamp_s are given. restore_command is mandatory whenever
-    restore_directories is set: without it Cassandra, DSE and HCD hit a NullPointerException in
+    archive_command is written when configured. restore_directories, restore_command and restore_point_in_time
+    are written only when both restore_directories and target_timestamp_s are given. restore_command is mandatory
+    whenever restore_directories is set: without it Cassandra, DSE and HCD hit a NullPointerException in
     CommitLogArchiver.maybeRestoreArchive and the node does not start.
     """
-    lines = ['archive_command={}'.format(archive_command)]
+    lines = [] if archive_command is None else ['archive_command={}'.format(archive_command)]
     if restore_directories and target_timestamp_s is not None:
         lines.append('restore_directories={}'.format(restore_directories))
         lines.append('restore_command={}'.format(RESTORE_COMMAND))
         lines.append('restore_point_in_time={}'.format(_format_restore_point_in_time(target_timestamp_s)))
-    return '\n'.join(lines) + '\n'
+    return ''.join(line + '\n' for line in lines)

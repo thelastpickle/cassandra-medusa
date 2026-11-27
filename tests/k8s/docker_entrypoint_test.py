@@ -357,7 +357,7 @@ def test_bad_replay_timestamp_aborts_before_sstable_restore(restore_container, t
 )
 @pytest.mark.parametrize('in_place', [True, False], ids=['in-place', 'out-of-place'])
 @pytest.mark.parametrize('previous_key', [None, 'restore-1'], ids=['no-marker', 'previous-restore'])
-def test_disabled_pitr_aborts_before_changing_data_on_each_attempt(
+def test_pitr_restore_runs_with_archiving_disabled(
     restore_container, pitr_mapping, pitr_config, in_place, previous_key,
 ):
     config = restore_container.config
@@ -365,21 +365,14 @@ def test_disabled_pitr_aborts_before_changing_data_on_each_attempt(
     pitr_mapping['in_place'] = in_place
     if previous_key is not None:
         restore_container.marker.write_text(f'{previous_key}\n')
-    original_data = restore_container.data.read_bytes()
+    env = {'RESTORE_KEY': 'restore-2', 'RESTORE_MAPPING': json.dumps(pitr_mapping), 'POD_NAME': 'target-0'}
+    result, steps = restore_container.run(**env)
 
-    for _ in range(2):
-        result, steps = restore_container.run(
-            RESTORE_KEY='restore-2', RESTORE_MAPPING=json.dumps(pitr_mapping), POD_NAME='target-0',
-        )
-
-        assert result.returncode == 1, result.stderr
-        assert 'PITR restore requested, but PITR is disabled' in result.stderr
-        assert steps == []
-        assert restore_container.data.read_bytes() == original_data
-        if previous_key is None:
-            assert not restore_container.marker.exists()
-        else:
-            assert restore_container.marker.read_text() == f'{previous_key}\n'
+    assert result.returncode == 0, result.stderr
+    marker = previous_key or 'absent'
+    assert steps == [f'restore|restore-2|{marker}', f'pitr_restore|restore-2|{marker}']
+    assert restore_container.data.read_bytes() == b'base snapshot data\n'
+    assert restore_container.marker.read_text().strip() == 'restore-2'
 
 
 @pytest.mark.parametrize(
