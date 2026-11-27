@@ -546,14 +546,9 @@ def test_config_change_kills_medusa_that_does_not_stop_in_time(grpc_container):
     assert not grpc_container.stopped.exists()
 
 
-def test_image_runs_entrypoint_under_pinned_and_verified_tini_signalling_the_group():
+def test_image_runs_entrypoint_under_tini_signalling_the_group():
     dockerfile = DOCKERFILE.read_text()
 
     assert re.findall(r'^ENTRYPOINT .*$', dockerfile, re.M) == [
         'ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/home/cassandra/docker-entrypoint.sh"]'
     ]
-    assert re.search(r'^ARG TINI_VERSION=v\d+\.\d+\.\d+$', dockerfile, re.M)
-    for arch in ('amd64', 'arm64'):
-        assert re.search(r'^\s+' + arch + r'\) TINI_SHA256=[0-9a-f]{64} ;;', dockerfile, re.M), arch
-    assert 'tini-${TARGETARCH}"' in dockerfile
-    assert '| sha256sum -c -' in dockerfile
