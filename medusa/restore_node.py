@@ -98,6 +98,13 @@ def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, see
     # especially around system tables.
     use_sudo = medusa.utils.evaluate_boolean(config.storage.use_sudo_for_restore)
     clean_path(cassandra.commit_logs_path, use_sudo, keep_folder=True)
+    # Clean the hints, so stale hints don't get replayed on top of the restored data.
+    # Cassandra creates the hints directory at startup, so a missing one means Medusa resolved
+    # a different path than Cassandra uses (e.g. hints_directory is not set in cassandra.yaml).
+    if not cassandra.hints_path.exists():
+        logging.warning('Hints directory {} does not exist, stale hints will not be removed. '
+                        'Check hints_directory in cassandra.yaml'.format(cassandra.hints_path))
+    clean_path(cassandra.hints_path, use_sudo, keep_folder=True)
 
     if node_backup.is_dse:
         if node_backup.is_dse_6:

@@ -616,6 +616,32 @@ class CassandraUtilsTest(unittest.TestCase):
         # Case where cient_encryption_options enabled, but no native ports defined.
         self.assertEqual(c.native_port, 9142)
 
+    def test_hints_directory_defaults_when_not_configured(self):
+        c = Cassandra(self.get_simple_medusa_config('resources/yaml/original/default-c4.yaml'))
+        self.assertEqual(Path('/var/lib/cassandra/hints'), c.hints_path)
+
+    def test_hints_directory_is_read_from_cassandra_yaml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            yaml_file = os.path.join(tmp, 'cassandra.yaml')
+            with open(yaml_file, 'w') as f:
+                f.write('hints_directory: /data/custom/hints\n')
+            reader = medusa.cassandra_utils.CassandraConfigReader(yaml_file)
+            self.assertEqual(Path('/data/custom/hints'), reader.hints_directory)
+
+            with mock.patch.object(medusa.cassandra_utils.CassandraConfigReader, 'listen_address',
+                                   new_callable=mock.PropertyMock, return_value='127.0.0.1'):
+                c = Cassandra(self.get_simple_medusa_config(yaml_file))
+            self.assertEqual(Path('/data/custom/hints'), c.hints_path)
+
+    def test_hints_directory_empty_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            yaml_file = os.path.join(tmp, 'cassandra.yaml')
+            with open(yaml_file, 'w') as f:
+                f.write('hints_directory: ""\n')
+            reader = medusa.cassandra_utils.CassandraConfigReader(yaml_file)
+            with self.assertRaises(RuntimeError):
+                reader.hints_directory
+
     @staticmethod
     def get_simple_medusa_config(yaml_file='resources/yaml/original/default-c4.yaml', is_ccm_active='1',
                                  config_checks=None):
