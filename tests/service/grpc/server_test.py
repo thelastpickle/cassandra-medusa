@@ -1149,8 +1149,10 @@ class ServerTest(unittest.TestCase):
             "server.MetricsEndpoint.stop = stop\n"
             "asyncio.run(server.main())\n"
         )
+        # pytest-cov traces child processes through COV_CORE_*, which makes the server import take over a minute
+        env = {k: v for k, v in os.environ.items() if not k.startswith('COV_CORE_')}
         proc = subprocess.Popen([sys.executable, '-c', script, 'server.py', ini_path],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         self.addCleanup(proc.kill)
         deadline = time.monotonic() + 30
         while True:

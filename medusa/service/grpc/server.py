@@ -115,6 +115,12 @@ class Server:
         # before the archiver thread starts, so a failed bind leaves nothing running
         self._start_metrics_endpoint(config)
 
+        if not self.testing:
+            # installed before the port opens: a SIGTERM arriving once the server accepts connections must not hit
+            # the default handler. kubelet stops the pod with SIGTERM: stop serving so the cleanup below runs and
+            # the process exits 0
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, self._on_sigterm)
+
         try:
             if self.commitlog_archiver is not None:
                 self.commitlog_archiver.start()
@@ -131,8 +137,6 @@ class Server:
             raise
 
         if not self.testing:
-            # kubelet stops the pod with SIGTERM: stop serving so the cleanup below runs and the process exits 0
-            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, self._on_sigterm)
             try:
                 await self.grpc_server.wait_for_termination()
             except asyncio.exceptions.CancelledError:
