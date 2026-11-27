@@ -82,6 +82,7 @@ grpc() {
         if ! [[ -f /tmp/medusa_backup_in_progress ]]; then
           echo "No backups in progress, stopping Medusa"
           kill $MEDUSA_PID
+          wait "$MEDUSA_PID" || true
           # Always exit with 0 on config change.
           exit 0
         else

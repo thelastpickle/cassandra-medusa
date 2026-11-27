@@ -521,7 +521,10 @@ def test_config_change_stops_medusa_and_exits_zero(grpc_container):
     proc = grpc_container.start(term_status=3)
 
     grpc_container.config.write_text('[grpc]\nenabled = false\n')
-    output, _ = proc.communicate(timeout=15)
+    proc.wait(timeout=15)
+    # checked as the entrypoint exits: under tini, Medusa dies with it
+    assert grpc_container.stopped.read_text() == 'clean'
+    output, _ = proc.communicate(timeout=5)
 
     assert proc.returncode == 0, output
     assert 'Detected change in medusa.ini' in output
