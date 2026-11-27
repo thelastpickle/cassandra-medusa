@@ -75,7 +75,8 @@ class Server:
 
     def _on_sigterm(self):
         # the loop holds only weak references to tasks, so keep one until stop() has run
-        self._stop_task = asyncio.ensure_future(self.grpc_server.stop(0))
+        if self._stop_task is None:
+            self._stop_task = asyncio.ensure_future(self.grpc_server.stop(0))
 
     def _stop_commitlog_archiver(self):
         if self.commitlog_archiver is None or not self.commitlog_archiver.is_alive():

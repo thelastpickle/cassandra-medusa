@@ -885,6 +885,24 @@ class ServerTest(unittest.TestCase):
                 asyncio.run(server.serve())
             self.assertIn("Device mismatch", str(ctx.exception))
 
+    def test_repeated_sigterm_stops_server_once(self):
+        ini_path = self._write_temp_ini()
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.stop = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+
+            async def two_sigterms():
+                server._on_sigterm()
+                first = server._stop_task
+                server._on_sigterm()
+                await server._stop_task
+                return first
+
+            self.assertIs(asyncio.run(two_sigterms()), server._stop_task)
+            mock_server.stop.assert_awaited_once_with(0)
+
     def test_serve_pitr_disabled_no_archiver(self):
         ini_path = self._write_temp_ini(pitr_enabled='false')
         with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
