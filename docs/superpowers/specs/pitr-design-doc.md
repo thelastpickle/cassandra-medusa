@@ -73,7 +73,7 @@ The gRPC server mode introduced in Medusa provides a long-lived process context 
 | SC3 | A failed segment upload does not crash the gRPC server; the segment remains in the spool and is retried on the next tick | Unit test: `_run_once` raises on upload; server continues; segment still present in spool |
 | SC4 | `pitr.enabled = false` (default) produces zero behaviour change to existing backup, restore, and purge commands | Run the full existing unit + integration test suite with no `[pitr]` section in `medusa.ini`; assert zero new test failures compared to baseline. Verify that with no `[monitoring] prometheus_port` nothing listens for `/metrics`, and that with it set and PITR disabled `GET /metrics` returns HTTP 200 with only the `prometheus_client` process/platform metrics and no `medusa_commitlog_archiver_*` families. |
 | SC5 | `PreparePitrRestore` returns `FAILED` immediately when any node lacks an eligible base backup with `node_backup.snapshot_time ≤ target_timestamp`, aborting before any pod restart or data wipe | Unit test: `select_node_base_snapshot` raises `ValueError`; RPC maps to FAILED response |
-| SC6 | `CommitLogArchiver.__init__` raises `RuntimeError` with a clear message when spool dir and commitlog dir are on different devices (or directories are inaccessible), failing fast and crashing Medusa at startup | Unit test: `os.stat` mocked to return differing `st_dev` or missing dir |
+| SC6 | `CommitLogArchiver.__init__` raises `RuntimeError` with a clear message when spool dir and commitlog dir are on different devices, or when a path cannot be checked (the message then names the real error), failing fast and crashing Medusa at startup. A commitlog directory that does not exist yet is not an error: the check uses its nearest existing ancestor | Unit test: `os.stat` mocked to return differing `st_dev` (for the commitlog dir, or for the parent of a missing one) or to raise a non-`FileNotFoundError` `OSError`; construction succeeds with the commitlog dir missing |
 | SC7 | `purge_commitlogs` deletes all segments whose `blob.last_modified < purge_threshold` and retains all others | Unit test: mock blob list with boundary values |
 | SC8 | `GetCommitLogArchiveStatus` returns `running=false` when no archiver is configured; returns correct `pending_count` after N hardlinks are created in the spool | Unit test: (a) RPC invoked with no `CommitLogArchiver` running — assert `running=false`, `pending_count=0`; (b) N dummy segment files written to spool dir before RPC call — assert `pending_count=N` |
 
@@ -218,13 +218,19 @@ TLS is optional. With `prometheus_tls_cert` and `prometheus_tls_key` (PEM) the e
 
 **Startup validation:**
 
-`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem by comparing `os.stat(commitlog_spool_dir).st_dev` with `os.stat(cassandra_commitlog_dir).st_dev`. If they differ (or if either directory does not exist / is inaccessible), it raises `RuntimeError` immediately with a message of the form:
+`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem. It stats the Cassandra commitlog directory first, then creates the spool directory if it does not exist, then stats the spool directory, and compares the two `st_dev` values. If the devices differ, it raises `RuntimeError` immediately with a message of the form:
 
 ```
 commitlog_spool_dir '<path>' is on a different device than the Cassandra commitlog
 directory '<path>'. Hardlinks cannot cross filesystem boundaries. Mount both paths
 on the same volume.
 ```
+
+A missing Cassandra commitlog directory is not an error. Cassandra creates it in `DatabaseDescriptor.createAllDirectories()` when the daemon starts, and under cass-operator that waits for the operator's `/api/v0/lifecycle/start` call, so on a fresh volume the sidecar always starts first. The check then stats the nearest existing ancestor of the commitlog directory instead: the directory will be created on that ancestor's device, so the result is the same. Medusa never creates the commitlog directory itself; Cassandra owns it.
+
+Any other `OSError` (permission denied, for example) also raises `RuntimeError`, with a message that names the real error rather than the device-mismatch text.
+
+The `medusa-restore` init container (`medusa.service.grpc.pitr_restore`) creates the spool directory before it writes `commitlog_archiving.properties`, so Cassandra's `archive_command` can link into it from the first segment, even while the sidecar is not up yet.
 
 Because `CommitLogArchiver` is initialized in [`Server.serve()`](../../../medusa/service/grpc/server.py:66) when `pitr.enabled = true`, this exception is intentionally unhandled at startup: it **fails fast and crashes Medusa immediately** (causing the sidecar container/process to exit with a non-zero code). This guarantees that filesystem misconfigurations cannot go unnoticed or run in a silently degraded state where Cassandra's `archive_command` would later fail with `EXDEV`. `Server.serve()` does not catch `RuntimeError`; the exception propagates uncaught out of `serve()` to the process entry point, which exits with a non-zero code — this is the intended crash-fast behaviour.
 
@@ -895,7 +901,7 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 ### 6.5 Testing & Rollout Plan
 
 **Unit tests (new):**
-- [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` to crash Medusa when spool dir and commitlog dir are on different devices or inaccessible (mock `os.stat` to return differing `st_dev` values or raise `FileNotFoundError`).
+- [`tests/service/grpc/commitlog_archiver_test.py`](../../../tests/service/grpc/commitlog_archiver_test.py): `drain_spool()` edge cases (empty spool directory, already-uploaded segments, missing storage objects); `CommitLogArchiver._run_once` with mocked storage driver (upload, skip, re-upload, failure-does-not-raise); `CommitLogArchiver.__init__` raises `RuntimeError` to crash Medusa when spool dir and commitlog dir are on different devices (mock `os.stat` to return differing `st_dev` values, also for the parent of a missing commitlog dir) or a path cannot be checked (mock `os.stat` to raise a non-`FileNotFoundError` `OSError`; the message names it), and succeeds when the commitlog dir does not exist yet.
 - [`tests/pitr_utils_test.py`](../../../tests/pitr_utils_test.py): `select_node_base_snapshot` (correct selection per node based on `snapshot_time`, error when no candidate), `find_commitlog_segments` (blob `last_modified` filtering with safety margin and ascending sort), `generate_commitlog_archiving_properties` (verifying `yyyy:MM:dd HH:mm:ss.SSS` UTC formatting from epoch timestamps).
 - [`tests/storage_test.py`](../../../tests/storage_test.py): `NodeBackup.snapshot_time` resolution (from the index blob, preloaded and lazily loaded; returning `None` when absent without fallback to `started`); `ClusterBackup.min_snapshot_time` and `ClusterBackup.max_snapshot_time` aggregation.
 - [`tests/config_test.py`](../../../tests/config_test.py): `PitrConfig` defaults and custom values via `load_config`; `is_pitr_enabled` is false without a `pitr` field, with `pitr=None`, or with `enabled = false`, and true for `'true'`/`True`.

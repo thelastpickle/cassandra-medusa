@@ -136,6 +136,7 @@ class CommitLogArchiverTest(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, OSError)
+        self.assertNotIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
 
     def test_init_raises_when_stat_of_spool_fails(self):
         real_stat = os.stat
@@ -150,14 +151,89 @@ class CommitLogArchiverTest(unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
-        self.assertIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
+        self.assertIn(str(self.spool), str(ctx.exception))
+        self.assertNotIn('different device', str(ctx.exception))
+        self.assertNotIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
 
-    def test_init_raises_when_commitlog_dir_missing(self):
-        self.commitlog.rmdir()
+    def test_init_raises_real_error_when_commitlog_dir_cannot_be_stat(self):
+        real_stat = os.stat
+
+        def fake_stat(path, *args, **kwargs):
+            if str(path) == str(self.commitlog):
+                raise PermissionError(13, 'Permission denied', str(path))
+            return real_stat(path, *args, **kwargs)
+
         config = self._make_config()
-        with self.assertRaises(RuntimeError) as ctx:
-            CommitLogArchiver(config)
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
+            with self.assertRaises(RuntimeError) as ctx:
+                CommitLogArchiver(config)
+        message = str(ctx.exception)
+        self.assertIsInstance(ctx.exception.__cause__, PermissionError)
+        self.assertIn('Permission denied', message)
+        self.assertIn(str(self.commitlog), message)
+        self.assertNotIn('different device', message)
+        self.assertNotIn('Hardlinks cannot cross filesystem boundaries', message)
+
+    def test_init_succeeds_when_commitlog_dir_missing(self):
+        # Cassandra creates the directory later, on its parent's device, which is the spool's device here
+        self.commitlog.rmdir()
+        archiver = self._make_archiver()
+        self.assertFalse(archiver.is_alive())
+        self.assertFalse(self.commitlog.exists())
+
+    def test_init_succeeds_when_several_commitlog_levels_missing(self):
+        self.commitlog.rmdir()
+        nested = self.commitlog / 'a' / 'b'
+        self.cassandra_yaml.write_text('commitlog_directory: {}\n'.format(nested))
+        self._make_archiver()
+        self.assertFalse(self.commitlog.exists())
+
+    def test_init_raises_when_no_commitlog_ancestor_exists(self):
+        real_stat = os.stat
+        missing = {str(p) for p in (self.commitlog, *self.commitlog.parents)}
+
+        def fake_stat(path, *args, **kwargs):
+            if str(path) in missing:
+                raise FileNotFoundError(2, 'No such file or directory', str(path))
+            return real_stat(path, *args, **kwargs)
+
+        config = self._make_config()
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
+            with self.assertRaises(RuntimeError) as ctx:
+                CommitLogArchiver(config)
         self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
+        self.assertNotIn('Hardlinks cannot cross filesystem boundaries', str(ctx.exception))
+
+    def test_init_raises_when_missing_commitlog_dir_parent_is_on_other_device(self):
+        self.commitlog.rmdir()
+        real_stat = os.stat
+        stat_calls = []
+
+        def with_dev(st, dev):
+            fields = list(st)
+            fields[2] = dev  # st_dev
+            return os.stat_result(fields)
+
+        def fake_stat(path, *args, **kwargs):
+            stat_calls.append(str(path))
+            st = real_stat(path, *args, **kwargs)
+            if str(path) == str(self.spool):
+                return with_dev(st, 1)
+            if str(path) == str(self.commitlog.parent):
+                return with_dev(st, 2)
+            return st
+
+        config = self._make_config()
+        with patch(MODULE + '.os.stat', side_effect=fake_stat):
+            with self.assertRaises(RuntimeError) as ctx:
+                CommitLogArchiver(config)
+        message = str(ctx.exception)
+        self.assertIn(str(self.commitlog), stat_calls)
+        self.assertIn(str(self.commitlog.parent), stat_calls)
+        self.assertIn('is on a different device than the Cassandra commitlog directory', message)
+        self.assertIn('Hardlinks cannot cross filesystem boundaries', message)
+        self.assertIsNone(ctx.exception.__cause__)
+        self.assertFalse(self.commitlog.exists())
 
     def test_init_raises_when_cassandra_yaml_missing(self):
         self.cassandra_yaml.unlink()

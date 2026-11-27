@@ -107,7 +107,7 @@ class Server:
 
         # The archiver is created here rather than in __init__ so that tests which build a Server without
         # running it do not leak threads. It is created before the gRPC server starts, and the RuntimeError its
-        # constructor raises on a bad spool mount (missing directory, or not on the commitlog device) is
+        # constructor raises on a bad spool mount (not on the commitlog device, or a path it cannot stat) is
         # deliberately not caught: the process must exit before it accepts any call, instead of running without
         # archiving while Cassandra's archive_command fails.
         if config.pitr and evaluate_boolean(config.pitr.enabled):

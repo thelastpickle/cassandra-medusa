@@ -124,6 +124,12 @@ def main():
     except FileNotFoundError:
         pass
     staging_dir.mkdir(parents=True)
+    # Cassandra's archive_command links into the spool, and fails (losing the segment) if the directory is missing
+    # before the sidecar has created it. Cassandra runs archive_command as its own uid, which may differ from this
+    # init container's, so it needs write access to the directory.
+    spool_dir = Path(config.pitr.commitlog_spool_dir)
+    spool_dir.mkdir(parents=True, exist_ok=True)
+    spool_dir.chmod(0o777)
     # Cassandra runs restore_command (/bin/mv) as its own uid and has to unlink the staged segments from this
     # directory, which the init container may have created under a different uid.
     staging_dir.chmod(0o777)
