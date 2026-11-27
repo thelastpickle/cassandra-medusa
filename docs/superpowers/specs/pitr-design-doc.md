@@ -423,9 +423,11 @@ Sample generated `commitlog_archiving.properties` during PITR restore:
 ```properties
 archive_command=/bin/ln %path /var/lib/cassandra/commitlog_spool_dir/%name
 restore_directories=/var/lib/cassandra/medusa_commitlog_staging
-restore_command=/bin/cp -f %from %to
+restore_command=/bin/mv -f %from %to
 restore_point_in_time=2024:07:15 12:30:00.500
 ```
+
+**Why `mv` for `restore_command`:** Cassandra runs `restore_command` once per file in `restore_directories`, substituting the staged file for `%from` and `<commitlog directory>/<segment name>` for `%to`, and skips files whose `%to` already exists (`CommitLogArchiver.maybeRestoreArchive`). The staged segments are throwaway downloads from object storage, so moving them is enough; Cassandra's documented example, `cp -f`, would keep a second copy of every segment on the data volume for the whole replay (segment volumes: §6.1). `ln` is not used here, unlike for `archive_command`: it would add a second same-device constraint, between `commitlog_staging_dir` and the commitlog directory, that no startup check enforces (§4.4 checks only the spool directory), and it would still leave two names for every segment.
 
 Sample generated `commitlog_archiving.properties` during normal startup / skip path:
 ```properties
@@ -592,6 +594,7 @@ def main():
 1. `medusa.service.grpc.pitr_restore` empties and cleans the staging directory (`/var/lib/cassandra/medusa_commitlog_staging`) on every run with PITR enabled.
 2. With PITR enabled, `medusa.service.grpc.pitr_restore` maintains `commitlog_archiving.properties`: when restore is skipped (`.last-restore` matches `$RESTORE_KEY`), restore settings (`restore_directories`, `restore_point_in_time`) are excluded from `commitlog_archiving.properties` while archiving settings remain active.
 3. If a pod crashes during step 1 or step 2, .last-restore has not been written (step 3 runs last). On restart, step 2 empties the staging directory and everything re-runs idempotently.
+4. Once Cassandra starts, `restore_command` moves each staged segment into the commitlog directory, so the staging directory is empty after a completed replay. The segments are not lost on a Cassandra crash before the replay completes: Cassandra deletes a restored segment only after the whole replay has been applied and flushed, and until then the segment sits in the commitlog directory, where the next start replays it (§6.4, "Cassandra crashes during replay").
 
 **Point-in-time semantics:** `restore_point_in_time` is a mutation-timestamp cutoff, not a wall-clock receive-time cutoff. Cassandra filters replayed mutations by the timestamp embedded in each mutation, which is the client-supplied CQL `USING TIMESTAMP` value or the coordinator's clock at the time the write was processed — not the time the segment was archived or the time Cassandra received the request. A write with a backdated CQL timestamp before the cutoff will be replayed; a write with a future-dated CQL timestamp after the cutoff will be suppressed even if it was acknowledged before the target time. Operators should be aware of this when the target application uses custom CQL timestamps.
 
@@ -882,7 +885,8 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 | `delete_backup`, or node decommissioned | Commitlogs are not purged; retention relies on `medusa purge` running regularly on every node ([#1061](https://github.com/thelastpickle/cassandra-medusa/issues/1061)). |
 | Cassandra fails to start after replay | Surfaced by the pod readiness probe / Cassandra operator. Medusa does not start Cassandra in the Kubernetes path. See §6.6 for remediation steps. |
 | gRPC server pod restart | Archiver restarts cleanly; size/hash check prevents duplicate uploads of already-archived segments. |
-| initContainer crashes mid-download | Pod restarts; `restore.py` is idempotent — it re-downloads segments and re-writes properties. Staging dir may have partial files; the download step overwrites them. |
+| initContainer crashes mid-download | Pod restarts; `medusa.service.grpc.pitr_restore` is idempotent — it empties the staging directory, re-downloads segments and re-writes properties. `.last-restore` is not written until both steps succeed. |
+| Cassandra crashes during replay (same pod: the initContainer does not re-run, `.last-restore` already holds `RESTORE_KEY`, `restore_command=/bin/mv` has already emptied part or all of staging) | No data is lost and no operator action is needed. `CommitLog.recoverSegmentsOnDisk` runs `restore_command` for the segments still in staging (the moved ones are no longer there), replays every segment in the commitlog directory, flushes the replayed tables (`CommitLogReplayer.blockForWrites`) and only then deletes the segments. A crash before that point leaves the segments in the commitlog directory, where the next start replays them again; a crash after it finds the replayed data in SSTables. That restart also archives the moved segments: `recoverSegmentsOnDisk` runs `archive_command` for every segment already in the commitlog directory before `maybeRestoreArchive` (CASSANDRA-6904), so they are hard-linked into the spool and `pending_count` jumps. An in-place restore keeps the node's fqdn, so the archiver finds each one at `<fqdn>/commitlogs/<name>` and the size/hash check skips it; a remote restore uploads them under the restored node's own fqdn, where they are redundant with the SSTables the replay produces, cost one copy per segment in storage and leave with `medusa purge` like the node's own segments. Chosen over a Medusa-side marker (nothing for it to detect) and over keeping `cp` (the extra copy buys nothing in this path). If replay still cannot complete, follow §6.6: both paths use a new `RESTORE_KEY`, so the initContainer clears staging and stages every segment again. |
 | Spool exhaustion / disk full | Only failed-upload segments accumulate — each segment is removed from the spool immediately after a successful upload. Disk exhaustion can only occur if upload failures persist long enough for Cassandra to archive faster than Medusa can drain. Medusa logs upload errors at ERROR per tick; `pending_count` in `GetCommitLogArchiveStatus` rises monotonically. Resolves automatically once the underlying storage issue clears. |
 
 ### 6.5 Testing & Rollout Plan
@@ -916,12 +920,14 @@ Maintain a JSON manifest in storage mapping each segment to metadata (time range
 
 When Cassandra fails to start after commitlog replay (pod readiness probe fails, Cassandra logs show replay errors), two remediation paths are available.
 
+A single Cassandra crash during replay is not one of these cases: the segments `restore_command` has already moved stay in the commitlog directory until the replay has been applied and flushed, and the restarted container replays them on its own (§6.4). Intervene only when Cassandra fails repeatedly or its logs name a replay error.
+
 **Path (a) — Rollback to base snapshot (use when segments are corrupted, missing, or unrecoverable)**
 
 1. Inspect Cassandra logs on the failing pod to confirm the replay error (e.g. `CommitLogReplayer` exception, missing segment file, checksum mismatch).
 2. Trigger a standard (non-PITR) restore of the base snapshot with a fresh `RESTORE_KEY` (or update `RESTORE_MAPPING` without the `pitr` block).
 3. The rolling restart proceeds. `restore.py` runs `restore_backup()` for the base snapshot, followed by `medusa.service.grpc.pitr_restore` writing archiving-only `commitlog_archiving.properties` (or no properties if PITR is disabled).
-4. The staging segment directory (`/var/lib/cassandra/medusa_commitlog_staging`) is systematically cleared by `medusa.service.grpc.pitr_restore` on pod startup — no manual cleanup needed.
+4. The staging segment directory (`/var/lib/cassandra/medusa_commitlog_staging`) is systematically cleared by `medusa.service.grpc.pitr_restore` on pod startup — no manual cleanup needed. After a completed replay it is already empty, because `restore_command` moves each segment out of it.
 5. The cluster is operational at the base snapshot point in time. Plan a subsequent PITR attempt once the segment gap is resolved (re-archive or accept the data loss window).
 
 **Path (b) — Retry with an adjusted target timestamp (use when the target fell in a gap where archiving was not yet active or segments were not yet uploaded)**

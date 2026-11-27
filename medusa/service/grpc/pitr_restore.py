@@ -124,6 +124,9 @@ def main():
     except FileNotFoundError:
         pass
     staging_dir.mkdir(parents=True)
+    # Cassandra runs restore_command (/bin/mv) as its own uid and has to unlink the staged segments from this
+    # directory, which the init container may have created under a different uid.
+    staging_dir.chmod(0o777)
 
     archive_command = f"/bin/ln %path {config.pitr.commitlog_spool_dir}/%name"
     if is_pitr_restore:
