@@ -218,7 +218,7 @@ TLS is optional. With `prometheus_tls_cert` and `prometheus_tls_key` (PEM) the e
 
 **Startup validation:**
 
-`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem by comparing `os.stat(commitlog_spool_dir).st_dev` with `os.stat(cassandra_commitlog_dir).st_dev`, creating a missing spool directory first. If the devices differ, it raises `RuntimeError` immediately with a message of the form:
+`CommitLogArchiver.__init__` checks that `commitlog_spool_dir` and the Cassandra commitlog directory reside on the same filesystem. It stats the Cassandra commitlog directory first, then creates the spool directory if it does not exist, then stats the spool directory, and compares the two `st_dev` values. If the devices differ, it raises `RuntimeError` immediately with a message of the form:
 
 ```
 commitlog_spool_dir '<path>' is on a different device than the Cassandra commitlog
