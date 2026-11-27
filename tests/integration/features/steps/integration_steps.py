@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import configparser
 import datetime
 import glob
 import json
@@ -23,6 +24,7 @@ import random
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import uuid
 import grpc
@@ -66,12 +68,15 @@ from medusa.config import (
     ChecksConfig,
     GrpcConfig,
     KubernetesConfig,
+    PitrConfig,
 )
 from medusa.config import _namedtuple_from_dict
 from medusa.monitoring import LocalMonitoring
 from medusa.service.grpc import medusa_pb2
 from medusa.storage import Storage
 from medusa.utils import MedusaTempFile
+
+from tests.integration import pitr_helpers
 
 TRUNK_VERSION = 'github:apache/trunk'
 
@@ -2021,3 +2026,134 @@ def rm_tree(pth):
 def remove_temporary_mgmtapi_resources():
     for temp_dir in Path('/tmp').glob('management-api-*'):
         rm_tree(temp_dir)
+
+
+def _pitr_node_dir(context):
+    return Path(os.path.expanduser(CCM_DIR)) / context.cluster_name / "node1"
+
+
+def _ccm_start():
+    subprocess.check_call(["ccm", "start"], env={**os.environ, "LOCAL_JMX": "yes"})
+
+
+def _ccm_restart_node(context):
+    subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
+    _ccm_start()
+    context.session = connect_cassandra(False)
+
+
+@given(r'PITR commitlog archiving and a gRPC server are enabled on the ccm node')
+def _pitr_enable_archiving_and_grpc_server(context):
+    node_dir = _pitr_node_dir(context)
+    spool_dir = node_dir / pitr_helpers.SPOOL_DIR_NAME
+    staging_dir = node_dir / pitr_helpers.STAGING_DIR_NAME
+    pitr_helpers.remove_paths([spool_dir, staging_dir])
+    # the spool is in the node directory so that it is on the same device as the commitlog directory
+    spool_dir.mkdir(parents=True)
+    context.pitr_spool_dir = spool_dir
+    context.pitr_staging_dir = staging_dir
+
+    # Cassandra only reads commitlog_archiving.properties at startup
+    (node_dir / "conf" / "commitlog_archiving.properties").write_text(
+        pitr_helpers.archiving_properties(spool_dir), encoding="utf-8"
+    )
+    _ccm_restart_node(context)
+
+    parser = parse_medusa_config(
+        context, context.storage_provider, context.client_encryption, None, use_mgmt_api='False', grpc='True'
+    )
+    pitr_helpers.enable_pitr_in_ini(parser, spool_dir, staging_dir)
+    context.pitr_parser = parser
+    context.medusa_config = context.medusa_config._replace(pitr=_namedtuple_from_dict(PitrConfig, parser["pitr"]))
+
+    context.grpc_server = GRPCServer(parser)
+    context.grpc_client = medusa.service.grpc.client.Client(
+        f"127.0.0.1:{parser['grpc']['port']}", channel_options=[('grpc.enable_retries', 0)]
+    )
+    # give the gRPC server a chance to initialize
+    time.sleep(3)
+
+
+@when(r'I record the PITR target timestamp and the number of rows in the "{table_name}" table')
+def _pitr_record_target(context, table_name):
+    # the clock is read after the count, no write can happen in between: the scenario is sequential
+    context.pitr_expected_rows = context.session.execute("select count(*) from {}".format(table_name))[0][0]
+    context.pitr_target_timestamp = pitr_helpers.format_target_timestamp(time.time())
+    logging.info(
+        f"PITR target {context.pitr_target_timestamp} with {context.pitr_expected_rows} rows expected after restore"
+    )
+
+
+@when(r'I force the commitlog segments to be sealed and archived by restarting the node')
+def _pitr_seal_segments(context):
+    context.pitr_seal_started_at = int(time.time())
+    # drain flushes everything and closes the active segment, the restart archives the segments left on disk
+    subprocess.check_call(
+        ["ccm", "node1", "nodetool", "--", "-Dcom.sun.jndi.rmiURLParsing=legacy", "drain"],
+        env={**os.environ, "LOCAL_JMX": "yes"}
+    )
+    _ccm_restart_node(context)
+
+
+@then(r'the commitlog archiver uploads everything that was sealed')
+def _pitr_wait_for_archiver(context):
+    loop = asyncio.get_event_loop()
+    status = pitr_helpers.wait_for_archiver_drain(
+        lambda: loop.run_until_complete(context.grpc_client.get_commitlog_archive_status()),
+        min_upload_time=context.pitr_seal_started_at,
+    )
+    logging.info(f"Commitlog archiver drained: {status}")
+
+
+@when(r'I prepare a PITR restore to the recorded target timestamp for the datacenter "{datacenter}"')
+def _pitr_prepare_restore(context, datacenter):
+    response = asyncio.get_event_loop().run_until_complete(
+        context.grpc_client.prepare_pitr_restore(context.pitr_target_timestamp, datacenter)
+    )
+    assert response is not None, "PreparePitrRestore failed"
+    assert response.status == medusa_pb2.StatusType.SUCCESS, f"PreparePitrRestore returned {response.status}"
+    assert response.targetTimestamp == context.pitr_target_timestamp
+    context.pitr_node_base_backups = dict(response.nodeBaseBackups)
+    assert context.pitr_node_base_backups, "PreparePitrRestore returned no base backups"
+    logging.info(f"PITR base backups: {context.pitr_node_base_backups}")
+
+
+def _run_restore_module(module, args, env):
+    result = subprocess.run(
+        [sys.executable, "-m", module, *args], env=env, cwd=str(pitr_helpers.REPO_ROOT),
+        stdout=PIPE, stderr=subprocess.STDOUT, universal_newlines=True
+    )
+    logging.info(f"{module} output:\n{result.stdout}")
+    assert result.returncode == 0, f"{module} failed with {result.returncode}:\n{result.stdout}"
+
+
+@when(r'I restore the node to the recorded PITR target the way the Kubernetes init containers do')
+def _pitr_restore_like_k8s(context):
+    mapping = pitr_helpers.build_restore_mapping(context.pitr_node_base_backups, context.pitr_target_timestamp)
+
+    restore_parser = configparser.ConfigParser(interpolation=None)
+    restore_parser.read_dict(context.pitr_parser)
+    pitr_helpers.enable_kubernetes_in_ini(restore_parser)
+    restore_ini_dir = Path("/tmp") / "medusa_pitr_restore"
+    restore_ini_dir.mkdir(exist_ok=True)
+    context.pitr_restore_ini_dir = restore_ini_dir
+    restore_ini = restore_ini_dir / "medusa.ini"
+    with open(restore_ini, "w") as f:
+        restore_parser.write(f)
+
+    env = pitr_helpers.restore_environment(os.environ, json.dumps(mapping), str(uuid.uuid4()))
+    restore_key = env["RESTORE_KEY"]
+
+    # in Kubernetes the init containers run while Cassandra is not running
+    subprocess.run(["ccm", "stop"], stdout=PIPE, stderr=PIPE)
+    _run_restore_module("medusa.service.grpc.restore", [str(restore_ini), restore_key], env)
+    _run_restore_module("medusa.service.grpc.pitr_restore", [str(restore_ini), restore_key], env)
+    _ccm_start()
+    context.session = connect_cassandra(False)
+
+
+@then(r'I have the number of rows recorded for the PITR target in the "{table_name}" table')
+def _pitr_rows_match_recorded(context, table_name):
+    context.session = connect_cassandra(False)
+    rows = context.session.execute("select count(*) from {}".format(table_name))[0][0]
+    assert rows == context.pitr_expected_rows, f"Expected {context.pitr_expected_rows} rows, found {rows}"

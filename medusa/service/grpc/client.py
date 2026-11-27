@@ -124,3 +124,20 @@ class Client:
         except grpc.RpcError as e:
             logging.error("Failed to purge backups due to error: {}".format(e))
             return None
+
+    async def get_commitlog_archive_status(self):
+        try:
+            stub = medusa_pb2_grpc.MedusaStub(self.channel)
+            return await stub.GetCommitLogArchiveStatus(medusa_pb2.GetCommitLogArchiveStatusRequest())
+        except grpc.RpcError as e:
+            logging.error("Failed to get the commitlog archive status due to error: {}".format(e))
+            return None
+
+    async def prepare_pitr_restore(self, target_timestamp, datacenter=""):
+        try:
+            stub = medusa_pb2_grpc.MedusaStub(self.channel)
+            request = medusa_pb2.PreparePitrRestoreRequest(targetTimestamp=target_timestamp, datacenter=datacenter)
+            return await stub.PreparePitrRestore(request)
+        except grpc.RpcError as e:
+            logging.error("Failed to prepare PITR restore to {} due to error: {}".format(target_timestamp, e))
+            return None

@@ -67,8 +67,12 @@ grpc() {
     ORIGINAL_MEDUSA_INI_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
     echo "Starting Medusa gRPC service"
 
-    exec poetry run python -m medusa.service.grpc.server server.py &
+    poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
+    # tini -g also sends SIGTERM to Medusa; wait for its clean stop, or tini exits and Medusa is killed mid-stop.
+    trap 'wait "$MEDUSA_PID"; exit $?' TERM
+    # Medusa starts as a background job with SIGINT ignored, so turn INT into the TERM it stops cleanly on.
+    trap 'kill -TERM "$MEDUSA_PID" 2>/dev/null || true; wait "$MEDUSA_PID"; exit $?' INT
 
     # Loop while Medusa process is running
     while kill -0 "$MEDUSA_PID" 2>/dev/null; do
@@ -78,6 +82,15 @@ grpc() {
         if ! [[ -f /tmp/medusa_backup_in_progress ]]; then
           echo "No backups in progress, stopping Medusa"
           kill $MEDUSA_PID
+          # A running gRPC call keeps Medusa alive after it stops serving. Allow more than the commitlog
+          # archiver's stop (archive interval + 5s), then kill it so the restart is not blocked.
+          MEDUSA_STOP_TIMEOUT_S=120
+          for ((i = 0; i < MEDUSA_STOP_TIMEOUT_S; i++)); do
+            kill -0 "$MEDUSA_PID" 2>/dev/null || break
+            sleep 1
+          done
+          kill -KILL "$MEDUSA_PID" 2>/dev/null || true
+          wait "$MEDUSA_PID" || true
           # Always exit with 0 on config change.
           exit 0
         else

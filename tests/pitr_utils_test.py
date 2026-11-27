@@ -383,7 +383,7 @@ class DownloadCommitlogSegmentsTest(unittest.TestCase):
 class GenerateCommitlogArchivingPropertiesTest(unittest.TestCase):
 
     ARCHIVE = '/bin/ln %path /var/lib/spool/%name'
-    RESTORE_COMMAND = 'restore_command=/bin/cp -f %from %to'
+    RESTORE_COMMAND = 'restore_command=/bin/mv -f %from %to'
 
     def _lines(self, *args, **kwargs):
         return generate_commitlog_archiving_properties(*args, **kwargs).splitlines()
@@ -407,7 +407,7 @@ class GenerateCommitlogArchivingPropertiesTest(unittest.TestCase):
             [
                 'archive_command=' + self.ARCHIVE,
                 'restore_directories=/var/lib/staging',
-                'restore_command=/bin/cp -f %from %to',
+                'restore_command=/bin/mv -f %from %to',
                 'restore_point_in_time=2026:01:01 00:00:00.000',
             ],
             props.splitlines()

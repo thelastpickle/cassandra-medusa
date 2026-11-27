@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import logging
+import shutil
 
 BEHAVE_DEBUG_ON_ERROR = True
 
@@ -45,3 +46,28 @@ def after_step(context, step):
 def before_scenario(context, scenario):
     if "skip-cassandra-2" in scenario.effective_tags and context.cassandra_version.startswith("2."):
         scenario.skip("Skipping scenario on Cassandra 2.x")
+
+
+def after_scenario(context, scenario):
+    if "pitr" in scenario.effective_tags:
+        _cleanup_pitr(context)
+
+
+def _cleanup_pitr(context):
+    """Stops the gRPC server (and with it the commitlog archiver) and removes the spool and staging directories."""
+    grpc_server = getattr(context, "grpc_server", None)
+    if grpc_server is not None:
+        try:
+            grpc_server.destroy()
+        except Exception:
+            logging.exception("Failed to stop the gRPC server of the PITR scenario")
+        context.grpc_server = None
+
+    paths = [
+        getattr(context, "pitr_spool_dir", None),
+        getattr(context, "pitr_staging_dir", None),
+        getattr(context, "pitr_restore_ini_dir", None),
+    ]
+    for path in paths:
+        if path is not None:
+            shutil.rmtree(path, ignore_errors=True)
