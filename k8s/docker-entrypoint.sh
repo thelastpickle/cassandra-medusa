@@ -67,7 +67,7 @@ grpc() {
     ORIGINAL_MEDUSA_INI_DIGEST=$(md5sum /etc/medusa/medusa.ini | awk '{print $1}')
     echo "Starting Medusa gRPC service"
 
-    exec poetry run python -m medusa.service.grpc.server server.py &
+    poetry run python -m medusa.service.grpc.server server.py &
     MEDUSA_PID=$!
     # tini -g also sends SIGTERM to Medusa; wait for its clean stop, or tini exits and Medusa is killed mid-stop.
     trap 'wait "$MEDUSA_PID"; exit $?' TERM

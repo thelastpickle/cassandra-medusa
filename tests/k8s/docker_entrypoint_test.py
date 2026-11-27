@@ -457,7 +457,10 @@ def grpc_container(tmp_path):
     config = tmp_path / 'medusa.ini'
     config.write_text('[grpc]\nenabled = true\n')
     script = tmp_path / ENTRYPOINT.name
-    script.write_text(ENTRYPOINT.read_text().replace('/etc/medusa/medusa.ini', str(config)))
+    # a marker leaked into /tmp by an earlier test (backup_node_test) would postpone the config-change restart forever
+    script.write_text(ENTRYPOINT.read_text()
+                      .replace('/etc/medusa/medusa.ini', str(config))
+                      .replace('/tmp/medusa_backup_in_progress', str(tmp_path / 'medusa_backup_in_progress')))
     (tmp_path / 'fake_medusa.py').write_text(FAKE_MEDUSA)
     stub = tmp_path / 'poetry'
     stub.write_text(
