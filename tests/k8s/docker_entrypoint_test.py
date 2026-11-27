@@ -443,7 +443,7 @@ def stop(*_):
     open('stopped', 'w').write('clean')
     sys.exit(int(os.environ['TEST_TERM_STATUS']))
 
-signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGTERM, signal.SIG_IGN if os.environ['TEST_IGNORE_TERM'] else stop)
 open('started', 'w').write('yes')
 if os.environ['TEST_EXIT_STATUS']:
     sys.exit(int(os.environ['TEST_EXIT_STATUS']))
@@ -460,7 +460,8 @@ def grpc_container(tmp_path):
     # a marker leaked into /tmp by an earlier test (backup_node_test) would postpone the config-change restart forever
     script.write_text(ENTRYPOINT.read_text()
                       .replace('/etc/medusa/medusa.ini', str(config))
-                      .replace('/tmp/medusa_backup_in_progress', str(tmp_path / 'medusa_backup_in_progress')))
+                      .replace('/tmp/medusa_backup_in_progress', str(tmp_path / 'medusa_backup_in_progress'))
+                      .replace('MEDUSA_STOP_TIMEOUT_S=120', 'MEDUSA_STOP_TIMEOUT_S=3'))
     (tmp_path / 'fake_medusa.py').write_text(FAKE_MEDUSA)
     stub = tmp_path / 'poetry'
     stub.write_text(
@@ -471,7 +472,7 @@ def grpc_container(tmp_path):
     stub.chmod(0o755)
     started = []
 
-    def start(term_status=0, exit_status=''):
+    def start(term_status=0, exit_status='', ignore_term=False):
         env = {
             'PATH': os.pathsep.join((str(tmp_path), os.environ['PATH'])),
             'MEDUSA_MODE': 'GRPC',
@@ -479,6 +480,7 @@ def grpc_container(tmp_path):
             'TEST_PYTHON': sys.executable,
             'TEST_TERM_STATUS': str(term_status),
             'TEST_EXIT_STATUS': str(exit_status),
+            'TEST_IGNORE_TERM': 'yes' if ignore_term else '',
         }
         # own process group, as under tini; `tini -g` signals that whole group
         proc = subprocess.Popen(['/bin/bash', str(script)], cwd=tmp_path, env=env, start_new_session=True,
@@ -531,6 +533,17 @@ def test_config_change_stops_medusa_and_exits_zero(grpc_container):
 
     assert proc.returncode == 0, output
     assert 'Detected change in medusa.ini' in output
+
+
+def test_config_change_kills_medusa_that_does_not_stop_in_time(grpc_container):
+    proc = grpc_container.start(ignore_term=True)
+
+    grpc_container.config.write_text('[grpc]\nenabled = false\n')
+    # returns once the fake Medusa, which holds the stdout pipe, is gone
+    output, _ = proc.communicate(timeout=15)
+
+    assert proc.returncode == 0, output
+    assert not grpc_container.stopped.exists()
 
 
 def test_image_runs_entrypoint_under_pinned_and_verified_tini_signalling_the_group():

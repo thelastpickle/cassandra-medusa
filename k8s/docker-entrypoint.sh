@@ -82,6 +82,14 @@ grpc() {
         if ! [[ -f /tmp/medusa_backup_in_progress ]]; then
           echo "No backups in progress, stopping Medusa"
           kill $MEDUSA_PID
+          # A running gRPC call keeps Medusa alive after it stops serving. Allow more than the commitlog
+          # archiver's stop (archive interval + 5s), then kill it so the restart is not blocked.
+          MEDUSA_STOP_TIMEOUT_S=120
+          for ((i = 0; i < MEDUSA_STOP_TIMEOUT_S; i++)); do
+            kill -0 "$MEDUSA_PID" 2>/dev/null || break
+            sleep 1
+          done
+          kill -KILL "$MEDUSA_PID" 2>/dev/null || true
           wait "$MEDUSA_PID" || true
           # Always exit with 0 on config change.
           exit 0
