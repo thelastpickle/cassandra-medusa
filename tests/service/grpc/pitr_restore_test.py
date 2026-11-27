@@ -272,10 +272,18 @@ def test_pending_restore_writes_replay_only_properties(
     if not pitr_section:
         files.ini.write_text(files.ini.read_text().partition('[pitr]')[0])
         staging_dir = '/var/lib/cassandra/medusa_commitlog_staging'
+        default_paths = {
+            staging_dir: files.staging,
+            '/var/lib/cassandra/commitlog_spool_dir': files.spool,
+        }
         path_in_test_volume = entrypoint.Path
-        monkeypatch.setattr(
-            entrypoint, 'Path', lambda path: files.staging if path == staging_dir else path_in_test_volume(path),
-        )
+
+        def redirect_default_path(path):
+            if path in default_paths:
+                return default_paths[path]
+            return path_in_test_volume(path)
+
+        monkeypatch.setattr(entrypoint, 'Path', redirect_default_path)
 
     mapping['in_place'] = in_place
     monkeypatch.setenv('POD_NAME', 'target-0')
