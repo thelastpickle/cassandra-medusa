@@ -44,6 +44,7 @@ RUN microdnf install -y python3 python3-setuptools wget jq findutils \
     && microdnf clean all
 
 # tini as PID 1 forwards kubelet's SIGTERM; -g sends it to the whole group, so Medusa gets it too.
+# Then download the latest grpc_health_probe binary build for the correct architecture.
 ARG TINI_VERSION=v0.19.0
 RUN case "$TARGETARCH" in \
         amd64) TINI_SHA256=93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c ;; \
@@ -53,7 +54,6 @@ RUN case "$TARGETARCH" in \
     && curl -fsSL --proto "=https" -o /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH}" \
     && echo "${TINI_SHA256}  /usr/bin/tini" | sha256sum -c - \
     && chmod +x /usr/bin/tini \
-# Download the the latest grpc_health_probe binary build for the correct architecture
     && curl -s https://api.github.com/repos/grpc-ecosystem/grpc-health-probe/releases/latest \
     | jq --arg TARGETARCH $TARGETARCH -r ' .assets[] | select(.name | contains("linux")) | select(.name | contains($TARGETARCH)) | .browser_download_url' \
     | xargs -I {} wget -qO/bin/grpc_health_probe {} &&  chmod +x /bin/grpc_health_probe
