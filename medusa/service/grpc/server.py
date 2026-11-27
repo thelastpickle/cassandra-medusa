@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import sys
 from collections import defaultdict
 from concurrent import futures
@@ -58,6 +59,7 @@ class Server:
         self.testing = testing
         self.commitlog_archiver = None
         self.metrics_endpoint = None
+        self._stop_task = None
         self.grpc_server = aio.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', self.medusa_config.grpc.max_send_message_length),
             ('grpc.max_receive_message_length', self.medusa_config.grpc.max_receive_message_length)
@@ -70,6 +72,11 @@ class Server:
         logging.info("Shutting down GRPC server")
         handle_backup_removal_all()
         asyncio.get_event_loop().run_until_complete(self.grpc_server.stop(0))
+
+    def _on_sigterm(self):
+        # the loop holds only weak references to tasks, so keep one until stop() has run
+        if self._stop_task is None:
+            self._stop_task = asyncio.ensure_future(self.grpc_server.stop(0))
 
     def _stop_commitlog_archiver(self):
         if self.commitlog_archiver is None or not self.commitlog_archiver.is_alive():
@@ -108,6 +115,12 @@ class Server:
 
         # before the archiver thread starts, so a failed bind leaves nothing running
         self._start_metrics_endpoint(config)
+
+        if not self.testing:
+            # installed before the port opens: a SIGTERM arriving once the server accepts connections must not hit
+            # the default handler. kubelet stops the pod with SIGTERM: stop serving so the cleanup below runs and
+            # the process exits 0
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, self._on_sigterm)
 
         try:
             if self.commitlog_archiver is not None:

@@ -15,7 +15,10 @@ import asyncio
 import concurrent
 import configparser
 import os
+import signal
 import socket
+import subprocess
+import sys
 import ssl
 import tempfile
 import time
@@ -882,6 +885,24 @@ class ServerTest(unittest.TestCase):
                 asyncio.run(server.serve())
             self.assertIn("Device mismatch", str(ctx.exception))
 
+    def test_repeated_sigterm_stops_server_once(self):
+        ini_path = self._write_temp_ini()
+        with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
+            mock_server = Mock()
+            mock_server.stop = AsyncMock()
+            mock_aio_server.return_value = mock_server
+            server = Server(ini_path, testing=True)
+
+            async def two_sigterms():
+                server._on_sigterm()
+                first = server._stop_task
+                server._on_sigterm()
+                await server._stop_task
+                return first
+
+            self.assertIs(asyncio.run(two_sigterms()), server._stop_task)
+            mock_server.stop.assert_awaited_once_with(0)
+
     def test_serve_pitr_disabled_no_archiver(self):
         ini_path = self._write_temp_ini(pitr_enabled='false')
         with patch('medusa.service.grpc.server.aio.server') as mock_aio_server:
@@ -1123,6 +1144,51 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((port, '127.0.0.1'), endpoint_cls.call_args[0][:2])
         endpoint_cls.return_value.stop.assert_called_once()
         self.assertIsNone(server.metrics_endpoint)
+
+    def test_sigterm_stops_server_cleanly_and_exits_zero(self):
+        grpc_port, metrics_port = self._free_port(), self._free_port()
+        ini_path = self._write_temp_ini(pitr_enabled='true', prometheus_port=metrics_port)
+        with open(ini_path, 'a') as f:
+            f.write(f"[grpc]\nport = {grpc_port}\n")
+        # the real archiver needs a spool on the commitlog device, so report its stop instead
+        script = (
+            "import asyncio\n"
+            "from medusa.service.grpc import server\n"
+            "class FakeArchiver:\n"
+            "    def __init__(self, config): pass\n"
+            "    def start(self): pass\n"
+            "    def is_alive(self): return True\n"
+            "    def stop(self): print('archiver stopped', flush=True)\n"
+            "server.CommitLogArchiver = FakeArchiver\n"
+            "real_stop = server.MetricsEndpoint.stop\n"
+            "def stop(self):\n"
+            "    real_stop(self)\n"
+            "    print('metrics stopped', flush=True)\n"
+            "server.MetricsEndpoint.stop = stop\n"
+            "asyncio.run(server.main())\n"
+        )
+        # pytest-cov traces child processes through COV_CORE_*, which makes the server import take over a minute
+        env = {k: v for k, v in os.environ.items() if not k.startswith('COV_CORE_')}
+        proc = subprocess.Popen([sys.executable, '-c', script, 'server.py', ini_path],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        self.addCleanup(proc.kill)
+        deadline = time.monotonic() + 30
+        while True:
+            if proc.poll() is not None:
+                self.fail(proc.stdout.read())
+            try:
+                socket.create_connection(('127.0.0.1', grpc_port), timeout=1).close()
+                break
+            except OSError:
+                self.assertLess(time.monotonic(), deadline, 'gRPC server did not start')
+                time.sleep(0.1)
+
+        proc.send_signal(signal.SIGTERM)
+        output, _ = proc.communicate(timeout=10)
+
+        self.assertEqual(0, proc.returncode, output)
+        self.assertIn('archiver stopped', output)
+        self.assertIn('metrics stopped', output)
 
 
 if __name__ == '__main__':
