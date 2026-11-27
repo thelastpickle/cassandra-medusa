@@ -272,7 +272,7 @@ def test_active_restore_stages_segments_and_writes_replay_properties(
         'restore_command': '/bin/mv -f %from %to',
         'restore_point_in_time': '2026:01:01 00:00:00.123',
     }
-    assert files.spool.is_dir()
+    assert files.spool.stat().st_mode & 0o777 == 0o777
     assert not files.marker.exists()
 
 
